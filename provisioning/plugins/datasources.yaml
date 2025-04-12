@@ -1,0 +1,7 @@
+apiVersion: 1
+
+datasources:
+    - type: 'jaops-yamcs-datasource'
+      org_id: 1
+      org_name: 'JAOPS'
+      disabled: false

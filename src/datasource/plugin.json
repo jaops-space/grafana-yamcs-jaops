@@ -1,0 +1,32 @@
+{
+    "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+    "type": "datasource",
+    "name": "Yamcs Datasource",
+    "id": "jaops-yamcs-datasource",
+    "streaming": true,
+    "backend": true,
+    "executable": "../gpx_grafana_yamcs_jaops",
+    "category": "other",
+    "metrics": true,
+    "alerting": true,
+    "preload": true,
+    "autoEnabled": true,
+    "info": {
+        "description": "Datasource for Jaops Yamcs plugin",
+        "author": {
+            "name": "JAOPS",
+            "url": "https://jaops.com"
+        },
+        "logos": {
+            "small": "img/logo.png",
+            "large": "img/logo.png"
+        },
+        "keywords": ["plugin", "yamcs", "jaops"],
+        "version": "%VERSION%",
+        "updated": "%TODAY%"
+    },
+    "dependencies": {
+        "grafanaDependency": ">=10.4.0",
+        "plugins": []
+    }
+}

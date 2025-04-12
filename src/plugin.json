@@ -1,0 +1,41 @@
+{
+    "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+    "type": "app",
+    "name": "Grafana-Yamcs Integration",
+    "id": "jaops-yamcs-app",
+    "info": {
+        "keywords": ["app"],
+        "description": "",
+        "author": {
+            "name": "Jaops"
+        },
+        "logos": {
+            "small": "img/logo.png",
+            "large": "img/logo.png"
+        },
+        "screenshots": [],
+        "version": "%VERSION%",
+        "updated": "%TODAY%"
+    },
+    "includes": [
+        {
+            "type": "page",
+            "name": "How To Use",
+            "path": "/a/%PLUGIN_ID%/how-to-use",
+            "addToNav": true,
+            "defaultNav": true
+        },
+        {
+            "type": "page",
+            "icon": "cog",
+            "name": "Configuration",
+            "path": "/plugins/%PLUGIN_ID%",
+            "role": "Admin",
+            "addToNav": true
+        }
+    ],
+    "dependencies": {
+        "grafanaDependency": ">=10.4.0",
+        "plugins": []
+    }
+}
