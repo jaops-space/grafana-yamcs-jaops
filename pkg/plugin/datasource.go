@@ -56,7 +56,7 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 	switch q.Type {
 	case Graph:
 		frame, err = DatasourceGraphFrame(endpoint, q)
-	case SingleValue:
+	case SingleValue, Image:
 		frame, err = DatasourceSingleValueFrame(endpoint, q)
 	case DiscreteValue:
 		frame, err = DatasourceDiscreteValueFrame(endpoint, q)
