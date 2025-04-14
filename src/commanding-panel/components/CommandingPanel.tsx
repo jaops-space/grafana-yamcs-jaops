@@ -1,8 +1,9 @@
 import { AppEvents, PanelProps, SelectableValue } from '@grafana/data';
 import { DataSourceWithBackend, getAppEvents, useLocationService } from '@grafana/runtime';
-import { Alert, Badge, Button, Card, Divider, Field, FieldSet, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
+import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState } from 'react';
+import Shapes from './Shapes';
 
 type CommandInfos = Array<{
     command: any,
@@ -132,18 +133,29 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
 
     return (
         <div style={{ width: '100%', height: '100%', overflow: editing ? 'scroll' : 'unset' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${editing ? '300' : '10'}px, 1fr))`, gap: '2px', padding: '10px', width: '100%'}}>
+        <div style={
+            editing ? { display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(300px, 2fr))`, gap: '2px', padding: '10px', width: '100%'}
+            : { display: 'flex', flexDirection: 'column', gap: '2px', padding: '10px', width: '100%', height: '100%'}}>
             {commandInfos.map((commandInfo, i) => {
                 const command = commandInfo.command;
                 const commandState = formState[command.name + i];
                 if (!editing) {
                     return <Button 
                         key={command.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                        variant={commandState?.color as any}
-                        size={commandState?.size as any}
-                        icon={commandState?.icon as any}
-                        fill={commandState?.transparent as any}
+                        style={{ 
+                            ...Shapes[formState[command.name + i]?.shape as any]?.css,
+                            width: '100%', height: '100%', objectFit: 'contain', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            backgroundColor: formState[command.name + i]?.transparent === 'solid' 
+                            || !formState[command.name + i]?.transparent ?
+                            formState[command.name + i]?.color as any : '#00000000',
+                            color: formState[command.name + i]?.textColor as any,
+                            borderColor: formState[command.name + i]?.transparent === 'outline' ?
+                            formState[command.name + i]?.color as any : null,                          
+                        }}
+                        size={formState[command.name + i]?.size as any}
+                        icon={loading ? 'spinner' :formState[command.name + i]?.icon as any}
+                        fill={formState[command.name + i]?.transparent as any}
+                        tooltip={formState[command.name + i]?.tooltip}
                         onClick={() => handleSubmit(commandInfo, i)}
                         disabled={loading}
                     >{commandState?.label}</Button>
@@ -164,7 +176,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                     <Card.Description>
                     <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
                         {command.argument?.map((arg: any) => {
-                            const inputValue = formState[command.name + i]?.arguments[arg.name] || arg.initialValue;
+                            const inputValue = formState[command.name + i]?.arguments?.[arg.name] || arg.initialValue;
                             const errorMessage = errors[command.name]?.[arg.name];
                             let inputField;
 
@@ -257,10 +269,23 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                                 style={{ width: '100%' }}
                             />
                         </Field>
+                        <Field label='Button Tooltip' description='Button tooltip'>
+                            <Input
+                                type='text'
+                                disabled={loading}
+                                value={formState[command.name + i]?.tooltip || ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                    handleOptionChange(command.name, 'tooltip', e.target.value, i);
+                                }}
+                                style={{ width: '100%' }}
+                            />
+                        </Field>
                         <Field label='Icon' description='Icon name'>
                             <Select
                                 disabled={loading}
-                                options={getAvailableIcons().map(icon => ({ label: icon, value: icon, icon: icon }))}
+                                options={
+                                    [{label: 'None', value: ''},
+                                        ...getAvailableIcons().map(icon => ({ label: icon, value: icon, icon: icon }))]}
                                 value={formState[command.name + i]?.icon || ''}
                                 onChange={(e: SelectableValue<string>) => {
                                     handleOptionChange(command.name, 'icon', e.value, i);
@@ -285,19 +310,21 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                             />
                         </Field>
                         <Field label='Color' description='Button color'>
-                            <Select
-                                disabled={loading}
-                                options={[
-                                    { label: 'Primary', value: 'primary' },
-                                    { label: 'Secondary', value: 'secondary' },
-                                    { label: 'Destructive', value: 'destructive' },
-                                    { label: 'Success', value: 'success' },
-                                ]}
-                                value={formState[command.name + i]?.color || ''}
-                                onChange={(e: SelectableValue<string>) => {
-                                    handleOptionChange(command.name, 'color', e.value, i);
+                            <ColorPickerInput 
+                                onChange={(color: string) => {
+                                    handleOptionChange(command.name, 'color', color, i);
                                 }}
-                                style={{ width: '100%' }}
+                                disabled={loading}
+                                color={formState[command.name + i]?.color || ''}
+                            />
+                        </Field>
+                        <Field label='Text Color' description='Text and icon color'>
+                            <ColorPickerInput 
+                                onChange={(color: string) => {
+                                    handleOptionChange(command.name, 'textColor', color, i);
+                                }}
+                                disabled={loading}
+                                color={formState[command.name + i]?.textColor || ''}
                             />
                         </Field>
                         <Field label='Transparent' description='Button transparency'>
@@ -308,22 +335,49 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                                     { label: 'Outline', value: 'outline' },
                                     { label: 'Text', value: 'text' },
                                 ]}
-                                value={formState[command.name + i]?.transparent || ''}
+                                value={formState[command.name + i]?.transparent || 'solid'}
                                 onChange={(e: SelectableValue<string>) => {
                                     handleOptionChange(command.name, 'transparent', e.value, i);
                                 }}
                                 style={{ width: '100%' }}
                             />
                         </Field>
+                        <Field label='Shape' description='Button shape'>
+                            <Select
+                                disabled={loading}
+                                options={Object.keys(Shapes).map((shape) => ({
+                                    label: Shapes[shape as any].name,
+                                    value: shape,
+                                }))}
+                                value={formState[command.name + i]?.shape || 'rectangle'}
+                                onChange={(e: SelectableValue<string>) => {
+                                    handleOptionChange(command.name, 'shape', e.value, i);
+                                }}
+                                style={{ width: '100%' }}
+                            />
+                        </Field>
                         <Field label='Preview' description='Preview of the button'>
+                            <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            height: '50px', width: '100%', objectFit: 'contain'}}>
                             <Button
                                 disabled={loading}
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                variant={formState[command.name + i]?.color as any}
+                                style={{ 
+                                    ...Shapes[formState[command.name + i]?.shape as any]?.css,
+                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    backgroundColor: formState[command.name + i]?.transparent === 'solid' 
+                                    || !formState[command.name + i]?.transparent ?
+                                    formState[command.name + i]?.color as any : '#00000000',
+                                    color: formState[command.name + i]?.textColor as any,
+                                    borderColor: formState[command.name + i]?.transparent === 'outline' ?
+                                    formState[command.name + i]?.color as any : null,                          
+                                }}
                                 size={formState[command.name + i]?.size as any}
                                 icon={formState[command.name + i]?.icon as any}
                                 fill={formState[command.name + i]?.transparent as any}
+                                tooltip={formState[command.name + i]?.tooltip}
                             >{formState[command.name + i]?.label}</Button>
+                            </div>
                         </Field>
                     </FieldSet>
                     </Card.Description>

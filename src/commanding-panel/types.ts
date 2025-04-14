@@ -5,10 +5,13 @@ export interface CommandForms {
         },
         comment: string,
         label: string,
+        tooltip: string,
         icon: string,
         size: string,
         color: string,
+        textColor: string,
         transparent: string,
+        shape: string,
     }
 };
 

@@ -27,3 +27,5 @@ coverage.out
 
 # archive files
 .tar.gz
+
+dist/
