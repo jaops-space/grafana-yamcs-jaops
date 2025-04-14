@@ -7,6 +7,31 @@ This is under active development and community contributions are welcome.
 #### Acknowledgement: 
 Since October 2024, the plugin has been tested and improved with feedback from the Space Robotics Lab in Sendai, Japan.
 
+## Features
+
+- **Multiplexed Endpoint Support** – Designed to handle complex setups with multiple Yamcs endpoints through a robust multiplexer system.
+
+- **Modular and Scalable Architecture** – Clean separation of concerns and a solid backend structure built for reliability and flexibility.
+
+- **Commanding Panel** – Issue commands via a Grafana panel with fully customizable buttons, supporting arguments, comments, and endpoint targeting.
+
+- **Telemetry & Static Image Panel** – Visualize real-time telemetry data or overlay data on static images (e.g. spacecraft layouts, maps).
+
+- **Intuitive UI/UX** – Clean and simple user interface designed to be easy to use, even for non-experts.
+
+- **Fully Configurable** – Every aspect of the plugin—from endpoint configuration to command structure and visual layout—is configurable through Grafana's settings.
+
+- **Live Status Feedback** – Displays endpoint availability and WebSocket status in real-time, ensuring quick diagnostics.
+
+## Screenshots
+
+#### Telemetry
+
+![telemetry screenshot](./screenshots/telemetry.png)
+
+#### Commanding
+
+![commanding screenshot](./screenshots/commanding.png)
 
 ## Try out the plugin for yourself
 
@@ -136,3 +161,15 @@ That's it, you should have a grafana instance running at port `3000`, head insid
 
     pnpm run lint:fix
     ```
+
+## Contributions
+
+Contributions are welcome!  
+If you find a bug, have a feature request, or want to improve the project, feel free to open an issue or submit a pull request.
+
+Please follow the existing code style and include tests if applicable. For major changes, it's recommended to open a discussion first. Read the [contributing guidelines](CONTRIBUTING.md) for further indications on how to contribute.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).  
+You are free to use, modify, and distribute this software with proper attribution.

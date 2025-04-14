@@ -20,17 +20,30 @@
     "includes": [
         {
             "type": "page",
-            "name": "How To Use",
-            "path": "/a/%PLUGIN_ID%/how-to-use",
+            "name": "Overview",
+            "path": "/a/%PLUGIN_ID%/",
             "addToNav": true,
             "defaultNav": true
         },
         {
             "type": "page",
-            "icon": "cog",
-            "name": "Configuration",
-            "path": "/plugins/%PLUGIN_ID%",
-            "role": "Admin",
+            "name": "How to use the plugin",
+            "path": "/a/%PLUGIN_ID%/how-to-use",
+            "icon": "question-circle",
+            "addToNav": true
+        },
+        {
+            "type": "page",
+            "name": "Commanding",
+            "icon": "rocket",
+            "path": "/a/%PLUGIN_ID%/commanding-setup",
+            "addToNav": true
+        },
+        {
+            "type": "page",
+            "name": "Image Panel",
+            "icon": "gf-portrait",
+            "path": "/a/%PLUGIN_ID%/image-panel-setup",
             "addToNav": true
         }
     ],
