@@ -28,7 +28,7 @@ coverage.out
 # archive files
 .tar.gz
 
+# development files
 dist/
-
 pnpm-lock.yaml
 package-lock.json
