@@ -44,7 +44,7 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
     },
     {
         label: 'Image',
-        description: 'Visualize images. (Not available yet)',
+        description: 'Visualize images.',
         value: QueryType.IMAGE,
         category: QueryCategory.IMAGE,
         additionalFields: false,

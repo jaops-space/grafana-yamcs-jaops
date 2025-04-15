@@ -1,17 +1,19 @@
 {
     "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
     "type": "panel",
-    "name": "JAOPS Telemetric Image Panel",
-    "id": "jaops-telemetricimage-panel",
+    "name": "JAOPS Static Image Panel",
+    "id": "jaops-staticimage-panel",
     "streaming": false,
+    "skipDataQuery": true,
     "info": {
         "keywords": [
             "yamcs",
+            "static",
             "image",
             "panel",
             "jaops"
         ],
-        "description": "Telemetric Image Visualization Panel for JAOPS Yamcs plugin",
+        "description": "Static Image Visualization Panel for JAOPS Yamcs plugin",
         "author": {
             "name": "JAOPS"
         },
