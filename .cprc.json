@@ -1,6 +1,6 @@
 {
-    "features": {
-        "bundleGrafanaUI": false,
-        "useReactRouterV6": true
-    }
+  "features": {
+    "bundleGrafanaUI": false,
+    "useReactRouterV6": true
+  }
 }
