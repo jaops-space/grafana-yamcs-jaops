@@ -1,0 +1,30 @@
+{
+    "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+    "type": "panel",
+    "name": "JAOPS Command History Panel",
+    "id": "jaops-commandhistory-panel",
+    "info": {
+        "keywords": [
+            "yamcs",
+            "commanding",
+            "command history",
+            "panel",
+            "jaops"
+        ],
+        "description": "Command History Panel for JAOPS Yamcs plugin",
+        "author": {
+            "name": "JAOPS"
+        },
+        "logos": {
+            "small": "img/logo.png",
+            "large": "img/logo.png"
+        },
+        "screenshots": [],
+        "version": "%VERSION%",
+        "updated": "%TODAY%"
+    },
+    "dependencies": {
+        "grafanaDependency": ">=10.4.0",
+        "plugins": []
+    }
+}
