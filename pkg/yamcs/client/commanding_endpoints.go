@@ -80,10 +80,7 @@ func (c *YamcsClient) ListCommandsHistory(instance Instance, start, end time.Tim
 func (c *YamcsClient) getCommandsHistoryFetcher(instance string, startTime, endTime time.Time) types.FetchFunction[[]*commanding.CommandHistoryEntry] {
 	return func() ([]*commanding.CommandHistoryEntry, string, error) {
 		response := &commanding.ListCommandsResponse{}
-		c.HTTP.Query = map[string]string{
-			"start": startTime.Format(time.RFC3339),
-			"end":   endTime.Format(time.RFC3339),
-		}
+		c.setTime(startTime, endTime)
 		if err := c.HTTP.GetProto(fmt.Sprintf("/archive/%s/commands", instance), response); err != nil {
 			return nil, "", err
 		}

@@ -44,6 +44,7 @@ type CommandArgument struct {
 }
 
 type CommandEntry struct {
+	Id        string            `json:"id"`
 	Time      time.Time         `json:"time"`
 	Command   string            `json:"command"`
 	Comment   *string           `json:"comment,omitempty"`
@@ -69,6 +70,7 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 	for _, command := range commands {
 
 		commandEntry := &CommandEntry{
+			Id:        command.GetId(),
 			Time:      command.GetGenerationTime().AsTime(),
 			Command:   command.GetCommandName(),
 			Comment:   nil,
@@ -118,12 +120,12 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 			}
 			commandEntry.Arguments = append(commandEntry.Arguments, CommandArgument{
 				Name:  assignment.GetName(),
-				Value: assignment.GetValue().GetStringValue(),
+				Value: StringifyValue(assignment.GetValue()),
 			})
 		}
 
 		var rawJson json.RawMessage
-		rawJson, err := json.Marshal(commandList)
+		rawJson, err := json.Marshal(commandEntry)
 		if err != nil {
 			continue
 		}

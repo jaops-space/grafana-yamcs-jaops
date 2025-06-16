@@ -61,7 +61,7 @@ export function QueryTypeEditor(props: QueryProps) {
                 queryTypeInfo?.category === QueryCategory.IMAGE) && 
                 <ParameterQuery {...props} />
             }
-            {queryTypeInfo?.category === QueryCategory.COMMANDING && <CommandQuery {...props} />}
+            {queryTypeInfo?.value === QueryType.COMMANDING && <CommandQuery {...props} />}
         </>
     );
 }
