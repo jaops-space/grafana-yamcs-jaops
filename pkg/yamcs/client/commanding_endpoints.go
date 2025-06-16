@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
@@ -72,13 +73,17 @@ func (c *YamcsClient) GetCommand(instance, id string) (*commanding.CommandHistor
 }
 
 // ListCommandsHistory returns an iterator over command history entries.
-func (c *YamcsClient) ListCommandsHistory(instance Instance) *types.PaginatedRequestIterator[[]*commanding.CommandHistoryEntry] {
-	return types.NewPaginatedRequestIterator(c.HTTP, c.getCommandsHistoryFetcher(instance.GetName()))
+func (c *YamcsClient) ListCommandsHistory(instance Instance, start, end time.Time) *types.PaginatedRequestIterator[[]*commanding.CommandHistoryEntry] {
+	return types.NewPaginatedRequestIterator(c.HTTP, c.getCommandsHistoryFetcher(instance.GetName(), start, end))
 }
 
-func (c *YamcsClient) getCommandsHistoryFetcher(instance string) types.FetchFunction[[]*commanding.CommandHistoryEntry] {
+func (c *YamcsClient) getCommandsHistoryFetcher(instance string, startTime, endTime time.Time) types.FetchFunction[[]*commanding.CommandHistoryEntry] {
 	return func() ([]*commanding.CommandHistoryEntry, string, error) {
 		response := &commanding.ListCommandsResponse{}
+		c.HTTP.Query = map[string]string{
+			"start": startTime.Format(time.RFC3339),
+			"end":   endTime.Format(time.RFC3339),
+		}
 		if err := c.HTTP.GetProto(fmt.Sprintf("/archive/%s/commands", instance), response); err != nil {
 			return nil, "", err
 		}

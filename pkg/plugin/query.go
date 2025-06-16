@@ -16,12 +16,13 @@ type PluginQuery struct {
 type PluginQueryType string
 
 const (
-	Graph         PluginQueryType = "plot"
-	SingleValue   PluginQueryType = "single"
-	DiscreteValue PluginQueryType = "discrete"
-	Events        PluginQueryType = "events"
-	Image         PluginQueryType = "image"
-	Commanding    PluginQueryType = "commanding"
-	Demands       PluginQueryType = "demands"
-	Subscriptions PluginQueryType = "subscriptions"
+	Graph          PluginQueryType = "plot"
+	SingleValue    PluginQueryType = "single"
+	DiscreteValue  PluginQueryType = "discrete"
+	Events         PluginQueryType = "events"
+	Image          PluginQueryType = "image"
+	Commanding     PluginQueryType = "commanding"
+	CommandHistory PluginQueryType = "command-history"
+	Demands        PluginQueryType = "demands"
+	Subscriptions  PluginQueryType = "subscriptions"
 )

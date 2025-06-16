@@ -1,7 +1,7 @@
 package client
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,7 +17,7 @@ type mockTransport struct{}
 func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: 200,
-		Body:       ioutil.NopCloser(strings.NewReader("{}")), // Set body to "{}"
+		Body:       io.NopCloser(strings.NewReader("{}")), // Set body to "{}"
 		Header:     make(http.Header),
 	}, nil
 }

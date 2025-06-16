@@ -57,6 +57,13 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         additionalFields: false,
     },
     {
+        label: 'Command History',
+        description: 'View real-time command history.',
+        value: QueryType.COMMAND_HISTORY,
+        category: QueryCategory.COMMANDING,
+        additionalFields: false,
+    },
+    {
         label: 'Endpoint Stream Demands',
         description: 'Debug endpoint stream demands.',
         value: QueryType.DEMANDS,

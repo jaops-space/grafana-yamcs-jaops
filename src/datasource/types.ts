@@ -26,7 +26,8 @@ export enum QueryType {
     DEMANDS = 'demands',
     SUBSCRIPTIONS = 'subscriptions',
 
-    COMMANDING = 'commanding'
+    COMMANDING = 'commanding',
+    COMMAND_HISTORY = 'command-history'
 }
 
 /**

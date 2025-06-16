@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
@@ -162,6 +163,27 @@ func DatasourceCommandFrame(endpoint *multiplexer.YamcsEndpoint, q PluginQuery) 
 	frame := data.NewFrame("command",
 		data.NewField("info", nil, []json.RawMessage{commandRawJSON}),
 		data.NewField("endpoint", nil, []string{q.EndpointID}))
+	return frame, nil
+
+}
+
+func DatasourceCommandHistoryFrame(endpoint *multiplexer.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+
+	yamcs := endpoint.GetClient()
+	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
+	iterator := yamcs.ListCommandsHistory(endpoint.Instance, start, end)
+	commandList := make([]*commanding.CommandHistoryEntry, 0)
+	for iterator.HasNext() {
+		commands, err := iterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		commandList = append(commandList, commands...)
+	}
+
+	frame := tools.ConvertCommandListToFrame(commandList)
+	frame.Meta = &data.FrameMeta{}
+	frame.Meta.PreferredVisualization = data.VisTypeTable
 	return frame, nil
 
 }
