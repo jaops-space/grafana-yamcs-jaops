@@ -34,8 +34,8 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 }
 
 type CommandAck struct {
-	Status string    `json:"status"`
-	Time   time.Time `json:"time"`
+	Status string `json:"status"`
+	Time   string `json:"time"`
 }
 
 type CommandArgument struct {
@@ -63,7 +63,11 @@ func nameHasSuffix(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
-func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
+func prepend[T any](s []T, v T) []T {
+	return append([]T{v}, s...)
+}
+
+func 	ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
 
 	commandList := make([]json.RawMessage, 0)
 
@@ -109,7 +113,7 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				if nameHasSuffix(name, "Status") {
 					(*ack).Status = value.GetStringValue()
 				} else if nameHasSuffix(name, "Time") {
-					(*ack).Time = time.UnixMilli(value.GetTimestampValue())
+					(*ack).Time = value.GetStringValue()
 				}
 			}
 		}
@@ -129,7 +133,8 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 		if err != nil {
 			continue
 		}
-		commandList = append(commandList, rawJson)
+		commandList = prepend(commandList, rawJson)
+
 	}
 
 	return data.NewFrame("response", data.NewField("commands", nil, commandList))

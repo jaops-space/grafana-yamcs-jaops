@@ -55,7 +55,9 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     pathName = 'demands'
                 } else if (query.type === QueryType.SUBSCRIPTIONS) {
                     pathName = 'subscriptions'
-                }
+                } else if (query.type === QueryType.COMMAND_HISTORY) {
+                    pathName = 'commands'
+                }   
 
                 let action = StreamingFrameAction.Append;
                 if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.COMMANDING) {

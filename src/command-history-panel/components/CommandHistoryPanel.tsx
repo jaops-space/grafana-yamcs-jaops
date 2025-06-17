@@ -37,17 +37,26 @@ function formatTime(iso: string): string {
 
 function timeDiffMs(start: string, end: string): string {
     const diff = dateTime(end).diff(dateTime(start), 'milliseconds');
-    return `${diff} ms`;
+    return `+ ${diff} ms`;
 }
 
 function dedupeById(entries: CommandEntry[]): CommandEntry[] {
-    const seen = new Set<string>();
+    const map = new Map<string, {index: number, entry: CommandEntry}>();
     const result: CommandEntry[] = [];
 
     for (const entry of entries) {
-        if (!seen.has(entry.id)) {
-            seen.add(entry.id);
-            result.push(entry);
+        if (map.has(entry.id)) {
+            let mapEntry = map.get(entry.id);
+            let index = mapEntry!.index, oldEntry = mapEntry!.entry;
+            entry.arguments = [...entry.arguments, ...oldEntry.arguments];
+            entry.sent ||= oldEntry.sent;
+            entry.released ||= oldEntry.released;
+            entry.queued ||= oldEntry.queued;
+            map.set(entry.id, {index, entry});
+            result[index] = entry;
+        } else {
+            const ind = result.push(entry) - 1;
+            map.set(entry.id, {index: ind, entry});
         }
     }
 
@@ -153,7 +162,7 @@ const CommandHistoryPanel: React.FC<PanelProps> = ({ data }) => {
 
     const raw = rawField.values as any[];
 
-    const parsed: CommandEntry[] = raw.filter(Boolean);
+    const parsed: CommandEntry[] = raw.filter(Boolean).reverse();
 
     const deduped = dedupeById(parsed);
 

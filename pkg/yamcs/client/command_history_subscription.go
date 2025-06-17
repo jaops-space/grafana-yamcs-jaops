@@ -22,8 +22,8 @@ type CommandHistorySubscription struct {
 }
 
 // CreateCommandHistorySubscription creates a new command history subscription.
-func (client *YamcsClient) CreateCommandHistorySubscription(instance Instance) (*CommandHistorySubscription, error) {
-	subscription, err := client.newCommandHistorySubscription(instance.GetName())
+func (client *YamcsClient) CreateCommandHistorySubscription(instance Instance, processor Processor) (*CommandHistorySubscription, error) {
+	subscription, err := client.newCommandHistorySubscription(instance.GetName(), processor.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (client *YamcsClient) CreateCommandHistorySubscription(instance Instance) (
 }
 
 // newCommandHistorySubscription initializes and subscribes to command history.
-func (client *YamcsClient) newCommandHistorySubscription(instance string) (*CommandHistorySubscription, error) {
+func (client *YamcsClient) newCommandHistorySubscription(instance, processor string) (*CommandHistorySubscription, error) {
 	subscription := &CommandHistorySubscription{
 		client:              client,
 		Instance:            instance,
@@ -42,7 +42,8 @@ func (client *YamcsClient) newCommandHistorySubscription(instance string) (*Comm
 
 	// Prepare subscription request
 	subscribeRequest := &commanding.SubscribeCommandsRequest{
-		Instance: &instance,
+		Instance:  &instance,
+		Processor: &processor,
 	}
 
 	anyMessage, err := anypb.New(subscribeRequest)

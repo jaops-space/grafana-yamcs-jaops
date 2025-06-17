@@ -124,12 +124,13 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 	}
 
 	endpoint := &YamcsEndpoint{
-		Multiplexer: mux,
-		Parameters:  make(map[string]*ParameterDemand),
-		Events:      make(map[string][]*events.Event),
-		ID:          endpointID,
-		Instance:    instance,
-		Processor:   processor,
+		Multiplexer:    mux,
+		Parameters:     make(map[string]*ParameterDemand),
+		Events:         make(map[string][]*events.Event),
+		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
+		ID:             endpointID,
+		Instance:       instance,
+		Processor:      processor,
 	}
 	mux.Endpoints[endpointID] = endpoint
 
@@ -177,7 +178,6 @@ func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func
 		}
 	}
 }
-
 
 func (mux *Multiplexer) Dispose() {
 	for _, endpoints := range mux.Endpoints {

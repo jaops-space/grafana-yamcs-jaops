@@ -254,7 +254,7 @@ func (ep *YamcsEndpoint) GetCommandHistorySubscription() (*client.CommandHistory
 			return subscription, nil
 		}
 	}
-	subscription, err := client.CreateCommandHistorySubscription(ep.Instance)
+	subscription, err := client.CreateCommandHistorySubscription(ep.Instance, ep.Processor)
 	if err != nil {
 		return nil, err
 	}

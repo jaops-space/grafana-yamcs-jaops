@@ -133,6 +133,8 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 		return RunDemandsStream(ctx, req, sender, endpoint, q)
 	case Subscriptions:
 		return RunSubscriptionStream(ctx, req, sender, endpoint, q)
+	case CommandHistory:
+		return RunCommandHistoryStream(ctx, req, sender, endpoint, q)
 	default:
 		return nil
 	}

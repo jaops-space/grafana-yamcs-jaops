@@ -95,6 +95,7 @@ func NewYamcsClient(
 	client.WebSocket.AddListener(ws.EventListenerID, client.HandleEventMessage)
 	client.WebSocket.AddListener(ws.AlarmListenerID, client.HandleAlarmMessage)
 	client.WebSocket.AddListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
+	client.WebSocket.AddListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
 
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {
