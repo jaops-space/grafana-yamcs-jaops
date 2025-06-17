@@ -5,6 +5,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
@@ -16,11 +17,12 @@ import (
 type YamcsEndpoint struct {
 	Multiplexer *Multiplexer
 
-	ID         string
-	Instance   client.Instance
-	Processor  client.Processor
-	Parameters map[string]*ParameterDemand
-	Events     map[string][]*events.Event
+	ID             string
+	Instance       client.Instance
+	Processor      client.Processor
+	Parameters     map[string]*ParameterDemand
+	Events         map[string][]*events.Event
+	CommandHistory map[string][]*commanding.CommandHistoryEntry
 }
 
 // ParameterDemand represents a demand for a specific parameter.
@@ -236,7 +238,46 @@ func (ep *YamcsEndpoint) WithdrawEventsStreamRequest(path string) {
 
 /**
 
+COMMAND HISTORY
 
-+0x7b\npanic({0xf4d3e0?, 0x1b50d40?})\n\t/home/linuxbrew/.linuxbrew/Cellar/go/1.23.5/libexec/src/runtime/panic.go:785 +0x132\ngithub.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer.(*YamcsEndpoint).GetConfiguration(...)\n\t/home/kateonbxsh/jaops-grafana/pkg/multiplexer/endpoint.go:48\ngithub.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer.(*YamcsEndpoint).GetClient(...)\n\t/home/kateonbxsh/jaops-grafana/pkg/multiplexer/endpoint.go:165\ngithub.com/jaops-space/grafana-yamcs-jaops/pkg/plugin.(*Datasource).handleSearchParameters(0xc0004436c0, {0x1272c08, 0xc0005252c0}, 0xc000413400)\n\t/home/kateonbxsh/jaops-grafana/pkg/plugin/resources.go:52
+**/
 
-*/
+func (ep *YamcsEndpoint) RequestCommandHistoryStream(path string) {
+	ep.GetCommandHistorySubscription()
+	ep.CommandHistory[path] = make([]*commanding.CommandHistoryEntry, 0)
+}
+
+func (ep *YamcsEndpoint) GetCommandHistorySubscription() (*client.CommandHistorySubscription, error) {
+	client := ep.GetClient()
+	for _, subscription := range client.CommandHistorySubscriptions {
+		if subscription.Instance == ep.Instance.GetName() {
+			return subscription, nil
+		}
+	}
+	subscription, err := client.CreateCommandHistorySubscription(ep.Instance)
+	if err != nil {
+		return nil, err
+	}
+	subscription.SetListener(ep.Multiplexer.GetCommandHistoryListener(ep.Instance))
+	return subscription, nil
+}
+
+func (ep *YamcsEndpoint) GetCommandHistoryStream(path string) []*commanding.CommandHistoryEntry {
+	return ep.CommandHistory[path]
+}
+
+func (ep *YamcsEndpoint) ClearCommandHistoryStream(path string) {
+	ep.CommandHistory[path] = make([]*commanding.CommandHistoryEntry, 0)
+}
+
+func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) {
+	delete(ep.CommandHistory, path)
+	if len(ep.CommandHistory) == 0 {
+		client := ep.GetClient()
+		for _, subscription := range client.CommandHistorySubscriptions {
+			if subscription.Instance == ep.Instance.GetName() {
+				subscription.Halt()
+			}
+		}
+	}
+}
