@@ -48,6 +48,7 @@ function dedupeById(entries: CommandEntry[]): CommandEntry[] {
         if (map.has(entry.id)) {
             let mapEntry = map.get(entry.id);
             let index = mapEntry!.index, oldEntry = mapEntry!.entry;
+            entry.comment ||= oldEntry.comment;
             entry.arguments = [...entry.arguments, ...oldEntry.arguments];
             entry.sent ||= oldEntry.sent;
             entry.released ||= oldEntry.released;

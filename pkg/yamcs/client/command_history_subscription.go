@@ -90,6 +90,9 @@ func (subscription *CommandHistorySubscription) SetListener(listener CommandHist
 
 // Halt cancels the command history subscription.
 func (subscription *CommandHistorySubscription) Halt() {
+
+	delete(subscription.client.CommandHistorySubscriptions, subscription.subscriptionID)
+
 	cancelRequest := &api.CancelOptions{
 		Call: int32(subscription.subscriptionID),
 	}

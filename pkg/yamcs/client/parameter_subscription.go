@@ -243,6 +243,8 @@ func (client *YamcsClient) ClearParameterSubscriptions() {
 
 func (subscription *ParameterSubscription) Halt() {
 
+	delete(subscription.client.ParameterSubscriptions, subscription.subscriptionID)
+
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{
 		Call: int32(subscription.subscriptionID),
