@@ -64,9 +64,10 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
 
                 const templateSrv = getTemplateSrv();
 
-                query.aggregatePath = templateSrv.replace(query.aggregatePath);
-                query.parameter = templateSrv.replace(query.parameter);
-                query.command = templateSrv.replace(query.command);
+                pathName = templateSrv.replace(pathName, request.scopedVars);
+                query.aggregatePath = templateSrv.replace(query.aggregatePath, request.scopedVars);
+                query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
+                query.command = templateSrv.replace(query.command, request.scopedVars);
 
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
