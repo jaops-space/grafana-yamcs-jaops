@@ -1,5 +1,5 @@
 import { AppEvents, PanelProps, SelectableValue } from '@grafana/data';
-import { DataSourceWithBackend, getAppEvents, useLocationService } from '@grafana/runtime';
+import { DataSourceWithBackend, getAppEvents, getTemplateSrv, useLocationService } from '@grafana/runtime';
 import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState } from 'react';
@@ -155,10 +155,10 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                         size={formState[command.name + i]?.size as any}
                         icon={loading ? 'spinner' :formState[command.name + i]?.icon as any}
                         fill={formState[command.name + i]?.transparent as any}
-                        tooltip={formState[command.name + i]?.tooltip}
+                        tooltip={getTemplateSrv().replace(formState[command.name + i]?.tooltip)}
                         onClick={() => handleSubmit(commandInfo, i)}
                         disabled={loading}
-                    >{commandState?.label}</Button>
+                    >{getTemplateSrv().replace(commandState?.label)}</Button>
                 }
 
                 return <Card key={command.name} style={{ width: '100%', padding: '20px' }}>
