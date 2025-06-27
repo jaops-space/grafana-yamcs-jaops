@@ -45,6 +45,18 @@ function Overview() {
                 </Card.Description>
             </Card>
 
+            <Card>
+                <Card.Heading>Variables</Card.Heading>
+                <Card.Description>
+                    <p>
+                        Learn how to set up variables in your panel to make dashboards dynamic and ease the setup of multiple panels or rows.
+                    </p>
+                    <Link href={prefixRoute('variable-setup')} color="primary">
+                        Go to Variables Setup
+                    </Link>
+                </Card.Description>
+            </Card>
+
         </PluginPage>
     );
 }

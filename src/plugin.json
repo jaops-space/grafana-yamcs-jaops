@@ -45,6 +45,13 @@
             "icon": "gf-portrait",
             "path": "/a/%PLUGIN_ID%/image-panel-setup",
             "addToNav": true
+        },
+        {
+            "type": "page",
+            "name": "Variables",
+            "icon": "variable",
+            "path": "/a/%PLUGIN_ID%/variable-setup",
+            "addToNav": true
         }
     ],
     "dependencies": {
