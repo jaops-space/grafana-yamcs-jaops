@@ -73,6 +73,7 @@
         "@grafana/schema": "^11.3.2",
         "@grafana/ui": "^11.3.2",
         "@testing-library/user-event": "^14.6.1",
+        "date-fns": "^4.1.0",
         "react": "18.2.0",
         "react-dom": "18.2.0",
         "react-router-dom": "^6.22.0",

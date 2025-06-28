@@ -64,6 +64,8 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 		frame, err = DatasourceEventsFrame(endpoint, q)
 	case Commanding:
 		frame, err = DatasourceCommandFrame(endpoint, q)
+	case CommandHistory:
+		frame, err = DatasourceCommandHistoryFrame(endpoint, q)
 	case Demands, Subscriptions:
 		return &backend.SubscribeStreamResponse{
 			Status: backend.SubscribeStreamStatusOK,
@@ -131,6 +133,8 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 		return RunDemandsStream(ctx, req, sender, endpoint, q)
 	case Subscriptions:
 		return RunSubscriptionStream(ctx, req, sender, endpoint, q)
+	case CommandHistory:
+		return RunCommandHistoryStream(ctx, req, sender, endpoint, q)
 	default:
 		return nil
 	}

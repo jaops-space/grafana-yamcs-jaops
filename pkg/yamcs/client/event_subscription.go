@@ -97,6 +97,8 @@ func (subscription *EventSubscription) SetListener(listener EventListener) {
 // Cancel subscription
 func (subscription *EventSubscription) Halt() {
 
+	delete(subscription.client.EventSubscriptions, subscription.subscriptionID)
+
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{
 		Call: int32(subscription.subscriptionID),

@@ -41,6 +41,7 @@ type YamcsClient struct {
 
 	// Various subscriptions for data streams
 	ParameterSubscriptions         map[int]*ParameterSubscription
+	CommandHistorySubscriptions    map[int]*CommandHistorySubscription
 	EventSubscriptions             map[int]*EventSubscription
 	AlarmSubscriptions             map[int]*AlarmSubscription
 	GlobalAlarmStatusSubscriptions map[int]*GlobalStatusSubscription
@@ -65,6 +66,7 @@ func NewYamcsClient(
 		UseProtobuf:                    true,
 		KeepAlive:                      true,
 		ParameterSubscriptions:         make(map[int]*ParameterSubscription),
+		CommandHistorySubscriptions:    make(map[int]*CommandHistorySubscription),
 		EventSubscriptions:             make(map[int]*EventSubscription),
 		AlarmSubscriptions:             make(map[int]*AlarmSubscription),
 		GlobalAlarmStatusSubscriptions: make(map[int]*GlobalStatusSubscription),
@@ -93,6 +95,7 @@ func NewYamcsClient(
 	client.WebSocket.AddListener(ws.EventListenerID, client.HandleEventMessage)
 	client.WebSocket.AddListener(ws.AlarmListenerID, client.HandleAlarmMessage)
 	client.WebSocket.AddListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
+	client.WebSocket.AddListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
 
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {

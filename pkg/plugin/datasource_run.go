@@ -95,7 +95,7 @@ func RunEventStream(ctx context.Context,
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
-	defer endpoint.ClearEventsStream(req.Path)
+	defer endpoint.WithdrawEventsStreamRequest(req.Path)
 
 	for {
 		select {
@@ -209,4 +209,51 @@ func RunSubscriptionStream(ctx context.Context,
 		}
 	}
 
+}
+
+func RunCommandHistoryStream(
+	ctx context.Context,
+	req *backend.RunStreamRequest,
+	sender *backend.StreamSender,
+	endpoint *multiplexer.YamcsEndpoint,
+	q PluginQuery,
+) error {
+
+	yamcs := endpoint.GetClient()
+
+	// Start listening for command history entries for this path
+	endpoint.RequestCommandHistoryStream(req.Path)
+
+	// Calculate ticker interval
+	timeWindow := time.Duration(q.To-q.From) * time.Second
+	tickerInterval := timeWindow / time.Duration(q.MaxPoints)
+	ticker := time.NewTicker(tickerInterval)
+
+	defer ticker.Stop()
+	defer endpoint.WithdrawCommandHistoryStreamRequest(req.Path)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+
+			if !yamcs.WebSocket.IsConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
+
+			buffer := endpoint.GetCommandHistoryStream(req.Path)
+			if len(buffer) == 0 {
+				continue
+			}
+
+			frame := tools.ConvertCommandListToFrame(buffer)
+			sender.SendFrame(
+				frame,
+				data.IncludeDataOnly,
+			)
+
+			endpoint.ClearCommandHistoryStream(req.Path)
+		}
+	}
 }

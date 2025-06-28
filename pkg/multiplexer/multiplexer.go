@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
@@ -123,12 +124,13 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 	}
 
 	endpoint := &YamcsEndpoint{
-		Multiplexer: mux,
-		Parameters:  make(map[string]*ParameterDemand),
-		Events:      make(map[string][]*events.Event),
-		ID:          endpointID,
-		Instance:    instance,
-		Processor:   processor,
+		Multiplexer:    mux,
+		Parameters:     make(map[string]*ParameterDemand),
+		Events:         make(map[string][]*events.Event),
+		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
+		ID:             endpointID,
+		Instance:       instance,
+		Processor:      processor,
 	}
 	mux.Endpoints[endpointID] = endpoint
 
@@ -158,6 +160,19 @@ func (mux *Multiplexer) GetEventListener(instance client.Instance) func(event *e
 			if dataSource.Instance.GetName() == instance.GetName() {
 				for path := range dataSource.Events {
 					dataSource.Events[path] = append(dataSource.Events[path], event)
+				}
+			}
+		}
+	}
+}
+
+// GetCommandHistoryListener returns a function that listens for command history entries from a specific Yamcs instance.
+func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func(entry *commanding.CommandHistoryEntry) {
+	return func(entry *commanding.CommandHistoryEntry) {
+		for _, dataSource := range mux.Endpoints {
+			if dataSource.Instance.GetName() == instance.GetName() {
+				for path := range dataSource.CommandHistory {
+					dataSource.CommandHistory[path] = append(dataSource.CommandHistory[path], entry)
 				}
 			}
 		}

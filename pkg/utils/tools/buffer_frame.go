@@ -2,6 +2,7 @@ package tools
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"golang.org/x/exp/constraints"
@@ -29,6 +31,113 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 	}
 
 	return data.NewFrame("response", timeField, messageField, severityField)
+}
+
+type CommandAck struct {
+	Status string `json:"status"`
+	Time   string `json:"time"`
+}
+
+type CommandArgument struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type CommandEntry struct {
+	Id        string            `json:"id"`
+	Time      time.Time         `json:"time"`
+	Command   string            `json:"command"`
+	Comment   *string           `json:"comment,omitempty"`
+	Arguments []CommandArgument `json:"arguments"`
+	Queued    *CommandAck       `json:"queued,omitempty"`
+	Released  *CommandAck       `json:"released,omitempty"`
+	Sent      *CommandAck       `json:"sent,omitempty"`
+}
+
+// Helpers
+func nameHasPrefix(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+}
+
+func nameHasSuffix(s, suffix string) bool {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}
+
+func prepend[T any](s []T, v T) []T {
+	return append([]T{v}, s...)
+}
+
+func 	ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
+
+	commandList := make([]json.RawMessage, 0)
+
+	for _, command := range commands {
+
+		commandEntry := &CommandEntry{
+			Id:        command.GetId(),
+			Time:      command.GetGenerationTime().AsTime(),
+			Command:   command.GetCommandName(),
+			Comment:   nil,
+			Arguments: make([]CommandArgument, 0),
+			Queued:    nil,
+			Released:  nil,
+			Sent:      nil,
+		}
+
+		for _, attribute := range command.GetAttr() {
+			name := attribute.GetName()
+			value := attribute.GetValue()
+
+			switch name {
+			case "comment":
+				commandEntry.Comment = value.StringValue
+
+			case "Acknowledge_Queued_Status", "Acknowledge_Queued_Time",
+				"Acknowledge_Released_Status", "Acknowledge_Released_Time",
+				"Acknowledge_Sent_Status", "Acknowledge_Sent_Time":
+
+				var ack **CommandAck
+				switch {
+				case nameHasPrefix(name, "Acknowledge_Queued"):
+					ack = &commandEntry.Queued
+				case nameHasPrefix(name, "Acknowledge_Released"):
+					ack = &commandEntry.Released
+				case nameHasPrefix(name, "Acknowledge_Sent"):
+					ack = &commandEntry.Sent
+				}
+
+				if *ack == nil {
+					*ack = &CommandAck{}
+				}
+
+				if nameHasSuffix(name, "Status") {
+					(*ack).Status = value.GetStringValue()
+				} else if nameHasSuffix(name, "Time") {
+					(*ack).Time = value.GetStringValue()
+				}
+			}
+		}
+
+		for _, assignment := range command.GetAssignments() {
+			if !assignment.GetUserInput() {
+				continue
+			}
+			commandEntry.Arguments = append(commandEntry.Arguments, CommandArgument{
+				Name:  assignment.GetName(),
+				Value: StringifyValue(assignment.GetValue()),
+			})
+		}
+
+		var rawJson json.RawMessage
+		rawJson, err := json.Marshal(commandEntry)
+		if err != nil {
+			continue
+		}
+		commandList = prepend(commandList, rawJson)
+
+	}
+
+	return data.NewFrame("response", data.NewField("commands", nil, commandList))
 }
 
 // ConvertSampleBufferToFrame converts a time series sample buffer into a data frame.
