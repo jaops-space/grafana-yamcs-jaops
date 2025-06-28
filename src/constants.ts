@@ -6,4 +6,5 @@ export enum ROUTES {
     HowToUse = 'how-to-use',
     Commanding = 'commanding-setup',
     Image = 'image-panel-setup',
+    VariableSetup = 'variable-setup',
 }

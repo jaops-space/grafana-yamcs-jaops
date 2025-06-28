@@ -60,6 +60,8 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
                     defaultOptions={defaultOptions}
                     onChange={handleCommandChange}
                     value={command ? { label: command, value: command } : null}
+                    allowCreateWhileLoading
+                    allowCustomValue
                 />
             </InlineField>
         </Stack>

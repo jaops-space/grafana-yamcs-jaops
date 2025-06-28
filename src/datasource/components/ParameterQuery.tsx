@@ -1,8 +1,8 @@
 import { SelectableValue } from '@grafana/data';
-import { AsyncSelect, InlineField, MultiSelect, Stack, Button, Input } from '@grafana/ui';
-import { Optional, QueryField } from '../types';
+import { AsyncSelect, Button, InlineField, Input, MultiSelect, Stack } from '@grafana/ui';
 import { debounce } from 'lodash';
 import React, { useEffect, useRef, useState } from 'react';
+import { Optional, QueryField } from '../types';
 import { FieldsOptions, QueryOptions, QueryProps } from './constants';
 
 export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
@@ -85,6 +85,8 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                         defaultOptions={defaultOptions}
                         onChange={handleParameterChange}
                         value={parameter ? { label: parameter, value: parameter } : null}
+                        allowCreateWhileLoading
+                        allowCustomValue
                     />
                 </InlineField>
 

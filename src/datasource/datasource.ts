@@ -7,7 +7,7 @@ import {
     StreamingFrameAction,
 } from '@grafana/data';
 
-import { DataSourceWithBackend, getGrafanaLiveSrv } from '@grafana/runtime';
+import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafana/runtime';
 
 import { Observable, merge } from 'rxjs';
 import { Configuration, DEFAULT_QUERY as DefaultQuery, Query, QueryType } from './types';
@@ -61,6 +61,13 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.COMMANDING) {
                     action = StreamingFrameAction.Replace;
                 }
+
+                const templateSrv = getTemplateSrv();
+
+                pathName = templateSrv.replace(pathName, request.scopedVars);
+                query.aggregatePath = templateSrv.replace(query.aggregatePath, request.scopedVars);
+                query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
+                query.command = templateSrv.replace(query.command, request.scopedVars);
 
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
