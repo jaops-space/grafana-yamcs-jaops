@@ -36,7 +36,7 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 type CommandAck struct {
 	Status  string `json:"status"`
 	Time    string `json:"time"`
-	Message string `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type CommandArgument struct {
