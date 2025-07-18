@@ -90,8 +90,7 @@ func RunEventStream(ctx context.Context,
 
 	endpoint.RequestEventsStream(req.Path)
 
-	timeWindow := time.Duration(q.To-q.From) * time.Second
-	tickerInterval := timeWindow / time.Duration(q.MaxPoints)
+	tickerInterval := 1 * time.Second
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
@@ -225,8 +224,7 @@ func RunCommandHistoryStream(
 	endpoint.RequestCommandHistoryStream(req.Path)
 
 	// Calculate ticker interval
-	timeWindow := time.Duration(q.To-q.From) * time.Second
-	tickerInterval := timeWindow / time.Duration(q.MaxPoints)
+	tickerInterval := time.Second * 1
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()

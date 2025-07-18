@@ -1,5 +1,6 @@
 import { dateTime, PanelProps } from '@grafana/data';
 import { Icon, InteractiveTable, Stack, Text, Tooltip } from '@grafana/ui';
+import { CommandHistoryOptions } from 'command-history-panel/module';
 import React, { useMemo } from 'react';
 
 // ------------------
@@ -214,20 +215,16 @@ const columns = [
             }
             const statusOk = ack.status.toLowerCase() === 'ok';
             const statusNok = ack.status.toLowerCase() === 'nok';
-            const icon = statusOk ? 'check-circle' : 'exclamation-triangle';
-            const color = statusOk ? 'green' : (statusNok ? 'red' : 'orange');
             const variant = statusOk ? 'success' : (statusNok ? 'error' : 'warning');
             const timeDelta = timeDiffMs(entry.time, ack.time);
 
             return (
                 <Tooltip content={`${ack.message ?? ""} (${timeDelta})`}>
-                    <Stack direction='row' gap={1} alignItems='center'>
-                        <Icon name={icon} size="md" color={color} />
-                        <Text variant='h5' color={variant}>
+                    <Stack direction='row' gap={1} alignItems='center' width='max-content' height='max-content'>
+                        <Text variant='code' color={variant}>
                             {statusText}
                         </Text>
                     </Stack>
-
                 </Tooltip>
             );
 
@@ -263,7 +260,7 @@ function renderSubComponent({ row }: { row: any }) {
 // Main Component
 // ------------------
 
-const CommandHistoryPanel: React.FC<PanelProps> = ({ data }) => {
+const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data, options }) => {
     const deduped = useMemo(() => {
         const frame = data.series[0];
         if (!frame || !frame.fields.length) { return []; }
@@ -286,13 +283,25 @@ const CommandHistoryPanel: React.FC<PanelProps> = ({ data }) => {
 
     return (
         <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
-            <InteractiveTable
-                data={deduped.map(d => ({ row: d, id: d.id }))}
-                getRowId={(row: any) => row.id}
-                columns={columns}
-                renderExpandedRow={renderSubComponent}
-                showExpandAll={true}
-            />
+                {options.pagination ? (
+                    <InteractiveTable
+                        key="with-pagination"
+                        data={deduped.map(d => ({ row: d, id: d.id }))}
+                        getRowId={(row: any) => row.id}
+                        columns={columns.filter(column => options.visibleFields.includes(column.id))}
+                        renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                        pageSize={Math.max(1, options.pageSize)}
+                    />
+                    ) : (
+                    <InteractiveTable
+                        key="without-pagination"
+                        data={deduped.map(d => ({ row: d, id: d.id }))}
+                        getRowId={(row: any) => row.id}
+                        columns={columns.filter(column => options.visibleFields.includes(column.id))}
+                        renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                        // Don't pass pageSize at all
+                    />
+                )}
         </div>
     );
 };
