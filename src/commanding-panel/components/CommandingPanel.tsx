@@ -16,6 +16,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
     const locService = useLocationService();
     const location = locService.getLocation();
     const editing = location.search.includes('editPanel=');
+    const scopedVars = props.data.request?.scopedVars;
 
     const commandInfos: CommandInfos = [];
     data.series.forEach((series) => {
@@ -155,7 +156,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                         size={formState[command.name + i]?.size as any}
                         icon={loading ? 'spinner' :formState[command.name + i]?.icon as any}
                         fill={formState[command.name + i]?.transparent as any}
-                        tooltip={getTemplateSrv().replace(formState[command.name + i]?.tooltip)}
+                        tooltip={getTemplateSrv().replace(formState[command.name + i]?.tooltip, scopedVars)}
                         onClick={() => handleSubmit(commandInfo, i)}
                         disabled={loading}
                     >{getTemplateSrv().replace(commandState?.label)}</Button>
@@ -375,8 +376,8 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                                 size={formState[command.name + i]?.size as any}
                                 icon={formState[command.name + i]?.icon as any}
                                 fill={formState[command.name + i]?.transparent as any}
-                                tooltip={formState[command.name + i]?.tooltip}
-                            >{formState[command.name + i]?.label}</Button>
+                                tooltip={getTemplateSrv().replace(formState[command.name + i]?.tooltip, scopedVars)}
+                            >{getTemplateSrv().replace(formState[command.name + i]?.label, scopedVars)}</Button>
                             </div>
                         </Field>
                     </FieldSet>
