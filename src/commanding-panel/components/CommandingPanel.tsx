@@ -1,6 +1,6 @@
-import { AppEvents, PanelProps, SelectableValue } from '@grafana/data';
-import { DataSourceWithBackend, getAppEvents, getTemplateSrv, useLocationService } from '@grafana/runtime';
-import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
+import { AppEvents, PanelProps, SelectableValue, VariableWithMultiSupport } from '@grafana/data';
+import { DataSourceWithBackend, getAppEvents, getTemplateSrv, locationService, useLocationService } from '@grafana/runtime';
+import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState } from 'react';
 import Shapes from './Shapes';
@@ -10,7 +10,11 @@ type CommandInfos = Array<{
     endpoint: string
 }>
 
-export default function CommandingPanel(props: PanelProps<PanelOptions>) {
+export interface CommandingPanelProps extends PanelProps<PanelOptions> {
+    variableMode?: boolean;
+}
+
+export default function CommandingPanel({ variableMode = false, ...props }: CommandingPanelProps) {
 
     const { data, options, onOptionsChange } = props;
     const locService = useLocationService();
@@ -19,16 +23,20 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
     const scopedVars = props.data.request?.scopedVars;
 
     const commandInfos: CommandInfos = [];
-    data.series.forEach((series) => {
-        const commandField = series.fields.find(field => field.name === 'info');
-        const endpointField = series.fields.find(field => field.name === 'endpoint');
-        commandField?.values.forEach((command: any, index: number) => {
-            const endpoint = endpointField?.values[index];
-            if (command && endpoint) {
-                commandInfos.push({ command, endpoint });
-            }
+    if (variableMode) {
+        commandInfos.push({ command: {}, endpoint: "" });
+    } else {
+        data.series.forEach((series) => {
+            const commandField = series.fields.find(field => field.name === 'info');
+            const endpointField = series.fields.find(field => field.name === 'endpoint');
+            commandField?.values.forEach((command: any, index: number) => {
+                const endpoint = endpointField?.values[index];
+                if (command && endpoint) {
+                    commandInfos.push({ command, endpoint });
+                }
+            });
         });
-    });
+    }
 
     const [formState, setFormState] = useState<CommandForms>(options.commandForms || {});
     const [errors, setErrors] = useState<{ [command: string]: { [arg: string]: string } }>({});
@@ -107,7 +115,31 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
         const command = commandInfo.command;
         const endpoint = commandInfo.endpoint;
         const commandData = formState[command.name + i];
-        console.log(formState);
+
+        if (variableMode) {
+            const variableValueBefore = getTemplateSrv().replace("$" + commandData.variableToSet, scopedVars);
+            const valueToSet = getTemplateSrv().replace(commandData.valueToSet, scopedVars);
+            let newValue: any = variableValueBefore;
+            switch(commandData.changeMode) {
+                case 'change':
+                    newValue = valueToSet;
+                    break;
+                case 'add':
+                    try {
+                        newValue = parseFloat(variableValueBefore) + parseFloat(valueToSet);
+                    }catch(err){};
+                    break;
+                case 'multiply':
+                    try {
+                        newValue = parseFloat(variableValueBefore) * parseFloat(valueToSet);
+                    }catch(err){};
+                    break;
+            }
+            console.log(commandData.variableToSet);
+            locationService.partial({[`var-${commandData.variableToSet}`]: newValue, replace: true})
+            return;
+        }
+
         setLoading(true);
         const datasource = data.request?.targets[0].datasource as DataSourceWithBackend;
         if (!datasource) {
@@ -140,7 +172,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                 {commandInfos.map((commandInfo, i) => {
                     const command = commandInfo.command;
                     const commandState = formState[command.name + i];
-                    const render = () => <Button
+                    const render = (withSubmit = false) => <Button
                         disabled={loading}
                         style={{
                             ...Shapes[commandState?.shape as any]?.css,
@@ -170,98 +202,145 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                         icon={commandState?.icon as any}
                         fill={commandState?.transparent as any}
                         tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
+                        onClick={withSubmit ? () => handleSubmit(commandInfo, i) : undefined}
                     >
                         {getTemplateSrv().replace(commandState?.label, scopedVars)}
                     </Button>
                     if (!editing) {
-                        return render();
+                        return render(true);
                     }
 
                     return <Card key={command.name} style={{ width: '100%', padding: '20px' }}>
                         <Card.Heading>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                <h4>{command.name}</h4>
-                                <Button
+                                <h4>{variableMode ? 'Variable Panel' : command.name}</h4>
+                                {!variableMode && <Button
                                     disabled={loading}
                                     onClick={() => handleSubmit(commandInfo, i)} style={{ marginLeft: '20px' }} size='sm'>
                                     {loading ? <LoadingPlaceholder text="Issuing..." /> : "Issue Command"}
-                                </Button>
+                                </Button>}
                             </div>
                         </Card.Heading>
-                        <Card.Meta>{command.shortDescription || command.longDescription}</Card.Meta>
+                        <Card.Meta>{variableMode ? 'Configure Grafana variables through buttons' : (command.shortDescription || command.longDescription)}</Card.Meta>
                         <Card.Description>
                             <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
-                                {command.argument?.map((arg: any) => {
-                                    const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
-                                    const errorMessage = errors[command.name]?.[arg.name];
-                                    let inputField;
+                                {variableMode ? <>
+                                    <Field label='Variable' description='Variable to change'>
+                                        <Select
+                                            type='text'
+                                            disabled={loading}
+                                            options={getTemplateSrv().getVariables().map(vr => ({ label: vr.label || vr.name, value: vr.name }))}
+                                            value={commandState?.variableToSet || ''}
+                                            onChange={(e: SelectableValue<string>) => {
+                                                handleOptionChange(command.name, 'variableToSet', e.value, i);
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
+                                    <Field label='Change Mode' description='How to change the value'>
+                                        <Select
+                                            type='text'
+                                            disabled={loading}
+                                            options={[
+                                                { label: "Set", value: 'change', description: "Set the variable to a value" },
+                                                { label: "Add", value: 'add', description: "Add a number to the variable" },
+                                                { label: "Multiply", value: 'multiply', description: "Multiply the variable by a number" },
+                                            ]}
+                                            value={commandState?.changeMode || ''}
+                                            onChange={(e: SelectableValue<string>) => {
+                                                handleOptionChange(command.name, 'changeMode', e.value, i);
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
+                                    <Field label='Value' description='Value to use. You may write a custom value.'>
+                                        <Select
+                                            type='text'
+                                            disabled={loading}
+                                            options={((getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet) as VariableWithMultiSupport)
+                                                ?.options || []).map(option => ({ label: option.text as string, value: option.value as string }))
+                                            }
+                                            value={commandState?.valueToSet || ''}
+                                            defaultValue={commandState?.valueToSet || ''}
+                                            allowCustomValue
+                                            onChange={(e: SelectableValue<string>) => {
+                                                handleOptionChange(command.name, 'valueToSet', e.value, i);
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
+                                </> :
+                                    command.argument?.map((arg: any) => {
+                                        const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
+                                        const errorMessage = errors[command.name]?.[arg.name];
+                                        let inputField;
 
-                                    if (arg.type.engType === 'enumeration') {
-                                        inputField = (
-                                            <Select
-                                                disabled={loading}
-                                                value={inputValue}
-                                                onChange={(e: SelectableValue<any>) => {
-                                                    handleInputChange(command.name, arg.name, e.value, i);
-                                                    validateInput(command.name, arg, e.value);
-                                                }}
-                                                options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.value }))}
-                                            />
-                                        );
-                                    } else if (arg.type.engType === 'boolean') {
-                                        inputField = (
-                                            <Select
-                                                value={inputValue}
-                                                disabled={loading}
-                                                style={{ width: '100%' }}
-                                                onChange={(e: SelectableValue<any>) => {
-                                                    handleInputChange(command.name, arg.name, e.value, i);
-                                                    validateInput(command.name, arg, e.value);
-                                                }}
-                                                options={[
-                                                    { label: arg.type.zeroStringValue || 'False', value: false },
-                                                    { label: arg.type.oneStringValue || 'True', value: true },
-                                                ]}
-                                                fullWidth
-                                            />
-                                        );
-                                    } else {
-                                        inputField = (
-                                            <Input
-                                                disabled={loading}
-                                                type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
-                                                value={inputValue}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                    let val: any = e.target.value;
-                                                    if (arg.type.engType === 'integer') {
-                                                        val = parseInt(val, 10);
-                                                    }
-                                                    if (arg.type.engType === 'float') {
-                                                        val = parseFloat(val);
-                                                    }
-                                                    handleInputChange(command.name, arg.name, val, i);
-                                                    validateInput(command.name, arg, e.target.value);
-                                                }}
-                                                min={arg.type.rangeMin}
-                                                max={arg.type.rangeMax}
-                                                style={{ width: '100%' }}
-                                                step={arg.type.engType === 'integer' ? 1 : undefined}
-                                            />
-                                        );
-                                    }
+                                        if (arg.type.engType === 'enumeration') {
+                                            inputField = (
+                                                <Select
+                                                    disabled={loading}
+                                                    value={inputValue}
+                                                    onChange={(e: SelectableValue<any>) => {
+                                                        handleInputChange(command.name, arg.name, e.value, i);
+                                                        validateInput(command.name, arg, e.value);
+                                                    }}
+                                                    options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.value }))}
+                                                />
+                                            );
+                                        } else if (arg.type.engType === 'boolean') {
+                                            inputField = (
+                                                <Select
+                                                    value={inputValue}
+                                                    disabled={loading}
+                                                    style={{ width: '100%' }}
+                                                    onChange={(e: SelectableValue<any>) => {
+                                                        handleInputChange(command.name, arg.name, e.value, i);
+                                                        validateInput(command.name, arg, e.value);
+                                                    }}
+                                                    options={[
+                                                        { label: arg.type.zeroStringValue || 'False', value: false },
+                                                        { label: arg.type.oneStringValue || 'True', value: true },
+                                                    ]}
+                                                    fullWidth
+                                                />
+                                            );
+                                        } else {
+                                            inputField = (
+                                                <Input
+                                                    disabled={loading}
+                                                    type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                    value={inputValue}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                        let val: any = e.target.value;
+                                                        if (arg.type.engType === 'integer') {
+                                                            val = parseInt(val, 10);
+                                                        }
+                                                        if (arg.type.engType === 'float') {
+                                                            val = parseFloat(val);
+                                                        }
+                                                        handleInputChange(command.name, arg.name, val, i);
+                                                        validateInput(command.name, arg, e.target.value);
+                                                    }}
+                                                    min={arg.type.rangeMin}
+                                                    max={arg.type.rangeMax}
+                                                    style={{ width: '100%' }}
+                                                    step={arg.type.engType === 'integer' ? 1 : undefined}
+                                                />
+                                            );
+                                        }
 
-                                    return (
-                                        <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
-                                            <>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                                    {inputField}
-                                                    <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
-                                                </div>
-                                                {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
-                                            </>
-                                        </Field>
-                                    );
-                                })}
+                                        return (
+                                            <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
+                                                <>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                        {inputField}
+                                                        <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
+                                                    </div>
+                                                    {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
+                                                </>
+                                            </Field>
+                                        );
+                                    })}
                                 <Field label='Comment' description='Optional comment'>
                                     <Input
                                         type='text'
@@ -373,12 +452,11 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                                     />
                                 </Field>
                                 {commandState?.shape === 'svg' && <>
-                                    <Field label="Custom SVG Shape (Optional)">
-                                        <Input
-                                            type="file"
+                                    <Field label="Custom SVG Shape">
+                                        <FileUpload
                                             accept=".svg"
-                                            onChange={(e) => {
-                                                const file = (e.target as HTMLInputElement).files?.[0];
+                                            onFileUpload={({ currentTarget: target }) => {
+                                                const file = target?.files?.[0];
                                                 if (!file) { return; }
 
                                                 const reader = new FileReader();
@@ -389,7 +467,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                                                 };
                                                 reader.readAsText(file);
                                             }}
-                                            style={{ width: '100%', height: '100%' }}
+                                            size="md"
                                         />
                                     </Field>
                                     <Field label="SVG Size" description="Controls how the background image is scaled. You may write custom css backgroundSize value.">
@@ -398,7 +476,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
                                                 { label: 'Contain', value: 'contain' },
                                                 { label: 'Cover', value: 'cover' },
                                                 { label: 'Auto', value: 'auto' },
-                                                { label: 'Stretch', value: 'stretch' },
+                                                { label: 'Stretch', value: '100% 100%' },
                                             ]}
                                             value={commandState?.bgSize || 'contain'}
                                             allowCustomValue
