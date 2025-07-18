@@ -36,7 +36,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
 
     const handleInputChange = (commandName: string, argName: string, value: any, i: number) => {
         setFormState(prevState => {
-            const newState ={
+            const newState = {
                 ...prevState,
                 [commandName + i]: {
                     ...prevState[commandName + i],
@@ -53,7 +53,7 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
 
     const handleOptionChange = (commandName: string, option: string, value: any, i: number) => {
         setFormState(prevState => {
-            const newState ={
+            const newState = {
                 ...prevState,
                 [commandName + i]: {
                     ...prevState[commandName + i],
@@ -134,258 +134,312 @@ export default function CommandingPanel(props: PanelProps<PanelOptions>) {
 
     return (
         <div style={{ width: '100%', height: '100%', overflow: editing ? 'scroll' : 'unset' }}>
-        <div style={
-            editing ? { display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(300px, 2fr))`, gap: '2px', padding: '10px', width: '100%'}
-            : { display: 'flex', flexDirection: 'column', gap: '2px', padding: '10px', width: '100%', height: '100%'}}>
-            {commandInfos.map((commandInfo, i) => {
-                const command = commandInfo.command;
-                const commandState = formState[command.name + i];
-                if (!editing) {
-                    return <Button 
-                        key={command.name}
-                        style={{ 
-                            ...Shapes[formState[command.name + i]?.shape as any]?.css,
-                            width: '100%', height: '100%', objectFit: 'contain', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            backgroundColor: formState[command.name + i]?.transparent === 'solid' 
-                            || !formState[command.name + i]?.transparent ?
-                            formState[command.name + i]?.color as any : '#00000000',
-                            color: formState[command.name + i]?.textColor as any,
-                            borderColor: formState[command.name + i]?.transparent === 'outline' ?
-                            formState[command.name + i]?.color as any : null,                          
-                        }}
-                        size={formState[command.name + i]?.size as any}
-                        icon={loading ? 'spinner' :formState[command.name + i]?.icon as any}
-                        fill={formState[command.name + i]?.transparent as any}
-                        tooltip={getTemplateSrv().replace(formState[command.name + i]?.tooltip, scopedVars)}
-                        onClick={() => handleSubmit(commandInfo, i)}
+            <div style={
+                editing ? { display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(300px, 2fr))`, gap: '2px', padding: '10px', width: '100%' }
+                    : { display: 'flex', flexDirection: 'column', gap: '2px', padding: '10px', width: '100%', height: '100%' }}>
+                {commandInfos.map((commandInfo, i) => {
+                    const command = commandInfo.command;
+                    const commandState = formState[command.name + i];
+                    const render = () => <Button
                         disabled={loading}
-                    >{getTemplateSrv().replace(commandState?.label)}</Button>
-                }
+                        style={{
+                            ...Shapes[commandState?.shape as any]?.css,
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor:
+                                commandState?.transparent === 'solid' || !commandState?.transparent
+                                    ? commandState?.color as any
+                                    : '#00000000',
+                            color: commandState?.textColor as any,
+                            borderColor:
+                                commandState?.transparent === 'outline'
+                                    ? commandState?.color as any
+                                    : undefined,
+                            backgroundImage:
+                                commandState?.shape === 'svg' && commandState?.customSVG
+                                    ? `url("data:image/svg+xml;utf8,${encodeURIComponent(commandState?.customSVG)}")`
+                                    : undefined,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundSize: commandState?.bgSize || 'contain',
+                            backgroundPosition: commandState?.bgPosition || 'center',
+                        }}
+                        size={commandState?.size as any}
+                        icon={commandState?.icon as any}
+                        fill={commandState?.transparent as any}
+                        tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
+                    >
+                        {getTemplateSrv().replace(commandState?.label, scopedVars)}
+                    </Button>
+                    if (!editing) {
+                        return render();
+                    }
 
-                return <Card key={command.name} style={{ width: '100%', padding: '20px' }}>
-                    <Card.Heading>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                            <h4>{command.name}</h4>
-                            <Button
-                                disabled={loading}
-                                onClick={() => handleSubmit(commandInfo, i)} style={{ marginLeft: '20px'}} size='sm'>
-                                {loading ? <LoadingPlaceholder text="Issuing..." /> : "Issue Command"}
-                            </Button>
-                        </div>
-                    </Card.Heading>
-                    <Card.Meta>{command.shortDescription || command.longDescription}</Card.Meta>
-                    <Card.Description>
-                    <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
-                        {command.argument?.map((arg: any) => {
-                            const inputValue = formState[command.name + i]?.arguments?.[arg.name] || arg.initialValue;
-                            const errorMessage = errors[command.name]?.[arg.name];
-                            let inputField;
-
-                            if (arg.type.engType === 'enumeration') {
-                                inputField = (
-                                    <Select
-                                        disabled={loading}
-                                        value={inputValue}
-                                        onChange={(e: SelectableValue<any>) => {
-                                            handleInputChange(command.name, arg.name, e.value, i);
-                                            validateInput(command.name, arg, e.value);
-                                        }}
-                                        options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.value }))}
-                                    />
-                                );
-                            } else if (arg.type.engType === 'boolean') {
-                                inputField = (
-                                    <Select
-                                        value={inputValue}
-                                        disabled={loading}
-                                        style={{ width: '100%' }}
-                                        onChange={(e: SelectableValue<any>) => {
-                                            handleInputChange(command.name, arg.name, e.value, i);
-                                            validateInput(command.name, arg, e.value);
-                                        }}
-                                        options={[
-                                            { label: arg.type.zeroStringValue || 'False', value: false },
-                                            { label: arg.type.oneStringValue || 'True', value: true },
-                                        ]}
-                                        fullWidth
-                                    />
-                                );
-                            } else {
-                                inputField = (
-                                    <Input
-                                        disabled={loading}
-                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
-                                        value={inputValue}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                            let val: any = e.target.value;
-                                            if (arg.type.engType === 'integer') {
-                                                val = parseInt(val, 10);
-                                            }
-                                            if (arg.type.engType === 'float') {
-                                                val = parseFloat(val);
-                                            }
-                                            handleInputChange(command.name, arg.name, val, i);
-                                            validateInput(command.name, arg, e.target.value);
-                                        }}
-                                        min={arg.type.rangeMin}
-                                        max={arg.type.rangeMax}
-                                        style={{ width: '100%' }}
-                                        step={arg.type.engType === 'integer' ? 1 : undefined}
-                                    />
-                                );
-                            }
-
-                            return (
-                                <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
-                                    <>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                        {inputField}
-                                        <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
-                                    </div>
-                                    {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
-                                    </>
-                                </Field>
-                            );
-                        })}
-                        <Field label='Comment' description='Optional comment'>
-                            <Input
-                                type='text'
-                                disabled={loading}
-                                value={formState[command.name + i]?.comment || ''}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                    handleOptionChange(command.name, 'comment', e.target.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Divider />
-                        <Field label='Button Label' description='Button label'>
-                            <Input
-                                type='text'
-                                disabled={loading}
-                                value={formState[command.name + i]?.label || ''}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                    handleOptionChange(command.name, 'label', e.target.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Field label='Button Tooltip' description='Button tooltip'>
-                            <Input
-                                type='text'
-                                disabled={loading}
-                                value={formState[command.name + i]?.tooltip || ''}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                    handleOptionChange(command.name, 'tooltip', e.target.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Field label='Icon' description='Icon name'>
-                            <Select
-                                disabled={loading}
-                                options={
-                                    [{label: 'None', value: ''},
-                                        ...getAvailableIcons().map(icon => ({ label: icon, value: icon, icon: icon }))]}
-                                value={formState[command.name + i]?.icon || ''}
-                                onChange={(e: SelectableValue<string>) => {
-                                    handleOptionChange(command.name, 'icon', e.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Field label='Size' description='Button size'>
-                            <Select
-                                disabled={loading}
-                                options={[
-                                    { label: 'Mini', value: 'xs' },
-                                    { label: 'Small', value: 'sm' },
-                                    { label: 'Medium', value: 'md' },
-                                    { label: 'Large', value: 'lg' },
-                                ]}
-                                value={formState[command.name + i]?.size || 'md'}
-                                onChange={(e: SelectableValue<string>) => {
-                                    handleOptionChange(command.name, 'size', e.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Field label='Color' description='Button color'>
-                            <ColorPickerInput 
-                                onChange={(color: string) => {
-                                    handleOptionChange(command.name, 'color', color, i);
-                                }}
-                                disabled={loading}
-                                color={formState[command.name + i]?.color || ''}
-                            />
-                        </Field>
-                        <Field label='Text Color' description='Text and icon color'>
-                            <ColorPickerInput 
-                                onChange={(color: string) => {
-                                    handleOptionChange(command.name, 'textColor', color, i);
-                                }}
-                                disabled={loading}
-                                color={formState[command.name + i]?.textColor || ''}
-                            />
-                        </Field>
-                        <Field label='Transparent' description='Button transparency'>
-                            <Select
-                                disabled={loading}
-                                options={[
-                                    { label: 'Fill', value: 'solid' },
-                                    { label: 'Outline', value: 'outline' },
-                                    { label: 'Text', value: 'text' },
-                                ]}
-                                value={formState[command.name + i]?.transparent || 'solid'}
-                                onChange={(e: SelectableValue<string>) => {
-                                    handleOptionChange(command.name, 'transparent', e.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Field label='Shape' description='Button shape'>
-                            <Select
-                                disabled={loading}
-                                options={Object.keys(Shapes).map((shape) => ({
-                                    label: Shapes[shape as any].name,
-                                    value: shape,
-                                }))}
-                                value={formState[command.name + i]?.shape || 'rectangle'}
-                                onChange={(e: SelectableValue<string>) => {
-                                    handleOptionChange(command.name, 'shape', e.value, i);
-                                }}
-                                style={{ width: '100%' }}
-                            />
-                        </Field>
-                        <Field label='Preview' description='Preview of the button'>
-                            <div style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            height: '50px', width: '100%', objectFit: 'contain'}}>
-                            <Button
-                                disabled={loading}
-                                style={{ 
-                                    ...Shapes[formState[command.name + i]?.shape as any]?.css,
-                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    backgroundColor: formState[command.name + i]?.transparent === 'solid' 
-                                    || !formState[command.name + i]?.transparent ?
-                                    formState[command.name + i]?.color as any : '#00000000',
-                                    color: formState[command.name + i]?.textColor as any,
-                                    borderColor: formState[command.name + i]?.transparent === 'outline' ?
-                                    formState[command.name + i]?.color as any : null,                          
-                                }}
-                                size={formState[command.name + i]?.size as any}
-                                icon={formState[command.name + i]?.icon as any}
-                                fill={formState[command.name + i]?.transparent as any}
-                                tooltip={getTemplateSrv().replace(formState[command.name + i]?.tooltip, scopedVars)}
-                            >{getTemplateSrv().replace(formState[command.name + i]?.label, scopedVars)}</Button>
+                    return <Card key={command.name} style={{ width: '100%', padding: '20px' }}>
+                        <Card.Heading>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                <h4>{command.name}</h4>
+                                <Button
+                                    disabled={loading}
+                                    onClick={() => handleSubmit(commandInfo, i)} style={{ marginLeft: '20px' }} size='sm'>
+                                    {loading ? <LoadingPlaceholder text="Issuing..." /> : "Issue Command"}
+                                </Button>
                             </div>
-                        </Field>
-                    </FieldSet>
-                    </Card.Description>
-                </Card>;
+                        </Card.Heading>
+                        <Card.Meta>{command.shortDescription || command.longDescription}</Card.Meta>
+                        <Card.Description>
+                            <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
+                                {command.argument?.map((arg: any) => {
+                                    const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
+                                    const errorMessage = errors[command.name]?.[arg.name];
+                                    let inputField;
+
+                                    if (arg.type.engType === 'enumeration') {
+                                        inputField = (
+                                            <Select
+                                                disabled={loading}
+                                                value={inputValue}
+                                                onChange={(e: SelectableValue<any>) => {
+                                                    handleInputChange(command.name, arg.name, e.value, i);
+                                                    validateInput(command.name, arg, e.value);
+                                                }}
+                                                options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.value }))}
+                                            />
+                                        );
+                                    } else if (arg.type.engType === 'boolean') {
+                                        inputField = (
+                                            <Select
+                                                value={inputValue}
+                                                disabled={loading}
+                                                style={{ width: '100%' }}
+                                                onChange={(e: SelectableValue<any>) => {
+                                                    handleInputChange(command.name, arg.name, e.value, i);
+                                                    validateInput(command.name, arg, e.value);
+                                                }}
+                                                options={[
+                                                    { label: arg.type.zeroStringValue || 'False', value: false },
+                                                    { label: arg.type.oneStringValue || 'True', value: true },
+                                                ]}
+                                                fullWidth
+                                            />
+                                        );
+                                    } else {
+                                        inputField = (
+                                            <Input
+                                                disabled={loading}
+                                                type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                value={inputValue}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    let val: any = e.target.value;
+                                                    if (arg.type.engType === 'integer') {
+                                                        val = parseInt(val, 10);
+                                                    }
+                                                    if (arg.type.engType === 'float') {
+                                                        val = parseFloat(val);
+                                                    }
+                                                    handleInputChange(command.name, arg.name, val, i);
+                                                    validateInput(command.name, arg, e.target.value);
+                                                }}
+                                                min={arg.type.rangeMin}
+                                                max={arg.type.rangeMax}
+                                                style={{ width: '100%' }}
+                                                step={arg.type.engType === 'integer' ? 1 : undefined}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
+                                            <>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                    {inputField}
+                                                    <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
+                                                </div>
+                                                {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
+                                            </>
+                                        </Field>
+                                    );
+                                })}
+                                <Field label='Comment' description='Optional comment'>
+                                    <Input
+                                        type='text'
+                                        disabled={loading}
+                                        value={commandState?.comment || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                            handleOptionChange(command.name, 'comment', e.target.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                <Divider />
+                                <Field label='Button Label' description='Button label'>
+                                    <Input
+                                        type='text'
+                                        disabled={loading}
+                                        value={commandState?.label || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                            handleOptionChange(command.name, 'label', e.target.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                <Field label='Button Tooltip' description='Button tooltip'>
+                                    <Input
+                                        type='text'
+                                        disabled={loading}
+                                        value={commandState?.tooltip || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                            handleOptionChange(command.name, 'tooltip', e.target.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                <Field label='Icon' description='Icon name'>
+                                    <Select
+                                        disabled={loading}
+                                        options={
+                                            [{ label: 'None', value: '' },
+                                            ...getAvailableIcons().map(icon => ({ label: icon, value: icon, icon: icon }))]}
+                                        value={commandState?.icon || ''}
+                                        onChange={(e: SelectableValue<string>) => {
+                                            handleOptionChange(command.name, 'icon', e.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                <Field label='Size' description='Button size'>
+                                    <Select
+                                        disabled={loading}
+                                        options={[
+                                            { label: 'Mini', value: 'xs' },
+                                            { label: 'Small', value: 'sm' },
+                                            { label: 'Medium', value: 'md' },
+                                            { label: 'Large', value: 'lg' },
+                                        ]}
+                                        value={commandState?.size || 'md'}
+                                        onChange={(e: SelectableValue<string>) => {
+                                            handleOptionChange(command.name, 'size', e.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                <Field label='Color' description='Button color'>
+                                    <ColorPickerInput
+                                        onChange={(color: string) => {
+                                            handleOptionChange(command.name, 'color', color, i);
+                                        }}
+                                        disabled={loading}
+                                        color={commandState?.color || ''}
+                                    />
+                                </Field>
+                                <Field label='Text Color' description='Text and icon color'>
+                                    <ColorPickerInput
+                                        onChange={(color: string) => {
+                                            handleOptionChange(command.name, 'textColor', color, i);
+                                        }}
+                                        disabled={loading}
+                                        color={commandState?.textColor || ''}
+                                    />
+                                </Field>
+                                <Field label='Transparent' description='Button transparency'>
+                                    <Select
+                                        disabled={loading}
+                                        options={[
+                                            { label: 'Fill', value: 'solid' },
+                                            { label: 'Outline', value: 'outline' },
+                                            { label: 'Text', value: 'text' },
+                                        ]}
+                                        value={commandState?.transparent || 'solid'}
+                                        onChange={(e: SelectableValue<string>) => {
+                                            handleOptionChange(command.name, 'transparent', e.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                <Field label='Shape' description='Button shape'>
+                                    <Select
+                                        disabled={loading}
+                                        options={Object.keys(Shapes).map((shape) => ({
+                                            label: Shapes[shape as any].name,
+                                            value: shape,
+                                        }))}
+                                        value={commandState?.shape || 'rectangle'}
+                                        onChange={(e: SelectableValue<string>) => {
+                                            handleOptionChange(command.name, 'shape', e.value, i);
+                                        }}
+                                        style={{ width: '100%' }}
+                                    />
+                                </Field>
+                                {commandState?.shape === 'svg' && <>
+                                    <Field label="Custom SVG Shape (Optional)">
+                                        <Input
+                                            type="file"
+                                            accept=".svg"
+                                            onChange={(e) => {
+                                                const file = (e.target as HTMLInputElement).files?.[0];
+                                                if (!file) { return; }
+
+                                                const reader = new FileReader();
+                                                reader.onload = (event) => {
+                                                    const svgContent = event.target?.result?.toString() || '';
+                                                    // Store the SVG in formState and persist it in options
+                                                    handleOptionChange(command.name, 'customSVG', svgContent, i);
+                                                };
+                                                reader.readAsText(file);
+                                            }}
+                                            style={{ width: '100%', height: '100%' }}
+                                        />
+                                    </Field>
+                                    <Field label="SVG Size" description="Controls how the background image is scaled. You may write custom css backgroundSize value.">
+                                        <Select
+                                            options={[
+                                                { label: 'Contain', value: 'contain' },
+                                                { label: 'Cover', value: 'cover' },
+                                                { label: 'Auto', value: 'auto' },
+                                                { label: 'Stretch', value: 'stretch' },
+                                            ]}
+                                            value={commandState?.bgSize || 'contain'}
+                                            allowCustomValue
+                                            onChange={(v) =>
+                                                handleOptionChange(command.name, 'bgSize', v.value, i)
+                                            }
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
+                                    <Field label="SVG Position" description="Controls the position of the background image. You may write custom CSS backgroundPosition value.">
+                                        <Select
+                                            options={[
+                                                { label: 'Center', value: 'center' },
+                                                { label: 'Top Left', value: 'top left' },
+                                                { label: 'Top Right', value: 'top right' },
+                                                { label: 'Bottom Left', value: 'bottom left' },
+                                                { label: 'Bottom Right', value: 'bottom right' },
+                                            ]}
+                                            allowCustomValue
+                                            value={commandState?.bgPosition || 'center'}
+                                            onChange={(v) =>
+                                                handleOptionChange(command.name, 'bgPosition', v.value, i)
+                                            }
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
+                                </>}
+                                <Field label='Preview' description='Preview of the button'>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        height: '50px', width: '100%', objectFit: 'contain'
+                                    }}>
+                                        {render()}
+                                    </div>
+                                </Field>
+                            </FieldSet>
+                        </Card.Description>
+                    </Card>;
                 }
-            )}
-        </div>
+                )}
+            </div>
         </div>
     );
 }

@@ -12,6 +12,11 @@ export interface CommandForms {
         textColor: string,
         transparent: string,
         shape: string,
+        customSVG: string,
+        bgSize: string,
+        bgPosition: string,
+        bgWidth: string,
+        bgHeight: string,
     }
 };
 

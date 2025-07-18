@@ -45,6 +45,10 @@ const Shapes: Record<string, { name: string; css: Record<string, string> }> = {
         clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
       },
     },
+    svg: {
+      name: 'Custom (SVG)',
+      css: {}
+    }
   };
 
 export default Shapes;
