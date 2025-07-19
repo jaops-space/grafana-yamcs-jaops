@@ -1,0 +1,30 @@
+{
+    "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+    "type": "panel",
+    "name": "JAOPS Variable Commanding Panel",
+    "id": "jaops-varcommanding-panel",
+    "info": {
+        "keywords": [
+            "yamcs",
+            "commanding",
+            "panel",
+            "jaops"
+        ],
+        "description": "Variable Commanding Panel for JAOPS Yamcs plugin",
+        "author": {
+            "name": "JAOPS"
+        },
+        "logos": {
+            "small": "img/logo.png",
+            "large": "img/logo.png"
+        },
+        "screenshots": [],
+        "version": "%VERSION%",
+        "updated": "%TODAY%"
+    },
+    "skipDataQuery": true,
+    "dependencies": {
+        "grafanaDependency": ">=10.4.0",
+        "plugins": []
+    }
+}

@@ -1,9 +1,10 @@
 import { PanelProps } from '@grafana/data';
-import React from 'react';
+import ImageRenderer from 'static-image-panel/components/ImageRenderer';
+import { ImagePanelOptions } from 'static-image-panel/types';
 
-export default function ImagePanel(props: PanelProps) {
+export default function ImagePanel(props: PanelProps<ImagePanelOptions>) {
 
-    const { data } = props;
+    const { options, data } = props;
     let images: string[] = [];
 
     try {
@@ -16,8 +17,6 @@ export default function ImagePanel(props: PanelProps) {
         });
     } catch(ignored){}
 
-    return images.map((image, i) => 
-        <img src={image} key={i} alt="Image" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-    );
+    return images.map((image) => ImageRenderer(options, image));
 
 }

@@ -34,8 +34,9 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 }
 
 type CommandAck struct {
-	Status string `json:"status"`
-	Time   string `json:"time"`
+	Status  string `json:"status"`
+	Time    string `json:"time"`
+	Message string `json:"message,omitempty"`
 }
 
 type CommandArgument struct {
@@ -44,14 +45,16 @@ type CommandArgument struct {
 }
 
 type CommandEntry struct {
-	Id        string            `json:"id"`
-	Time      time.Time         `json:"time"`
-	Command   string            `json:"command"`
-	Comment   *string           `json:"comment,omitempty"`
-	Arguments []CommandArgument `json:"arguments"`
-	Queued    *CommandAck       `json:"queued,omitempty"`
-	Released  *CommandAck       `json:"released,omitempty"`
-	Sent      *CommandAck       `json:"sent,omitempty"`
+	Id                    string                 `json:"id"`
+	Time                  time.Time              `json:"time"`
+	Command               string                 `json:"command"`
+	Comment               *string                `json:"comment,omitempty"`
+	Arguments             []CommandArgument      `json:"arguments"`
+	Queued                *CommandAck            `json:"queued,omitempty"`
+	Released              *CommandAck            `json:"released,omitempty"`
+	Sent                  *CommandAck            `json:"sent,omitempty"`
+	ExtraAcknowledgements map[string]*CommandAck `json:"extraAcks"`
+	Completion            *CommandAck            `json:"completion"`
 }
 
 // Helpers
@@ -67,21 +70,23 @@ func prepend[T any](s []T, v T) []T {
 	return append([]T{v}, s...)
 }
 
-func 	ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
+func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
 
 	commandList := make([]json.RawMessage, 0)
 
 	for _, command := range commands {
 
 		commandEntry := &CommandEntry{
-			Id:        command.GetId(),
-			Time:      command.GetGenerationTime().AsTime(),
-			Command:   command.GetCommandName(),
-			Comment:   nil,
-			Arguments: make([]CommandArgument, 0),
-			Queued:    nil,
-			Released:  nil,
-			Sent:      nil,
+			Id:                    command.GetId(),
+			Time:                  command.GetGenerationTime().AsTime(),
+			Command:               command.GetCommandName(),
+			Comment:               nil,
+			Arguments:             make([]CommandArgument, 0),
+			Queued:                nil,
+			Released:              nil,
+			Sent:                  nil,
+			Completion:            nil,
+			ExtraAcknowledgements: make(map[string]*CommandAck),
 		}
 
 		for _, attribute := range command.GetAttr() {
@@ -92,9 +97,9 @@ func 	ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *dat
 			case "comment":
 				commandEntry.Comment = value.StringValue
 
-			case "Acknowledge_Queued_Status", "Acknowledge_Queued_Time",
-				"Acknowledge_Released_Status", "Acknowledge_Released_Time",
-				"Acknowledge_Sent_Status", "Acknowledge_Sent_Time":
+			case "Acknowledge_Queued_Status", "Acknowledge_Queued_Time", "Acknowledge_Queued_Message",
+				"Acknowledge_Released_Status", "Acknowledge_Released_Time", "Acknowledge_Released_Message",
+				"Acknowledge_Sent_Status", "Acknowledge_Sent_Time", "Acknowledge_Sent_Message":
 
 				var ack **CommandAck
 				switch {
@@ -110,10 +115,55 @@ func 	ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *dat
 					*ack = &CommandAck{}
 				}
 
-				if nameHasSuffix(name, "Status") {
+				switch {
+				case nameHasSuffix(name, "Status"):
 					(*ack).Status = value.GetStringValue()
-				} else if nameHasSuffix(name, "Time") {
+				case nameHasSuffix(name, "Time"):
 					(*ack).Time = value.GetStringValue()
+				case nameHasSuffix(name, "Message"):
+					(*ack).Message = value.GetStringValue()
+				}
+
+			default:
+				// Handle Verifier_* attributes
+				if nameHasPrefix(name, "Verifier_") {
+					rest := strings.TrimPrefix(name, "Verifier_")
+					underscoreIndex := strings.LastIndex(rest, "_")
+					if underscoreIndex > 0 {
+						ackName := "Verifier_" + rest[:underscoreIndex]
+						field := rest[underscoreIndex+1:]
+
+						ack, ok := commandEntry.ExtraAcknowledgements[ackName]
+						if !ok {
+							ack = &CommandAck{}
+							commandEntry.ExtraAcknowledgements[ackName] = ack
+						}
+
+						switch field {
+						case "Status":
+							ack.Status = value.GetStringValue()
+						case "Time":
+							ack.Time = value.GetStringValue()
+						case "Message":
+							ack.Message = value.GetStringValue()
+						}
+					}
+				}
+
+				// Handle CommandComplete_* attributes
+				if nameHasPrefix(name, "CommandComplete_") {
+					if commandEntry.Completion == nil {
+						commandEntry.Completion = &CommandAck{}
+					}
+
+					switch {
+					case nameHasSuffix(name, "Status"):
+						commandEntry.Completion.Status = value.GetStringValue()
+					case nameHasSuffix(name, "Time"):
+						commandEntry.Completion.Time = value.GetStringValue()
+					case nameHasSuffix(name, "Message"):
+						commandEntry.Completion.Message = value.GetStringValue()
+					}
 				}
 			}
 		}
@@ -134,7 +184,6 @@ func 	ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *dat
 			continue
 		}
 		commandList = prepend(commandList, rawJson)
-
 	}
 
 	return data.NewFrame("response", data.NewField("commands", nil, commandList))

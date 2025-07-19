@@ -4,6 +4,10 @@ export interface CommandForms {
             [arg: string]: any;
         },
         comment: string,
+        variableMode: boolean,
+        variableToSet: string,
+        changeMode: 'change' | 'add' | 'multiply',
+        valueToSet: string,
         label: string,
         tooltip: string,
         icon: string,
@@ -12,6 +16,11 @@ export interface CommandForms {
         textColor: string,
         transparent: string,
         shape: string,
+        customSVG: string,
+        bgSize: string,
+        bgPosition: string,
+        bgWidth: string,
+        bgHeight: string,
     }
 };
 

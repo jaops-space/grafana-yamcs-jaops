@@ -1,6 +1,7 @@
 import { dateTime, PanelProps } from '@grafana/data';
-import { Icon, InteractiveTable, Tooltip } from '@grafana/ui';
-import React from 'react';
+import { Icon, InteractiveTable, Stack, Text, Tooltip } from '@grafana/ui';
+import { CommandHistoryOptions } from 'command-history-panel/module';
+import React, { useMemo } from 'react';
 
 // ------------------
 // Type Definitions
@@ -9,6 +10,7 @@ import React from 'react';
 interface CommandAck {
     status: string;
     time: string; // ISO string
+    message: string;
 }
 
 interface CommandArgument {
@@ -25,11 +27,46 @@ interface CommandEntry {
     queued?: CommandAck;
     released?: CommandAck;
     sent?: CommandAck;
+    extraAcks: Record<string, CommandAck>;
+    completion: CommandAck;
 }
 
 // ------------------
 // Utility Functions
 // ------------------
+
+function deepCombine<T = any>(obj1: T, obj2: T): T {
+    if (Array.isArray(obj1) && Array.isArray(obj2)) {
+        return obj1.concat(obj2) as T;
+    }
+
+    if (isObject(obj1) && isObject(obj2)) {
+        const result: any = {};
+
+        const keys = new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
+
+        for (const key of keys) {
+            const val1 = (obj1 as any)[key];
+            const val2 = (obj2 as any)[key];
+
+            if (key in obj1 && key in obj2) {
+                result[key] = deepCombine(val1, val2);
+            } else if (key in obj1) {
+                result[key] = val1;
+            } else {
+                result[key] = val2;
+            }
+        }
+
+        return result;
+    }
+
+    return obj2;
+}
+
+function isObject(val: any): val is Record<string, any> {
+    return val !== null && typeof val === 'object' && !Array.isArray(val);
+}
 
 function formatTime(iso: string): string {
     return dateTime(iso).format('YYYY-MM-DD HH:mm:ss');
@@ -40,29 +77,23 @@ function timeDiffMs(start: string, end: string): string {
     return `+ ${diff} ms`;
 }
 
-function dedupeById(entries: CommandEntry[]): CommandEntry[] {
-    const map = new Map<string, {index: number, entry: CommandEntry}>();
+const dedupeById = (entries: CommandEntry[]): CommandEntry[] => {
+    const map = new Map<string, number>();
     const result: CommandEntry[] = [];
 
     for (const entry of entries) {
-        if (map.has(entry.id)) {
-            let mapEntry = map.get(entry.id);
-            let index = mapEntry!.index, oldEntry = mapEntry!.entry;
-            entry.comment ||= oldEntry.comment;
-            entry.arguments = [...entry.arguments, ...oldEntry.arguments];
-            entry.sent ||= oldEntry.sent;
-            entry.released ||= oldEntry.released;
-            entry.queued ||= oldEntry.queued;
-            map.set(entry.id, {index, entry});
-            result[index] = entry;
+        const id = entry.id;
+        if (map.has(id)) {
+            const index = map.get(id)!;
+            result[index] = deepCombine(result[index], entry);
         } else {
-            const ind = result.push(entry) - 1;
-            map.set(entry.id, {index: ind, entry});
+            result.push({ ...entry }); // shallow clone at least
+            map.set(id, result.length - 1);
         }
     }
 
     return result;
-}
+};
 
 // ------------------
 // Table Column Definitions
@@ -99,7 +130,7 @@ const columns = [
     ...['queued', 'released', 'sent'].map((key) => ({
         id: key,
         header: key[0].toUpperCase(),
-        tooltip: 'test',
+        tooltip: '',
         cell: (info: any) => {
             const entry = info.row.original.row;
             const ack: CommandAck | undefined = entry[key];
@@ -108,17 +139,97 @@ const columns = [
             }
 
             const statusOk = ack.status.toLowerCase() === 'ok';
+            const statusNok = ack.status.toLowerCase() === 'nok';
             const icon = statusOk ? 'check-circle' : 'exclamation-triangle';
-            const color = statusOk ? 'green' : 'orange';
+            const color = statusOk ? 'green' : (statusNok ? 'red' : 'orange');
             const timeDelta = timeDiffMs(entry.time, ack.time);
 
+            let msg = "";
+            if (ack.message) {
+                msg = "\n" + ack.message;
+            }
+
             return (
-                <Tooltip content={`${key.charAt(0).toUpperCase() + key.slice(1)}: ${ack.status} (${timeDelta})`}>
+                <Tooltip content={<>{`${key.charAt(0).toUpperCase() + key.slice(1)}: ${ack.status} (${timeDelta})`}<br />{msg}</>}>
                     <Icon name={icon} size="md" color={color} />
                 </Tooltip>
             );
         },
     })),
+    {
+        id: 'extraAcks',
+        header: 'Extra Acks.',
+        tooltip: '',
+        cell: (info: any) => {
+            const entry = info.row.original.row;
+            const acks: Record<string, CommandAck> | undefined = entry.extraAcks;
+            if (!acks) {
+                return null;
+            }
+
+            return <>
+                {Object.keys(acks).map(key => {
+                    const ack = acks[key];
+                    const statusOk = ack.status.toLowerCase() === 'ok';
+                    const statusNok = ack.status.toLowerCase() === 'nok';
+                    const icon = statusOk ? 'check-circle' : 'exclamation-triangle';
+                    const color = statusOk ? 'green' : (statusNok ? 'red' : 'orange');
+                    const timeDelta = timeDiffMs(entry.time, ack.time);
+                    let msg = "";
+                    if (ack.message) {
+                        msg = "\n" + ack.message;
+                    }
+
+                    return (
+                        <Tooltip key={key} content={<>{`${key}: ${ack.status} (${timeDelta})`}<br />{msg}</>}>
+                            <Icon name={icon} size="md" color={color} />
+                        </Tooltip>
+                    );
+                })}
+            </>;
+
+        },
+    },
+    {
+        id: 'completion',
+        header: 'Completion',
+        tooltip: '',
+        cell: (info: any) => {
+            const entry = info.row.original.row;
+            const ack: CommandAck | undefined = entry.completion;
+            if (!ack) {
+                return null;
+            }
+
+            let statusText = "";
+            switch (ack.status.toLowerCase()) {
+                case "ok":
+                    statusText = "COMPLETED";
+                    break;
+                case "timeout":
+                    statusText = "TIMED OUT";
+                    break;
+                case "nok":
+                    statusText = "FAILED";
+                    break;
+            }
+            const statusOk = ack.status.toLowerCase() === 'ok';
+            const statusNok = ack.status.toLowerCase() === 'nok';
+            const variant = statusOk ? 'success' : (statusNok ? 'error' : 'warning');
+            const timeDelta = timeDiffMs(entry.time, ack.time);
+
+            return (
+                <Tooltip content={`${ack.message ?? ""} (${timeDelta})`}>
+                    <Stack direction='row' gap={1} alignItems='center' width='max-content' height='max-content'>
+                        <Text variant='code' color={variant}>
+                            {statusText}
+                        </Text>
+                    </Stack>
+                </Tooltip>
+            );
+
+        },
+    }
 ];
 
 // ------------------
@@ -149,31 +260,49 @@ function renderSubComponent({ row }: { row: any }) {
 // Main Component
 // ------------------
 
-const CommandHistoryPanel: React.FC<PanelProps> = ({ data }) => {
-    const frame = data.series[0];
+const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data, options }) => {
+    const deduped = useMemo(() => {
+        const frame = data.series[0];
+        if (!frame || !frame.fields.length) { return []; }
 
-    if (!frame || !frame.fields.length) {
+        const rawField = frame.fields.find((f) => f.name === 'commands');
+        if (!rawField) { return []; }
+
+        const raw = rawField.values as any[];
+
+        const parsed: CommandEntry[] = raw.filter(Boolean).reverse();
+        console.log(parsed);
+        const deduped = dedupeById(parsed);
+        console.log(deduped);
+        return deduped;
+    }, [data]);
+
+    if (!deduped.length) {
         return <div>No data</div>;
     }
 
-    const rawField = frame.fields.find((f) => f.name === 'commands');
-    if (!rawField) {
-        return <div>Field &apos;commands&apos; not found</div>;
-    }
-
-    const raw = rawField.values as any[];
-
-    const parsed: CommandEntry[] = raw.filter(Boolean).reverse();
-
-    const deduped = dedupeById(parsed);
-
     return (
-        <InteractiveTable
-            data={deduped.map(d => ({ row: d, id: d.id }))}
-            getRowId={(row: any) => row.id}
-            columns={columns}
-            renderExpandedRow={renderSubComponent}
-        />
+        <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
+                {options.pagination ? (
+                    <InteractiveTable
+                        key="with-pagination"
+                        data={deduped.map(d => ({ row: d, id: d.id }))}
+                        getRowId={(row: any) => row.id}
+                        columns={columns.filter(column => options.visibleFields.includes(column.id))}
+                        renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                        pageSize={Math.max(1, options.pageSize)}
+                    />
+                    ) : (
+                    <InteractiveTable
+                        key="without-pagination"
+                        data={deduped.map(d => ({ row: d, id: d.id }))}
+                        getRowId={(row: any) => row.id}
+                        columns={columns.filter(column => options.visibleFields.includes(column.id))}
+                        renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                        // Don't pass pageSize at all
+                    />
+                )}
+        </div>
     );
 };
 
