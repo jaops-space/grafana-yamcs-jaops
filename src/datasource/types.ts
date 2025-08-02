@@ -11,6 +11,9 @@ export interface Query extends DataQuery {
     command: string;
     aggregatePath: string;
     fields: QueryField[];
+    asVariable: boolean;
+    customVariableString: boolean;
+    endpointVariable: string;
 }
 
 /**

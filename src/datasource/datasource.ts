@@ -48,7 +48,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
 
                 let pathName = 'query';
                 if (query.parameter) {
-                    pathName = `${query.parameter.replaceAll("/", "")}${query.aggregatePath}`;
+                    pathName = `${query.endpoint}-${query.parameter.replaceAll("/", "")}${query.aggregatePath}`;
                 } else if (query.type === QueryType.EVENTS){
                     pathName = 'events'
                 } else if (query.type === QueryType.DEMANDS) {
