@@ -52,8 +52,12 @@ func (client *YamcsClient) ListInstanceProcessors(instance Instance) ([]Processo
 // GetInstanceDefaultProcessor returns the first processor from the specified instance's processor list.
 // It assumes the instance has at least one processor.
 func (client *YamcsClient) GetInstanceDefaultProcessor(instance Instance) Processor {
-	if len(instance.Processors) > 0 {
-		return instance.Processors[0]
+	// as yamcs web says, the alphabetic-first persistent non-replay processor
+	// just make an API endpoint to get it already
+	for _, processor := range instance.GetProcessors() {
+		if processor.GetPersistent() && !processor.GetReplay() {
+			return processor
+		}
 	}
 	return nil
 }

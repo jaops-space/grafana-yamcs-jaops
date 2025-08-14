@@ -48,6 +48,7 @@ func RunParameterStream(ctx context.Context,
 	for {
 		select {
 		case <-ctx.Done():
+			backend.Logger.Error(ctx.Err().Error())
 			return ctx.Err()
 		case <-ticker.C:
 
@@ -63,9 +64,9 @@ func RunParameterStream(ctx context.Context,
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath)
+				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath)
+				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
 			}
 
 			sender.SendFrame(

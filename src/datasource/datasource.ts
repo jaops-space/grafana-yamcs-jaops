@@ -71,6 +71,14 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
                 query.command = templateSrv.replace(query.command, request.scopedVars);
 
+                if (query.asVariable) {
+                    if (query.customVariableString ) {
+                        query.endpoint = templateSrv.replace(query.endpointVariable, request.scopedVars);
+                    } else {
+                        query.endpoint = templateSrv.replace("$" + query.endpointVariable, request.scopedVars);
+                    }
+                }
+
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
                         maxLength: this.bufferMaxLength,

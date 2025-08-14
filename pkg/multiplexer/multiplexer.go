@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
@@ -149,6 +150,8 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		}
 		subscription.SetListener(endpoint.GetChannelParameterListener())
 	}
+
+	backend.Logger.Info("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
 
 	return endpoint, nil
 }

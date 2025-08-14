@@ -226,13 +226,50 @@ func ConvertSampleBufferToFrame(buffer []*pvalue.TimeSeries_Sample, parameter st
 	return frame
 }
 
+func ConvertSampleBufferToFrameWithOffset(buffer []*pvalue.TimeSeries_Sample,
+	parameter string, includeMin, includeMax bool, offset time.Duration) *data.Frame {
+
+	valueField := data.NewField(parameter, nil, []*float64{})
+	minField := data.NewField("min("+parameter+")", nil, []*float64{})
+	maxField := data.NewField("max("+parameter+")", nil, []*float64{})
+	timeField := data.NewField("time", nil, []time.Time{})
+
+	lastWasNull := false
+
+	for _, item := range buffer {
+		timeField.Append(item.Time.AsTime().Add(offset))
+
+		if item.GetN() == 0 && !lastWasNull && valueField.Len() > 0 {
+			lastWasNull = true
+			valueField.Append(nil)
+			minField.Append(nil)
+			maxField.Append(nil)
+			continue
+		}
+		lastWasNull = false
+
+		valueField.Append(item.Avg)
+		minField.Append(item.Min)
+		maxField.Append(item.Max)
+	}
+
+	frame := data.NewFrame("response", timeField, valueField)
+	if includeMin {
+		frame.Fields = append(frame.Fields, minField)
+	}
+	if includeMax {
+		frame.Fields = append(frame.Fields, maxField)
+	}
+	return frame
+}
+
 // ConvertBufferToFrame converts a parameter value buffer into a data frame.
-func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, aggregatePath string) *data.Frame {
+func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, aggregatePath string, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int{}))
 	}
 
-	values, times := extractParameterValues(buffer, aggregatePath)
+	values, times := extractParameterValues(buffer, aggregatePath, realtime)
 	valueField := CreateValueField(values, parameter)
 
 	frame := data.NewFrame("response", data.NewField("time", nil, times), valueField)
@@ -285,15 +322,19 @@ func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, aggregatePath
 }
 
 // ConvertBufferToAverageFrame extracts statistics from the parameter buffer and returns a data frame.
-func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue, parameter string, getMin, getMax bool, aggregatePath string) *data.Frame {
+func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
+	parameter string, getMin, getMax bool, aggregatePath string, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}))
 	}
 
-	values, times := extractParameterValues(buffer, aggregatePath)
+	values, times := extractParameterValues(buffer, aggregatePath, realtime)
 	avg, min, max := CalculateStats(values, parameter)
 
 	timeField := data.NewField("time", nil, []time.Time{times[len(times)-1]})
+	if realtime {
+		timeField = data.NewField("time", nil, []time.Time{time.Now()})
+	}
 	frame := data.NewFrame("response", timeField, avg)
 
 	if getMin {
@@ -307,13 +348,18 @@ func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue, parameter stri
 }
 
 // extractParameterValues extracts values and timestamps from a parameter buffer.
-func extractParameterValues(buffer []*pvalue.ParameterValue, aggregatePath string) ([]interface{}, []time.Time) {
+func extractParameterValues(buffer []*pvalue.ParameterValue, aggregatePath string, realtime bool) ([]interface{}, []time.Time) {
 	var values []interface{}
 	var times []time.Time
 
 	for _, item := range buffer {
 		values = append(values, extractValue(item.GetEngValue(), aggregatePath))
-		times = append(times, item.GetGenerationTime().AsTime())
+		if realtime {
+			times = append(times, time.Now())
+		} else {
+			times = append(times, item.GetGenerationTime().AsTime())
+		}
+
 	}
 	return values, times
 }

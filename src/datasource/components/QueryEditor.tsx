@@ -18,7 +18,7 @@ export function QueryEditor(props: QueryProps) {
                 endpoint,
             });
         },
-        [onChange]
+        [onChange, query]
     );
 
     const setAsVariable = useCallback(
@@ -28,7 +28,7 @@ export function QueryEditor(props: QueryProps) {
                 asVariable,
             });
         },
-        [onChange]
+        [onChange, query]
     );
 
     const setEndpointVariable = useCallback(
@@ -111,7 +111,7 @@ export function QueryEditor(props: QueryProps) {
                 <Select
                     options={endpointOptions}
                     getOptionLabel={getEndpointLabel}
-                    value={query.endpoint}
+                    value={query.endpoint}  
                     onChange={(e: SelectableValue) => setEndpoint(e.value)}
                     isLoading={loading}
                     loadingMessage="Fetching endpoints..."

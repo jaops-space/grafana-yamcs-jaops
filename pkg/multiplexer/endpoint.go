@@ -23,6 +23,8 @@ type YamcsEndpoint struct {
 	Parameters     map[string]*ParameterDemand
 	Events         map[string][]*events.Event
 	CommandHistory map[string][]*commanding.CommandHistoryEntry
+
+	CurrentTime time.Time
 }
 
 // ParameterDemand represents a demand for a specific parameter.
@@ -42,6 +44,26 @@ type ParameterStreamDemand struct {
 
 	Path   string
 	Buffer []client.ParameterValue
+}
+
+func (ep *YamcsEndpoint) RequestTime() {
+	client := ep.GetClient()
+	if client.HasTimeSubscriptionFor(ep.Instance, ep.Processor) {
+		return
+	}
+	subscription, err := client.CreateTimeSubscription(ep.Instance, ep.Processor)
+	if err != nil {
+		backend.Logger.Error(err.Error())
+		return
+	}
+	subscription.SetTimeListener(ep.GetTimeHandler())
+}
+
+func (ep *YamcsEndpoint) GetTimeHandler() func(t time.Time) {
+	return func(currentTime time.Time) {
+		ep.CurrentTime = currentTime
+		backend.Logger.Debug("Updating time", "time", currentTime)
+	}
 }
 
 // GetHostConfiguration retrieves the host configuration for the endpoint.
