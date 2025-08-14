@@ -1,7 +1,6 @@
 package ws
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -71,7 +70,6 @@ func (websocketHandler *WebSocketHandler) Connect() error {
 		return dialErr
 	}
 	backend.Logger.Debug("Websocket: Connected to WebSocket.")
-	backend.Logger.Debug("Address of pointer websocketHandler: ", fmt.Sprintf("%p", websocketHandler))
 
 	websocketHandler.connection = conn
 	atomic.StoreInt32(&websocketHandler.isConnected, 1)
@@ -80,6 +78,7 @@ func (websocketHandler *WebSocketHandler) Connect() error {
 }
 
 func (websocketHandler *WebSocketHandler) Listen() {
+
 	defer websocketHandler.ForceDisconnect()
 	backend.Logger.Debug("Websocket: Listening for WebSocket messages.")
 	defer backend.Logger.Debug("Websocket: Stopped listening for WebSocket messages.")
