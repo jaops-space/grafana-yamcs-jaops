@@ -202,3 +202,10 @@ func DatasourceCommandHistoryFrame(endpoint *multiplexer.YamcsEndpoint, q Plugin
 	return frame, nil
 
 }
+
+func DatasourceTimeFrame(endpoint *multiplexer.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+
+	frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
+	return frame, nil
+
+}

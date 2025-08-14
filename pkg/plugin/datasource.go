@@ -70,6 +70,8 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 		return &backend.SubscribeStreamResponse{
 			Status: backend.SubscribeStreamStatusOK,
 		}, nil
+	case Time:
+		frame, err = DatasourceTimeFrame(endpoint, q)
 	default:
 		return nil, exception.New("Query type not identified", "QUERY_TYPE_NOT_FOUND")
 	}
@@ -136,6 +138,8 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 		return RunSubscriptionStream(ctx, req, sender, endpoint, q)
 	case CommandHistory:
 		return RunCommandHistoryStream(ctx, req, sender, endpoint, q)
+	case Time:
+		return RunTimeStream(ctx, req, sender, endpoint, q)
 	default:
 		return nil
 	}
