@@ -24,6 +24,7 @@ export enum QueryType {
     SINGLE = 'single',
     DISCRETE = 'discrete',
     EVENTS = 'events',
+    TIME = 'time',
     IMAGE = 'image',
 
     DEMANDS = 'demands',

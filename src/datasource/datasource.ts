@@ -42,7 +42,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
     query(request: DataQueryRequest<Query>): Observable<DataQueryResponse> {
         const observables = request.targets
             .map((query) => {
-                if (!query.endpoint || !query.type) {
+                if ((!query.endpoint && !query.asVariable) || !query.type) {
                     return undefined; // Skip invalid queries
                 }
 
@@ -72,11 +72,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 query.command = templateSrv.replace(query.command, request.scopedVars);
 
                 if (query.asVariable) {
-                    if (query.customVariableString ) {
-                        query.endpoint = templateSrv.replace(query.endpointVariable, request.scopedVars);
-                    } else {
-                        query.endpoint = templateSrv.replace("$" + query.endpointVariable, request.scopedVars);
-                    }
+                    query.endpoint = templateSrv.replace(query.endpointVariable, request.scopedVars);
                 }
 
                 return getGrafanaLiveSrv().getDataStream({

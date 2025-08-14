@@ -256,3 +256,40 @@ func RunCommandHistoryStream(
 		}
 	}
 }
+
+func RunTimeStream(
+	ctx context.Context,
+	req *backend.RunStreamRequest,
+	sender *backend.StreamSender,
+	endpoint *multiplexer.YamcsEndpoint,
+	q PluginQuery,
+) error {
+
+	yamcs := endpoint.GetClient()
+
+	endpoint.RequestTime()
+
+	// Calculate ticker interval
+	tickerInterval := time.Second * 1
+	ticker := time.NewTicker(tickerInterval)
+
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+
+			if !yamcs.WebSocket.IsConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
+
+			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
+			sender.SendFrame(
+				frame,
+				data.IncludeDataOnly,
+			)
+		}
+	}
+}

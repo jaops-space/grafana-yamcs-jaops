@@ -164,7 +164,7 @@ export function QueryEditor(props: QueryProps) {
                     Fetch endpoints
                 </Button>
             </Stack>
-            {endpoints[query.endpoint ?? '']?.online && <QueryTypeEditor {...props} />}
+            <QueryTypeEditor {...props} />
         </Box>
     );
 }
