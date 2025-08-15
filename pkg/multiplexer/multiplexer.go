@@ -10,7 +10,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/auth"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // Multiplexer manages parameter requests, ensuring that only one subscription is active per parameter.
@@ -19,6 +19,7 @@ type Multiplexer struct {
 	Hosts         map[string]*YamcsHost
 	Endpoints     map[string]*YamcsEndpoint
 	Configuration *config.YamcsPluginConfiguration
+	Secure        *config.YamcsSecureConfiguration
 	SyncMux       sync.Mutex
 }
 
@@ -47,20 +48,31 @@ func (mux *Multiplexer) SetupHost(hostID string) error {
 		return exception.New(fmt.Sprintf("Configuration for host %s not found", hostID), "CONFIGURATION_NOT_FOUND")
 	}
 
-	var tlsConfig auth.TLS
-	var authConfig auth.AccountCredentials
+	var tlsConfig http.TLS
+	var creds http.Credentials
 
 	if hostConfig.Tls {
-		tlsConfig = auth.GetTLSConfiguration(false, "")
+		tlsConfig = http.GetTLSConfiguration(false, "")
 	} else {
-		tlsConfig = auth.GetNoTLSConfiguration()
+		tlsConfig = http.GetNoTLSConfiguration()
 	}
 
 	if !hostConfig.Auth {
-		authConfig = auth.GetNoAccountCredentials()
+		creds = &http.NoCredentials{}
+	} else {
+		username := hostConfig.Username
+		secure := mux.GetSecureData(hostID)
+		if secure == nil {
+			return exception.New(fmt.Sprintf("Secure configuration for host %s not found", hostID), "SECURE_CONFIGURATION_NOT_FOUND")
+		}
+		password := secure.Password
+		creds = &http.BasicAuthCredentials{
+			Username: username,
+			Password: password,
+		}
 	}
 
-	yamcsClient, err := client.NewYamcsClient(hostConfig.Path, tlsConfig, authConfig)
+	yamcsClient, err := client.NewYamcsClient(hostConfig.Path, tlsConfig, creds)
 	if err != nil {
 		return err
 	}

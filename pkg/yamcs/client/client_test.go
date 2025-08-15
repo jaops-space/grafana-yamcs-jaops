@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/yamcsManagement"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/auth"
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // mockTransport implements http.RoundTripper to mock HTTP requests.
@@ -26,8 +26,8 @@ func TestClient(t *testing.T) {
 
 	client, err := NewYamcsClient(
 		"somepath",
-		auth.GetNoTLSConfiguration(),
-		auth.GetNoAccountCredentials(),
+		corehttp.GetNoTLSConfiguration(),
+		&corehttp.NoCredentials{},
 		OptionSetProtocol(false),
 	)
 	if err != nil {

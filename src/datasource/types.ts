@@ -63,6 +63,7 @@ export interface Configuration extends DataSourceJsonData {
             tlsEnabled: boolean;
             tlsInsecure?: boolean;
             authEnabled: boolean;
+            username: string;
         }
     >;
 
@@ -84,12 +85,18 @@ export interface Configuration extends DataSourceJsonData {
     debugMode: boolean;
 }
 
+export interface SecureConfiguration {
+    [key: string]: string
+}
+
 export const DefaultConfiguration = {
     hosts: {},
     endpoints: {},
     bufferMaxLength: 5000,
     debugMode: false,
 } satisfies Configuration;
+
+export const DefaultSecureConfiguration = {} satisfies SecureConfiguration;
 
 /**
  * Utility type to allow optional values (null or undefined).

@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/manager/http"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // FetchFunction represents a function that fetches data for pagination.
