@@ -5,7 +5,6 @@ import (
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/auth"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -14,10 +13,10 @@ import (
 // marshaling the body, and unmarshaling the response to the provided proto.Message.
 func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Message, unmarshalTo proto.Message) error {
 	// Construct the URL by combining the base API root with the provided path
-	url := fmt.Sprintf("%s%s", httpManager.apiRoot, path)
+	url := fmt.Sprintf("%s%s", httpManager.APIRoot, path)
 
 	// Marshal the request body based on the format (Protobuf or JSON)
-	marshalledBody, err := marshalMessage(body, httpManager.usingProtobuf)
+	marshalledBody, err := marshalMessage(body, httpManager.UsingProtobuf)
 	if err != nil {
 		return err
 	}
@@ -26,7 +25,7 @@ func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Mes
 	response, err := httpManager.SendRequest(method, url, marshalledBody)
 	if err != nil && response != nil {
 		exc := &api.ExceptionMessage{}
-		err := unmarshalResponse(response, exc, httpManager.usingProtobuf)
+		err := unmarshalResponse(response, exc, httpManager.UsingProtobuf)
 		if err != nil {
 			return exception.Wrap("Error unmarshalling error after HTTP error", "HTTP_API_ERROR", err)
 		}
@@ -36,7 +35,7 @@ func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Mes
 	}
 
 	// Unmarshal the response based on the format (Protobuf or JSON)
-	return unmarshalResponse(response, unmarshalTo, httpManager.usingProtobuf)
+	return unmarshalResponse(response, unmarshalTo, httpManager.UsingProtobuf)
 }
 
 // marshalMessage marshals a given proto message into either Protobuf or JSON format.
@@ -65,22 +64,15 @@ Returns:
 - AuthCredentials containing access tokens and refresh token.
 - Error in case of failure.
 */
-func (httpManager *HTTPManager) Login(account *auth.AccountCredentials) (*auth.AuthCredentials, error) {
+func (httpManager *HTTPManager) Login(account *Credentials) error {
 
-	requestBody := map[string]string{
-		"grant_type": "password",
-		"username":   account.Username,
-		"password":   account.Password,
-	}
-
-	authCreds := auth.AuthCredentials{}
-	err := httpManager.SendJSONRequest("POST", httpManager.authRoot, requestBody, authCreds)
+	err := httpManager.Credentials.Login(httpManager)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	return &authCreds, nil
-
+	httpManager.RefreshStop = make(chan struct{})
+	httpManager.StartAutoRefresh()
+	return nil
 }
 
 // GetProto sends a GET request with the given path and unmarshals the response into the provided proto.Message.

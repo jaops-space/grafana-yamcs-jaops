@@ -1,10 +1,10 @@
 import { AppEvents, DataSourcePluginOptionsEditorProps } from '@grafana/data';
+import { getAppEvents } from '@grafana/runtime';
 import { Button, Checkbox, Collapse, Field, FileDropzone, InlineField, Input, Modal, Stack } from '@grafana/ui';
 import React, { useState } from 'react';
-import { Configuration, DefaultConfiguration, Endpoints, IndexedEndpoint } from '../types';
+import { Configuration, DefaultConfiguration, DefaultSecureConfiguration, Endpoints, IndexedEndpoint, SecureConfiguration } from '../types';
 import ConfigEndpoint from './ConfigEndpoint';
 import ConfigHost from './ConfigHost';
-import { getAppEvents } from '@grafana/runtime';
 
 function toHexString(bytes: Uint8Array) {
     return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
@@ -18,13 +18,15 @@ function randomBytesBitwise(size: number) {
     return toHexString(bytes);
 }
 
-interface ConfigProps extends DataSourcePluginOptionsEditorProps<Configuration> {}
+interface ConfigProps extends DataSourcePluginOptionsEditorProps<Configuration, SecureConfiguration> {}
 
 /**
  * ConfigEditor component allows users to configure hosts, endpoints, and plugin settings.
  * It manages state and handles updates to the Grafana plugin settings.
  */
 export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) {
+
+    const [secureConfig, setSecureConfig] = useState<SecureConfiguration>(options.secureJsonData ?? DefaultSecureConfiguration);
     const [config, setConfig] = useState<Configuration>(options.jsonData ?? DefaultConfiguration);
     const [hosts, setHosts] = useState(config.hosts || {});
     const _endp = config.endpoints || {};
@@ -75,12 +77,25 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
         });
     };
 
+    const setSecureProperty = (index: string, key: string, value: any) => {
+        const updatedSecure = {...secureConfig, [`${index}-${key}`]: value};
+        onOptionsChange({
+            ...options,
+            secureJsonData: updatedSecure
+        });
+        setSecureConfig(updatedSecure);
+    }
+
+    const getSecureProperty = (index: string, key: string) => {
+        return secureConfig[`${index}-${key}`];
+    }
+
     /**
      * Adds a new host entry with default values.
      */
     const addHost = () => {
         const id = randomBytesBitwise(16);
-        setHosts((prev) => {
+        setHosts((prev: any) => {
             const newHosts = { ...prev, [id]: { path: '', tlsEnabled: false, authEnabled: false } };
             updateConfig('hosts', newHosts);
             return newHosts;
@@ -193,7 +208,7 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
             </Stack>
             <Collapse label="Hosts Configuration" isOpen={isHostOpen} onToggle={() => setHostOpen(!isHostOpen)}>
                 {Object.keys(hosts).map((index) => (
-                    <ConfigHost key={index} data={config} onChange={updateHost} index={index} removeHost={removeHost} />
+                    <ConfigHost key={index} data={config} onChange={updateHost} index={index} removeHost={removeHost} setSecure={setSecureProperty} getSecure={getSecureProperty} />
                 ))}
                 <Button variant="secondary" onClick={addHost} icon="plus" fullWidth style={{ width: '100%' }} />
             </Collapse>
