@@ -42,13 +42,13 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
     query(request: DataQueryRequest<Query>): Observable<DataQueryResponse> {
         const observables = request.targets
             .map((query) => {
-                if (!query.endpoint || !query.type) {
+                if ((!query.endpoint && !query.asVariable) || !query.type) {
                     return undefined; // Skip invalid queries
                 }
 
                 let pathName = 'query';
                 if (query.parameter) {
-                    pathName = `${query.parameter.replaceAll("/", "")}${query.aggregatePath}`;
+                    pathName = `${query.endpoint}-${query.parameter.replaceAll("/", "")}${query.aggregatePath}`;
                 } else if (query.type === QueryType.EVENTS){
                     pathName = 'events'
                 } else if (query.type === QueryType.DEMANDS) {
@@ -70,6 +70,10 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 query.aggregatePath = templateSrv.replace(query.aggregatePath, request.scopedVars);
                 query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
                 query.command = templateSrv.replace(query.command, request.scopedVars);
+
+                if (query.asVariable) {
+                    query.endpoint = templateSrv.replace(query.endpointVariable, request.scopedVars);
+                }
 
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {

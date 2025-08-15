@@ -1,6 +1,6 @@
 import { Box, Button, Card, Checkbox, Field, Input, Text } from '@grafana/ui';
-import { Configuration } from '../types';
 import React, { ChangeEvent, useState } from 'react';
+import { Configuration } from '../types';
 
 /**
  * Props for the ConfigHost component.
@@ -9,14 +9,18 @@ interface Props {
     onChange: (index: string, key: string, value: any) => void;
     removeHost: (index: string) => void;
     data: Configuration;
+
+    setSecure: (index: string, property: string, value: any) => void;
+    getSecure: (index: string, property: string) => any;
     index: string;
 }
 
 /**
  * ConfigHost component allows editing and displaying host configurations in a Grafana plugin.
  */
-export default function ConfigHost({ index, data, onChange, removeHost }: Props) {
+export default function ConfigHost({ index, data, onChange, removeHost, setSecure, getSecure }: Props) {
     const host = data.hosts[index];
+    const password = getSecure(index, 'password');
     const [editing, setEditing] = useState(false);
 
     const name = host.name || host.path || 'Unnamed Host';
@@ -63,11 +67,26 @@ export default function ConfigHost({ index, data, onChange, removeHost }: Props)
                 <Checkbox
                     value={host.authEnabled}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'authEnabled', e.target.checked)}
-                    label="Enable Authentication"
-                    description="Unavailable for the moment"
-                    disabled
+                    label="Enable Basic Authentication"
                 />
             </Field>
+            {host.authEnabled && <>
+                <Field label="Username">
+                    <Input
+                        value={host.username}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'username', e.target.value)}
+                        
+                    />
+                </Field>
+                <Field label="Password">
+                    <Input
+                        value={password}
+                        type='password'
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setSecure(index, 'password', e.target.value)}
+                        
+                    />
+                </Field>
+            </>}
         </>
     );
 

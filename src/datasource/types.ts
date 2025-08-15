@@ -11,6 +11,9 @@ export interface Query extends DataQuery {
     command: string;
     aggregatePath: string;
     fields: QueryField[];
+    asVariable: boolean;
+    customVariableString: boolean;
+    endpointVariable: string;
 }
 
 /**
@@ -21,6 +24,7 @@ export enum QueryType {
     SINGLE = 'single',
     DISCRETE = 'discrete',
     EVENTS = 'events',
+    TIME = 'time',
     IMAGE = 'image',
 
     DEMANDS = 'demands',
@@ -59,6 +63,7 @@ export interface Configuration extends DataSourceJsonData {
             tlsEnabled: boolean;
             tlsInsecure?: boolean;
             authEnabled: boolean;
+            username: string;
         }
     >;
 
@@ -80,12 +85,18 @@ export interface Configuration extends DataSourceJsonData {
     debugMode: boolean;
 }
 
+export interface SecureConfiguration {
+    [key: string]: string
+}
+
 export const DefaultConfiguration = {
     hosts: {},
     endpoints: {},
     bufferMaxLength: 5000,
     debugMode: false,
 } satisfies Configuration;
+
+export const DefaultSecureConfiguration = {} satisfies SecureConfiguration;
 
 /**
  * Utility type to allow optional values (null or undefined).

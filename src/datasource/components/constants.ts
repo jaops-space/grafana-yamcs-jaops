@@ -6,7 +6,7 @@ export type QueryProps = QueryEditorProps<DataSource, Query, Configuration> & Pa
 
 export enum QueryCategory {
     PARAMETER = 'parameter',
-    EVENT = 'event',
+    TIMELINE = 'timeline',
     IMAGE = 'image',
     COMMANDING = 'commanding',
     DEBUG = 'debug',
@@ -36,10 +36,17 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         additionalFields: false,
     },
     {
+        label: 'Time',
+        description: 'Display current Yamcs time.',
+        value: QueryType.TIME,
+        category: QueryCategory.TIMELINE,
+        additionalFields: false
+    },
+    {
         label: 'Events',
         description: 'List past and live events.',
         value: QueryType.EVENTS,
-        category: QueryCategory.EVENT,
+        category: QueryCategory.TIMELINE,
         additionalFields: false,
     },
     {

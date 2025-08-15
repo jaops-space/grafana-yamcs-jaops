@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,10 +12,13 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // WebSocketHandler manages the WebSocket connection and message flow.
 type WebSocketHandler struct {
+	Credentials      corehttp.Credentials
 	connection       *websocket.Conn
 	isConnected      int32
 	useProtobuf      bool
@@ -66,12 +69,20 @@ func (websocketHandler *WebSocketHandler) Connect() error {
 		dialer.Subprotocols = []string{"json"}
 	}
 
-	conn, _, dialErr := dialer.Dial(websocketHandler.serverRoot, nil)
+	// Prepare headers
+	headers := http.Header{}
+	if websocketHandler.Credentials != nil {
+		// Apply credentials headers
+		// Here we fake a request so BeforeRequest can set headers normally
+		req := &http.Request{Header: headers}
+		websocketHandler.Credentials.BeforeRequest(req)
+	}
+
+	conn, _, dialErr := dialer.Dial(websocketHandler.serverRoot, headers)
 	if dialErr != nil {
 		return dialErr
 	}
 	backend.Logger.Debug("Websocket: Connected to WebSocket.")
-	backend.Logger.Debug("Address of pointer websocketHandler: ", fmt.Sprintf("%p", websocketHandler))
 
 	websocketHandler.connection = conn
 	atomic.StoreInt32(&websocketHandler.isConnected, 1)
@@ -80,6 +91,7 @@ func (websocketHandler *WebSocketHandler) Connect() error {
 }
 
 func (websocketHandler *WebSocketHandler) Listen() {
+
 	defer websocketHandler.ForceDisconnect()
 	backend.Logger.Debug("Websocket: Listening for WebSocket messages.")
 	defer backend.Logger.Debug("Websocket: Stopped listening for WebSocket messages.")

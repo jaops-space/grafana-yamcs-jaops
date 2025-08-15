@@ -23,8 +23,8 @@ export function QueryTypeEditor(props: QueryProps) {
         switch(category) {
             case QueryCategory.PARAMETER:
                 return <Badge color="blue" text="Parameter" />;
-            case QueryCategory.EVENT:
-                return <Badge color="purple" text="Event" />;
+            case QueryCategory.TIMELINE:
+                return <Badge color="purple" text="Timeline" />;
             case QueryCategory.IMAGE:
                 return <Badge color="green" text="Image" />;
             case QueryCategory.COMMANDING:

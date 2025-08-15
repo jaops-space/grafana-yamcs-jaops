@@ -1,5 +1,5 @@
 import { SelectableValue } from '@grafana/data';
-import { AsyncSelect, Button, InlineField, Input, MultiSelect, Stack } from '@grafana/ui';
+import { AsyncSelect, Checkbox, InlineField, Input, MultiSelect, Stack } from '@grafana/ui';
 import { debounce } from 'lodash';
 import React, { useEffect, useRef, useState } from 'react';
 import { Optional, QueryField } from '../types';
@@ -8,7 +8,7 @@ import { FieldsOptions, QueryOptions, QueryProps } from './constants';
 export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
     // Extract query fields
     const { endpoint, type } = query;
-    
+
     const [aggregatePath, setAggregatePath] = useState(query.aggregatePath || '');
     const [parameter, setParameter] = useState(query.parameter);
     const [fields, setFields] = useState(query.fields);
@@ -29,14 +29,14 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
 
     // Handle parameter selection
     const handleParameterChange = (v: SelectableValue<string>) => {
-        setParameter(v.value ?? '' );
+        setParameter(v.value ?? '');
     };
 
     // Toggle aggregation state
-    const toggleAggregate = () => {
-        setIsAggregate((prev) => {
-            const newState = !prev;
-            setAggregatePath(newState ? aggregatePath : '' );
+    const toggleAggregate = (toggle: boolean) => {
+        setIsAggregate(() => {
+            const newState = toggle;
+            setAggregatePath(newState ? aggregatePath : '');
             return newState;
         });
     };
@@ -78,32 +78,40 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
 
     return (
         <>
-            <Stack direction="row" alignItems="center" gap={0}>
-                <InlineField label="Parameter to query" grow>
-                    <AsyncSelect
-                        loadOptions={loadParameters}
-                        defaultOptions={defaultOptions}
-                        onChange={handleParameterChange}
-                        value={parameter ? { label: parameter, value: parameter } : null}
-                        allowCreateWhileLoading
-                        allowCustomValue
+            <Stack direction="row" alignItems="center">
+                <Stack direction="row" alignItems="center" gap={0} grow={1}>
+                    <InlineField label="Parameter to query" grow>
+                        <AsyncSelect
+                            loadOptions={loadParameters}
+                            defaultOptions={defaultOptions}
+                            onChange={handleParameterChange}
+                            value={parameter ? { label: parameter, value: parameter } : null}
+                            allowCreateWhileLoading
+                            allowCustomValue
+                        />
+                    </InlineField>
+
+                    {isAggregate && (
+                        <InlineField label="." grow>
+                            <Input
+                                marginWidth={0}
+                                onChange={handleAggregatePathChange}
+                                placeholder='Path to value (case sensitive)'
+                                value={aggregatePath}
+                            />
+                        </InlineField>
+                    )}
+
+                </Stack>
+
+                <InlineField>
+                    <Checkbox
+                        value={isAggregate}
+                        onChange={(e) => toggleAggregate(e.currentTarget.checked)}
+                        label='Aggregate'
                     />
                 </InlineField>
 
-                {isAggregate && (
-                    <InlineField label="." grow>
-                        <Input
-                            marginWidth={0}
-                            onChange={handleAggregatePathChange}
-                            placeholder='Path to value (case sensitive)'
-                            value={aggregatePath}
-                        />
-                    </InlineField>
-                )}
-
-                <Button onClick={toggleAggregate} variant="secondary" size="sm">
-                    {isAggregate ? 'Simple Parameter' : 'Aggregate Parameter'}
-                </Button>
             </Stack>
 
             {additionalFields && (

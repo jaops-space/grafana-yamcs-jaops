@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
@@ -20,7 +21,7 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	var datasource Datasource
 	datasource.multiplexer = GlobalMultiplexer
 
-	config, err := config.ExtractConfig(settings)
+	config, secure, err := config.ExtractConfig(settings)
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
@@ -29,6 +30,7 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	datasource.registerRoutes(router)
 	datasource.CallResourceHandler = httpadapter.New(router)
 	GlobalMultiplexer.Configuration = config
+	GlobalMultiplexer.Secure = secure
 	datasource.multiplexer = GlobalMultiplexer
 
 	return &datasource, nil
@@ -70,6 +72,8 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 		return &backend.SubscribeStreamResponse{
 			Status: backend.SubscribeStreamStatusOK,
 		}, nil
+	case Time:
+		frame, err = DatasourceTimeFrame(endpoint, q)
 	default:
 		return nil, exception.New("Query type not identified", "QUERY_TYPE_NOT_FOUND")
 	}
@@ -119,6 +123,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 
 	// Retrieve the endpoint associated with the requested stream
 	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
+	endpoint.RequestTime()
 	if err != nil {
 		return err
 	}
@@ -135,6 +140,8 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 		return RunSubscriptionStream(ctx, req, sender, endpoint, q)
 	case CommandHistory:
 		return RunCommandHistoryStream(ctx, req, sender, endpoint, q)
+	case Time:
+		return RunTimeStream(ctx, req, sender, endpoint, q)
 	default:
 		return nil
 	}
@@ -151,7 +158,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 
 	settings := req.PluginContext.DataSourceInstanceSettings
 
-	config, err := config.ExtractConfig(*settings)
+	config, secure, err := config.ExtractConfig(*settings)
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
@@ -164,8 +171,35 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
+	testMux := multiplexer.NewMultiplexer(config)
+	testMux.Secure = secure
+
+	statuses := make(map[string]string, len(config.Hosts))
+
+	for hostID := range config.Hosts {
+		err := testMux.SetupHost(hostID)
+		hostName := config.Hosts[hostID].Name
+		displayName := hostName
+		if displayName == "" {
+			displayName = "Unknown Host"
+		}
+
+		status := "OK"
+		if err != nil {
+			status = err.Error()
+		}
+
+		statuses[displayName+" status"] = status
+	}
+
+	jsonBytes, err := json.Marshal(statuses)
+	if err != nil {
+		return nil, err // or handle the error as needed
+	}
+
 	return &backend.CheckHealthResult{
-		Status:  backend.HealthStatusOk,
-		Message: "Configuration is valid! Plugin is ready to use.",
+		Status:      backend.HealthStatusOk,
+		Message:     "Configuration is valid! Plugin is ready to use.",
+		JSONDetails: jsonBytes,
 	}, nil
 }
