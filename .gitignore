@@ -28,6 +28,7 @@ coverage.out
 # archive files
 *.tar.gz
 *.zip
+!jaops-yamcs-app.zip
 
 # development files
 dist/
