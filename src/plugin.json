@@ -77,6 +77,42 @@
             "icon": "variable",
             "path": "/a/%PLUGIN_ID%/variable-setup",
             "addToNav": true
+        },
+        {
+            "type": "datasource",
+            "name": "Yamcs Datasource",
+            "id": "jaops-yamcs-datasource",
+            "path": "datasource"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Commanding Panel",
+            "id": "jaops-commanding-panel",
+            "path": "commanding-panel"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Command History Panel", 
+            "id": "jaops-command-history-panel",
+            "path": "command-history-panel"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Image Panel",
+            "id": "jaops-image-panel",
+            "path": "image-panel"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Static Image Panel",
+            "id": "jaops-static-image-panel",
+            "path": "static-image-panel"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Variable Commanding Panel",
+            "id": "jaops-variable-commanding-panel",
+            "path": "variable-commanding-panel"
         }
     ],
     "dependencies": {

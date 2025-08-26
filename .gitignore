@@ -26,7 +26,8 @@ coverage.out
 .idea/
 
 # archive files
-.tar.gz
+*.tar.gz
+*.zip
 
 # development files
 dist/
