@@ -2,7 +2,7 @@
     "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
     "type": "app",
     "name": "Grafana Yamcs JAOPS",
-    "id": "grafana-yamcs-app",
+    "id": "jaops-yamcs-app",
     "info": {
         "keywords": ["yamcs", "telemetry", "commanding", "spacecraft", "mission-control", "aerospace", "satellite", "rover", "robot"],
         "description": "A comprehensive Grafana plugin to connect to Yamcs servers for real-time telemetry visualization and commanding capabilities. Designed for mission control centers, aerospace applications and beyond.",
