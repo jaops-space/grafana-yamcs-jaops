@@ -30,23 +30,41 @@ jaops-yamcs-app/                    # Main app plugin
 
 ## Compliance Checklist
 
-### ✅ Community Plugin Requirements
-- [x] Open source technology (Yamcs)
-- [x] Non-commercial nature
-- [x] Apache-2.0 license
-- [x] Public GitHub repository
-- [x] Technology available for testing
+### Community Plugin Requirements
+- Open source technology (Yamcs)
+- Non-commercial nature
+- Apache-2.0 license
+- Public GitHub repository
+- Technology available for testing
 
-### ✅ Technical Requirements
-- [x] Plugin metadata complete
-- [x] Comprehensive documentation
-- [x] Testing guide provided
-- [x] Build process working
-- [x] Screenshots included
+### Technical Requirements
+- Plugin metadata complete
+- Comprehensive documentation
+- Testing guide provided
+- Build process working
+- Screenshots included
 
-### ⚠️ Known Issues
-- [ ] Nested plugin declarations need to be added to main plugin.json
-- [ ] GitHub URL rate limiting (temporary)
+### Known Issues
+
+**Multi-Plugin Architecture Note:**
+This plugin uses a multi-plugin architecture with nested components (datasource + panels). While the plugin validator flags this as an issue, this design provides a comprehensive Yamcs integration. We're submitting for review to get guidance from Grafana team on the best approach for this architecture.
+
+- Nested plugin declarations (Architectural decision for Grafana review)
+- GitHub URL rate limiting (temporary)
+
+## Architecture Decision for Review
+
+The plugin currently includes:
+- **Main App Plugin**: Navigation and configuration pages
+- **Datasource Plugin**: Yamcs server connectivity 
+- **Panel Plugins**: Specialized visualization components
+
+This architecture could be:
+1. **Approved as-is** (multi-plugin bundle)
+2. **Restructured** per Grafana guidance
+3. **Split** into separate plugin submissions
+
+We request Grafana team guidance on the preferred approach.
 
 ## Submission Package Contents
 

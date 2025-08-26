@@ -8,7 +8,7 @@
         "description": "A comprehensive Grafana plugin to connect to Yamcs servers for real-time telemetry visualization and commanding capabilities. Designed for mission control centers, aerospace applications and beyond.",
         "author": {
             "name": "JAOPS",
-            "email": "info@jaops.org",
+            "email": "info@jaops.com",
             "url": "https://www.jaops.com"
         },
         "logos": {
@@ -82,37 +82,37 @@
             "type": "datasource",
             "name": "Yamcs Datasource",
             "id": "jaops-yamcs-datasource",
-            "path": "datasource"
+            "path": "datasource/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Commanding Panel",
             "id": "jaops-commanding-panel",
-            "path": "commanding-panel"
+            "path": "commanding-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Command History Panel", 
             "id": "jaops-command-history-panel",
-            "path": "command-history-panel"
+            "path": "command-history-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Image Panel",
             "id": "jaops-image-panel",
-            "path": "image-panel"
+            "path": "image-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Static Image Panel",
             "id": "jaops-static-image-panel",
-            "path": "static-image-panel"
+            "path": "static-image-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Variable Commanding Panel",
             "id": "jaops-variable-commanding-panel",
-            "path": "variable-commanding-panel"
+            "path": "variable-commanding-panel/plugin.json"
         }
     ],
     "dependencies": {

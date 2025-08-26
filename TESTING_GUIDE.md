@@ -71,9 +71,9 @@ This grafana-yamcs-jaops repository includes:
 
 ## Expected Test Results
 
-- ✅ Plugin loads without errors
-- ✅ Data source connects to Yamcs
-- ✅ Telemetry data displays correctly
-- ✅ Commands execute successfully
-- ✅ Image panels overlay data properly
-- ✅ Real-time updates work smoothly
+- Plugin loads without errors
+- Data source connects to Yamcs
+- Telemetry data displays correctly
+- Commands execute successfully
+- Image panels overlay data properly
+- Real-time updates work smoothly
