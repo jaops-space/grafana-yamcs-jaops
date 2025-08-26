@@ -4,16 +4,41 @@
     "name": "Grafana-Yamcs Integration",
     "id": "jaops-yamcs-app",
     "info": {
-        "keywords": ["app"],
-        "description": "",
+        "keywords": ["yamcs", "telemetry", "commanding", "spacecraft", "mission-control", "aerospace", "satellite", "rover", "robot"],
+        "description": "A comprehensive Grafana plugin to connect to Yamcs servers for real-time telemetry visualization and commanding capabilities. Designed for mission control centers, aerospace applications and beyond.",
         "author": {
-            "name": "Jaops"
+            "name": "JAOPS",
+            "email": "info@jaops.org",
+            "url": "https://www.jaops.com"
         },
         "logos": {
             "small": "img/logo.png",
             "large": "img/logo.png"
         },
-        "screenshots": [],
+        "screenshots": [
+            {
+                "name": "Telemetry Dashboard",
+                "path": "screenshots/telemetry.png"
+            },
+            {
+                "name": "Commanding Interface",
+                "path": "screenshots/commanding.png"
+            }
+        ],
+        "links": [
+            {
+                "name": "GitHub Repository",
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/"
+            },
+            {
+                "name": "Documentation",
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/README.md"
+            },
+            {
+                "name": "Setup Instructions",
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/setup_instructions.md"
+            }
+        ],
         "version": "%VERSION%",
         "updated": "%TODAY%"
     },
