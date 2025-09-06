@@ -3,12 +3,10 @@ package http
 import (
 	"bytes"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
@@ -87,28 +85,9 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 }
 
 func setupTLSClient(tlsConfig TLS) (*http.Client, error) {
-	if tlsConfig.CertificatePath == "" {
-		return &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsConfig.Verification},
-			},
-		}, nil
-	}
-
-	caCert, err := os.ReadFile(tlsConfig.CertificatePath)
-	if err != nil {
-		return nil, exception.Wrap("Could not read TLS Cerficate Authority file.", "TLS_ERROR", err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-
 	return &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:            caCertPool,
-				InsecureSkipVerify: !tlsConfig.Verification,
-			},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsConfig.Verification},
 		},
 	}, nil
 }
