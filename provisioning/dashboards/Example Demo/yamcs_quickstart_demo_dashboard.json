@@ -1,0 +1,315 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 3,
+  "links": [],
+  "panels": [
+    {
+      "description": "Set, Add or Multiply the value of a Grafana variable",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "commandForms": {
+          "NaN": {
+            "changeMode": "add",
+            "label": "Add + 2",
+            "valueToSet": "2",
+            "variableToSet": "TestVariable"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "title": "Variable Setter",
+      "type": "jaops-varcommanding-panel"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 4,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "commandForms": {
+          "NaN": {
+            "changeMode": "change",
+            "comment": "reset value to 0",
+            "label": "Reset",
+            "valueToSet": "0",
+            "variableToSet": "TestVariable"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "title": "",
+      "type": "jaops-varcommanding-panel"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 7,
+      "panels": [],
+      "title": "Telemetry Visualization",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "aexq5xvmp4dtsc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "aggregatePath": "",
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexpnhufy0mioa"
+          },
+          "endpoint": "yamcs_quickstart",
+          "parameter": "/myproject/Battery1_Voltage",
+          "refId": "A",
+          "type": "plot"
+        }
+      ],
+      "title": "New panel",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 6,
+      "panels": [],
+      "title": "Commanding",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "aexq5xvmp4dtsc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 13
+      },
+      "id": 3,
+      "options": {
+        "commandForms": {
+          "SwitchVoltageOn0": {
+            "arguments": {
+              "Battery": 2
+            },
+            "color": "rgba(255, 0, 0, 1)",
+            "label": "Battery 2 OFF"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "command": "/myproject/SwitchVoltageOn",
+          "endpoint": "yamcs_quickstart",
+          "refId": "A",
+          "type": "commanding"
+        }
+      ],
+      "title": "",
+      "type": "jaops-commanding-panel"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "aexq5xvmp4dtsc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 23,
+        "x": 0,
+        "y": 16
+      },
+      "id": 2,
+      "options": {
+        "pageSize": 10,
+        "pagination": false,
+        "showArguments": true,
+        "visibleFields": [
+          "time",
+          "command",
+          "comment",
+          "queued",
+          "released",
+          "sent",
+          "extraAcks",
+          "completion"
+        ]
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "endpoint": "yamcs_quickstart",
+          "refId": "A",
+          "type": "command-history"
+        }
+      ],
+      "title": "Command History",
+      "type": "jaops-commandhistory-panel"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "name": "TestVariable",
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          }
+        ],
+        "query": "0",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Yamcs Quickstart Demo Dashboard",
+  "uid": "0708823c-c106-407b-9861-f64283746167",
+  "version": 2
+}

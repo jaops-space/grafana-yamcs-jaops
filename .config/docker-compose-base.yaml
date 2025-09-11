@@ -21,7 +21,6 @@ services:
       NODE_ENV: development
       GF_LOG_FILTERS: plugin.jaops-yamcs-app:debug
       # GF_LOG_LEVEL: debug
-      # GF_LOG_LEVEL: error
       GF_LOG_LEVEL: critical
       GF_DATAPROXY_LOGGING: 1
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: jaops-yamcs-app
