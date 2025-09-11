@@ -37,18 +37,37 @@ type YamcsEndpointConfiguration struct {
 }
 
 type YamcsHostConfiguration struct {
+	Name     string `json:"name"`
 	Path     string `json:"path"`
 	Tls      bool   `json:"tlsEnabled"`
 	Auth     bool   `json:"authEnabled"`
+	Username string `json:"username"`
 	Protobuf bool   `json:"protobuf"`
 }
 
-func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfiguration, error) {
+func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfiguration, *YamcsSecureConfiguration, error) {
+
 	configuration := &YamcsPluginConfiguration{}
+	secure := &YamcsSecureConfiguration{}
 	err := json.Unmarshal(source.JSONData, configuration)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
+		return nil, nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
 	}
 
-	return configuration, nil
+	// Extract secure fields
+	// loop through hosts of the configuration YamcsPluginConfiguration, for each host, grab all fields from DecodedSecureJSON that start with the host name, and populate YamcsSecureConfiguration.Hosts[hostname].Password if field ends in -password
+	secure.Hosts = make(map[string]*YamcsSecureHost)
+	for hostName, hostConfig := range configuration.Hosts {
+		if hostConfig.Auth {
+			secure.Hosts[hostName] = &YamcsSecureHost{}
+			passwordKey := hostName + "-password"
+			if password, ok := source.DecryptedSecureJSONData[passwordKey]; ok {
+				secure.Hosts[hostName].Password = password
+			} else {
+				return nil, nil, fmt.Errorf("missing secure password for host %s", hostName)
+			}
+		}
+	}
+
+	return configuration, secure, nil
 }

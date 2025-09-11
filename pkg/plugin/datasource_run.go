@@ -48,6 +48,7 @@ func RunParameterStream(ctx context.Context,
 	for {
 		select {
 		case <-ctx.Done():
+			backend.Logger.Error(ctx.Err().Error())
 			return ctx.Err()
 		case <-ticker.C:
 
@@ -63,9 +64,9 @@ func RunParameterStream(ctx context.Context,
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath)
+				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath)
+				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
 			}
 
 			sender.SendFrame(
@@ -252,6 +253,43 @@ func RunCommandHistoryStream(
 			)
 
 			endpoint.ClearCommandHistoryStream(req.Path)
+		}
+	}
+}
+
+func RunTimeStream(
+	ctx context.Context,
+	req *backend.RunStreamRequest,
+	sender *backend.StreamSender,
+	endpoint *multiplexer.YamcsEndpoint,
+	q PluginQuery,
+) error {
+
+	yamcs := endpoint.GetClient()
+
+	endpoint.RequestTime()
+
+	// Calculate ticker interval
+	tickerInterval := time.Second * 1
+	ticker := time.NewTicker(tickerInterval)
+
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+
+			if !yamcs.WebSocket.IsConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
+
+			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
+			sender.SendFrame(
+				frame,
+				data.IncludeDataOnly,
+			)
 		}
 	}
 }

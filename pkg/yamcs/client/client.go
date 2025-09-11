@@ -4,9 +4,8 @@ import (
 	"fmt"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/auth"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/manager/http"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/manager/ws"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/ws"
 )
 
 // YamcsClientOption defines a function type for configuring a YamcsClient.
@@ -19,10 +18,10 @@ type YamcsClient struct {
 	ServerAddress string
 
 	// TLS configuration for secure communication
-	TLSConfig auth.TLS
+	TLSConfig http.TLS
 
 	// User authentication credentials (username/password or bearer token)
-	Credentials auth.AccountCredentials
+	Credentials http.Credentials
 
 	// Optionally override the default user agent string
 	UserAgent string
@@ -45,6 +44,7 @@ type YamcsClient struct {
 	EventSubscriptions             map[int]*EventSubscription
 	AlarmSubscriptions             map[int]*AlarmSubscription
 	GlobalAlarmStatusSubscriptions map[int]*GlobalStatusSubscription
+	TimeSubscriptions              map[int]*TimeSubscription
 
 	// Sample Point Count for Sample endpoints
 	SamplePointCount *types.Optional[int]
@@ -53,8 +53,8 @@ type YamcsClient struct {
 // NewYamcsClient constructs a new YamcsClient.
 func NewYamcsClient(
 	address string,
-	tlsConfig auth.TLS,
-	credentials auth.AccountCredentials,
+	tlsConfig http.TLS,
+	credentials http.Credentials,
 	options ...YamcsClientOption,
 ) (*YamcsClient, error) {
 
@@ -70,6 +70,7 @@ func NewYamcsClient(
 		EventSubscriptions:             make(map[int]*EventSubscription),
 		AlarmSubscriptions:             make(map[int]*AlarmSubscription),
 		GlobalAlarmStatusSubscriptions: make(map[int]*GlobalStatusSubscription),
+		TimeSubscriptions:              make(map[int]*TimeSubscription),
 		SamplePointCount:               types.OptionalOfNil[int](),
 	}
 
@@ -90,12 +91,14 @@ func NewYamcsClient(
 
 	// Initialize WebSocket handler
 	client.WebSocket = ws.NewWebSocketHandler(wsURL, client.UseProtobuf)
+	client.WebSocket.Credentials = credentials
 
 	client.WebSocket.AddListener(ws.ParameterListenerID, client.HandleParameterMessage)
 	client.WebSocket.AddListener(ws.EventListenerID, client.HandleEventMessage)
 	client.WebSocket.AddListener(ws.AlarmListenerID, client.HandleAlarmMessage)
 	client.WebSocket.AddListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
 	client.WebSocket.AddListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
+	client.WebSocket.AddListener(ws.TimeListenerID, client.HandleTimeMessage)
 
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {
@@ -161,4 +164,5 @@ func (client *YamcsClient) clearAllSubscriptions() {
 	client.EventSubscriptions = make(map[int]*EventSubscription)
 	client.AlarmSubscriptions = make(map[int]*AlarmSubscription)
 	client.GlobalAlarmStatusSubscriptions = make(map[int]*GlobalStatusSubscription)
+	client.TimeSubscriptions = make(map[int]*TimeSubscription)
 }

@@ -20,6 +20,7 @@ const (
 	SingleValue    PluginQueryType = "single"
 	DiscreteValue  PluginQueryType = "discrete"
 	Events         PluginQueryType = "events"
+	Time           PluginQueryType = "time"
 	Image          PluginQueryType = "image"
 	Commanding     PluginQueryType = "commanding"
 	CommandHistory PluginQueryType = "command-history"
