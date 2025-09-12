@@ -23,7 +23,7 @@ The current version has already been tested in real-world deployments but active
 - **Fully Configurable** – Every aspect of the plugin—from endpoint configuration to command structure and visual layout is configurable through Grafana's settings.
 
 
-![Design Document](./DesignDocument.png)
+![Design Document](./screenshots/DesignDocument.png)
 
 ## Example Grafana Dashboards Connected to Yamcs
 
