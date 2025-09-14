@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -38,8 +38,8 @@
         "commandForms": {
           "NaN": {
             "changeMode": "add",
-            "label": "Add + 2",
-            "valueToSet": "2",
+            "label": "Add + 1",
+            "valueToSet": "1",
             "variableToSet": "TestVariable"
           }
         }
@@ -91,7 +91,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "aexq5xvmp4dtsc"
+        "uid": "dexxwlcr9dbeoc"
       },
       "fieldConfig": {
         "defaults": {
@@ -154,6 +154,242 @@
         "x": 0,
         "y": 4
       },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "aggregatePath": "x",
+          "endpoint": "yamcs_quickstart_authentication",
+          "parameter": "/myproject/Gyro",
+          "refId": "A",
+          "type": "plot"
+        },
+        {
+          "aggregatePath": "y",
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "hide": false,
+          "parameter": "/myproject/Gyro",
+          "refId": "B",
+          "type": "plot"
+        },
+        {
+          "aggregatePath": "z",
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "hide": false,
+          "parameter": "/myproject/Gyro",
+          "refId": "C",
+          "type": "plot"
+        }
+      ],
+      "title": "Gyro",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "aggregatePath": "",
+          "endpoint": "yamcs_quickstart_authentication",
+          "parameter": "/myproject/Battery1_Temp",
+          "refId": "A",
+          "type": "plot"
+        },
+        {
+          "aggregatePath": "",
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "hide": false,
+          "parameter": "/myproject/Battery2_Temp",
+          "refId": "B",
+          "type": "plot"
+        },
+        {
+          "aggregatePath": "",
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "hide": false,
+          "parameter": "/myproject/Detector_Temp",
+          "refId": "C",
+          "type": "plot"
+        }
+      ],
+      "title": "Temperatures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "volt"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
       "id": 1,
       "options": {
         "legend": {
@@ -172,18 +408,158 @@
       "targets": [
         {
           "aggregatePath": "",
+          "asVariable": false,
+          "customVariableString": false,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexpnhufy0mioa"
+            "uid": "dexy0vkpjde68f"
           },
-          "endpoint": "yamcs_quickstart",
+          "endpoint": "yamcs_quickstart_authentication",
           "parameter": "/myproject/Battery1_Voltage",
           "refId": "A",
           "type": "plot"
+        },
+        {
+          "aggregatePath": "",
+          "asVariable": false,
+          "customVariableString": false,
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexy0vkpjde68f"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "hide": false,
+          "parameter": "/myproject/Battery2_Voltage",
+          "refId": "B",
+          "type": "plot"
         }
       ],
-      "title": "New panel",
+      "title": "Battery Voltage",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "description": "two queries (one for each Yamcs parameter aggregate) + grafana transformation (merge series)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "show": "points"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "mapping": "auto",
+        "series": [
+          {
+            "frame": {
+              "matcher": {
+                "id": "byIndex",
+                "options": 0
+              }
+            },
+            "x": {
+              "matcher": {
+                "id": "byName",
+                "options": "/myproject/Position.x"
+              }
+            },
+            "y": {
+              "matcher": {
+                "id": "byName",
+                "options": "/myproject/Position.y"
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "aggregatePath": "x",
+          "endpoint": "yamcs_quickstart_authentication",
+          "parameter": "/myproject/Position",
+          "refId": "A",
+          "type": "plot"
+        },
+        {
+          "aggregatePath": "y",
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "hide": false,
+          "parameter": "/myproject/Position",
+          "refId": "B",
+          "type": "plot"
+        }
+      ],
+      "title": "Position X/Y Map",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "xychart"
     },
     {
       "collapsed": false,
@@ -191,7 +567,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 20
       },
       "id": 6,
       "panels": [],
@@ -201,7 +577,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "aexq5xvmp4dtsc"
+        "uid": "dexxwlcr9dbeoc"
       },
       "fieldConfig": {
         "defaults": {},
@@ -209,13 +585,62 @@
       },
       "gridPos": {
         "h": 3,
-        "w": 4,
+        "w": 3,
         "x": 0,
-        "y": 13
+        "y": 21
+      },
+      "id": 8,
+      "options": {
+        "commandForms": {
+          "SwitchVoltageOn0": {
+            "arguments": {
+              "Battery": 2
+            },
+            "color": "rgba(75, 177, 76, 1)",
+            "comment": "",
+            "label": "Battery #${TestVariable} ON",
+            "tooltip": "uses variable to set the button label (command argument with variable is still to be implemented)"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "command": "/myproject/SwitchVoltageOn",
+          "endpoint": "yamcs_quickstart_authentication",
+          "refId": "A",
+          "type": "commanding"
+        }
+      ],
+      "title": "",
+      "type": "jaops-commanding-panel"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 3,
+        "y": 21
       },
       "id": 3,
       "options": {
         "commandForms": {
+          "SwitchVoltageOff0": {
+            "arguments": {
+              "Battery": 2
+            },
+            "color": "rgba(255, 122, 0, 1)",
+            "label": "Battery #${TestVariable} OFF",
+            "tooltip": "uses variable to set the button label (command argument with variable is still to be implemented)"
+          },
           "SwitchVoltageOn0": {
             "arguments": {
               "Battery": 2
@@ -228,8 +653,8 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
-          "command": "/myproject/SwitchVoltageOn",
-          "endpoint": "yamcs_quickstart",
+          "command": "/myproject/SwitchVoltageOff",
+          "endpoint": "yamcs_quickstart_authentication",
           "refId": "A",
           "type": "commanding"
         }
@@ -240,17 +665,96 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "aexq5xvmp4dtsc"
+        "uid": "dexxwlcr9dbeoc"
       },
       "fieldConfig": {
         "defaults": {},
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 3,
+        "w": 4,
+        "x": 11,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "commandForms": {
+          "DeploySolarPanel0": {
+            "arguments": {
+              "Solar_Panel_Id": 1
+            },
+            "color": "rgba(255, 222, 0, 1)",
+            "label": "Deploy Solar Panel #1",
+            "shape": "bean",
+            "textColor": "rgba(0, 0, 0, 1)"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "command": "/myproject/DeploySolarPanel",
+          "endpoint": "yamcs_quickstart_authentication",
+          "refId": "A",
+          "type": "commanding"
+        }
+      ],
+      "title": "",
+      "type": "jaops-commanding-panel"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 20,
+        "y": 21
+      },
+      "id": 10,
+      "options": {
+        "commandForms": {
+          "Reboot0": {
+            "color": "rgba(255, 0, 0, 1)",
+            "label": "Reboot",
+            "shape": "diamond",
+            "tooltip": "WARNING: critical command"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "command": "/myproject/Reboot",
+          "endpoint": "yamcs_quickstart_authentication",
+          "refId": "A",
+          "type": "commanding"
+        }
+      ],
+      "title": "",
+      "type": "jaops-commanding-panel"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
         "w": 23,
         "x": 0,
-        "y": 16
+        "y": 24
       },
       "id": 2,
       "options": {
@@ -271,13 +775,144 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
-          "endpoint": "yamcs_quickstart",
+          "endpoint": "yamcs_quickstart_authentication",
           "refId": "A",
           "type": "command-history"
         }
       ],
       "title": "Command History",
       "type": "jaops-commandhistory-panel"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Image Displays",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 33
+      },
+      "id": 14,
+      "options": {
+        "imageUrl": "https://avatars.githubusercontent.com/u/145332967?s=48&v=4",
+        "objectFit": "contain",
+        "transform": ""
+      },
+      "pluginVersion": "1.0.0",
+      "title": "Static Image",
+      "type": "jaops-staticimage-panel"
+    },
+    {
+      "datasource": {
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 3,
+        "y": 33
+      },
+      "id": 15,
+      "maxDataPoints": 10000,
+      "options": {
+        "objectFit": "contain",
+        "transform": ""
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "aggregatePath": "",
+          "endpoint": "yamcs_quickstart_authentication",
+          "parameter": "/images/url_full",
+          "refId": "A",
+          "type": "image"
+        }
+      ],
+      "title": "Telemetric Image",
+      "type": "jaops-telemetricimage-panel"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 33
+      },
+      "id": 16,
+      "maxDataPoints": 10000,
+      "options": {
+        "objectFit": "contain",
+        "transform": "rotate(${ImageRotation}deg)"
+      },
+      "pluginVersion": "1.0.0",
+      "targets": [
+        {
+          "aggregatePath": "",
+          "endpoint": "yamcs_quickstart_authentication",
+          "parameter": "/images/url_full",
+          "refId": "A",
+          "type": "image"
+        }
+      ],
+      "title": "Telemetric Image (variable rotation)",
+      "type": "jaops-telemetricimage-panel"
+    },
+    {
+      "description": "Set, Add or Multiply the value of a Grafana variable",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 18,
+        "y": 33
+      },
+      "id": 18,
+      "options": {
+        "commandForms": {
+          "NaN": {
+            "changeMode": "add",
+            "color": "rgba(110, 108, 108, 1)",
+            "icon": "",
+            "label": "+90 deg",
+            "shape": "arrowUp",
+            "valueToSet": "90",
+            "variableToSet": "ImageRotation"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "title": "Rotate Image",
+      "type": "jaops-varcommanding-panel"
     }
   ],
   "preload": false,
@@ -287,13 +922,46 @@
     "list": [
       {
         "current": {
-          "text": "0",
-          "value": "0"
+          "text": "2",
+          "value": "2"
         },
         "name": "TestVariable",
         "options": [
           {
+            "selected": false,
+            "text": "0",
+            "value": "0"
+          }
+        ],
+        "query": "0",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "yamcs_quickstart_realtime",
+          "value": "yamcs_quickstart_realtime"
+        },
+        "name": "datasource_endpoint",
+        "options": [
+          {
             "selected": true,
+            "text": "yamcs_quickstart_realtime",
+            "value": "yamcs_quickstart_realtime"
+          }
+        ],
+        "query": "yamcs_quickstart_realtime",
+        "type": "custom"
+      },
+      {
+        "allowCustomValue": false,
+        "current": {
+          "text": "180",
+          "value": "180"
+        },
+        "name": "ImageRotation",
+        "options": [
+          {
+            "selected": false,
             "text": "0",
             "value": "0"
           }
@@ -311,5 +979,5 @@
   "timezone": "browser",
   "title": "Yamcs Quickstart Demo Dashboard",
   "uid": "0708823c-c106-407b-9861-f64283746167",
-  "version": 2
+  "version": 30
 }
