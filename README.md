@@ -23,17 +23,21 @@ The current version has already been tested in real-world deployments but active
 - **Fully Configurable** – Every aspect of the plugin—from endpoint configuration to command structure and visual layout is configurable through Grafana's settings.
 
 
-![Design Document](./DesignDocument.png)
+![Design Document](./screenshots/DesignDocument.png)
 
-## Example Grafana Dashboards Connected to Yamcs
+## Example Grafana Dashboard Connected to Yamcs
 
-#### Telemetry
+Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin. 
+They are made to use data from the [Yamcs quickstart](https://github.com/jaops-space/yamcs-quickstart).
+After cloning the repository, run in three separate terminals:
+```bash
+./mvn yamcs:run
+python3 simulator.sh
+python3 simulator/images/generate_images.py
+``` 
 
-![telemetry screenshot](./screenshots/telemetry.png)
+![Screenshot of Demo Dashboard](./screenshots/DemoDashboard.png)
 
-#### Commanding
-
-![commanding screenshot](./screenshots/commanding.png)
 
 ## Try Out the Plugin for Yourself
 Follow the [setup instruction](./setup_instructions.md) to get started in just a few minutes.

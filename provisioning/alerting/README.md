@@ -1,0 +1,1 @@
+This folder is mounted in the grafana docker (see .config/docker-compose-base.yaml)

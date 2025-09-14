@@ -1,7 +1,9 @@
 apiVersion: 1
 
+# Note: This file configures plugin datasource types, not actual datasource instances
+# Actual datasource instances are configured in the datasources folder
 datasources:
     - type: 'jaops-yamcs-datasource'
-      org_id: 1
-      org_name: 'JAOPS'
+      orgId: 1
+      orgName: 'JAOPS'
       disabled: false
