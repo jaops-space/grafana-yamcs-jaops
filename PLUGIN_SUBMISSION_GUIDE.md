@@ -31,40 +31,21 @@ jaops-yamcs-app/                    # Main app plugin
 ## Compliance Checklist
 
 ### Community Plugin Requirements
-- Open source technology (Yamcs)
-- Non-commercial nature
-- Apache-2.0 license
+- Interfacing with open source technology (Yamcs: www.yamcs.org, AGPL-3.0 license)
+- Plugin is MIT license
 - Public GitHub repository
-- Technology available for testing
+- Technology is available for testing (with examples)
+- Non-commercial nature
 
 ### Technical Requirements
 - Plugin metadata complete
+- Keywords for discoverability
+- Author information and contact details
 - Comprehensive documentation
 - Testing guide provided
 - Build process working
 - Screenshots included
-
-### Known Issues
-
-**Multi-Plugin Architecture Note:**
-This plugin uses a multi-plugin architecture with nested components (datasource + panels). While the plugin validator flags this as an issue, this design provides a comprehensive Yamcs integration. We're submitting for review to get guidance from Grafana team on the best approach for this architecture.
-
-- Nested plugin declarations (Architectural decision for Grafana review)
-- GitHub URL rate limiting (temporary)
-
-## Architecture Decision for Review
-
-The plugin currently includes:
-- **Main App Plugin**: Navigation and configuration pages
-- **Datasource Plugin**: Yamcs server connectivity 
-- **Panel Plugins**: Specialized visualization components
-
-This architecture could be:
-1. **Approved as-is** (multi-plugin bundle)
-2. **Restructured** per Grafana guidance
-3. **Split** into separate plugin submissions
-
-We request Grafana team guidance on the preferred approach.
+- Plugin validator passing
 
 ## Submission Package Contents
 
@@ -74,19 +55,20 @@ We request Grafana team guidance on the preferred approach.
    - README.md
    - TESTING_GUIDE.md
    - setup_instructions.md
-4. **Screenshots**: High-quality interface screenshots
-5. **Test Environment**: Provisioning configuration
+4. **Test Environment**: Provisioning configuration
 
-## Next Steps
+5. **Security Audit**
+```bash
+pnpm audit
+osv-scanner --recursive .
+osv-scanner --lockfile pnpm-lock.yaml
 
-1. Fix nested plugin declarations
-2. Test signing workflow
-3. Create GitHub release
-4. Submit to Grafana for review
 
-## Support Information
+pnpm run build
+mkdir -p dist/screenshots && cp screenshots/*.png dist/screenshots/
+rm -f jaops-yamcs-app.zip && rm -rf /tmp/jaops-yamcs-app && cp -r dist /tmp/jaops-yamcs-app && (cd /tmp && zip -r jaops-yamcs-app.zip jaops-yamcs-app) && mv /tmp/jaops-yamcs-app.zip .
+npx @grafana/plugin-validator@latest jaops-yamcs-app.zip
+md5sum jaops-yamcs-app.zip
+```
 
-- **Author**: JAOPS
-- **Email**: info@jaops.org
-- **Website**: https://www.jaops.com
-- **Repository**: https://github.com/jaops-space/grafana-yamcs-jaops
+

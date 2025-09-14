@@ -34,3 +34,4 @@ coverage.out
 dist/
 pnpm-lock.yaml
 package-lock.json
+.eslintcache
