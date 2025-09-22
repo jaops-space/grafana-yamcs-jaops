@@ -32,6 +32,5 @@ coverage.out
 
 # development files
 dist/
-pnpm-lock.yaml
 package-lock.json
 .eslintcache

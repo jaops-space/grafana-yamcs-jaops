@@ -76,6 +76,73 @@
       "type": "jaops-varcommanding-panel"
     },
     {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 19,
+        "y": 0
+      },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "asVariable": true,
+          "customVariableString": false,
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "refId": "A",
+          "type": "time"
+        }
+      ],
+      "title": "",
+      "type": "table"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -85,7 +152,7 @@
       },
       "id": 7,
       "panels": [],
-      "title": "Telemetry Visualization",
+      "title": "Telemetry Panels",
       "type": "row"
     },
     {
@@ -172,18 +239,22 @@
       "targets": [
         {
           "aggregatePath": "x",
+          "asVariable": true,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "parameter": "/myproject/Gyro",
           "refId": "A",
           "type": "plot"
         },
         {
           "aggregatePath": "y",
+          "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexxwlcr9dbeoc"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "hide": false,
           "parameter": "/myproject/Gyro",
           "refId": "B",
@@ -191,11 +262,13 @@
         },
         {
           "aggregatePath": "z",
+          "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexxwlcr9dbeoc"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "hide": false,
           "parameter": "/myproject/Gyro",
           "refId": "C",
@@ -290,18 +363,22 @@
       "targets": [
         {
           "aggregatePath": "",
+          "asVariable": true,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "parameter": "/myproject/Battery1_Temp",
           "refId": "A",
           "type": "plot"
         },
         {
           "aggregatePath": "",
+          "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexxwlcr9dbeoc"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "hide": false,
           "parameter": "/myproject/Battery2_Temp",
           "refId": "B",
@@ -309,11 +386,13 @@
         },
         {
           "aggregatePath": "",
+          "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexxwlcr9dbeoc"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "hide": false,
           "parameter": "/myproject/Detector_Temp",
           "refId": "C",
@@ -408,33 +487,35 @@
       "targets": [
         {
           "aggregatePath": "",
-          "asVariable": false,
+          "asVariable": true,
           "customVariableString": false,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexy0vkpjde68f"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "parameter": "/myproject/Battery1_Voltage",
           "refId": "A",
           "type": "plot"
         },
         {
           "aggregatePath": "",
-          "asVariable": false,
+          "asVariable": true,
           "customVariableString": false,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexy0vkpjde68f"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "hide": false,
           "parameter": "/myproject/Battery2_Voltage",
           "refId": "B",
           "type": "plot"
         }
       ],
-      "title": "Battery Voltage",
+      "title": "Battery Voltages",
       "type": "timeseries"
     },
     {
@@ -534,18 +615,22 @@
       "targets": [
         {
           "aggregatePath": "x",
+          "asVariable": true,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "parameter": "/myproject/Position",
           "refId": "A",
           "type": "plot"
         },
         {
           "aggregatePath": "y",
+          "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
             "uid": "dexxwlcr9dbeoc"
           },
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "hide": false,
           "parameter": "/myproject/Position",
           "refId": "B",
@@ -571,7 +656,7 @@
       },
       "id": 6,
       "panels": [],
-      "title": "Commanding",
+      "title": "Commanding Panels",
       "type": "row"
     },
     {
@@ -606,8 +691,10 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
+          "asVariable": true,
           "command": "/myproject/SwitchVoltageOn",
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "refId": "A",
           "type": "commanding"
         }
@@ -653,8 +740,10 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
+          "asVariable": true,
           "command": "/myproject/SwitchVoltageOff",
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "refId": "A",
           "type": "commanding"
         }
@@ -674,7 +763,7 @@
       "gridPos": {
         "h": 3,
         "w": 4,
-        "x": 11,
+        "x": 10,
         "y": 21
       },
       "id": 9,
@@ -694,8 +783,11 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
+          "asVariable": true,
           "command": "/myproject/DeploySolarPanel",
+          "customVariableString": false,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "refId": "A",
           "type": "commanding"
         }
@@ -715,7 +807,7 @@
       "gridPos": {
         "h": 3,
         "w": 3,
-        "x": 20,
+        "x": 21,
         "y": 21
       },
       "id": 10,
@@ -732,8 +824,10 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
+          "asVariable": true,
           "command": "/myproject/Reboot",
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "refId": "A",
           "type": "commanding"
         }
@@ -752,7 +846,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 23,
+        "w": 24,
         "x": 0,
         "y": 24
       },
@@ -775,7 +869,9 @@
       "pluginVersion": "1.0.0",
       "targets": [
         {
+          "asVariable": true,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "refId": "A",
           "type": "command-history"
         }
@@ -793,7 +889,7 @@
       },
       "id": 17,
       "panels": [],
-      "title": "Image Displays",
+      "title": "Image Panels",
       "type": "row"
     },
     {
@@ -841,7 +937,9 @@
       "targets": [
         {
           "aggregatePath": "",
+          "asVariable": true,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "parameter": "/images/url_full",
           "refId": "A",
           "type": "image"
@@ -862,7 +960,7 @@
       "gridPos": {
         "h": 7,
         "w": 6,
-        "x": 12,
+        "x": 15,
         "y": 33
       },
       "id": 16,
@@ -875,7 +973,9 @@
       "targets": [
         {
           "aggregatePath": "",
+          "asVariable": true,
           "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
           "parameter": "/images/url_full",
           "refId": "A",
           "type": "image"
@@ -893,10 +993,10 @@
       "gridPos": {
         "h": 3,
         "w": 3,
-        "x": 18,
+        "x": 21,
         "y": 33
       },
-      "id": 18,
+      "id": 19,
       "options": {
         "commandForms": {
           "NaN": {
@@ -913,6 +1013,193 @@
       "pluginVersion": "1.0.0",
       "title": "Rotate Image",
       "type": "jaops-varcommanding-panel"
+    },
+    {
+      "description": "Set, Add or Multiply the value of a Grafana variable",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 21,
+        "y": 36
+      },
+      "id": 18,
+      "options": {
+        "commandForms": {
+          "NaN": {
+            "changeMode": "add",
+            "color": "rgba(110, 108, 108, 1)",
+            "icon": "",
+            "label": "-90 deg",
+            "shape": "arrowDown",
+            "valueToSet": "-90",
+            "variableToSet": "ImageRotation"
+          }
+        }
+      },
+      "pluginVersion": "1.0.0",
+      "title": "",
+      "type": "jaops-varcommanding-panel"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 21,
+      "panels": [],
+      "title": "Other Panels",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "jaops-yamcs-datasource",
+        "uid": "dexxwlcr9dbeoc"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "orange",
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 70,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 20,
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "always",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "aggregatePath": "",
+          "asVariable": true,
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "parameter": "/myproject/Mode_Day",
+          "refId": "A",
+          "type": "discrete"
+        },
+        {
+          "aggregatePath": "",
+          "asVariable": true,
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "hide": false,
+          "parameter": "/myproject/Mode_Night",
+          "refId": "B",
+          "type": "discrete"
+        },
+        {
+          "aggregatePath": "",
+          "asVariable": true,
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "hide": false,
+          "parameter": "/myproject/Mode_Payload",
+          "refId": "C",
+          "type": "discrete"
+        },
+        {
+          "aggregatePath": "",
+          "asVariable": true,
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "hide": false,
+          "parameter": "/myproject/Mode_Safe",
+          "refId": "D",
+          "type": "discrete"
+        },
+        {
+          "aggregatePath": "",
+          "asVariable": true,
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "hide": false,
+          "parameter": "/myproject/Mode_SBand",
+          "refId": "E",
+          "type": "discrete"
+        },
+        {
+          "aggregatePath": "",
+          "asVariable": true,
+          "datasource": {
+            "type": "jaops-yamcs-datasource",
+            "uid": "dexxwlcr9dbeoc"
+          },
+          "endpoint": "yamcs_quickstart_authentication",
+          "endpointVariable": "$datasource_endpoint",
+          "hide": false,
+          "parameter": "/myproject/Mode_XBand",
+          "refId": "F",
+          "type": "discrete"
+        }
+      ],
+      "title": "State Timeline",
+      "type": "state-timeline"
     }
   ],
   "preload": false,
@@ -922,13 +1209,13 @@
     "list": [
       {
         "current": {
-          "text": "2",
-          "value": "2"
+          "text": "0",
+          "value": "0"
         },
         "name": "TestVariable",
         "options": [
           {
-            "selected": false,
+            "selected": true,
             "text": "0",
             "value": "0"
           }
@@ -938,18 +1225,23 @@
       },
       {
         "current": {
-          "text": "yamcs_quickstart_realtime",
-          "value": "yamcs_quickstart_realtime"
+          "text": "yamcs_quickstart_authentication",
+          "value": "yamcs_quickstart_authentication"
         },
         "name": "datasource_endpoint",
         "options": [
           {
-            "selected": true,
+            "selected": false,
             "text": "yamcs_quickstart_realtime",
             "value": "yamcs_quickstart_realtime"
+          },
+          {
+            "selected": true,
+            "text": "yamcs_quickstart_authentication",
+            "value": "yamcs_quickstart_authentication"
           }
         ],
-        "query": "yamcs_quickstart_realtime",
+        "query": "yamcs_quickstart_realtime, yamcs_quickstart_authentication",
         "type": "custom"
       },
       {
@@ -979,5 +1271,5 @@
   "timezone": "browser",
   "title": "Yamcs Quickstart Demo Dashboard",
   "uid": "0708823c-c106-407b-9861-f64283746167",
-  "version": 30
+  "version": 43
 }
