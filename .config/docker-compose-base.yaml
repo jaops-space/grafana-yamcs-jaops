@@ -25,6 +25,7 @@ services:
       GF_LOG_LEVEL: critical
       GF_DATAPROXY_LOGGING: 1
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: jaops-yamcs-app
+      # No subpath configuration - for direct localhost:3000 access (default)
 
 volumes:
   # saves grafana.db data such as users, orgs, dashboards, and datasources

@@ -12,6 +12,8 @@
     "lint:fix": "pnpm run lint --fix && prettier --write --list-different .",
     "e2e": "playwright test",
     "server": "docker compose up --build",
+    "server:localhost": "docker compose up --build",
+    "server:nginx": "docker compose -f docker-compose.yaml -f .config/docker-compose-nginx.yaml up --build",
     "sign": "npx --yes @grafana/sign-plugin@latest"
   },
   "author": "Jaops",
