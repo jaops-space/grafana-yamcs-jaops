@@ -52,7 +52,7 @@ func (mux *Multiplexer) SetupHost(hostID string) error {
 	var creds http.Credentials
 
 	if hostConfig.Tls {
-		tlsConfig = http.GetTLSConfiguration(false, "")
+		tlsConfig = http.GetTLSConfiguration(!hostConfig.TlsInsecure)
 	} else {
 		tlsConfig = http.GetNoTLSConfiguration()
 	}

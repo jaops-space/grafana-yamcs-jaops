@@ -54,12 +54,11 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
             {host.tlsEnabled && (
                 <Field>
                     <Checkbox
-                        value={true}
+                        value={false}
                         onChange={(e: ChangeEvent<HTMLInputElement>) =>
                             onChange(index, 'tlsInsecure', e.target.checked)
                         }
                         label="Bypass certificate validation"
-                        disabled
                     />
                 </Field>
             )}
