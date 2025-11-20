@@ -32,11 +32,10 @@ func GetNoTLSConfiguration() TLS {
 
 // GetTLSConfiguration returns a TLS configuration with the specified verification setting
 // and certificate path for secure connections.
-func GetTLSConfiguration(verification bool, certificatePath string) TLS {
+func GetTLSConfiguration(verification bool) TLS {
 	return TLS{
-		Enabled:         true,            // TLS is enabled.
-		Verification:    verification,    // Set TLS verification as specified.
-		CertificatePath: certificatePath, // Path to the certificate if needed.
+		Enabled:      true,         // TLS is enabled.
+		Verification: verification, // Set TLS verification as specified.
 	}
 }
 

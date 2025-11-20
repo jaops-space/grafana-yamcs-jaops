@@ -49,7 +49,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 [commandName + i]: {
                     ...prevState[commandName + i],
                     arguments: {
-                        ...prevState[commandName]?.arguments,
+                        ...prevState[commandName + i]?.arguments,
                         [argName]: value
                     }
                 },
@@ -284,7 +284,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         handleInputChange(command.name, arg.name, e.value, i);
                                                         validateInput(command.name, arg, e.value);
                                                     }}
-                                                    options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.value }))}
+                                                    options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
                                                 />
                                             );
                                         } else if (arg.type.engType === 'boolean') {
