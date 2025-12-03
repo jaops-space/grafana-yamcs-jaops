@@ -522,26 +522,22 @@ func CalculateStats(values []interface{}, parameter string) (*data.Field, *data.
 		vals := convert[float64](values)
 		min, max := MinMax(vals)
 		return createStatFields(parameter, vals, Sum(vals), min, max)
-	case bool:
-		mostFrequent := MostFrequent(values)
-		valueField := data.NewField(parameter, data.Labels{"false": "false", "true": "true"}, mostFrequent)
-		valueMapping := data.ValueMapper{}
-		valueMapping["true"] = data.ValueMappingResult{
-			Text:  "TRUE",
-			Color: "#3AAB58",
-		}
-		valueMapping["false"] = data.ValueMappingResult{
-			Text:  "FALSE",
-			Color: "#D72638",
-		}
-		valueField.Config.Mappings = []data.ValueMapping{valueMapping}
-		return valueField, nil, nil
 	case string:
 		mostFrequent := MostFrequent(values).(string)
 		labels := data.Labels{}
 		labels[mostFrequent] = mostFrequent
-		valueField := data.NewField(parameter, labels, mostFrequent)
+		valueField := data.NewField(parameter, labels, []string{mostFrequent})
 		valueMapping := data.ValueMapper{}
+		if (mostFrequent == "true") || (mostFrequent == "false") {
+			valueMapping["true"] = data.ValueMappingResult{
+				Text:  "TRUE",
+				Color: "#3AAB58",
+			}
+			valueMapping["false"] = data.ValueMappingResult{
+				Text:  "FALSE",
+				Color: "#D72638",
+			}
+		}
 		valueMapping[mostFrequent] = data.ValueMappingResult{
 			Color: HashToRGB(mostFrequent),
 		}
