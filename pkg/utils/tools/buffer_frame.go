@@ -200,17 +200,20 @@ func ConvertSampleBufferToFrame(buffer []*pvalue.TimeSeries_Sample, parameter st
 	lastWasNull := false
 
 	for _, item := range buffer {
-		timeField.Append(item.Time.AsTime())
 
-		if item.GetN() == 0 && !lastWasNull && valueField.Len() > 0 {
+		if item.GetN() == 0 && !lastWasNull {
 			lastWasNull = true
 			valueField.Append(nil)
 			minField.Append(nil)
 			maxField.Append(nil)
+			timeField.Append(item.Time.AsTime())
+			continue
+		} else if item.GetN() == 0 {
 			continue
 		}
 		lastWasNull = false
 
+		timeField.Append(item.Time.AsTime())
 		valueField.Append(item.Avg)
 		minField.Append(item.Min)
 		maxField.Append(item.Max)
@@ -266,7 +269,7 @@ func ConvertSampleBufferToFrameWithOffset(buffer []*pvalue.TimeSeries_Sample,
 // ConvertBufferToFrame converts a parameter value buffer into a data frame.
 func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, aggregatePath string, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
-		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int{}))
+		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int32{}))
 	}
 
 	values, times := extractParameterValues(buffer, aggregatePath, realtime)
@@ -404,7 +407,7 @@ func splitPath(path string) []string {
 
 func aggregateExtractFromPath(value *protobuf.Value, path string) *protobuf.Value {
 
-	defaultValue := &protobuf.Value{Sint64Value: new(int64)}
+	defaultValue := &protobuf.Value{Type: protobuf.Value_SINT64.Enum(), Sint64Value: new(int64)}
 
 	if path == "" {
 		return defaultValue
@@ -447,6 +450,9 @@ func formatBinary(data []byte) string {
 	var binaryStr string
 	for _, b := range data {
 		binaryStr += fmt.Sprintf("%08b ", b)
+	}
+	if len(binaryStr) == 0 {
+		return binaryStr
 	}
 	return binaryStr[:len(binaryStr)-1]
 }
@@ -527,6 +533,7 @@ func CalculateStats(values []interface{}, parameter string) (*data.Field, *data.
 		labels := data.Labels{}
 		labels[mostFrequent] = mostFrequent
 		valueField := data.NewField(parameter, labels, []string{mostFrequent})
+		valueField.Config = &data.FieldConfig{}
 		valueMapping := data.ValueMapper{}
 		if (mostFrequent == "true") || (mostFrequent == "false") {
 			valueMapping["true"] = data.ValueMappingResult{
