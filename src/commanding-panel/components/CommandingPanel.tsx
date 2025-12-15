@@ -41,27 +41,17 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     const [formState, setFormState] = useState<CommandForms>(options.commandForms || {});
     const [errors, setErrors] = useState<{ [command: string]: { [arg: string]: string } }>({});
     const [loading, setLoading] = useState<boolean>(false);
-
+    
     // State to track which button (on/off) was last clicked
-    // Initialize from saved options, or set defaults for dual buttons
+    // Use localStorage to persist state across refreshes without saving dashboard
+    const storageKey = `commanding-panel-state-${props.id}`;
     const [dualButtonStates, setDualButtonStates] = useState<{ [key: string]: 'on' | 'off' }>(() => {
-        const savedStates = options.dualButtonStates || {};
-        const initialStates: { [key: string]: 'on' | 'off' } = { ...savedStates };
-        const savedCommandForms = options.commandForms || {};
-
-        // Set default state for any dual buttons that don't have a saved state
-        commandInfos.forEach((commandInfo, i) => {
-            const command = commandInfo.command;
-            const commandState = savedCommandForms[command.name + i];
-            const stateKey = command.name + i;
-
-            // If this is a dual button and has no saved state, default to 'on'
-            if (commandState?.isDualButton && !initialStates[stateKey]) {
-                initialStates[stateKey] = 'on';
-            }
-        });
-
-        return initialStates;
+        try {
+            const stored = localStorage.getItem(storageKey);
+            return stored ? JSON.parse(stored) : {};
+        } catch {
+            return {};
+        }
     });
 
     const handleInputChange = (commandName: string, argName: string, value: any, i: number) => {
@@ -170,32 +160,31 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
             throw new Error('Datasource UID not found');
         }
         Object.setPrototypeOf(datasource, DataSourceWithBackend.prototype);
-
+        
         // Use off command configuration if this is the off button
-        const argumentsToUse = isOffCommand && commandData?.offCommand?.arguments
-            ? commandData.offCommand.arguments
+        const argumentsToUse = isOffCommand && commandData?.offCommand?.arguments 
+            ? commandData.offCommand.arguments 
             : commandData?.arguments;
-        const commentToUse = isOffCommand && commandData?.offCommand?.comment
-            ? commandData.offCommand.comment
+        const commentToUse = isOffCommand && commandData?.offCommand?.comment 
+            ? commandData.offCommand.comment 
             : commandData?.comment;
 
         datasource.postResource(`endpoint/${endpoint}/command/issue`, {
             name: command.qualifiedName,
-            arguments: commandData?.arguments,
-            comment: commandData?.comment,
+            arguments: argumentsToUse,
+            comment: commentToUse,
         })
             .then((_: any) => {
                 setLoading(false);
-            // Update dual button state to track which side was clicked
-            if (commandData?.isDualButton) {
-                const newState = {
-                    ...dualButtonStates,
-                    [command.name + i]: isOffCommand ? 'off' : 'on'
-                };
-                setDualButtonStates(newState);
-                // Persist to panel options
-                onOptionsChange({ ...options, dualButtonStates: newState });
-            }
+                // Update dual button state to track which side was clicked
+                if (commandData?.isDualButton) {
+                    const newDualButtonStates = {
+                        ...dualButtonStates,
+                        [command.name + i]: isOffCommand ? 'off' : 'on'
+                    };
+                    setDualButtonStates(newDualButtonStates);
+                    localStorage.setItem(storageKey, JSON.stringify(newDualButtonStates));
+                }
                 appEvents.publish({
                     type: AppEvents.alertSuccess.name,
                     payload: [`Command ${command.name} issued successfully`]
@@ -214,16 +203,16 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 {commandInfos.map((commandInfo, i) => {
                     const command = commandInfo.command;
                     const commandState = formState[command.name + i];
-
+                    
                     // Enhanced render function to support dual button mode
                     const render = (withSubmit = false) => {
                         // If this is a dual button, render the split view
                         if (commandState?.isDualButton && !editing) {
                             const activeState = dualButtonStates[command.name + i];
                             return (
-                                <div style={{
-                                    display: 'flex',
-                                    width: '100%',
+                                <div style={{ 
+                                    display: 'flex', 
+                                    width: '100%', 
                                     height: '100%',
                                     gap: '0px'
                                 }}>
@@ -257,7 +246,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     >
                                         {getTemplateSrv().replace(commandState?.label || 'ON', scopedVars)}
                                     </Button>
-
+                                    
                                     {/* OFF Button (Right) */}
                                     <Button
                                         disabled={loading}
@@ -290,7 +279,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                 </div>
                             );
                         }
-
+                        
                         // Original single button rendering
                         return <Button
                             disabled={loading}
@@ -327,7 +316,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                             {getTemplateSrv().replace(commandState?.label, scopedVars)}
                         </Button>
                     };
-
+                    
                     if (!editing) {
                         return render(true);
                     }
@@ -463,7 +452,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             </Field>
                                         );
                                     })}
-
+                                
                                 {/* Dual Button Toggle */}
                                 {!variableMode && <>
                                     <Divider />
@@ -477,26 +466,16 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             value={commandState?.isDualButton || false}
                                             onChange={(e: SelectableValue<boolean>) => {
                                                 handleOptionChange(command.name, 'isDualButton', e.value, i);
-
-                                                // When enabling dual button mode, initialize its state to 'on' if not already set
-                                                if (e.value && !dualButtonStates[command.name + i]) {
-                                                    const newState = {
-                                                        ...dualButtonStates,
-                                                        [command.name + i]: 'on' as 'on' | 'off'
-                                                    };
-                                                    setDualButtonStates(newState);
-                                                    onOptionsChange({ ...options, dualButtonStates: newState });
-                                                }
                                             }}
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
-
+                                    
                                     {/* OFF Button Configuration Section */}
                                     {commandState?.isDualButton && <>
                                         <Divider />
                                         <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>OFF Button Configuration</h5>
-
+                                        
                                         {/* OFF Button Arguments */}
                                         {command.argument?.map((arg: any) => {
                                             const inputValue = commandState?.offCommand?.arguments?.[arg.name] || arg.initialValue;
@@ -580,7 +559,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 </Field>
                                             );
                                         })}
-
+                                        
                                         <Field label='OFF Comment' description='Optional comment for OFF command'>
                                             <Input
                                                 type='text'
@@ -595,7 +574,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 style={{ width: '100%' }}
                                             />
                                         </Field>
-
+                                        
                                         <Field label='OFF Label' description='Label for OFF button'>
                                             <Input
                                                 type='text'
@@ -610,7 +589,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 style={{ width: '100%' }}
                                             />
                                         </Field>
-
+                                        
                                         <Field label='OFF Icon' description='Icon for OFF button'>
                                             <Select
                                                 disabled={loading}
@@ -627,7 +606,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 style={{ width: '100%' }}
                                             />
                                         </Field>
-
+                                        
                                         <Field label='OFF Color' description='Button color for OFF state'>
                                             <ColorPickerInput
                                                 onChange={(color: string) => {
@@ -640,7 +619,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 color={commandState?.offCommand?.color || ''}
                                             />
                                         </Field>
-
+                                        
                                         <Field label='OFF Text Color' description='Text color for OFF button'>
                                             <ColorPickerInput
                                                 onChange={(color: string) => {
@@ -655,7 +634,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         </Field>
                                     </>}
                                 </>}
-
+                                
                                 <Field label='Comment' description='Optional comment'>
                                     <Input
                                         type='text'
