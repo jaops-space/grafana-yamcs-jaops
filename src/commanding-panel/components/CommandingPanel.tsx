@@ -124,7 +124,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     const appEvents = getAppEvents();
 
     // isOffCommand parameter handles dual button submissions
-    const handleSubmit = (commandInfo: CommandInfos[number], i: number, isOffCommand: boolean = false) => {
+    const handleSubmit = (commandInfo: CommandInfos[number], i: number, isOffCommand = false) => {
         const command = commandInfo.command;
         const endpoint = commandInfo.endpoint;
         const commandData = formState[command.name + i];
