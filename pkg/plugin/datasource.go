@@ -174,8 +174,13 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	testMux := multiplexer.NewMultiplexer(config)
 	testMux.Secure = secure
 
-	statuses := make(map[string]string, len(config.Hosts))
+	statusDetails := make(map[string]interface{})
+	hostStatuses := make(map[string]string)
+	endpointStatuses := make(map[string]string)
+	hasErrors := false
 
+	// Test all hosts
+	backend.Logger.Debug("Testing Host Connectivity")
 	for hostID := range config.Hosts {
 		err := testMux.SetupHost(hostID)
 		hostName := config.Hosts[hostID].Name
@@ -187,19 +192,75 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		status := "OK"
 		if err != nil {
 			status = err.Error()
+			hasErrors = true
 		}
 
-		statuses[displayName+" status"] = status
+		hostStatuses[displayName] = status
 	}
 
-	jsonBytes, err := json.Marshal(statuses)
+	// Test all endpoints - verify they can connect to their respective hosts and retrieve instance/processor info
+	backend.Logger.Debug("Testing Endpoint Connectivity")
+	for endpointID, endpointConfig := range config.Endpoints {
+		endpointName := endpointConfig.Name
+		if endpointName == "" {
+			endpointName = endpointID
+		}
+		displayName := endpointName
+
+		// Verify the endpoint's host was successfully set up
+		hostConfig := config.Hosts[endpointConfig.Host]
+		hostDisplayName := hostConfig.Name
+		if hostDisplayName == "" {
+			hostDisplayName = "Unknown Host"
+		}
+
+		hostStatus, hostExists := hostStatuses[hostDisplayName]
+		if !hostExists {
+			endpointStatuses[displayName] = "Host configuration not found"
+			hasErrors = true
+			continue
+		}
+
+		if hostStatus != "OK" {
+			endpointStatuses[displayName] = "Host connection failed: " + hostStatus
+			hasErrors = true
+			continue
+		}
+
+		// Try to retrieve the endpoint to verify instance and processor exist
+		_, err := testMux.GetEndpoint(endpointID)
+		status := "OK"
+		if err != nil {
+			status = err.Error()
+			hasErrors = true
+		}
+
+		endpointStatuses[displayName] = status
+	}
+
+	// Build detailed status response
+	statusDetails["hosts"] = hostStatuses
+	statusDetails["endpoints"] = endpointStatuses
+	statusDetails["totalHosts"] = len(config.Hosts)
+	statusDetails["totalEndpoints"] = len(config.Endpoints)
+
+	jsonBytes, err := json.Marshal(statusDetails)
 	if err != nil {
-		return nil, err // or handle the error as needed
+		return nil, err
+	}
+
+	// If any host or endpoint has errors, return error status
+	if hasErrors {
+		return &backend.CheckHealthResult{
+			Status:      backend.HealthStatusError,
+			Message:     "One or more connection tests failed. Please check the host and endpoint configuration.",
+			JSONDetails: jsonBytes,
+		}, nil
 	}
 
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
-		Message:     "Configuration is valid! Plugin is ready to use.",
+		Message:     "Successfully connected to all YAMCS hosts and endpoints. Plugin is ready to use.",
 		JSONDetails: jsonBytes,
 	}, nil
 }
