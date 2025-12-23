@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -178,6 +180,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	hostStatuses := make(map[string]string)
 	endpointStatuses := make(map[string]string)
 	hasErrors := false
+	var errorMessages []string
 
 	// Test all hosts
 	backend.Logger.Debug("Testing Host Connectivity")
@@ -193,6 +196,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		if err != nil {
 			status = err.Error()
 			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Host '%s': %s", displayName, err.Error()))
 		}
 
 		hostStatuses[displayName] = status
@@ -218,12 +222,14 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		if !hostExists {
 			endpointStatuses[displayName] = "Host configuration not found"
 			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': Host configuration not found", displayName))
 			continue
 		}
 
 		if hostStatus != "OK" {
 			endpointStatuses[displayName] = "Host connection failed: " + hostStatus
 			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': Host connection failed: %s", displayName, hostStatus))
 			continue
 		}
 
@@ -233,6 +239,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		if err != nil {
 			status = err.Error()
 			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': %s", displayName, err.Error()))
 		}
 
 		endpointStatuses[displayName] = status
@@ -251,13 +258,15 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 
 	// If any host or endpoint has errors, return error status
 	if hasErrors {
+		testMux.Dispose()
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
-			Message:     "One or more connection tests failed. Please check the host and endpoint configuration.",
+			Message:     strings.Join(errorMessages, "\n"),
 			JSONDetails: jsonBytes,
 		}, nil
 	}
 
+	testMux.Dispose()
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
 		Message:     "Successfully connected to all YAMCS hosts and endpoints. Plugin is ready to use.",
