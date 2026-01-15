@@ -184,16 +184,22 @@ type YamcsHostConfiguration struct {
 }
 
 func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfiguration, *YamcsSecureConfiguration, error) {
+	// Debug: log what Grafana sent us
+	backend.Logger.Info("ExtractConfig received JSONData",
+		"jsonDataString", string(source.JSONData))
 
 	configuration := &YamcsPluginConfiguration{}
 	secure := &YamcsSecureConfiguration{}
 	err := json.Unmarshal(source.JSONData, configuration)
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
 	}
 
-	// Extract secure fields
-	// loop through hosts of the configuration YamcsPluginConfiguration, for each host, grab all fields from DecodedSecureJSON that start with the host name, and populate YamcsSecureConfiguration.Hosts[hostname].Password if field ends in -password
+	backend.Logger.Info("ExtractConfig unmarshaled config",
+		"endpointCount", len(configuration.Endpoints))
+
+	// Extract secure fields for hosts
 	secure.Hosts = make(map[string]*YamcsSecureHost)
 	for hostName, hostConfig := range configuration.Hosts {
 		if hostConfig.Auth {

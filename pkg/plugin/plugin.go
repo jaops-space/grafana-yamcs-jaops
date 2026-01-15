@@ -3,10 +3,10 @@ package plugin
 import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 )
 
-var GlobalMultiplexer *multiplexer.Multiplexer = multiplexer.NewMultiplexer(nil)
+var GlobalMultiplexer *source.Multiplexer = source.NewMultiplexer(nil)
 
 // Make sure App implements required interfaces. This is important to do
 // since otherwise we will only get a not implemented error response from plugin in
@@ -23,5 +23,6 @@ type Datasource struct {
 	backend.CallResourceHandler
 	backend.StreamHandler
 	instancemgmt.InstanceDisposer
-	multiplexer *multiplexer.Multiplexer
+	multiplexer *source.Multiplexer
+	querier     *source.Querier
 }

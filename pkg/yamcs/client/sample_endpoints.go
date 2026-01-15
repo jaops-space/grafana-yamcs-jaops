@@ -32,6 +32,24 @@ func (client *YamcsClient) setTimeAndSampleCount(start time.Time, end time.Time)
 	}
 }
 
+// setFilter sets the filter parameter and value in the HTTP query parameters.
+// This allows filtering parameter samples by another parameter's value (e.g., filter Temperature where vcid=1)
+func (client *YamcsClient) setFilter(parameterFqn string, value string) {
+	if parameterFqn != "" && value != "" {
+		// Use dot notation for nested filter structure: filter.parameter and filter.value
+		client.HTTP.Query["filter.parameter"] = parameterFqn
+		client.HTTP.Query["filter.operator"] = "EQUALS"
+		client.HTTP.Query["filter.values"] = value
+	}
+}
+
+// clearFilter removes filter parameters from the HTTP query parameters.
+func (client *YamcsClient) clearFilter() {
+	delete(client.HTTP.Query, "filter.parameter")
+	delete(client.HTTP.Query, "filter.operator")
+	delete(client.HTTP.Query, "filter.values")
+}
+
 // GetParameterSamples retrieves parameter samples for a given instance and parameter within a time range.
 func (client *YamcsClient) GetParameterSamples(instance Instance, parameter Parameter, start time.Time, end time.Time) ([]Sample, error) {
 	client.setTimeAndSampleCount(start, end)

@@ -55,7 +55,10 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
             if (newEndpointObject[endpoint.index]) {
                 throw new Error(`Endpoint indices must be unique. Duplicate found: ${endpoint.index}`);
             }
-            newEndpointObject[endpoint.index] = { ...endpoint };
+
+            // Exclude 'index' field since it's just the key in the Record, not part of the config
+            const { index, ...endpointData } = endpoint;
+            newEndpointObject[index] = endpointData;
         })
         onOptionsChange({
             ...options,
@@ -222,6 +225,8 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                         onChange={updateEndpoint}
                         index={index}
                         removeEndpoint={removeEndpoint}
+                        setSecure={setSecureProperty}
+                        getSecure={getSecureProperty}
                     />
                 ))}
                 <Button variant="secondary" onClick={addEndpoint} icon="plus" fullWidth style={{ width: '100%' }} />

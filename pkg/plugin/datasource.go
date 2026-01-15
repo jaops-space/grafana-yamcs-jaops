@@ -10,8 +10,9 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
@@ -29,8 +30,14 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	router := mux.NewRouter()
 	datasource.registerRoutes(router)
 	datasource.CallResourceHandler = httpadapter.New(router)
+
 	GlobalMultiplexer.Configuration = config
 	GlobalMultiplexer.Secure = secure
+	GlobalMultiplexer.ConnMgr.Configuration = config
+	GlobalMultiplexer.ConnMgr.Secure = secure
+
+	// Always create querier (it will use Yamcs-only for endpoints without a database)
+	datasource.querier = source.New(config.Endpoints, GlobalMultiplexer.ConnMgr) //#TODO: if error check here
 	datasource.multiplexer = GlobalMultiplexer
 
 	return &datasource, nil
@@ -38,7 +45,6 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 }
 
 // SubscribeStream handles the initial data request when a user subscribes to a stream.
-// It fetches the historical data based on the query and returns it as the initial response.
 func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
 	var q PluginQuery
 
@@ -57,7 +63,7 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 	var frame *data.Frame
 	switch q.Type {
 	case Graph:
-		frame, err = DatasourceGraphFrame(endpoint, q)
+		frame, err = DatasourceGraphFrame(d.querier, endpoint, q)
 	case SingleValue, Image:
 		frame, err = DatasourceSingleValueFrame(endpoint, q)
 	case DiscreteValue:
@@ -147,8 +153,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	}
 }
 
-// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
-// created.
+// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance is created.
 func (d *Datasource) Dispose() {
 	GlobalMultiplexer.Dispose()
 }
@@ -171,10 +176,11 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
-	testMux := multiplexer.NewMultiplexer(config)
+	testMux := source.NewMultiplexer(config)
 	testMux.Secure = secure
 
 	statuses := make(map[string]string, len(config.Hosts))
+    hasErrors := false
 
 	for hostID := range config.Hosts {
 		err := testMux.SetupHost(hostID)
@@ -187,6 +193,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		status := "OK"
 		if err != nil {
 			status = err.Error()
+            hasErrors = true
 		}
 
 		statuses[displayName+" status"] = status
@@ -194,12 +201,24 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 
 	jsonBytes, err := json.Marshal(statuses)
 	if err != nil {
-		return nil, err // or handle the error as needed
+		return nil, err
+	}
+
+	healthStatus := backend.HealthStatusOk
+	message := "Configuration is valid! Plugin is ready to use."
+	if hasErrors {
+		healthStatus = backend.HealthStatusError
+		message = "Configuration has errors:\n"
+		for hostName, status := range statuses {
+			if status != "OK" {
+				message += "- " + hostName + ": " + status + "\n"
+			}
+		}
 	}
 
 	return &backend.CheckHealthResult{
-		Status:      backend.HealthStatusOk,
-		Message:     "Configuration is valid! Plugin is ready to use.",
+		Status:      healthStatus,
+		Message:     message,
 		JSONDetails: jsonBytes,
 	}, nil
 }
