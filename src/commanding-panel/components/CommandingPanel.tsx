@@ -48,11 +48,17 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     const [dualButtonStates, setDualButtonStates] = useState<{ [key: string]: 'on' | 'off' }>(() => {
         try {
             const stored = localStorage.getItem(storageKey);
-            return stored ? JSON.parse(stored) : {};
+            return stored ? JSON.parse(stored) : options.dualButtonStates || {};
         } catch {
-            return {};
+            return options.dualButtonStates || {};
         }
     });
+
+    const updateDualButtonStates = (newStates: { [key: string]: 'on' | 'off' }) => {
+        setDualButtonStates(newStates);
+        localStorage.setItem(storageKey, JSON.stringify(newStates));
+        onOptionsChange({ ...options, dualButtonStates: newStates });
+    };
 
     const handleInputChange = (commandName: string, argName: string, value: any, i: number) => {
         setFormState(prevState => {
@@ -182,8 +188,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                         ...dualButtonStates,
                         [command.name + i]: isOffCommand ? 'off' : 'on'
                     };
-                    setDualButtonStates(newDualButtonStates);
-                    localStorage.setItem(storageKey, JSON.stringify(newDualButtonStates));
+                    updateDualButtonStates(newDualButtonStates);
                 }
                 appEvents.publish({
                     type: AppEvents.alertSuccess.name,
