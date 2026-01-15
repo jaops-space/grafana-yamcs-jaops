@@ -101,3 +101,28 @@ func (client *YamcsClient) GetParameterSamplesInProcessorByNames(instanceName st
 
 	return result.GetSample(), nil
 }
+
+// GetParameterSamplesInProcessorByNamesWithFilter retrieves parameter samples with optional filtering.
+// If filterParamFqn and filterValue are provided, only returns samples where the filter parameter equals the filter value.
+// Example: Get Temperature samples filtered by vcid=1
+func (client *YamcsClient) GetParameterSamplesInProcessorByNamesWithFilter(
+	instanceName string,
+	processorName string,
+	parameterName string,
+	start time.Time,
+	end time.Time,
+	filterParamFqn string,
+	filterValue string,
+) ([]Sample, error) {
+	client.setTimeAndSampleCount(start, end)
+	client.setFilter(filterParamFqn, filterValue)
+	defer client.clearFilter() // Clean up filter params after request
+
+	result := &pvalue.TimeSeries{}
+	err := client.HTTP.GetProto(fmt.Sprintf("/archive/%s/parameters/%s/samples", instanceName, parameterName), result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.GetSample(), nil
+}

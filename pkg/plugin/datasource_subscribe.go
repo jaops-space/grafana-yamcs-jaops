@@ -16,7 +16,6 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
@@ -52,22 +51,18 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		"aggregatePath", aggregatePath,
 		"startTime", start,
 		"endTime", end,
-		"dbSqlFilter", q.DbSqlFilter,
 		"yamcsFilter", q.YamcsFilter)
 
-	// Convert YamcsFilter to source.YamcsFilterConfig
-	var yamcsFilter *source.YamcsFilterConfig
-	if q.YamcsFilter != nil {
-		yamcsFilter = &source.YamcsFilterConfig{
-			Enabled:   q.YamcsFilter.Enabled,
-			Parameter: q.YamcsFilter.Parameter,
-			Operator:  q.YamcsFilter.Operator,
-			Value:     q.YamcsFilter.Value,
-		}
-	}
-
-	// Query telemetry (uses DB + Yamcs split if configured, Yamcs only otherwise)
-	telemetryData, err := querier.QueryTelemetryRange(context.Background(), q.EndpointID, start, end, []string{q.Parameter + aggregatePath}, nil, q.DbSqlFilter, yamcsFilter)
+// 	// Convert YamcsFilter to source.YamcsFilterConfig
+// 	var yamcsFilter *source.YamcsFilterConfig
+// 	if q.YamcsFilter != nil {
+// 		yamcsFilter = &source.YamcsFilterConfig{
+// 			Enabled:   q.YamcsFilter.Enabled,
+// 			Parameter: q.YamcsFilter.Parameter,
+// 			Operator:  q.YamcsFilter.Operator,
+// 			Value:     q.YamcsFilter.Value,
+// 		}
+// 	}
 
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter samples", "error", err)
@@ -75,9 +70,6 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 	}
 
 	pointCount := 0
-	if data, ok := telemetryData[q.Parameter+aggregatePath]; ok {
-		pointCount = len(data)
-	}
 
 	backend.Logger.Info("Received parameter samples",
 		"parameter", q.Parameter,
@@ -91,9 +83,6 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		getMin = getMin || (getField == "min")
 		getMax = getMax || (getField == "max")
 	}
-
-	// Convert telemetry points back to Yamcs samples format for compatibility with tools
-	samples := telemetryPointsToSamples(telemetryData[q.Parameter+aggregatePath])
 
 	var frame *data.Frame
 
@@ -204,12 +193,12 @@ func SetUnitAndThresholds(endpoint *source.YamcsEndpoint, parameter string, fram
 		if field.Config == nil {
 			field.Config = &data.FieldConfig{}
 		}
-		field.Config.Unit = pd.Unit
+		field.Config.Unit = parameterDemand.Unit
 		field.Config.Thresholds = &data.ThresholdsConfig{
 			Mode:  data.ThresholdsModeAbsolute,
-			Steps: make([]data.Threshold, 0, len(pd.Thresholds)),
+			Steps: make([]data.Threshold, 0, len(parameterDemand.Thresholds)),
 		}
-		for _, t := range pd.Thresholds {
+		for _, t := range parameterDemand.Thresholds {
 			field.Config.Thresholds.Steps = append(field.Config.Thresholds.Steps, *t)
 		}
 	}

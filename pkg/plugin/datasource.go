@@ -37,7 +37,7 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	GlobalMultiplexer.ConnMgr.Secure = secure
 
 	// Always create querier (it will use Yamcs-only for endpoints without a database)
-	datasource.querier = source.New(config.Endpoints, GlobalMultiplexer.ConnMgr) //#TODO: if error check here
+	datasource.querier = source.New(config.Endpoints)
 	datasource.multiplexer = GlobalMultiplexer
 
 	return &datasource, nil

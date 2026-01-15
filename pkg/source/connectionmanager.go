@@ -45,7 +45,7 @@ func (cm *ConnectionManager) SetupHost(hostID string) error {
 	var creds http.Credentials
 
 	if hostConfig.Tls {
-		tlsConfig = http.GetTLSConfiguration(false, "")
+		tlsConfig = http.GetTLSConfiguration(false)
 	} else {
 		tlsConfig = http.GetNoTLSConfiguration()
 	}
