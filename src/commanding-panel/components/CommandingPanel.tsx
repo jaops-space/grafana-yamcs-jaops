@@ -43,16 +43,11 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     const [loading, setLoading] = useState<boolean>(false);
     
     // State to track which button (on/off) was last clicked
-    // Use localStorage to persist state across refreshes without saving dashboard
-    const storageKey = `commanding-panel-state-${props.id}`;
-    const [dualButtonStates, setDualButtonStates] = useState<{ [key: string]: 'on' | 'off' }>(() => {
-        try {
-            const stored = localStorage.getItem(storageKey);
-            return stored ? JSON.parse(stored) : {};
-        } catch {
-            return {};
-        }
-    });
+    // Persisted in panel data for consistency across multiple dashboards
+    const dualButtonStates = options.dualButtonStates || {};
+    const setDualButtonStates = (newState: { [key: string]: 'on' | 'off' }) => {
+        onOptionsChange({ ...options, dualButtonStates: newState });
+    };
 
     const handleInputChange = (commandName: string, argName: string, value: any, i: number) => {
         setFormState(prevState => {
@@ -183,7 +178,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                         [command.name + i]: isOffCommand ? 'off' : 'on'
                     };
                     setDualButtonStates(newDualButtonStates);
-                    localStorage.setItem(storageKey, JSON.stringify(newDualButtonStates));
                 }
                 appEvents.publish({
                     type: AppEvents.alertSuccess.name,
