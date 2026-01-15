@@ -7,12 +7,12 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-    "google.golang.org/protobuf/encoding/protojson"
-    "google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
-    "github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
@@ -53,16 +53,7 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		"endTime", end,
 		"yamcsFilter", q.YamcsFilter)
 
-// 	// Convert YamcsFilter to source.YamcsFilterConfig
-// 	var yamcsFilter *source.YamcsFilterConfig
-// 	if q.YamcsFilter != nil {
-// 		yamcsFilter = &source.YamcsFilterConfig{
-// 			Enabled:   q.YamcsFilter.Enabled,
-// 			Parameter: q.YamcsFilter.Parameter,
-// 			Operator:  q.YamcsFilter.Operator,
-// 			Value:     q.YamcsFilter.Value,
-// 		}
-// 	}
+	samples, err := yamcs.GetParameterSamplesInProcessorByNames(endpoint.Instance.GetName(), endpoint.Processor.GetName(), q.Parameter, start, end)
 
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter samples", "error", err)
