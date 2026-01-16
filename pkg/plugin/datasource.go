@@ -269,7 +269,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	testMux.Dispose()
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
-		Message:     "Successfully connected to all YAMCS hosts and endpoints. Plugin is ready to use.",
+		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
 		JSONDetails: jsonBytes,
 	}, nil
 }
