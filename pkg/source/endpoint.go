@@ -1,4 +1,4 @@
-package multiplexer
+package source
 
 import (
 	"time"
@@ -190,7 +190,11 @@ func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(name string, path string
 
 // GetClient retrieves the Yamcs client for this endpoint.
 func (ep *YamcsEndpoint) GetClient() *client.YamcsClient {
-	return ep.Multiplexer.Hosts[ep.GetConfiguration().Host].Client
+		yamcsClient, err := ep.Multiplexer.ConnMgr.GetClient(ep.GetConfiguration().Host)
+    	if err != nil {
+    		return nil
+    	}
+    	return yamcsClient
 }
 
 // GetParameterSubscription retrieves or creates a parameter subscription.

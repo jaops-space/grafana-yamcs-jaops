@@ -1,8 +1,9 @@
 services:
-    grafana:
-        extends:
-            file: .config/docker-compose-base.yaml
-            service: grafana
-
+  grafana:
+    extends:
+      file: .config/docker-compose-base.yaml
+      service: grafana
+    volumes:
+      - ./provisioning/datasources:/etc/grafana/provisioning/datasources
 volumes:
   grafana-storage:
