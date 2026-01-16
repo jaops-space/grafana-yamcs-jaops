@@ -167,13 +167,24 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
         }
         Object.setPrototypeOf(datasource, DataSourceWithBackend.prototype);
         
-        // Use off command configuration if this is the off button
-        const argumentsToUse = isOffCommand && commandData?.offCommand?.arguments 
-            ? commandData.offCommand.arguments 
-            : commandData?.arguments;
-        const commentToUse = isOffCommand && commandData?.offCommand?.comment 
-            ? commandData.offCommand.comment 
-            : commandData?.comment;
+        // Use on/off command configuration based on which button was clicked
+        let argumentsToUse = commandData?.arguments;
+        let commentToUse = commandData?.comment;
+        
+        if (isOffCommand && commandData?.offCommand?.arguments) {
+            argumentsToUse = commandData.offCommand.arguments;
+        } else if (isOffCommand && commandData?.offCommand?.comment) {
+            commentToUse = commandData.offCommand.comment;
+        }
+        
+        if (!isOffCommand && commandData?.isDualButton) {
+            if (commandData?.onCommand?.arguments) {
+                argumentsToUse = commandData.onCommand.arguments;
+            }
+            if (commandData?.onCommand?.comment) {
+                commentToUse = commandData.onCommand.comment;
+            }
+        }
 
         datasource.postResource(`endpoint/${endpoint}/command/issue`, {
             name: command.qualifiedName,
@@ -244,12 +255,11 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             opacity: activeState === 'off' ? 0.5 : 1,
                                         }}
                                         size={commandState?.size as any}
-                                        icon={commandState?.icon as any}
                                         fill={commandState?.transparent as any}
                                         tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
                                         onClick={withSubmit ? () => handleSubmit(commandInfo, i, false) : undefined}
                                     >
-                                        {getTemplateSrv().replace(commandState?.label || 'ON', scopedVars)}
+                                        {getTemplateSrv().replace(commandState?.onCommand?.label ?? commandState?.label ?? 'ON', scopedVars)}
                                     </Button>
                                     
                                     {/* OFF Button (Right) */}
@@ -274,7 +284,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             opacity: activeState === 'on' ? 0.5 : 1,
                                         }}
                                         size={commandState?.size as any}
-                                        icon={commandState?.offCommand?.icon || commandState?.icon as any}
                                         fill={commandState?.transparent as any}
                                         tooltip="Turn off"
                                         onClick={withSubmit ? () => handleSubmit(commandInfo, i, true) : undefined}
@@ -461,14 +470,14 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                 {/* Dual Button Toggle */}
                                 {!variableMode && <>
                                     <Divider />
-                                    <Field label='Dual On/Off Button' description='Create a split button with separate on/off commands'>
+                                    <Field label='Button Type (Single or Dual)' description='Create a split button with separate on/off commands'>
                                         <Select
                                             disabled={loading}
                                             options={[
                                                 { label: 'Single Button', value: false },
-                                                { label: 'Dual On/Off Button', value: true },
+                                                { label: 'Dual Button', value: true },
                                             ]}
-                                            value={commandState?.isDualButton || false}
+                                            value={commandState?.isDualButton === true ? { label: 'Dual Button', value: true } : { label: 'Single Button', value: false }}
                                             onChange={(e: SelectableValue<boolean>) => {
                                                 handleOptionChange(command.name, 'isDualButton', e.value, i);
                                             }}
@@ -476,10 +485,156 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                     
+                                    {/* ON Button Configuration Section */}
+                                    {commandState?.isDualButton && <>
+                                        <Divider />
+                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Left Button Configuration</h5>
+                                        
+                                        {/* ON Button Arguments */}
+                                        {command.argument?.map((arg: any) => {
+                                            const inputValue = commandState?.onCommand?.arguments?.[arg.name] || arg.initialValue;
+                                            let inputField;
+
+                                            if (arg.type.engType === 'enumeration') {
+                                                inputField = (
+                                                    <Select
+                                                        disabled={loading}
+                                                        value={inputValue}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleOptionChange(command.name, 'onCommand', {
+                                                                ...commandState?.onCommand,
+                                                                arguments: {
+                                                                    ...commandState?.onCommand?.arguments,
+                                                                    [arg.name]: e.value
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
+                                                    />
+                                                );
+                                            } else if (arg.type.engType === 'boolean') {
+                                                inputField = (
+                                                    <Select
+                                                        value={inputValue}
+                                                        disabled={loading}
+                                                        style={{ width: '100%' }}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleOptionChange(command.name, 'onCommand', {
+                                                                ...commandState?.onCommand,
+                                                                arguments: {
+                                                                    ...commandState?.onCommand?.arguments,
+                                                                    [arg.name]: e.value
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        options={[
+                                                            { label: arg.type.zeroStringValue || 'False', value: false },
+                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                        ]}
+                                                        fullWidth
+                                                    />
+                                                );
+                                            } else {
+                                                inputField = (
+                                                    <Input
+                                                        disabled={loading}
+                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        value={inputValue}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                            let val: any = e.target.value;
+                                                            if (arg.type.engType === 'integer') {
+                                                                val = parseInt(val, 10);
+                                                            }
+                                                            if (arg.type.engType === 'float') {
+                                                                val = parseFloat(val);
+                                                            }
+                                                            handleOptionChange(command.name, 'onCommand', {
+                                                                ...commandState?.onCommand,
+                                                                arguments: {
+                                                                    ...commandState?.onCommand?.arguments,
+                                                                    [arg.name]: val
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        min={arg.type.rangeMin}
+                                                        max={arg.type.rangeMax}
+                                                        style={{ width: '100%' }}
+                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
+                                                    />
+                                                );
+                                            }
+
+                                            return (
+                                                <Field key={`on-${arg.name}`} label={`LEFT - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                        {inputField}
+                                                        <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
+                                                    </div>
+                                                </Field>
+                                            );
+                                        })}
+                                        
+                                        <Field label='LEFT Comment' description='Optional comment for LEFT button'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.onCommand?.comment || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        comment: e.target.value
+                                                    }, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='LEFT Label' description='Label for LEFT button'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.onCommand?.label ?? ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        label: e.target.value
+                                                    }, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='LEFT Color' description='Button color for LEFT button'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        color: color
+                                                    }, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.onCommand?.color || ''}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='LEFT Text Color' description='Text color for LEFT button'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        textColor: color
+                                                    }, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.onCommand?.textColor || ''}
+                                            />
+                                        </Field>
+                                    </>}
+                                    
                                     {/* OFF Button Configuration Section */}
                                     {commandState?.isDualButton && <>
                                         <Divider />
-                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>OFF Button Configuration</h5>
+                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Right Button Configuration</h5>
                                         
                                         {/* OFF Button Arguments */}
                                         {command.argument?.map((arg: any) => {
@@ -556,7 +711,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             }
 
                                             return (
-                                                <Field key={`off-${arg.name}`} label={`OFF - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
+                                                <Field key={`off-${arg.name}`} label={`RIGHT - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                                                         {inputField}
                                                         <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
@@ -565,7 +720,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             );
                                         })}
                                         
-                                        <Field label='OFF Comment' description='Optional comment for OFF command'>
+                                        <Field label='RIGHT Comment' description='Optional comment for RIGHT button'>
                                             <Input
                                                 type='text'
                                                 disabled={loading}
@@ -580,11 +735,11 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             />
                                         </Field>
                                         
-                                        <Field label='OFF Label' description='Label for OFF button'>
+                                        <Field label='RIGHT Label' description='Label for RIGHT button'>
                                             <Input
                                                 type='text'
                                                 disabled={loading}
-                                                value={commandState?.offCommand?.label || 'OFF'}
+                                                value={commandState?.offCommand?.label ?? ''}
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                                     handleOptionChange(command.name, 'offCommand', {
                                                         ...commandState?.offCommand,
@@ -595,24 +750,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             />
                                         </Field>
                                         
-                                        <Field label='OFF Icon' description='Icon for OFF button'>
-                                            <Select
-                                                disabled={loading}
-                                                options={
-                                                    [{ label: 'None', value: '' },
-                                                    ...getAvailableIcons().map(icon => ({ label: icon, value: icon, icon: icon }))]}
-                                                value={commandState?.offCommand?.icon || ''}
-                                                onChange={(e: SelectableValue<string>) => {
-                                                    handleOptionChange(command.name, 'offCommand', {
-                                                        ...commandState?.offCommand,
-                                                        icon: e.value
-                                                    }, i);
-                                                }}
-                                                style={{ width: '100%' }}
-                                            />
-                                        </Field>
-                                        
-                                        <Field label='OFF Color' description='Button color for OFF state'>
+                                        <Field label='RIGHT Color' description='Button color for RIGHT button'>
                                             <ColorPickerInput
                                                 onChange={(color: string) => {
                                                     handleOptionChange(command.name, 'offCommand', {
@@ -625,7 +763,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             />
                                         </Field>
                                         
-                                        <Field label='OFF Text Color' description='Text color for OFF button'>
+                                        <Field label='RIGHT Text Color' description='Text color for RIGHT button'>
                                             <ColorPickerInput
                                                 onChange={(color: string) => {
                                                     handleOptionChange(command.name, 'offCommand', {
