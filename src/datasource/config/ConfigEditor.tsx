@@ -1,10 +1,11 @@
 import { AppEvents, DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
 import { Button, Checkbox, Collapse, Field, FileDropzone, InlineField, Input, Modal, Stack } from '@grafana/ui';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Configuration, DefaultConfiguration, DefaultSecureConfiguration, Endpoints, IndexedEndpoint, SecureConfiguration } from '../types';
 import ConfigEndpoint from './ConfigEndpoint';
 import ConfigHost from './ConfigHost';
+import ConnectionStatus from './ConnectionStatus';
 
 function toHexString(bytes: Uint8Array) {
     return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
@@ -200,6 +201,18 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     const [isEPOpen, setEPOpen] = useState(false);
     const [isPluginOpen, setPluginOpen] = useState(false);
     const [isExportOpen, setExportOpen] = useState(false);
+    
+    // Config version to trigger connection status refresh when config changes
+    const [configVersion, setConfigVersion] = useState(0);
+
+    // Get the datasource UID for health checks
+    const datasourceUid = options.uid;
+    
+    // Listen for the Save & Test result to refresh connection status
+    useEffect(() => {
+        // Increment config version when options change to trigger re-test
+        setConfigVersion(v => v + 1);
+    }, [options.jsonData]);
 
     return (<>
         <Stack direction="column">
@@ -242,6 +255,9 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                     />
                 </InlineField>
             </Collapse>
+
+            {/* Connection Status - displays health check results for hosts and endpoints */}
+            <ConnectionStatus datasourceUid={datasourceUid} configVersion={configVersion} />
         </Stack>
         <Modal title='Import / Export configuration' isOpen={isExportOpen} onDismiss={() => setExportOpen(false)}>
             <Stack direction='column' gap={5}>

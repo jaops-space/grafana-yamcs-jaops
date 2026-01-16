@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -174,8 +176,14 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	testMux := multiplexer.NewMultiplexer(config)
 	testMux.Secure = secure
 
-	statuses := make(map[string]string, len(config.Hosts))
+	statusDetails := make(map[string]interface{})
+	hostStatuses := make(map[string]string)
+	endpointStatuses := make(map[string]string)
+	hasErrors := false
+	var errorMessages []string
 
+	// Test all hosts
+	backend.Logger.Debug("Testing Host Connectivity")
 	for hostID := range config.Hosts {
 		err := testMux.SetupHost(hostID)
 		hostName := config.Hosts[hostID].Name
@@ -187,19 +195,81 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		status := "OK"
 		if err != nil {
 			status = err.Error()
+			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Host '%s': %s", displayName, err.Error()))
 		}
 
-		statuses[displayName+" status"] = status
+		hostStatuses[displayName] = status
 	}
 
-	jsonBytes, err := json.Marshal(statuses)
+	// Test all endpoints - verify they can connect to their respective hosts and retrieve instance/processor info
+	backend.Logger.Debug("Testing Endpoint Connectivity")
+	for endpointID, endpointConfig := range config.Endpoints {
+		endpointName := endpointConfig.Name
+		if endpointName == "" {
+			endpointName = endpointID
+		}
+		displayName := endpointName
+
+		// Verify the endpoint's host was successfully set up
+		hostConfig := config.Hosts[endpointConfig.Host]
+		hostDisplayName := hostConfig.Name
+		if hostDisplayName == "" {
+			hostDisplayName = "Unknown Host"
+		}
+
+		hostStatus, hostExists := hostStatuses[hostDisplayName]
+		if !hostExists {
+			endpointStatuses[displayName] = "Host configuration not found"
+			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': Host configuration not found", displayName))
+			continue
+		}
+
+		if hostStatus != "OK" {
+			endpointStatuses[displayName] = "Host connection failed: " + hostStatus
+			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': Host connection failed: %s", displayName, hostStatus))
+			continue
+		}
+
+		// Try to retrieve the endpoint to verify instance and processor exist
+		_, err := testMux.GetEndpoint(endpointID)
+		status := "OK"
+		if err != nil {
+			status = err.Error()
+			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': %s", displayName, err.Error()))
+		}
+
+		endpointStatuses[displayName] = status
+	}
+
+	// Build detailed status response
+	statusDetails["hosts"] = hostStatuses
+	statusDetails["endpoints"] = endpointStatuses
+	statusDetails["totalHosts"] = len(config.Hosts)
+	statusDetails["totalEndpoints"] = len(config.Endpoints)
+
+	jsonBytes, err := json.Marshal(statusDetails)
 	if err != nil {
-		return nil, err // or handle the error as needed
+		return nil, err
 	}
 
+	// If any host or endpoint has errors, return error status
+	if hasErrors {
+		testMux.Dispose()
+		return &backend.CheckHealthResult{
+			Status:      backend.HealthStatusError,
+			Message:     strings.Join(errorMessages, "\n"),
+			JSONDetails: jsonBytes,
+		}, nil
+	}
+
+	testMux.Dispose()
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
-		Message:     "Configuration is valid! Plugin is ready to use.",
+		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
 		JSONDetails: jsonBytes,
 	}, nil
 }
