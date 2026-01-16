@@ -5,22 +5,5 @@ services:
       service: grafana
     volumes:
       - ./provisioning/datasources:/etc/grafana/provisioning/datasources
-
-#  postgres:
-#    image: postgres:15
-#    container_name: yamcs-pg
-#    restart: unless-stopped
-#    environment:
-#      POSTGRES_USER: yamcs
-#      POSTGRES_PASSWORD: yamcs
-#      POSTGRES_DB: yamcs
-#    ports:
-#      - "5432:5432"
-#    volumes:
-#      # persistent PG data
-#      - pgdata:/var/lib/postgresql/data
-#      - ./init-telemetry.sql:/docker-entrypoint-initdb.d/init-telemetry.sql:ro
-
 volumes:
   grafana-storage:
-  pgdata:
