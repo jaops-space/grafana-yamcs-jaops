@@ -395,82 +395,9 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                 </> :
-                                    command.argument?.map((arg: any) => {
-                                        const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
-                                        const errorMessage = errors[command.name]?.[arg.name];
-                                        let inputField;
-
-                                        if (arg.type.engType === 'enumeration') {
-                                            inputField = (
-                                                <Select
-                                                    disabled={loading}
-                                                    value={inputValue}
-                                                    onChange={(e: SelectableValue<any>) => {
-                                                        handleInputChange(command.name, arg.name, e.value, i);
-                                                        validateInput(command.name, arg, e.value);
-                                                    }}
-                                                    options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
-                                                />
-                                            );
-                                        } else if (arg.type.engType === 'boolean') {
-                                            inputField = (
-                                                <Select
-                                                    value={inputValue}
-                                                    disabled={loading}
-                                                    style={{ width: '100%' }}
-                                                    onChange={(e: SelectableValue<any>) => {
-                                                        handleInputChange(command.name, arg.name, e.value, i);
-                                                        validateInput(command.name, arg, e.value);
-                                                    }}
-                                                    options={[
-                                                        { label: arg.type.zeroStringValue || 'False', value: false },
-                                                        { label: arg.type.oneStringValue || 'True', value: true },
-                                                    ]}
-                                                    fullWidth
-                                                />
-                                            );
-                                        } else {
-                                            inputField = (
-                                                <Input
-                                                    disabled={loading}
-                                                    type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
-                                                    value={inputValue}
-                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                        let val: any = e.target.value;
-                                                        if (arg.type.engType === 'integer') {
-                                                            val = parseInt(val, 10);
-                                                        }
-                                                        if (arg.type.engType === 'float') {
-                                                            val = parseFloat(val);
-                                                        }
-                                                        handleInputChange(command.name, arg.name, val, i);
-                                                        validateInput(command.name, arg, e.target.value);
-                                                    }}
-                                                    min={arg.type.rangeMin}
-                                                    max={arg.type.rangeMax}
-                                                    style={{ width: '100%' }}
-                                                    step={arg.type.engType === 'integer' ? 1 : undefined}
-                                                />
-                                            );
-                                        }
-
-                                        return (
-                                            <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
-                                                <>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                                        {inputField}
-                                                        <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
-                                                    </div>
-                                                    {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
-                                                </>
-                                            </Field>
-                                        );
-                                    })}
-                                
-                                {/* Dual Button Toggle */}
-                                {!variableMode && <>
-                                    <Divider />
-                                    <Field label='Button Type (Single or Dual)' description='Create a split button with separate on/off commands'>
+                                    <>
+                                    {/* Button Type Selector */}
+                                    <Field label='Button Type (Single or Dual)' description='Create a split button with separate commands'>
                                         <Select
                                             disabled={loading}
                                             options={[
@@ -484,8 +411,84 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
-                                    
-                                    {/* ON Button Configuration Section */}
+                                    <Divider />
+
+                                    {/* Single Button Configuration */}
+                                    {!commandState?.isDualButton && <>
+                                        {command.argument?.map((arg: any) => {
+                                            const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
+                                            const errorMessage = errors[command.name]?.[arg.name];
+                                            let inputField;
+
+                                            if (arg.type.engType === 'enumeration') {
+                                                inputField = (
+                                                    <Select
+                                                        disabled={loading}
+                                                        value={inputValue}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleInputChange(command.name, arg.name, e.value, i);
+                                                            validateInput(command.name, arg, e.value);
+                                                        }}
+                                                        options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
+                                                    />
+                                                );
+                                            } else if (arg.type.engType === 'boolean') {
+                                                inputField = (
+                                                    <Select
+                                                        value={inputValue}
+                                                        disabled={loading}
+                                                        style={{ width: '100%' }}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleInputChange(command.name, arg.name, e.value, i);
+                                                            validateInput(command.name, arg, e.value);
+                                                        }}
+                                                        options={[
+                                                            { label: arg.type.zeroStringValue || 'False', value: false },
+                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                        ]}
+                                                        fullWidth
+                                                    />
+                                                );
+                                            } else {
+                                                inputField = (
+                                                    <Input
+                                                        disabled={loading}
+                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        value={inputValue}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                            let val: any = e.target.value;
+                                                            if (arg.type.engType === 'integer') {
+                                                                val = parseInt(val, 10);
+                                                            }
+                                                            if (arg.type.engType === 'float') {
+                                                                val = parseFloat(val);
+                                                            }
+                                                            handleInputChange(command.name, arg.name, val, i);
+                                                            validateInput(command.name, arg, e.target.value);
+                                                        }}
+                                                        min={arg.type.rangeMin}
+                                                        max={arg.type.rangeMax}
+                                                        style={{ width: '100%' }}
+                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
+                                                    />
+                                                );
+                                            }
+
+                                            return (
+                                                <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
+                                                    <>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                            {inputField}
+                                                            <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
+                                                        </div>
+                                                        {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
+                                                    </>
+                                                </Field>
+                                            );
+                                        })}
+                                    </>}
+
+                                    {/* Dual Button Configuration */}
                                     {commandState?.isDualButton && <>
                                         <Divider />
                                         <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Left Button Configuration</h5>
@@ -776,7 +779,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             />
                                         </Field>
                                     </>}
-                                </>}
                                 
                                 <Field label='Comment' description='Optional comment'>
                                     <Input
@@ -940,6 +942,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
+                                </>}
                                 </>}
                                 <Field label='Preview' description='Preview of the button'>
                                     <div style={{
