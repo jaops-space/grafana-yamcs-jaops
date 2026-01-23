@@ -41,6 +41,24 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     const [formState, setFormState] = useState<CommandForms>(options.commandForms || {});
     const [errors, setErrors] = useState<{ [command: string]: { [arg: string]: string } }>({});
     const [loading, setLoading] = useState<boolean>(false);
+    
+    // State to track which button (on/off) was last clicked
+    // Use localStorage to persist state across refreshes without saving dashboard
+    const storageKey = `commanding-panel-state-${props.id}`;
+    const [dualButtonStates, setDualButtonStates] = useState<{ [key: string]: 'on' | 'off' }>(() => {
+        try {
+            const stored = localStorage.getItem(storageKey);
+            return stored ? JSON.parse(stored) : options.dualButtonStates || {};
+        } catch {
+            return options.dualButtonStates || {};
+        }
+    });
+
+    const updateDualButtonStates = (newStates: { [key: string]: 'on' | 'off' }) => {
+        setDualButtonStates(newStates);
+        localStorage.setItem(storageKey, JSON.stringify(newStates));
+        onOptionsChange({ ...options, dualButtonStates: newStates });
+    };
 
     const handleInputChange = (commandName: string, argName: string, value: any, i: number) => {
         setFormState(prevState => {
@@ -49,7 +67,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 [commandName + i]: {
                     ...prevState[commandName + i],
                     arguments: {
-                        ...prevState[commandName]?.arguments,
+                        ...prevState[commandName + i]?.arguments,
                         [argName]: value
                     }
                 },
@@ -111,7 +129,8 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
 
     const appEvents = getAppEvents();
 
-    const handleSubmit = (commandInfo: CommandInfos[number], i: number) => {
+    // isOffCommand parameter handles dual button submissions
+    const handleSubmit = (commandInfo: CommandInfos[number], i: number, isOffCommand = false) => {
         const command = commandInfo.command;
         const endpoint = commandInfo.endpoint;
         const commandData = formState[command.name + i];
@@ -147,13 +166,41 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
             throw new Error('Datasource UID not found');
         }
         Object.setPrototypeOf(datasource, DataSourceWithBackend.prototype);
+        
+        // Use on/off command configuration based on which button was clicked
+        let argumentsToUse = commandData?.arguments;
+        let commentToUse = commandData?.comment;
+        
+        if (isOffCommand && commandData?.offCommand?.arguments) {
+            argumentsToUse = commandData.offCommand.arguments;
+        } else if (isOffCommand && commandData?.offCommand?.comment) {
+            commentToUse = commandData.offCommand.comment;
+        }
+        
+        if (!isOffCommand && commandData?.isDualButton) {
+            if (commandData?.onCommand?.arguments) {
+                argumentsToUse = commandData.onCommand.arguments;
+            }
+            if (commandData?.onCommand?.comment) {
+                commentToUse = commandData.onCommand.comment;
+            }
+        }
+
         datasource.postResource(`endpoint/${endpoint}/command/issue`, {
             name: command.qualifiedName,
-            arguments: commandData?.arguments,
-            comment: commandData?.comment,
+            arguments: argumentsToUse,
+            comment: commentToUse,
         })
             .then((_: any) => {
                 setLoading(false);
+                // Update dual button state to track which side was clicked
+                if (commandData?.isDualButton) {
+                    const newDualButtonStates = {
+                        ...dualButtonStates,
+                        [command.name + i]: isOffCommand ? 'off' : 'on'
+                    };
+                    updateDualButtonStates(newDualButtonStates);
+                }
                 appEvents.publish({
                     type: AppEvents.alertSuccess.name,
                     payload: [`Command ${command.name} issued successfully`]
@@ -172,40 +219,118 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 {commandInfos.map((commandInfo, i) => {
                     const command = commandInfo.command;
                     const commandState = formState[command.name + i];
-                    const render = (withSubmit = false) => <Button
-                        disabled={loading}
-                        style={{
-                            ...Shapes[commandState?.shape as any]?.css,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor:
-                                commandState?.transparent === 'solid' || !commandState?.transparent
-                                    ? commandState?.color as any
-                                    : '#00000000',
-                            color: commandState?.textColor as any,
-                            borderColor:
-                                commandState?.transparent === 'outline'
-                                    ? commandState?.color as any
-                                    : undefined,
-                            backgroundImage:
-                                commandState?.shape === 'svg' && commandState?.customSVG
-                                    ? `url("data:image/svg+xml;utf8,${encodeURIComponent(commandState?.customSVG)}")`
-                                    : undefined,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundSize: commandState?.bgSize || 'contain',
-                            backgroundPosition: commandState?.bgPosition || 'center',
-                        }}
-                        size={commandState?.size as any}
-                        icon={commandState?.icon as any}
-                        fill={commandState?.transparent as any}
-                        tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
-                        onClick={withSubmit ? () => handleSubmit(commandInfo, i) : undefined}
-                    >
-                        {getTemplateSrv().replace(commandState?.label, scopedVars)}
-                    </Button>
+                    
+                    // Enhanced render function to support dual button mode
+                    const render = (withSubmit = false) => {
+                        // If this is a dual button, render the split view
+                        if (commandState?.isDualButton && !editing) {
+                            const activeState = dualButtonStates[command.name + i];
+                            return (
+                                <div style={{ 
+                                    display: 'flex', 
+                                    width: '100%', 
+                                    height: '100%',
+                                    gap: '0px'
+                                }}>
+                                    {/* ON Button (Left) */}
+                                    <Button
+                                        disabled={loading}
+                                        style={{
+                                            ...Shapes[commandState?.shape as any]?.css,
+                                            width: '50%',
+                                            height: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: commandState?.transparent === 'solid' || !commandState?.transparent
+                                                ? commandState?.color as any
+                                                : '#00000000',
+                                            color: commandState?.textColor as any,
+                                            borderColor: commandState?.transparent === 'outline'
+                                                ? commandState?.color as any
+                                                : undefined,
+                                            borderRight: 'none',
+                                            borderTopRightRadius: '0',
+                                            borderBottomRightRadius: '0',
+                                            opacity: activeState === 'off' ? 0.5 : 1,
+                                        }}
+                                        size={commandState?.size as any}
+                                        fill={commandState?.transparent as any}
+                                        tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
+                                        onClick={withSubmit ? () => handleSubmit(commandInfo, i, false) : undefined}
+                                    >
+                                        {getTemplateSrv().replace(commandState?.onCommand?.label ?? commandState?.label ?? 'ON', scopedVars)}
+                                    </Button>
+                                    
+                                    {/* OFF Button (Right) */}
+                                    <Button
+                                        disabled={loading}
+                                        style={{
+                                            ...Shapes[commandState?.shape as any]?.css,
+                                            width: '50%',
+                                            height: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: commandState?.transparent === 'solid' || !commandState?.transparent
+                                                ? (commandState?.offCommand?.color || commandState?.color) as any
+                                                : '#00000000',
+                                            color: (commandState?.offCommand?.textColor || commandState?.textColor) as any,
+                                            borderColor: commandState?.transparent === 'outline'
+                                                ? (commandState?.offCommand?.color || commandState?.color) as any
+                                                : undefined,
+                                            borderTopLeftRadius: '0',
+                                            borderBottomLeftRadius: '0',
+                                            opacity: activeState === 'on' ? 0.5 : 1,
+                                        }}
+                                        size={commandState?.size as any}
+                                        fill={commandState?.transparent as any}
+                                        tooltip="Turn off"
+                                        onClick={withSubmit ? () => handleSubmit(commandInfo, i, true) : undefined}
+                                    >
+                                        {commandState?.offCommand?.label || 'OFF'}
+                                    </Button>
+                                </div>
+                            );
+                        }
+                        
+                        // Original single button rendering
+                        return <Button
+                            disabled={loading}
+                            style={{
+                                ...Shapes[commandState?.shape as any]?.css,
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor:
+                                    commandState?.transparent === 'solid' || !commandState?.transparent
+                                        ? commandState?.color as any
+                                        : '#00000000',
+                                color: commandState?.textColor as any,
+                                borderColor:
+                                    commandState?.transparent === 'outline'
+                                        ? commandState?.color as any
+                                        : undefined,
+                                backgroundImage:
+                                    commandState?.shape === 'svg' && commandState?.customSVG
+                                        ? `url("data:image/svg+xml;utf8,${encodeURIComponent(commandState?.customSVG)}")`
+                                        : undefined,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundSize: commandState?.bgSize || 'contain',
+                                backgroundPosition: commandState?.bgPosition || 'center',
+                            }}
+                            size={commandState?.size as any}
+                            icon={commandState?.icon as any}
+                            fill={commandState?.transparent as any}
+                            tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
+                            onClick={withSubmit ? () => handleSubmit(commandInfo, i) : undefined}
+                        >
+                            {getTemplateSrv().replace(commandState?.label, scopedVars)}
+                        </Button>
+                    };
+                    
                     if (!editing) {
                         return render(true);
                     }
@@ -270,77 +395,391 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                 </> :
-                                    command.argument?.map((arg: any) => {
-                                        const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
-                                        const errorMessage = errors[command.name]?.[arg.name];
-                                        let inputField;
+                                    <>
+                                    {/* Button Type Selector */}
+                                    <Field label='Button Type (Single or Dual)' description='Create a split button with separate commands'>
+                                        <Select
+                                            disabled={loading}
+                                            options={[
+                                                { label: 'Single Button', value: false },
+                                                { label: 'Dual Button', value: true },
+                                            ]}
+                                            value={commandState?.isDualButton === true ? { label: 'Dual Button', value: true } : { label: 'Single Button', value: false }}
+                                            onChange={(e: SelectableValue<boolean>) => {
+                                                handleOptionChange(command.name, 'isDualButton', e.value, i);
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
+                                    <Divider />
 
-                                        if (arg.type.engType === 'enumeration') {
-                                            inputField = (
-                                                <Select
-                                                    disabled={loading}
-                                                    value={inputValue}
-                                                    onChange={(e: SelectableValue<any>) => {
-                                                        handleInputChange(command.name, arg.name, e.value, i);
-                                                        validateInput(command.name, arg, e.value);
-                                                    }}
-                                                    options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.value }))}
-                                                />
-                                            );
-                                        } else if (arg.type.engType === 'boolean') {
-                                            inputField = (
-                                                <Select
-                                                    value={inputValue}
-                                                    disabled={loading}
-                                                    style={{ width: '100%' }}
-                                                    onChange={(e: SelectableValue<any>) => {
-                                                        handleInputChange(command.name, arg.name, e.value, i);
-                                                        validateInput(command.name, arg, e.value);
-                                                    }}
-                                                    options={[
-                                                        { label: arg.type.zeroStringValue || 'False', value: false },
-                                                        { label: arg.type.oneStringValue || 'True', value: true },
-                                                    ]}
-                                                    fullWidth
-                                                />
-                                            );
-                                        } else {
-                                            inputField = (
-                                                <Input
-                                                    disabled={loading}
-                                                    type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
-                                                    value={inputValue}
-                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                        let val: any = e.target.value;
-                                                        if (arg.type.engType === 'integer') {
-                                                            val = parseInt(val, 10);
-                                                        }
-                                                        if (arg.type.engType === 'float') {
-                                                            val = parseFloat(val);
-                                                        }
-                                                        handleInputChange(command.name, arg.name, val, i);
-                                                        validateInput(command.name, arg, e.target.value);
-                                                    }}
-                                                    min={arg.type.rangeMin}
-                                                    max={arg.type.rangeMax}
-                                                    style={{ width: '100%' }}
-                                                    step={arg.type.engType === 'integer' ? 1 : undefined}
-                                                />
-                                            );
-                                        }
+                                    {/* Single Button Configuration */}
+                                    {!commandState?.isDualButton && <>
+                                        {command.argument?.map((arg: any) => {
+                                            const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
+                                            const errorMessage = errors[command.name]?.[arg.name];
+                                            let inputField;
 
-                                        return (
-                                            <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
-                                                <>
+                                            if (arg.type.engType === 'enumeration') {
+                                                inputField = (
+                                                    <Select
+                                                        disabled={loading}
+                                                        value={inputValue}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleInputChange(command.name, arg.name, e.value, i);
+                                                            validateInput(command.name, arg, e.value);
+                                                        }}
+                                                        options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
+                                                    />
+                                                );
+                                            } else if (arg.type.engType === 'boolean') {
+                                                inputField = (
+                                                    <Select
+                                                        value={inputValue}
+                                                        disabled={loading}
+                                                        style={{ width: '100%' }}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleInputChange(command.name, arg.name, e.value, i);
+                                                            validateInput(command.name, arg, e.value);
+                                                        }}
+                                                        options={[
+                                                            { label: arg.type.zeroStringValue || 'False', value: false },
+                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                        ]}
+                                                        fullWidth
+                                                    />
+                                                );
+                                            } else {
+                                                inputField = (
+                                                    <Input
+                                                        disabled={loading}
+                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        value={inputValue}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                            let val: any = e.target.value;
+                                                            if (arg.type.engType === 'integer') {
+                                                                val = parseInt(val, 10);
+                                                            }
+                                                            if (arg.type.engType === 'float') {
+                                                                val = parseFloat(val);
+                                                            }
+                                                            handleInputChange(command.name, arg.name, val, i);
+                                                            validateInput(command.name, arg, e.target.value);
+                                                        }}
+                                                        min={arg.type.rangeMin}
+                                                        max={arg.type.rangeMax}
+                                                        style={{ width: '100%' }}
+                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
+                                                    />
+                                                );
+                                            }
+
+                                            return (
+                                                <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
+                                                    <>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                            {inputField}
+                                                            <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
+                                                        </div>
+                                                        {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
+                                                    </>
+                                                </Field>
+                                            );
+                                        })}
+                                    </>}
+
+                                    {/* Dual Button Configuration */}
+                                    {commandState?.isDualButton && <>
+                                        <Divider />
+                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Left Button Configuration</h5>
+                                        
+                                        {/* ON Button Arguments */}
+                                        {command.argument?.map((arg: any) => {
+                                            const inputValue = commandState?.onCommand?.arguments?.[arg.name] || arg.initialValue;
+                                            let inputField;
+
+                                            if (arg.type.engType === 'enumeration') {
+                                                inputField = (
+                                                    <Select
+                                                        disabled={loading}
+                                                        value={inputValue}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleOptionChange(command.name, 'onCommand', {
+                                                                ...commandState?.onCommand,
+                                                                arguments: {
+                                                                    ...commandState?.onCommand?.arguments,
+                                                                    [arg.name]: e.value
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
+                                                    />
+                                                );
+                                            } else if (arg.type.engType === 'boolean') {
+                                                inputField = (
+                                                    <Select
+                                                        value={inputValue}
+                                                        disabled={loading}
+                                                        style={{ width: '100%' }}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleOptionChange(command.name, 'onCommand', {
+                                                                ...commandState?.onCommand,
+                                                                arguments: {
+                                                                    ...commandState?.onCommand?.arguments,
+                                                                    [arg.name]: e.value
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        options={[
+                                                            { label: arg.type.zeroStringValue || 'False', value: false },
+                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                        ]}
+                                                        fullWidth
+                                                    />
+                                                );
+                                            } else {
+                                                inputField = (
+                                                    <Input
+                                                        disabled={loading}
+                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        value={inputValue}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                            let val: any = e.target.value;
+                                                            if (arg.type.engType === 'integer') {
+                                                                val = parseInt(val, 10);
+                                                            }
+                                                            if (arg.type.engType === 'float') {
+                                                                val = parseFloat(val);
+                                                            }
+                                                            handleOptionChange(command.name, 'onCommand', {
+                                                                ...commandState?.onCommand,
+                                                                arguments: {
+                                                                    ...commandState?.onCommand?.arguments,
+                                                                    [arg.name]: val
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        min={arg.type.rangeMin}
+                                                        max={arg.type.rangeMax}
+                                                        style={{ width: '100%' }}
+                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
+                                                    />
+                                                );
+                                            }
+
+                                            return (
+                                                <Field key={`on-${arg.name}`} label={`LEFT - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                                                         {inputField}
                                                         <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
                                                     </div>
-                                                    {errorMessage && <Alert title="Invalid argument" severity="error">{errorMessage}</Alert>}
-                                                </>
-                                            </Field>
-                                        );
-                                    })}
+                                                </Field>
+                                            );
+                                        })}
+                                        
+                                        <Field label='LEFT Comment' description='Optional comment for LEFT button'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.onCommand?.comment || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        comment: e.target.value
+                                                    }, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='LEFT Label' description='Label for LEFT button'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.onCommand?.label ?? ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        label: e.target.value
+                                                    }, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='LEFT Color' description='Button color for LEFT button'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        color: color
+                                                    }, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.onCommand?.color || ''}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='LEFT Text Color' description='Text color for LEFT button'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'onCommand', {
+                                                        ...commandState?.onCommand,
+                                                        textColor: color
+                                                    }, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.onCommand?.textColor || ''}
+                                            />
+                                        </Field>
+                                    </>}
+                                    
+                                    {/* OFF Button Configuration Section */}
+                                    {commandState?.isDualButton && <>
+                                        <Divider />
+                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Right Button Configuration</h5>
+                                        
+                                        {/* OFF Button Arguments */}
+                                        {command.argument?.map((arg: any) => {
+                                            const inputValue = commandState?.offCommand?.arguments?.[arg.name] || arg.initialValue;
+                                            let inputField;
+
+                                            if (arg.type.engType === 'enumeration') {
+                                                inputField = (
+                                                    <Select
+                                                        disabled={loading}
+                                                        value={inputValue}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleOptionChange(command.name, 'offCommand', {
+                                                                ...commandState?.offCommand,
+                                                                arguments: {
+                                                                    ...commandState?.offCommand?.arguments,
+                                                                    [arg.name]: e.value
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        options={arg.type.enumValue.map((ev: any) => ({ label: ev.label, value: ev.label }))}
+                                                    />
+                                                );
+                                            } else if (arg.type.engType === 'boolean') {
+                                                inputField = (
+                                                    <Select
+                                                        value={inputValue}
+                                                        disabled={loading}
+                                                        style={{ width: '100%' }}
+                                                        onChange={(e: SelectableValue<any>) => {
+                                                            handleOptionChange(command.name, 'offCommand', {
+                                                                ...commandState?.offCommand,
+                                                                arguments: {
+                                                                    ...commandState?.offCommand?.arguments,
+                                                                    [arg.name]: e.value
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        options={[
+                                                            { label: arg.type.zeroStringValue || 'False', value: false },
+                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                        ]}
+                                                        fullWidth
+                                                    />
+                                                );
+                                            } else {
+                                                inputField = (
+                                                    <Input
+                                                        disabled={loading}
+                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        value={inputValue}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                            let val: any = e.target.value;
+                                                            if (arg.type.engType === 'integer') {
+                                                                val = parseInt(val, 10);
+                                                            }
+                                                            if (arg.type.engType === 'float') {
+                                                                val = parseFloat(val);
+                                                            }
+                                                            handleOptionChange(command.name, 'offCommand', {
+                                                                ...commandState?.offCommand,
+                                                                arguments: {
+                                                                    ...commandState?.offCommand?.arguments,
+                                                                    [arg.name]: val
+                                                                }
+                                                            }, i);
+                                                        }}
+                                                        min={arg.type.rangeMin}
+                                                        max={arg.type.rangeMax}
+                                                        style={{ width: '100%' }}
+                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
+                                                    />
+                                                );
+                                            }
+
+                                            return (
+                                                <Field key={`off-${arg.name}`} label={`RIGHT - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                        {inputField}
+                                                        <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
+                                                    </div>
+                                                </Field>
+                                            );
+                                        })}
+                                        
+                                        <Field label='RIGHT Comment' description='Optional comment for RIGHT button'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.offCommand?.comment || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'offCommand', {
+                                                        ...commandState?.offCommand,
+                                                        comment: e.target.value
+                                                    }, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='RIGHT Label' description='Label for RIGHT button'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.offCommand?.label ?? ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'offCommand', {
+                                                        ...commandState?.offCommand,
+                                                        label: e.target.value
+                                                    }, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='RIGHT Color' description='Button color for RIGHT button'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'offCommand', {
+                                                        ...commandState?.offCommand,
+                                                        color: color
+                                                    }, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.offCommand?.color || ''}
+                                            />
+                                        </Field>
+                                        
+                                        <Field label='RIGHT Text Color' description='Text color for RIGHT button'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'offCommand', {
+                                                        ...commandState?.offCommand,
+                                                        textColor: color
+                                                    }, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.offCommand?.textColor || ''}
+                                            />
+                                        </Field>
+                                    </>}
+                                
                                 <Field label='Comment' description='Optional comment'>
                                     <Input
                                         type='text'
@@ -503,6 +942,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
+                                </>}
                                 </>}
                                 <Field label='Preview' description='Preview of the button'>
                                     <div style={{

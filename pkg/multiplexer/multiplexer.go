@@ -52,7 +52,7 @@ func (mux *Multiplexer) SetupHost(hostID string) error {
 	var creds http.Credentials
 
 	if hostConfig.Tls {
-		tlsConfig = http.GetTLSConfiguration(false, "")
+		tlsConfig = http.GetTLSConfiguration(!hostConfig.TlsInsecure)
 	} else {
 		tlsConfig = http.GetNoTLSConfiguration()
 	}
@@ -195,12 +195,22 @@ func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func
 }
 
 func (mux *Multiplexer) Dispose() {
-	for _, endpoints := range mux.Endpoints {
-		client := endpoints.GetClient()
+	// Close all host clients (this closes WebSocket connections)
+	for _, host := range mux.Hosts {
+		if host.Client != nil {
+			host.Client.CloseWebSocketConnection()
+		}
+	}
+
+	// Close any remaining endpoint connections
+	for _, endpoint := range mux.Endpoints {
+		client := endpoint.GetClient()
 		if client != nil {
 			client.CloseWebSocketConnection()
 		}
 	}
+
+	// Clear all cached state
 	mux.Endpoints = make(map[string]*YamcsEndpoint)
 	mux.Hosts = make(map[string]*YamcsHost)
 }

@@ -37,7 +37,7 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                     onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'name', e.target.value)}
                 />
             </Field>
-            <Field label="Server address" description="Address of the Yamcs Server, e.g.: localhost:3000">
+            <Field label="Server address" description="Address of the Yamcs Server, e.g.: localhost:8090. For local instances of Yamcs (running at localhost) use host.docker.internal for Windows, and 172.17.0.1 for Linux, as the host path.">
                 <Input
                     value={host.path}
                     placeholder="address:port"
@@ -54,12 +54,11 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
             {host.tlsEnabled && (
                 <Field>
                     <Checkbox
-                        value={true}
+                        value={false}
                         onChange={(e: ChangeEvent<HTMLInputElement>) =>
                             onChange(index, 'tlsInsecure', e.target.checked)
                         }
                         label="Bypass certificate validation"
-                        disabled
                     />
                 </Field>
             )}
