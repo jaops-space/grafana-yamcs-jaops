@@ -57,17 +57,24 @@ jaops-yamcs-app/                    # Main app plugin
    - setup_instructions.md
 4. **Test Environment**: Provisioning configuration
 
-5. **Security Audit**
+5. **Security Audit and sumbission steps**
 ```bash
+# security audit
 pnpm audit
 osv-scanner --recursive .
 osv-scanner --lockfile pnpm-lock.yaml
 
-
+# functional test
+mage build:backend
 pnpm run build
+# manual step: test demo dashboard works well
+
+# package, validate and submit
 mkdir -p dist/screenshots && cp screenshots/*.png dist/screenshots/
 rm -f jaops-yamcs-app.zip && rm -rf /tmp/jaops-yamcs-app && cp -r dist /tmp/jaops-yamcs-app && (cd /tmp && zip -r jaops-yamcs-app.zip jaops-yamcs-app) && mv /tmp/jaops-yamcs-app.zip .
+
 npx @grafana/plugin-validator@latest jaops-yamcs-app.zip
+
 md5sum jaops-yamcs-app.zip
 ```
 
