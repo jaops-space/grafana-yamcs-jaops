@@ -62,7 +62,6 @@ jaops-yamcs-app/                    # Main app plugin
 # security audit
 pnpm audit
 osv-scanner --recursive .
-osv-scanner --lockfile pnpm-lock.yaml
 
 # functional test
 mage build:backend
