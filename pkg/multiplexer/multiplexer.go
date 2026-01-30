@@ -163,7 +163,7 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		subscription.SetListener(endpoint.GetChannelParameterListener())
 	}
 
-	backend.Logger.Info("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
+	backend.Logger.Debug("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
 
 	return endpoint, nil
 }

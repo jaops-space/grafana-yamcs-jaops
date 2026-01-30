@@ -154,7 +154,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                     }catch(err){};
                     break;
             }
-            console.log(commandData.variableToSet);
             locationService.partial({[`var-${commandData.variableToSet}`]: newValue, replace: true})
             return;
         }
