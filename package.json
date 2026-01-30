@@ -17,8 +17,8 @@
     "sign": "npx --yes @grafana/sign-plugin@latest"
   },
   "author": "Jaops",
-  "license": "Apache-2.0",
   "devDependencies": {
+    "license": "MIT",
     "@grafana/eslint-config": "^8.0.0",
     "@grafana/plugin-e2e": "^2.1.9",
     "@grafana/tsconfig": "^2.0.0",

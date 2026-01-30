@@ -67,6 +67,7 @@ osv-scanner --recursive .
 mage build:backend
 pnpm run build
 # manual step: test demo dashboard works well
+# pnpm run server
 
 # package, validate and submit
 mkdir -p dist/screenshots && cp screenshots/*.png dist/screenshots/

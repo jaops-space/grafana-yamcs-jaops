@@ -33,4 +33,5 @@ coverage.out
 # development files
 dist/
 package-lock.json
-.eslintcachejaops-yamcs-app.zip
+.eslintcache
+jaops-yamcs-app.zip
