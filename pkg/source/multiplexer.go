@@ -39,69 +39,69 @@ func (mux *Multiplexer) SetupHost(hostID string) error {
 }
 
 // GetEndpoint retrieves or creates an Endpoint for the given ID.
- func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
- 	mux.SyncMux.Lock()
- 	defer mux.SyncMux.Unlock()
+func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
+	mux.SyncMux.Lock()
+	defer mux.SyncMux.Unlock()
 
- 	endpointConfig, exists := mux.Configuration.Endpoints[endpointID]
- 	if !exists {
- 		return nil, exception.New("Configuration for endpoint "+endpointID+" not found", "ENDPOINT_CONFIG_NOT_FOUND")
- 	}
+	endpointConfig, exists := mux.Configuration.Endpoints[endpointID]
+	if !exists {
+		return nil, exception.New("Configuration for endpoint "+endpointID+" not found", "ENDPOINT_CONFIG_NOT_FOUND")
+	}
 
- 	// Get the Yamcs client from the connection manager
- 	yamcsClient, err := mux.ConnMgr.GetClient(endpointConfig.Host)
- 	if err != nil {
- 		return nil, err
- 	}
+	// Get the Yamcs client from the connection manager
+	yamcsClient, err := mux.ConnMgr.GetClient(endpointConfig.Host)
+	if err != nil {
+		return nil, err
+	}
 
- 	if endpoint, exists := mux.Endpoints[endpointID]; exists {
- 		return endpoint, nil
- 	}
+	if endpoint, exists := mux.Endpoints[endpointID]; exists {
+		return endpoint, nil
+	}
 
- 	instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
- 	if err != nil {
- 		return nil, err
- 	}
+	instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
+	if err != nil {
+		return nil, err
+	}
 
- 	processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
- 	if err != nil {
- 		processor = yamcsClient.GetInstanceDefaultProcessor(instance)
- 		if processor == nil {
- 			return nil, err
- 		}
- 	}
+	processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
+	if err != nil {
+		processor = yamcsClient.GetInstanceDefaultProcessor(instance)
+		if processor == nil {
+			return nil, err
+		}
+	}
 
- 	endpoint := &YamcsEndpoint{
- 		Multiplexer:    mux,
- 		Parameters:     make(map[string]*ParameterDemand),
- 		Events:         make(map[string][]*events.Event),
- 		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
- 		ID:             endpointID,
- 		Instance:       instance,
- 		Processor:      processor,
- 	}
- 	mux.Endpoints[endpointID] = endpoint
+	endpoint := &YamcsEndpoint{
+		Multiplexer:    mux,
+		Parameters:     make(map[string]*ParameterDemand),
+		Events:         make(map[string][]*events.Event),
+		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
+		ID:             endpointID,
+		Instance:       instance,
+		Processor:      processor,
+	}
+	mux.Endpoints[endpointID] = endpoint
 
- 	// subscribe once per (instance, processor)
- 	subscriptionExists := false
- 	for _, subscription := range yamcsClient.ParameterSubscriptions {
- 		if subscription.Instance == endpointConfig.Instance && subscription.Processor == endpointConfig.Processor {
- 			subscriptionExists = true
- 			break
- 		}
- 	}
- 	if !subscriptionExists {
- 		subscription, err := yamcsClient.CreateParameterSubscription(endpoint.Instance, endpoint.Processor)
- 		if err != nil {
- 			return nil, err
- 		}
- 		subscription.SetListener(endpoint.GetChannelParameterListener())
- 	}
+	// subscribe once per (instance, processor)
+	subscriptionExists := false
+	for _, subscription := range yamcsClient.ParameterSubscriptions {
+		if subscription.Instance == endpointConfig.Instance && subscription.Processor == endpointConfig.Processor {
+			subscriptionExists = true
+			break
+		}
+	}
+	if !subscriptionExists {
+		subscription, err := yamcsClient.CreateParameterSubscription(endpoint.Instance, endpoint.Processor)
+		if err != nil {
+			return nil, err
+		}
+		subscription.SetListener(endpoint.GetChannelParameterListener())
+	}
 
- 	backend.Logger.Info("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
+	backend.Logger.Info("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
 
- 	return endpoint, nil
- }
+	return endpoint, nil
+}
 
 // GetEventListener returns a function that listens for events from a specific Yamcs instance.
 func (mux *Multiplexer) GetEventListener(instance client.Instance) func(event *events.Event) {

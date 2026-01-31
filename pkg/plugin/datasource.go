@@ -180,9 +180,6 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	testMux := source.NewMultiplexer(config)
 	testMux.Secure = secure
 
-	statuses := make(map[string]string, len(config.Hosts))
-	hasErrors := false
-	var errorMessages []string
 	statusDetails := make(map[string]interface{})
 	hostStatuses := make(map[string]string)
 	endpointStatuses := make(map[string]string)
@@ -274,17 +271,6 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
-	// If any host or endpoint has errors, return error status
-	if hasErrors {
-		testMux.Dispose()
-		return &backend.CheckHealthResult{
-			Status:      backend.HealthStatusError,
-			Message:     strings.Join(errorMessages, "\n"),
-			JSONDetails: jsonBytes,
-		}, nil
-	}
-
-	testMux.Dispose()
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
 		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
