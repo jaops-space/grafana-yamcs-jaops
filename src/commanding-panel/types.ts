@@ -21,9 +21,25 @@ export interface CommandForms {
         bgPosition: string,
         bgWidth: string,
         bgHeight: string,
+        isDualButton?: boolean;  // Flag to indicate if this is a dual on/off button
+        onCommand?: {            // Configuration for the "on" command
+            arguments?: { [key: string]: any };
+            comment?: string;
+            label?: string;
+            color?: string;
+            textColor?: string;
+        };
+        offCommand?: {           // Configuration for the "off" command
+            arguments?: { [key: string]: any };
+            comment?: string;
+            label?: string;
+            color?: string;
+            textColor?: string;
+        };
     }
 };
 
 export interface PanelOptions {
     commandForms: CommandForms;
+    dualButtonStates?: { [key: string]: 'on' | 'off' };
 }
