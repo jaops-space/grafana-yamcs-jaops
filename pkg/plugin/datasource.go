@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -180,8 +182,11 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	testMux.Secure = secure
 
 	statuses := make(map[string]string, len(config.Hosts))
-    hasErrors := false
+	hasErrors := false
+	var errorMessages []string
 
+	// Test all hosts
+	backend.Logger.Debug("Testing Host Connectivity")
 	for hostID := range config.Hosts {
 		err := testMux.SetupHost(hostID)
 		hostName := config.Hosts[hostID].Name
@@ -193,7 +198,8 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		status := "OK"
 		if err != nil {
 			status = err.Error()
-            hasErrors = true
+			hasErrors = true
+			errorMessages = append(errorMessages, fmt.Sprintf("Host '%s': %s", displayName, err.Error()))
 		}
 
 		statuses[displayName+" status"] = status
@@ -204,21 +210,20 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return nil, err
 	}
 
-	healthStatus := backend.HealthStatusOk
-	message := "Configuration is valid! Plugin is ready to use."
+	// Clean up test connections
+	testMux.Dispose()
+
 	if hasErrors {
-		healthStatus = backend.HealthStatusError
-		message = "Configuration has errors:\n"
-		for hostName, status := range statuses {
-			if status != "OK" {
-				message += "- " + hostName + ": " + status + "\n"
-			}
-		}
+		return &backend.CheckHealthResult{
+			Status:      backend.HealthStatusError,
+			Message:     "Configuration has errors:\n" + strings.Join(errorMessages, "\n"),
+			JSONDetails: jsonBytes,
+		}, nil
 	}
 
 	return &backend.CheckHealthResult{
-		Status:      healthStatus,
-		Message:     message,
+		Status:      backend.HealthStatusOk,
+		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
 		JSONDetails: jsonBytes,
 	}, nil
 }
