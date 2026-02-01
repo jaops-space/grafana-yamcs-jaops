@@ -53,7 +53,8 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		"endTime", end,
 		"yamcsFilter", q.YamcsFilter)
 
-	samples, err := yamcs.GetParameterSamplesInProcessorByNames(endpoint.Instance.GetName(), endpoint.Processor.GetName(), q.Parameter, start, end)
+	// Include aggregatePath in the API call to get the correct value type (Position.X returns INTEGER instead of AGGREGATE)
+	samples, err := yamcs.GetParameterSamplesInProcessorByNames(endpoint.Instance.GetName(), endpoint.Processor.GetName(), q.Parameter+aggregatePath, start, end)
 
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter samples", "error", err)
