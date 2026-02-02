@@ -13,12 +13,25 @@ jobs:
     release:
         permissions:
             contents: write
+            id-token: write
+            attestations: write
         runs-on: ubuntu-latest
         steps:
+            - name: Check signing token
+              id: check-token
+              run: |
+                if [ -z "${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}" ]; then
+                  echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not set - plugin will be built unsigned without attestation"
+                  echo "has_token=false" >> $GITHUB_OUTPUT
+                else
+                  echo "has_token=true" >> $GITHUB_OUTPUT
+                fi
             - uses: actions/checkout@v4
             - uses: grafana/plugin-actions/build-plugin@main
               with:
                 # Use the new Access Policy Token method (recommended)
                 policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+                # Creates a signed build provenance attestation (only if token is available)
+                attestation: ${{ steps.check-token.outputs.has_token == 'true' }}
                 # Legacy method (deprecated but still supported)
                 # grafana_token: ${{ secrets.GRAFANA_API_KEY }}
