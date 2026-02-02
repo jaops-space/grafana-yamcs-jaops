@@ -35,7 +35,8 @@ jobs:
                 # Changelog generation disabled - it tries to commit to main branch
                 # which fails when releasing from feature branches
                 # use_changelog_generator: true
-                # NOTE: Signing disabled until plugin is approved by Grafana
-                # Once approved, uncomment these lines:
-                # policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
-                # attestation: true
+                
+                # Signing controlled by repository variable REPO_VAR_SIGNING_ENABLED
+                # Set to 'true' in repo settings after Grafana approves the plugin
+                policy_token: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' && secrets.GRAFANA_ACCESS_POLICY_TOKEN || '' }}
+                attestation: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' }}

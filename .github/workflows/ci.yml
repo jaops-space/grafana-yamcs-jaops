@@ -89,7 +89,7 @@ jobs:
 
             - name: Sign plugin
               run: pnpm run sign
-              if: ${{ env.GRAFANA_ACCESS_POLICY_TOKEN != '' }}
+              if: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' && env.GRAFANA_ACCESS_POLICY_TOKEN != '' }}
 
             - name: Get plugin metadata
               id: metadata
