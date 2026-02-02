@@ -21,9 +21,10 @@ jobs:
               id: check-token
               run: |
                 if [ -z "${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}" ]; then
-                  echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not set - plugin will be built unsigned without attestation"
+                  echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not found"
                   echo "has_token=false" >> $GITHUB_OUTPUT
                 else
+                  echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN found"
                   echo "has_token=true" >> $GITHUB_OUTPUT
                 fi
             - uses: actions/checkout@v4
@@ -31,9 +32,9 @@ jobs:
               with:
                 # Use Go 1.25 to match go.mod requirements
                 go-version: '1.25'
-                # Use the new Access Policy Token method (recommended)
-                policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
-                # Creates a signed build provenance attestation (only if token is available)
-                attestation: ${{ steps.check-token.outputs.has_token == 'true' }}
-                # Legacy method (deprecated but still supported)
-                # grafana_token: ${{ secrets.GRAFANA_API_KEY }}
+                # Enable automatic changelog generation from conventional commits
+                use_changelog_generator: true
+                # NOTE: Signing disabled until plugin is approved by Grafana
+                # Once approved, uncomment these lines:
+                # policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+                # attestation: true
