@@ -32,8 +32,9 @@ jobs:
               with:
                 # Use Go 1.25 to match go.mod requirements
                 go-version: '1.25'
-                # Enable automatic changelog generation from conventional commits
-                use_changelog_generator: true
+                # Changelog generation disabled - it tries to commit to main branch
+                # which fails when releasing from feature branches
+                # use_changelog_generator: true
                 # NOTE: Signing disabled until plugin is approved by Grafana
                 # Once approved, uncomment these lines:
                 # policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
