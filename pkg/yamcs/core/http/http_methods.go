@@ -35,7 +35,11 @@ func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Mes
 	}
 
 	// Unmarshal the response based on the format (Protobuf or JSON)
-	return unmarshalResponse(response, unmarshalTo, httpManager.UsingProtobuf)
+	// Skip unmarshalling if unmarshalTo is nil (for operations that don't return data)
+	if unmarshalTo != nil {
+		return unmarshalResponse(response, unmarshalTo, httpManager.UsingProtobuf)
+	}
+	return nil
 }
 
 // marshalMessage marshals a given proto message into either Protobuf or JSON format.
