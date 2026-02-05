@@ -293,3 +293,49 @@ func RunTimeStream(
 		}
 	}
 }
+
+func RunAlarmsStream(
+	ctx context.Context,
+	req *backend.RunStreamRequest,
+	sender *backend.StreamSender,
+	endpoint *multiplexer.YamcsEndpoint,
+	q PluginQuery,
+) error {
+
+	yamcs := endpoint.GetClient()
+
+	// Start listening for alarm events for this path
+	endpoint.RequestAlarmsStream(req.Path)
+
+	// Calculate ticker interval
+	tickerInterval := time.Second * 1
+	ticker := time.NewTicker(tickerInterval)
+
+	defer ticker.Stop()
+	defer endpoint.WithdrawAlarmsStreamRequest(req.Path)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+
+			if !yamcs.WebSocket.IsConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
+
+			buffer := endpoint.GetAlarmsStream(req.Path)
+			if len(buffer) == 0 {
+				continue
+			}
+
+			frame := tools.ConvertAlarmListToFrame(buffer)
+			sender.SendFrame(
+				frame,
+				data.IncludeDataOnly,
+			)
+
+			endpoint.ClearAlarmsStream(req.Path)
+		}
+	}
+}

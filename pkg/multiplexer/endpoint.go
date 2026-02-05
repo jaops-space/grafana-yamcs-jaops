@@ -5,6 +5,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
@@ -23,6 +24,7 @@ type YamcsEndpoint struct {
 	Parameters     map[string]*ParameterDemand
 	Events         map[string][]*events.Event
 	CommandHistory map[string][]*commanding.CommandHistoryEntry
+	Alarms         map[string][]*alarms.AlarmData
 
 	CurrentTime time.Time
 }
@@ -298,6 +300,52 @@ func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) {
 		client := ep.GetClient()
 		for _, subscription := range client.CommandHistorySubscriptions {
 			if subscription.Instance == ep.Instance.GetName() {
+				subscription.Halt()
+			}
+		}
+	}
+}
+
+/**
+
+Alarms
+
+**/
+
+func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
+	ep.GetAlarmsSubscription()
+	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
+}
+
+func (ep *YamcsEndpoint) GetAlarmsSubscription() (*client.AlarmSubscription, error) {
+	c := ep.GetClient()
+	for _, subscription := range c.AlarmSubscriptions {
+		if subscription.GetInstance() == ep.Instance.GetName() {
+			return subscription, nil
+		}
+	}
+	subscription, err := c.CreateAlarmSubscription(ep.Instance, ep.Processor)
+	if err != nil {
+		return nil, err
+	}
+	subscription.SetListener(ep.Multiplexer.GetAlarmsListener(ep.Instance))
+	return subscription, nil
+}
+
+func (ep *YamcsEndpoint) GetAlarmsStream(path string) []*alarms.AlarmData {
+	return ep.Alarms[path]
+}
+
+func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
+	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
+}
+
+func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) {
+	delete(ep.Alarms, path)
+	if len(ep.Alarms) == 0 {
+		c := ep.GetClient()
+		for _, subscription := range c.AlarmSubscriptions {
+			if subscription.GetInstance() == ep.Instance.GetName() {
 				subscription.Halt()
 			}
 		}

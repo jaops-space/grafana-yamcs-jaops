@@ -71,6 +71,13 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         additionalFields: false,
     },
     {
+        label: 'Alarms',
+        description: 'Monitor and manage active alarms in real-time.',
+        value: QueryType.ALARMS,
+        category: QueryCategory.COMMANDING,
+        additionalFields: false,
+    },
+    {
         label: 'Endpoint Stream Demands',
         description: 'Debug endpoint stream demands.',
         value: QueryType.DEMANDS,

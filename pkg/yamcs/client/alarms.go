@@ -26,6 +26,59 @@ func (c *YamcsClient) fetchAlarms(instance, name string) types.FetchFunction[[]*
 	}
 }
 
+// ListProcessorAlarms retrieves currently active alarms for a processor.
+func (c *YamcsClient) ListProcessorAlarms(instance Instance, processor Processor) ([]*alarms.AlarmData, error) {
+	response := &alarms.ListProcessorAlarmsResponse{}
+	if err := c.HTTP.GetProto(fmt.Sprintf("/processors/%s/%s/alarms", instance.GetName(), processor.GetName()), response); err != nil {
+		return nil, err
+	}
+	return response.Alarms, nil
+}
+
+// AcknowledgeAlarm acknowledges an alarm.
+func (c *YamcsClient) AcknowledgeAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32, comment string) error {
+	request := &alarms.EditAlarmRequest{
+		Instance:  instance.Name,
+		Processor: processor.Name,
+		Name:      &alarmName,
+		Seqnum:    &seqNum,
+		State:     stringPtr("acknowledged"),
+		Comment:   &comment,
+	}
+	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
+}
+
+// ClearAlarm clears an alarm.
+func (c *YamcsClient) ClearAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32, comment string) error {
+	request := &alarms.EditAlarmRequest{
+		Instance:  instance.Name,
+		Processor: processor.Name,
+		Name:      &alarmName,
+		Seqnum:    &seqNum,
+		State:     stringPtr("cleared"),
+		Comment:   &comment,
+	}
+	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
+}
+
+// ShelveAlarm shelves an alarm.
+func (c *YamcsClient) ShelveAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32, comment string, durationMs uint64) error {
+	request := &alarms.EditAlarmRequest{
+		Instance:       instance.Name,
+		Processor:      processor.Name,
+		Name:           &alarmName,
+		Seqnum:         &seqNum,
+		State:          stringPtr("shelved"),
+		Comment:        &comment,
+		ShelveDuration: &durationMs,
+	}
+	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
 // AlarmListener is a function that handles incoming alarm events.
 type AlarmListener func(event *alarms.AlarmData)
 
@@ -94,6 +147,26 @@ func (c *YamcsClient) HandleAlarmMessage(msg *api.ServerMessage) {
 // SetListener assigns a callback function to an AlarmSubscription.
 func (sub *AlarmSubscription) SetListener(listener AlarmListener) {
 	sub.listener = listener
+}
+
+// GetInstance returns the instance name for this alarm subscription.
+func (sub *AlarmSubscription) GetInstance() string {
+	return sub.instance
+}
+
+// Halt cancels the alarm subscription.
+func (sub *AlarmSubscription) Halt() {
+	delete(sub.client.AlarmSubscriptions, sub.callID)
+
+	cancelRequest := &api.CancelOptions{
+		Call: int32(sub.callID),
+	}
+
+	anyMessage, _ := anypb.New(cancelRequest)
+	sub.client.WebSocket.Send(&api.ClientMessage{
+		Type:    "cancel",
+		Options: anyMessage,
+	})
 }
 
 // GlobalStatusListener is a function that handles global alarm status events.

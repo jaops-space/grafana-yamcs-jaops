@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
@@ -141,6 +142,7 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		Parameters:     make(map[string]*ParameterDemand),
 		Events:         make(map[string][]*events.Event),
 		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
+		Alarms:         make(map[string][]*alarms.AlarmData),
 		ID:             endpointID,
 		Instance:       instance,
 		Processor:      processor,
@@ -188,6 +190,19 @@ func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func
 			if dataSource.Instance.GetName() == instance.GetName() {
 				for path := range dataSource.CommandHistory {
 					dataSource.CommandHistory[path] = append(dataSource.CommandHistory[path], entry)
+				}
+			}
+		}
+	}
+}
+
+// GetAlarmsListener returns a function that listens for alarm events from a specific Yamcs instance.
+func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *alarms.AlarmData) {
+	return func(alarm *alarms.AlarmData) {
+		for _, dataSource := range mux.Endpoints {
+			if dataSource.Instance.GetName() == instance.GetName() {
+				for path := range dataSource.Alarms {
+					dataSource.Alarms[path] = append(dataSource.Alarms[path], alarm)
 				}
 			}
 		}

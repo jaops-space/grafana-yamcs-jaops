@@ -90,6 +90,11 @@ func (httpManager *HTTPManager) PostProto(path string, body proto.Message, unmar
 	return httpManager.ProtoRequest("POST", path, body, unmarshalTo)
 }
 
+// PatchProto sends a PATCH request with the given path, body, and unmarshals the response into the provided proto.Message.
+func (httpManager *HTTPManager) PatchProto(path string, body proto.Message, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequest("PATCH", path, body, unmarshalTo)
+}
+
 // DeleteProto sends a DELETE request with the given path, body, and unmarshals the response into the provided proto.Message.
 func (httpManager *HTTPManager) DeleteProto(path string, body proto.Message, unmarshalTo proto.Message) error {
 	return httpManager.ProtoRequest("DELETE", path, body, unmarshalTo)

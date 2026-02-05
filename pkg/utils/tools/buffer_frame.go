@@ -12,6 +12,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
@@ -31,6 +32,82 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 	}
 
 	return data.NewFrame("response", timeField, messageField, severityField)
+}
+
+// AlarmEntry represents a processed alarm for the frontend
+type AlarmEntry struct {
+	Id               string `json:"id"`
+	Name             string `json:"name"`
+	TriggerTime      string `json:"triggerTime"`
+	UpdateTime       string `json:"updateTime,omitempty"`
+	Severity         string `json:"severity"`
+	Type             string `json:"type"`
+	Violations       uint32 `json:"violations"`
+	Count            uint32 `json:"count"`
+	Acknowledged     bool   `json:"acknowledged"`
+	AcknowledgedBy   string `json:"acknowledgedBy,omitempty"`
+	AcknowledgeTime  string `json:"acknowledgeTime,omitempty"`
+	ProcessOK        bool   `json:"processOK"`
+	Triggered        bool   `json:"triggered"`
+	Latching         bool   `json:"latching"`
+	Shelved          bool   `json:"shelved"`
+	CurrentValue     string `json:"currentValue,omitempty"`
+	TriggerValue     string `json:"triggerValue,omitempty"`
+	NotificationType string `json:"notificationType"`
+	SeqNum           uint32 `json:"seqNum"`
+}
+
+// ConvertAlarmListToFrame converts a list of Yamcs alarms into a Grafana data frame.
+func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
+	alarmEntries := make([]json.RawMessage, 0)
+
+	for _, alarm := range alarmList {
+		alarmEntry := &AlarmEntry{
+			Id:               fmt.Sprintf("%s/%d", alarm.GetId().GetName(), alarm.GetSeqNum()),
+			Name:             alarm.GetId().GetName(),
+			TriggerTime:      alarm.GetTriggerTime().AsTime().Format(time.RFC3339),
+			Severity:         alarm.GetSeverity().String(),
+			Type:             alarm.GetType().String(),
+			Violations:       alarm.GetViolations(),
+			Count:            alarm.GetCount(),
+			Acknowledged:     alarm.GetAcknowledged(),
+			ProcessOK:        alarm.GetProcessOK(),
+			Triggered:        alarm.GetTriggered(),
+			Latching:         alarm.GetLatching(),
+			NotificationType: alarm.GetNotificationType().String(),
+			SeqNum:           alarm.GetSeqNum(),
+			Shelved:          alarm.GetShelveInfo() != nil,
+		}
+
+		if alarm.GetUpdateTime() != nil {
+			alarmEntry.UpdateTime = alarm.GetUpdateTime().AsTime().Format(time.RFC3339)
+		}
+
+		if ackInfo := alarm.GetAcknowledgeInfo(); ackInfo != nil {
+			alarmEntry.AcknowledgedBy = ackInfo.GetAcknowledgedBy()
+			if ackInfo.GetAcknowledgeTime() != nil {
+				alarmEntry.AcknowledgeTime = ackInfo.GetAcknowledgeTime().AsTime().Format(time.RFC3339)
+			}
+		}
+
+		// Extract values for parameter alarms
+		if paramDetail := alarm.GetParameterDetail(); paramDetail != nil {
+			if currentVal := paramDetail.GetCurrentValue(); currentVal != nil {
+				alarmEntry.CurrentValue = StringifyValue(currentVal.GetEngValue())
+			}
+			if triggerVal := paramDetail.GetTriggerValue(); triggerVal != nil {
+				alarmEntry.TriggerValue = StringifyValue(triggerVal.GetEngValue())
+			}
+		}
+
+		rawJson, err := json.Marshal(alarmEntry)
+		if err != nil {
+			continue
+		}
+		alarmEntries = append(alarmEntries, rawJson)
+	}
+
+	return data.NewFrame("response", data.NewField("alarms", nil, alarmEntries))
 }
 
 type CommandAck struct {

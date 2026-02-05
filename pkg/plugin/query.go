@@ -24,6 +24,7 @@ const (
 	Image          PluginQueryType = "image"
 	Commanding     PluginQueryType = "commanding"
 	CommandHistory PluginQueryType = "command-history"
+	Alarms         PluginQueryType = "alarms"
 	Demands        PluginQueryType = "demands"
 	Subscriptions  PluginQueryType = "subscriptions"
 )

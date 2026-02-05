@@ -120,6 +120,9 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/acknowledge", d.handleAcknowledgeAlarm)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/clear", d.handleClearAlarm)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/shelve", d.handleShelveAlarm)
 }
 
 type CommandIssueBody struct {
@@ -164,4 +167,108 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responseJSON)
+}
+
+// AlarmActionBody represents the request body for alarm actions.
+type AlarmActionBody struct {
+	Name           string `json:"name"`
+	SeqNum         uint32 `json:"seqNum"`
+	Comment        string `json:"comment"`
+	ShelveDuration uint64 `json:"shelveDuration,omitempty"` // Duration in milliseconds for shelving
+}
+
+func (d *Datasource) handleAcknowledgeAlarm(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	body := &AlarmActionBody{}
+	err := json.NewDecoder(req.Body).Decode(&body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	client := endpoint.GetClient()
+	err = client.AcknowledgeAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum, body.Comment)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "acknowledged"})
+}
+
+func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	body := &AlarmActionBody{}
+	err := json.NewDecoder(req.Body).Decode(&body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	client := endpoint.GetClient()
+	err = client.ClearAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum, body.Comment)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "cleared"})
+}
+
+func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	body := &AlarmActionBody{}
+	err := json.NewDecoder(req.Body).Decode(&body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	client := endpoint.GetClient()
+	err = client.ShelveAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum, body.Comment, body.ShelveDuration)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "shelved"})
 }

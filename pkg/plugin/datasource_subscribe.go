@@ -203,6 +203,21 @@ func DatasourceCommandHistoryFrame(endpoint *multiplexer.YamcsEndpoint, q Plugin
 
 }
 
+func DatasourceAlarmsFrame(endpoint *multiplexer.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+
+	yamcs := endpoint.GetClient()
+	alarmList, err := yamcs.ListProcessorAlarms(endpoint.Instance, endpoint.Processor)
+	if err != nil {
+		return nil, err
+	}
+
+	frame := tools.ConvertAlarmListToFrame(alarmList)
+	frame.Meta = &data.FrameMeta{}
+	frame.Meta.PreferredVisualization = data.VisTypeTable
+	return frame, nil
+
+}
+
 func DatasourceTimeFrame(endpoint *multiplexer.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
