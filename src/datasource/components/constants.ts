@@ -9,6 +9,7 @@ export enum QueryCategory {
     TIMELINE = 'timeline',
     IMAGE = 'image',
     COMMANDING = 'commanding',
+    LINKS = 'links',
     DEBUG = 'debug',
 }
 
@@ -68,6 +69,13 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         description: 'View real-time command history.',
         value: QueryType.COMMAND_HISTORY,
         category: QueryCategory.COMMANDING,
+        additionalFields: false,
+    },
+    {
+        label: 'Links',
+        description: 'View and manage Yamcs data links (enable/disable).',
+        value: QueryType.LINKS,
+        category: QueryCategory.LINKS,
         additionalFields: false,
     },
     {
