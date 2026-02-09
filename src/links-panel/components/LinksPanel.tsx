@@ -135,6 +135,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
     if (dsUid && endpoint) {
       fetchLinks();
     }
+    return undefined;
   }, [dsUid, endpoint, fetchLinks]);
 
   // Auto-refresh
@@ -143,6 +144,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
       const intervalId = setInterval(fetchLinks, options.refreshInterval * 1000);
       return () => clearInterval(intervalId);
     }
+    return undefined;
   }, [fetchLinks, options.refreshInterval, dsUid, endpoint]);
 
   // Clear success message after 3 seconds
@@ -151,6 +153,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
       const timer = setTimeout(() => setSuccess(null), 3000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [success]);
 
   // Enable/disable a link
