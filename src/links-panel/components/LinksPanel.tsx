@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PanelProps } from '@grafana/data';
+import { PanelProps, GrafanaTheme2 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { Button, Badge, Alert, Spinner, IconButton, useStyles2, Tooltip } from '@grafana/ui';
 import { css } from '@emotion/css';
-import { GrafanaTheme2 } from '@grafana/data';
 import { PanelOptions, LinkInfo } from '../types';
 
 interface Props extends PanelProps<PanelOptions> {}
@@ -158,7 +157,9 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
 
   // Enable/disable a link
   const toggleLink = async (link: LinkInfo) => {
-    if (!dsUid || !endpoint) return;
+    if (!dsUid || !endpoint) {
+      return;
+    }
     
     const action = link.disabled ? 'enable' : 'disable';
     setBusy(link.name);
@@ -178,7 +179,9 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
 
   // Reset link counters
   const resetCounters = async (linkName: string) => {
-    if (!dsUid || !endpoint) return;
+    if (!dsUid || !endpoint) {
+      return;
+    }
     
     setBusy(linkName);
     
