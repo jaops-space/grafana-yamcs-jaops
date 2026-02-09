@@ -185,7 +185,7 @@ type YamcsHostConfiguration struct {
 
 func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfiguration, *YamcsSecureConfiguration, error) {
 	// Debug: log what Grafana sent us
-	backend.Logger.Info("ExtractConfig received JSONData",
+	backend.Logger.Debug("ExtractConfig received JSONData",
 		"jsonDataString", string(source.JSONData))
 
 	configuration := &YamcsPluginConfiguration{}
@@ -196,7 +196,7 @@ func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfi
 		return nil, nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
 	}
 
-	backend.Logger.Info("ExtractConfig unmarshaled config",
+	backend.Logger.Debug("ExtractConfig unmarshaled config",
 		"endpointCount", len(configuration.Endpoints))
 
 	// Extract secure fields for hosts

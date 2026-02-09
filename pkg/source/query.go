@@ -20,13 +20,13 @@ type YamcsFilterConfig struct {
 // log is a helper to log with variable arguments
 func log(msg string, fields map[string]interface{}) {
 	if fields == nil {
-		backend.Logger.Info(msg)
+		backend.Logger.Debug(msg)
 	} else {
 		args := make([]interface{}, 0, len(fields)*2)
 		for k, v := range fields {
 			args = append(args, k, v)
 		}
-		backend.Logger.Info(msg, args...)
+		backend.Logger.Debug(msg, args...)
 	}
 }
 

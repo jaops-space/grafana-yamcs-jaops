@@ -19,7 +19,7 @@ import (
 )
 
 func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
-	backend.Logger.Info("DatasourceGraphFrame called",
+	backend.Logger.Debug("DatasourceGraphFrame called",
 		"endpoint", q.EndpointID,
 		"parameter", q.Parameter,
 		"from", q.From,
@@ -63,7 +63,7 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 
 	pointCount := 0
 
-	backend.Logger.Info("Received parameter samples",
+	backend.Logger.Debug("Received parameter samples",
 		"parameter", q.Parameter,
 		"aggregatePath", aggregatePath,
 		"pointCount", pointCount)
