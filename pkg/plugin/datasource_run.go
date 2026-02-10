@@ -298,7 +298,7 @@ func RunAlarmsStream(
 	ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery,
 ) error {
 

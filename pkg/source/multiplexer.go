@@ -131,15 +131,20 @@ func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func
 	}
 }
 
-func (mux *Multiplexer) Dispose() {
-    // Close all host clients (this closes WebSocket connections)
-    for _, host := range mux.Hosts {
-        if host.Client != nil {
-            host.Client.CloseWebSocketConnection()
-        }
-    }
+// GetAlarmsListener returns a function that listens for alarm events from a specific Yamcs instance.
+func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *alarms.AlarmData) {
+	return func(alarm *alarms.AlarmData) {
+		for _, dataSource := range mux.Endpoints {
+			if dataSource.Instance.GetName() == instance.GetName() {
+				for path := range dataSource.Alarms {
+					dataSource.Alarms[path] = append(dataSource.Alarms[path], alarm)
+				}
+			}
+		}
+	}
+}
 
-    // Clear all cached state
-    mux.Endpoints = make(map[string]*YamcsEndpoint)
-    mux.Hosts = make(map[string]*YamcsHost)
+func (mux *Multiplexer) Dispose() {
+	mux.ConnMgr.Dispose()
+	mux.Endpoints = make(map[string]*YamcsEndpoint)
 }

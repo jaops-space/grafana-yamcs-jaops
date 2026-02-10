@@ -249,18 +249,19 @@ func telemetryPointsToSamples(points []source.TelemetryPoint) []client.Sample {
 		return []client.Sample{}
 	}
 
-    samples := make([]*pvalue.TimeSeries_Sample, len(points))
-    for i, pt := range points {
-        n := int32(1)
-        samples[i] = &pvalue.TimeSeries_Sample{
-            Time: timestamppb.New(pt.Time),
-            Avg:  pt.Value,
-            N:    &n,
-        }
-    }
-    return samples
+	samples := make([]*pvalue.TimeSeries_Sample, len(points))
+	for i, pt := range points {
+		n := int32(1)
+		samples[i] = &pvalue.TimeSeries_Sample{
+			Time: timestamppb.New(pt.Time),
+			Avg:  pt.Value,
+			N:    &n,
+		}
+	}
+	return samples
+}
 
-func DatasourceAlarmsFrame(endpoint *multiplexer.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceAlarmsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	yamcs := endpoint.GetClient()
 	alarmList, err := yamcs.ListProcessorAlarms(endpoint.Instance, endpoint.Processor)
