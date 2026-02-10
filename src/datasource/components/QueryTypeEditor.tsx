@@ -30,7 +30,7 @@ export function QueryTypeEditor(props: QueryProps) {
             case QueryCategory.COMMANDING:
                 return <Badge color='red' text='Commanding' />;
             case QueryCategory.ALARMS:
-                return <Badge color='yellow' text='Alarm' />;
+                return <Badge color='orange' text='Alarm' />;
             case QueryCategory.DEBUG:
                  return <Badge color='orange' text='Debug' />;
             default:
