@@ -9,6 +9,7 @@ export enum QueryCategory {
     TIMELINE = 'timeline',
     IMAGE = 'image',
     COMMANDING = 'commanding',
+    ALARMS = 'alarms',
     DEBUG = 'debug',
 }
 
@@ -74,7 +75,7 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         label: 'Alarms',
         description: 'Monitor and manage active alarms in real-time.',
         value: QueryType.ALARMS,
-        category: QueryCategory.COMMANDING,
+        category: QueryCategory.ALARMS,
         additionalFields: false,
     },
     {

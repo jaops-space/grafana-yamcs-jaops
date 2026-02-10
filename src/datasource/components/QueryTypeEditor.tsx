@@ -28,7 +28,9 @@ export function QueryTypeEditor(props: QueryProps) {
             case QueryCategory.IMAGE:
                 return <Badge color="green" text="Image" />;
             case QueryCategory.COMMANDING:
-                    return <Badge color='red' text='Commanding' />;
+                return <Badge color='red' text='Commanding' />;
+            case QueryCategory.ALARMS:
+                return <Badge color='yellow' text='Alarm' />;
             case QueryCategory.DEBUG:
                  return <Badge color='orange' text='Debug' />;
             default:
