@@ -50,5 +50,5 @@ POST /endpoint/{endpointID}/links/{linkName}/action/{id}  — run a link action
 ## Status badges
 
 - 🟢 Green: link is OK
-- 🟠 Orange: link is disabled
+- ⚪ Grey: link is disabled
 - 🔴 Red: link has failed or status is not OK

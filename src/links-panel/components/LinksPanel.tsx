@@ -258,7 +258,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             <span className={styles.linkName}>{link.name}</span>
             <Badge
               text={link.disabled ? 'DISABLED' : link.status || 'OK'}
-              color={link.disabled ? 'orange' : link.status === 'OK' ? 'green' : 'red'}
+              color={link.disabled ? 'darkgrey' : link.status === 'OK' ? 'green' : 'red'}
             />
             {options.showDetails && (
               <span className={styles.linkDetails}>
