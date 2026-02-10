@@ -1,46 +1,54 @@
-# JAOPS Links Panel
+# Yamcs Link Management
 
-A Grafana panel plugin for managing Yamcs data links directly from your dashboards.
+Adds the ability to view and control Yamcs data links directly from Grafana dashboards. Related to [Issue #7](https://github.com/jaops-space/grafana-yamcs-jaops/issues/7).
 
-## Features
+## What it does
 
-- **View all Yamcs links** - Display link status, type, class, and data counters
-- **Enable/Disable links** - Toggle links on/off with a single click
-- **Reset counters** - Reset data in/out counters for individual links
-- **Auto-refresh** - Configurable automatic refresh interval
-- **Filtering** - Filter links by name using regex patterns
-- **Variable support** - Use dashboard variables for dynamic endpoint selection
+A new **JAOPS Links Panel** lets operators see all Yamcs links for a given endpoint and enable, disable, or reset their counters with a click. The panel polls the backend over REST on a configurable interval (default 5 s), it does not use the WebSocket streaming pipeline that parameter queries use.
 
-## Panel Options
+## How it works
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| Auto-refresh interval | Automatically refresh link status (0 = manual only) | 5 seconds |
-| Show details | Display detailed link information (type, class, data counts) | true |
-| Filter by name | Regex pattern to filter links by name | empty |
+The panel reads the datasource UID and endpoint from its query configuration (`data.request.targets`). Because links don't need streaming, the datasource returns an empty observable for `LINKS` queries to preserve the request metadata:
 
-## Usage
+```typescript
+if (query.type === QueryType.LINKS) {
+    return new Observable<DataQueryResponse>((subscriber) => {
+        subscriber.next({ data: [], state: LoadingState.Done });
+        subscriber.complete();
+    });
+}
+```
 
-1. Add the "JAOPS Links Panel" to your dashboard
-2. Configure the query:
-   - Select the Yamcs datasource
-   - Choose an endpoint from the dropdown OR check "As variable" to use a dashboard variable
-   - Set Query Type to "Links"
-3. Links will be displayed with their current status
-4. Use the Enable/Disable buttons to toggle link state
-5. Use the Reset button to clear data counters
-6. Use the refresh button or auto-refresh for live updates
+The panel then fetches data directly using `getBackendSrv()`:
 
-## Variable Support
+```typescript
+const url = `/api/datasources/uid/${dsUid}/resources/endpoint/${endpoint}/links`;
+const result = await getBackendSrv().get(url);
+```
 
-To use a dashboard variable for the endpoint:
-1. Check the "As variable" checkbox in the query editor
-2. Enter the variable name (e.g., `$endpoint`)
-3. The panel will dynamically update when the variable changes
+Dashboard variables are supported: when "As variable" is checked, the endpoint is resolved via `getTemplateSrv().replace(target.endpointVariable)`.
 
-## Status Colors
+## Backend
 
-- **Green** - Link is OK and operational
-- **Orange** - Link is disabled
-- **Red** - Link has failed or is unavailable
-- **Blue** - Link status is unknown
+Six new resource routes are registered in `resources.go`, backed by corresponding client methods in `link_endpoints.go` that call the Yamcs REST API using protobuf:
+
+```
+GET  /endpoint/{endpointID}/links                        — list all links
+GET  /endpoint/{endpointID}/links/{linkName}              — get a single link
+POST /endpoint/{endpointID}/links/{linkName}/enable       — enable
+POST /endpoint/{endpointID}/links/{linkName}/disable      — disable
+POST /endpoint/{endpointID}/links/{linkName}/reset        — reset counters
+POST /endpoint/{endpointID}/links/{linkName}/action/{id}  — run a link action
+```
+
+## Panel options
+
+- **Auto-refresh interval**: polling frequency in seconds (0 = manual only, default 5)
+- **Show details**: show link type and data in/out counters (default true)
+- **Filter by name**: regex to filter which links are displayed
+
+## Status badges
+
+- 🟢 Green: link is OK
+- 🟠 Orange: link is disabled
+- 🔴 Red: link has failed or status is not OK
