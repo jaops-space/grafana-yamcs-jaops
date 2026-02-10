@@ -6,14 +6,14 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 )
 
 func RunParameterStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
 	yamcs := endpoint.GetClient()
@@ -84,7 +84,7 @@ func RunParameterStream(ctx context.Context,
 func RunEventStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
 	yamcs := endpoint.GetClient()
@@ -126,7 +126,7 @@ func RunEventStream(ctx context.Context,
 func RunDemandsStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
 	tickerInterval := 1 * time.Second
@@ -171,7 +171,7 @@ func RunDemandsStream(ctx context.Context,
 func RunSubscriptionStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
 	tickerInterval := 1 * time.Second
@@ -215,7 +215,7 @@ func RunCommandHistoryStream(
 	ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery,
 ) error {
 
@@ -261,7 +261,7 @@ func RunTimeStream(
 	ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
-	endpoint *multiplexer.YamcsEndpoint,
+	endpoint *source.YamcsEndpoint,
 	q PluginQuery,
 ) error {
 

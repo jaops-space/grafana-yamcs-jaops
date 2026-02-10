@@ -14,6 +14,14 @@ export interface Query extends DataQuery {
     asVariable: boolean;
     customVariableString: boolean;
     endpointVariable: string;
+
+    // YAMCS parameter filter configuration
+    yamcsFilter?: {
+        enabled: boolean;
+        parameter: string;        // Filter parameter name (e.g., "vcid")
+        operator: 'equals';       // Currently only equality
+        value: string;            // Expected value (e.g., "1")
+    };
 }
 
 /**
