@@ -1,40 +1,56 @@
 # Alarms Panel
 
-A Grafana panel plugin for monitoring and managing Yamcs alarms in real-time.
+A Grafana panel plugin for monitoring and managing Yamcs alarms in real-time via WebSocket streaming.
 
 ## Features
 
-- **Real-time Alarm Monitoring**: View active alarms from a Yamcs processor with automatic updates
-- **Alarm Actions**: Acknowledge, clear and shelve alarms directly from the panel
-- **Severity Indicators**: Color-coded severity levels (Watch, Warning, Distress, Critical, Severe)
-- **Detailed View**: Expandable rows showing alarm details including trigger values and acknowledgement history
-- **Configurable Columns**: Choose which columns to display in the table
-- **Pagination Support**: Optional pagination for large alarm lists
-
-## Configuration
-
-### Panel Options
-
-- **Visible Columns**: Select which fields to display in the table
-- **Show Details on Expand**: Enable/disable expandable row details
-- **Enable Pagination**: Toggle pagination on/off
-- **Page Size**: Number of alarms per page (when pagination is enabled)
+- **Real-time Monitoring**: Live table of active alarms with automatic WebSocket updates
+- **Alarm Actions**: Acknowledge, Clear, and Shelve alarms with confirmation dialogs
+- **Severity Indicators**: Color-coded levels: Watch (blue), Warning/Distress (orange), Critical/Severe (red)
+- **Expandable Details**: View trigger values, acknowledgement history, and sample counts
+- **Configurable Columns & Pagination**: Choose visible fields and enable pagination for large lists
 
 ## Usage
 
-1. Add a new panel to your dashboard
-2. Select the JAOPS Yamcs datasource
-3. Choose "Alarms" as the query type
-4. Select your endpoint
-5. Configure panel options as needed
+1. Add a new panel → select the **JAOPS Yamcs** datasource
+2. Set **Query Type** = `Alarms` and select your endpoint
+3. Active alarms appear automatically via WebSocket streaming
+4. Use the action buttons in each row to **Acknowledge** (✓), **Clear** (✗), or **Shelve** (🕘) alarms
+
+## Panel Options
+
+| Option | Description |
+|---|---|
+| Visible Columns | Select which fields to display |
+| Show Details on Expand | Toggle expandable row details |
+| Enable Pagination | Toggle pagination on/off |
+| Page Size | Rows per page (when pagination enabled) |
 
 ## Alarm Actions
 
-### Acknowledge
-Mark an alarm as acknowledged. This indicates that an operator is aware of the alarm condition.
+- **Acknowledge**: Mark an alarm as seen by an operator
+- **Clear**: Remove an acknowledged alarm once the parameter is back within limits
+- **Shelve**: Temporarily hide an alarm (default: 1 hour) for known issues
 
-### Clear
-Remove an acknowledged alarm when the parameter has returned to normal limits.
+## Testing
 
-### Shelve
-Temporarily hide an alarm from the active list. Useful for known issues that don't require immediate attention.
+### Automated
+
+Run the test script to validate Yamcs alarm APIs and Grafana resource endpoints:
+
+```bash
+cd src/alarms-panel
+chmod +x test-alarm-logic.sh
+./test-alarm-logic.sh
+```
+
+> Update `DATASOURCE_UID` and `ENDPOINT_ID` in the script to match your setup.
+
+### End-to-End (Manual)
+
+**Prerequisites:** Yamcs simulator + Grafana running (e.g. `docker-compose up -d --build`).  
+The default Yamcs quickstart simulator (`yamcs/example-simulation`) has alarms pre-configured in its MDB and generates out-of-limit values automatically (~30s after startup).
+
+1. Start the simulator: `docker run -d -p 8091:8090 yamcs/example-simulation`
+2. Open Grafana → create a panel with **Query Type** = `Alarms`
+3. Wait for alarms to appear, then test Acknowledge / Clear / Shelve buttons

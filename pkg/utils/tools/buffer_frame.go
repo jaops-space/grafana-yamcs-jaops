@@ -62,9 +62,15 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 	alarmEntries := make([]json.RawMessage, 0)
 
 	for _, alarm := range alarmList {
+		// Construct the full qualified name from namespace and short name.
+		// Yamcs returns id.name as short name (e.g. "BatteryVoltage1") and
+		// id.namespace as the path (e.g. "/YSS/SIMULATOR"). The Edit Alarm
+		// API requires the full qualified name in the URL path.
+		qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
+
 		alarmEntry := &AlarmEntry{
-			Id:               fmt.Sprintf("%s/%d", alarm.GetId().GetName(), alarm.GetSeqNum()),
-			Name:             alarm.GetId().GetName(),
+			Id:               fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum()),
+			Name:             qualifiedName,
 			TriggerTime:      alarm.GetTriggerTime().AsTime().Format(time.RFC3339),
 			Severity:         alarm.GetSeverity().String(),
 			Type:             alarm.GetType().String(),

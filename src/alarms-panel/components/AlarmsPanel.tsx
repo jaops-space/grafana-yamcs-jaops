@@ -1,5 +1,5 @@
 import { dateTime, PanelProps } from '@grafana/data';
-import { getBackendSrv } from '@grafana/runtime';
+import { DataSourceWithBackend } from '@grafana/runtime';
 import { Button, Icon, InteractiveTable, Modal, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
 import { AlarmsOptions } from 'alarms-panel/module';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -97,11 +97,8 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // Extract endpoint from data
+    // Extract endpoint from query target
     const endpoint = useMemo(() => {
-        const frame = data.series[0];
-        if (!frame || !frame.refId) { return null; }
-        // Try to get endpoint from the query
         const request = data.request;
         if (request?.targets?.[0]) {
             const target = request.targets[0] as any;
@@ -110,12 +107,15 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         return null;
     }, [data]);
 
-    // Extract datasource UID
-    const datasourceUid = useMemo(() => {
+    // Extract datasource from query target
+    const datasource = useMemo(() => {
         const request = data.request;
         if (request?.targets?.[0]) {
-            const target = request.targets[0] as any;
-            return target.datasource?.uid;
+            const ds = request.targets[0].datasource as DataSourceWithBackend;
+            if (ds) {
+                Object.setPrototypeOf(ds, DataSourceWithBackend.prototype);
+                return ds;
+            }
         }
         return null;
     }, [data]);
@@ -140,15 +140,15 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     }, []);
 
     const executeAction = useCallback(async () => {
-        if (!selectedAlarm || !endpoint || !datasourceUid) { return; }
+        if (!selectedAlarm || !endpoint || !datasource) { return; }
 
         setLoading(true);
         try {
             const actionEndpoint = actionType === 'acknowledge' ? 'acknowledge' :
                                    actionType === 'clear' ? 'clear' : 'shelve';
             
-            await getBackendSrv().post(
-                `/api/datasources/uid/${datasourceUid}/resources/endpoint/${endpoint}/alarm/${actionEndpoint}`,
+            await datasource.postResource(
+                `endpoint/${endpoint}/alarm/${actionEndpoint}`,
                 {
                     name: selectedAlarm.name,
                     seqNum: selectedAlarm.seqNum,
@@ -162,7 +162,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         } finally {
             setLoading(false);
         }
-    }, [selectedAlarm, endpoint, datasourceUid, actionType, comment]);
+    }, [selectedAlarm, endpoint, datasource, actionType, comment]);
 
     // Build columns
     const columns = useMemo(() => [
