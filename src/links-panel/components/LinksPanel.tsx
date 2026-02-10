@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PanelProps, GrafanaTheme2 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { Button, Badge, Alert, Spinner, IconButton, useStyles2, Tooltip } from '@grafana/ui';
@@ -32,6 +32,10 @@ const getStyles = (theme: GrafanaTheme2) => ({
     margin-bottom: ${theme.spacing(1)};
     background: ${theme.colors.background.secondary};
     border-radius: ${theme.shape.radius.default};
+  `,
+  linkRowActive: css`
+    background: ${theme.colors.success.transparent};
+    transition: background 0.3s ease-in;
   `,
   linkInfo: css`
     display: flex;
@@ -69,6 +73,8 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
   const [success, setSuccess] = useState<string | null>(null);
   const [dsUid, setDsUid] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState<string | null>(null);
+  const [activeLinks, setActiveLinks] = useState<Set<string>>(new Set());
+  const prevCounters = useRef<Record<string, { dataIn: string; dataOut: string }>>({});
 
   // Extract datasource UID and endpoint from the query targets
   useEffect(() => {
@@ -121,6 +127,27 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
         }
       }
       
+      // Detect activity by comparing counters with previous poll
+      const nowActive = new Set<string>();
+      const newCounters: Record<string, { dataIn: string; dataOut: string }> = {};
+      for (const link of linksList) {
+        const key = link.name;
+        const dataIn = String(link.dataInCount ?? '0');
+        const dataOut = String(link.dataOutCount ?? '0');
+        newCounters[key] = { dataIn, dataOut };
+        const prev = prevCounters.current[key];
+        if (prev && (prev.dataIn !== dataIn || prev.dataOut !== dataOut)) {
+          nowActive.add(key);
+        }
+      }
+      prevCounters.current = newCounters;
+      setActiveLinks(nowActive);
+
+      // Clear activity highlight after a short duration
+      if (nowActive.size > 0) {
+        setTimeout(() => setActiveLinks(new Set()), 1500);
+      }
+
       setLinks(linksList);
     } catch (e: any) {
       setError(e.message || 'Failed to load links');
@@ -253,7 +280,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
 
       {/* Links list */}
       {links.map((link) => (
-        <div key={link.name} className={styles.linkRow}>
+        <div key={link.name} className={`${styles.linkRow} ${activeLinks.has(link.name) ? styles.linkRowActive : ''}`}>
           <div className={styles.linkInfo}>
             <span className={styles.linkName}>{link.name}</span>
             <Badge

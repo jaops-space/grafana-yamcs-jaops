@@ -28,6 +28,10 @@ const result = await getBackendSrv().get(url);
 
 Dashboard variables are supported: when "As variable" is checked, the endpoint is resolved via `getTemplateSrv().replace(target.endpointVariable)`.
 
+## Activity indicator
+
+- When a link's data counters (in or out) increase between refreshes, its row will briefly flash with a green background to indicate recent activity, similar to Yamcs Web. This works automatically with polling and requires no extra configuration.
+
 ## Backend
 
 Six new resource routes are registered in `resources.go`, backed by corresponding client methods in `link_endpoints.go` that call the Yamcs REST API using protobuf:
