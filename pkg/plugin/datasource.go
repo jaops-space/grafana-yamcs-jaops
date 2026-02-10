@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
@@ -33,6 +33,11 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	datasource.CallResourceHandler = httpadapter.New(router)
 	GlobalMultiplexer.Configuration = config
 	GlobalMultiplexer.Secure = secure
+	GlobalMultiplexer.ConnMgr.Configuration = config
+	GlobalMultiplexer.ConnMgr.Secure = secure
+
+	// Always create querier (it will use Yamcs-only for endpoints without a database)
+	datasource.querier = source.New(config.Endpoints)
 	datasource.multiplexer = GlobalMultiplexer
 
 	return &datasource, nil
@@ -59,7 +64,7 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 	var frame *data.Frame
 	switch q.Type {
 	case Graph:
-		frame, err = DatasourceGraphFrame(endpoint, q)
+		frame, err = DatasourceGraphFrame(d.querier, endpoint, q)
 	case SingleValue, Image:
 		frame, err = DatasourceSingleValueFrame(endpoint, q)
 	case DiscreteValue:
@@ -153,8 +158,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	}
 }
 
-// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
-// created.
+// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance is created.
 func (d *Datasource) Dispose() {
 	GlobalMultiplexer.Dispose()
 }
@@ -177,7 +181,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
-	testMux := multiplexer.NewMultiplexer(config)
+	testMux := source.NewMultiplexer(config)
 	testMux.Secure = secure
 
 	statusDetails := make(map[string]interface{})
@@ -260,17 +264,17 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return nil, err
 	}
 
-	// If any host or endpoint has errors, return error status
+	// Clean up test connections
+	testMux.Dispose()
+
 	if hasErrors {
-		testMux.Dispose()
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
-			Message:     strings.Join(errorMessages, "\n"),
+			Message:     "Configuration has errors:\n" + strings.Join(errorMessages, "\n"),
 			JSONDetails: jsonBytes,
 		}, nil
 	}
 
-	testMux.Dispose()
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
 		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
