@@ -5,7 +5,10 @@ This guide provides instructions for testing the Yamcs Grafana plugin functional
 ## Prerequisites
 
 1. **Yamcs Server**: You need a running Yamcs server instance
-   - Setup the quickstart from: https://github.com/jaops-space/yamcs-quickstart
+   - clone the quickstart from: https://github.com/jaops-space/yamcs-quickstart
+   - start Yamcs server: `./mvnw yamcs:run`
+   - run the simulator for basic spacecraft data: `./simulator.py`
+   - run the simulator for example image generation `python3 simulator/images/generate_images.py`
    
 2. **Grafana Instance**: Grafana 10.4.0 or later
 
@@ -29,6 +32,15 @@ This guide provides instructions for testing the Yamcs Grafana plugin functional
 
 ### 3. Test Basic Functionality
 
+## Sample Data
+
+The yamcs-quickstart repository includes:
+- Sample Yamcs configuration
+- Test telemetry data and simulators (for telemetry, images, etc)
+
+This grafana-yamcs-jaops repository includes:
+- Example dashboards in `provisioning/`
+
 #### Telemetry Display
 1. Create a new dashboard
 2. Add a graph panel
@@ -47,15 +59,6 @@ This guide provides instructions for testing the Yamcs Grafana plugin functional
 2. Configure with static image
 3. Overlay telemetry data
 4. Test real-time updates
-
-## Sample Data
-
-The yamcs-quickstart repository includes:
-- Sample Yamcs configuration
-- Test telemetry data and simulators (for telemetry, images, etc)
-
-This grafana-yamcs-jaops repository includes:
-- Example dashboards in `provisioning/`
 
 ## Troubleshooting
 
