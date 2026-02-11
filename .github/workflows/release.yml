@@ -31,7 +31,7 @@ jobs:
             - uses: grafana/plugin-actions/build-plugin@main
               with:
                 # Use Go 1.25 to match go.mod requirements
-                go-version: '1.25'
+                go-version: '1.25.7'
                 # Changelog generation disabled - it tries to commit to main branch
                 # which fails when releasing from feature branches
                 # use_changelog_generator: true
