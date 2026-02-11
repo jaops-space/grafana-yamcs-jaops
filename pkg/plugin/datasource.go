@@ -18,13 +18,13 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
-// NewApp creates a new example *App instance.
+// NewDatasource creates a new Datasource instance. Each instance gets its own
+// Multiplexer so that different datasource configurations do not collide.
 func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 
 	var datasource Datasource
-	datasource.multiplexer = GlobalMultiplexer
 
-	config, secure, err := config.ExtractConfig(settings)
+	cfg, secure, err := config.ExtractConfig(settings)
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
@@ -40,18 +40,21 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		return nil, exception.Wrap("Error creating HTTP client", "HTTP_CLIENT_CREATE_ERROR", err)
 	}
 
+	// Create a per-instance multiplexer so different datasource instances
+	// do not share state or collide with each other.
+	multiplexer := source.NewMultiplexer(cfg)
+	multiplexer.Secure = secure
+	multiplexer.ConnMgr.Configuration = cfg
+	multiplexer.ConnMgr.Secure = secure
+	multiplexer.ConnMgr.HTTPClient = httpClient
+	datasource.multiplexer = multiplexer
+
 	router := mux.NewRouter()
 	datasource.registerRoutes(router)
 	datasource.CallResourceHandler = httpadapter.New(router)
-	GlobalMultiplexer.Configuration = config
-	GlobalMultiplexer.Secure = secure
-	GlobalMultiplexer.ConnMgr.Configuration = config
-	GlobalMultiplexer.ConnMgr.Secure = secure
-	GlobalMultiplexer.ConnMgr.HTTPClient = httpClient
 
 	// Always create querier (it will use Yamcs-only for endpoints without a database)
-	datasource.querier = source.New(config.Endpoints)
-	datasource.multiplexer = GlobalMultiplexer
+	datasource.querier = source.New(cfg.Endpoints)
 
 	return &datasource, nil
 
@@ -169,7 +172,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance is created.
 func (d *Datasource) Dispose() {
-	GlobalMultiplexer.Dispose()
+	d.multiplexer.Dispose()
 }
 
 // CheckHealth implements backend.CheckHealthHandler.
