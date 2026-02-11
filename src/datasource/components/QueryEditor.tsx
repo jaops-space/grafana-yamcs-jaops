@@ -72,7 +72,6 @@ export function QueryEditor(props: QueryProps) {
 
     useEffect(() => {
         onRunQuery();
-        console.log(query);
     }, [query]);
 
     const getBadge = (status: any) => {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
 // Credentials interface for all auth types
@@ -259,7 +261,7 @@ func (m *HTTPManager) StartAutoRefresh() {
 			case <-ticker.C:
 				if m.Credentials.IsExpired() {
 					if err := m.Credentials.Refresh(m); err != nil {
-						fmt.Printf("failed to refresh token: %v\n", err)
+						backend.Logger.Error("failed to refresh token", "error", err)
 					}
 				}
 			case <-m.RefreshStop:

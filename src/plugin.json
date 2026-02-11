@@ -1,19 +1,44 @@
 {
     "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
     "type": "app",
-    "name": "Grafana-Yamcs Integration",
+    "name": "Grafana Yamcs JAOPS",
     "id": "jaops-yamcs-app",
     "info": {
-        "keywords": ["app"],
-        "description": "",
+        "keywords": ["yamcs", "telemetry", "commanding", "spacecraft", "mission-control", "aerospace", "satellite", "rover", "robot"],
+        "description": "A comprehensive Grafana plugin to connect to Yamcs servers for real-time telemetry visualization and commanding capabilities. Designed for mission control centers, aerospace applications and beyond.",
         "author": {
-            "name": "JAOPS"
+            "name": "JAOPS",
+            "email": "info@jaops.com",
+            "url": "https://www.jaops.com"
         },
         "logos": {
             "small": "img/logo.png",
             "large": "img/logo.png"
         },
-        "screenshots": [],
+        "screenshots": [
+            {
+                "name": "Telemetry Dashboard",
+                "path": "screenshots/telemetry.png"
+            },
+            {
+                "name": "Commanding Interface",
+                "path": "screenshots/commanding.png"
+            }
+        ],
+        "links": [
+            {
+                "name": "GitHub Repository",
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/"
+            },
+            {
+                "name": "Documentation",
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/README.md"
+            },
+            {
+                "name": "Setup Instructions",
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/setup_instructions.md"
+            }
+        ],
         "version": "%VERSION%",
         "updated": "%TODAY%"
     },
@@ -52,6 +77,42 @@
             "icon": "variable",
             "path": "/a/%PLUGIN_ID%/variable-setup",
             "addToNav": true
+        },
+        {
+            "type": "datasource",
+            "name": "Yamcs Datasource",
+            "id": "jaops-yamcs-datasource",
+            "path": "datasource/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Commanding Panel",
+            "id": "jaops-commanding-panel",
+            "path": "commanding-panel/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Command History Panel", 
+            "id": "jaops-command-history-panel",
+            "path": "command-history-panel/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Image Panel",
+            "id": "jaops-image-panel",
+            "path": "image-panel/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Static Image Panel",
+            "id": "jaops-static-image-panel",
+            "path": "static-image-panel/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Variable Commanding Panel",
+            "id": "jaops-variable-commanding-panel",
+            "path": "variable-commanding-panel/plugin.json"
         }
     ],
     "dependencies": {

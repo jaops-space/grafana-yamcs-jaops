@@ -2,12 +2,13 @@ package source
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // ConnectionManager manages YAMCS host connections.
@@ -15,6 +16,7 @@ type ConnectionManager struct {
 	Hosts         map[string]*YamcsHost
 	Configuration *config.YamcsPluginConfiguration
 	Secure        *config.YamcsSecureConfiguration
+	HTTPClient    *http.Client // Shared SDK-provided HTTP client for connection reuse
 	SyncMux       sync.Mutex
 }
 
@@ -41,17 +43,17 @@ func (cm *ConnectionManager) SetupHost(hostID string) error {
 		return exception.New(fmt.Sprintf("Configuration for host %s not found", hostID), "CONFIGURATION_NOT_FOUND")
 	}
 
-	var tlsConfig http.TLS
-	var creds http.Credentials
+	var tlsConfig corehttp.TLS
+	var creds corehttp.Credentials
 
 	if hostConfig.Tls {
-		tlsConfig = http.GetTLSConfiguration(false)
+		tlsConfig = corehttp.GetTLSConfiguration(false)
 	} else {
-		tlsConfig = http.GetNoTLSConfiguration()
+		tlsConfig = corehttp.GetNoTLSConfiguration()
 	}
 
 	if !hostConfig.Auth {
-		creds = &http.NoCredentials{}
+		creds = &corehttp.NoCredentials{}
 	} else {
 		username := hostConfig.Username
 		secure := cm.GetSecureData(hostID)
@@ -59,13 +61,19 @@ func (cm *ConnectionManager) SetupHost(hostID string) error {
 			return exception.New(fmt.Sprintf("Secure configuration for host %s not found", hostID), "SECURE_CONFIGURATION_NOT_FOUND")
 		}
 		password := secure.Password
-		creds = &http.BasicAuthCredentials{
+		creds = &corehttp.BasicAuthCredentials{
 			Username: username,
 			Password: password,
 		}
 	}
 
-	yamcsClient, err := client.NewYamcsClient(hostConfig.Path, tlsConfig, creds)
+	// Pass the shared HTTP client so connections are reused across queries
+	var opts []client.YamcsClientOption
+	if cm.HTTPClient != nil {
+		opts = append(opts, client.OptionSetHTTPClient(cm.HTTPClient))
+	}
+
+	yamcsClient, err := client.NewYamcsClient(hostConfig.Path, tlsConfig, creds, opts...)
 	if err != nil {
 		return err
 	}

@@ -2,8 +2,8 @@ package client
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -82,7 +82,7 @@ func (c *YamcsClient) HandleAlarmMessage(msg *api.ServerMessage) {
 
 	alarmData := &alarms.AlarmData{}
 	if err := msg.Data.UnmarshalTo(alarmData); err != nil {
-		log.Println("Error unmarshaling Yamcs alarm message:", err)
+		backend.Logger.Debug("Error unmarshaling Yamcs alarm message", "error", err)
 		return
 	}
 
@@ -156,7 +156,7 @@ func (c *YamcsClient) HandleGlobalStatusMessage(msg *api.ServerMessage) {
 
 	statusData := &alarms.GlobalAlarmStatus{}
 	if err := msg.Data.UnmarshalTo(statusData); err != nil {
-		log.Println("Error unmarshaling Yamcs global alarm status message:", err)
+		backend.Logger.Debug("Error unmarshaling Yamcs global alarm status message", "error", err)
 		return
 	}
 

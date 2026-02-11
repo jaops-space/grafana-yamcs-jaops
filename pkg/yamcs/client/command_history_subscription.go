@@ -1,8 +1,7 @@
 package client
 
 import (
-	"log"
-
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -71,7 +70,7 @@ func (client *YamcsClient) HandleCommandMessage(message *api.ServerMessage) {
 	if message.GetType() == "commands" {
 		entry := &commanding.CommandHistoryEntry{}
 		if err := message.Data.UnmarshalTo(entry); err != nil {
-			log.Default().Printf("Error unmarshalling command history data: %v\n", err)
+			backend.Logger.Debug("Error unmarshalling command history data", "error", err)
 			return
 		}
 

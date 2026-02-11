@@ -1,7 +1,6 @@
 package client
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -47,7 +46,6 @@ func NewTimeSubscription(client *YamcsClient, instance string, processor string)
 	// Convert the subscription request into an Any message
 	anyMessage, err := anypb.New(subscribeTimeRequest)
 	if err != nil {
-		fmt.Printf("Error creating Any message. Details: %v", err)
 		return nil, err
 	}
 
@@ -70,7 +68,7 @@ func NewTimeSubscription(client *YamcsClient, instance string, processor string)
 		client:         client,
 	}
 
-	backend.Logger.Debug("subscribing to procssor time", "proc", processor)
+	backend.Logger.Debug("subscribing to processor time", "proc", processor)
 
 	return subscription, nil
 }

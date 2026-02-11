@@ -2,9 +2,10 @@ package client
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/ws"
 )
 
@@ -18,10 +19,10 @@ type YamcsClient struct {
 	ServerAddress string
 
 	// TLS configuration for secure communication
-	TLSConfig http.TLS
+	TLSConfig corehttp.TLS
 
 	// User authentication credentials (username/password or bearer token)
-	Credentials http.Credentials
+	Credentials corehttp.Credentials
 
 	// Optionally override the default user agent string
 	UserAgent string
@@ -33,7 +34,10 @@ type YamcsClient struct {
 	UseProtobuf bool
 
 	// The context associated with the client connection
-	HTTP *http.HTTPManager
+	HTTP *corehttp.HTTPManager
+
+	// Pre-built HTTP client (e.g. from Grafana SDK) for connection reuse
+	HTTPClient *http.Client
 
 	// WebSocket handler for managing real-time data streams
 	WebSocket *ws.WebSocketHandler
@@ -53,8 +57,8 @@ type YamcsClient struct {
 // NewYamcsClient constructs a new YamcsClient.
 func NewYamcsClient(
 	address string,
-	tlsConfig http.TLS,
-	credentials http.Credentials,
+	tlsConfig corehttp.TLS,
+	credentials corehttp.Credentials,
 	options ...YamcsClientOption,
 ) (*YamcsClient, error) {
 
@@ -83,7 +87,7 @@ func NewYamcsClient(
 	}
 
 	// Create a new context for the client
-	httpManager, err := http.NewHTTPManager(address, tlsConfig, credentials, client.UserAgent, client.KeepAlive, client.UseProtobuf)
+	httpManager, err := corehttp.NewHTTPManager(address, tlsConfig, credentials, client.UserAgent, client.KeepAlive, client.UseProtobuf, client.HTTPClient)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +150,14 @@ func OptionSetKeepAlive(keepAlive bool) YamcsClientOption {
 func OptionSetProtocol(useProtobuf bool) YamcsClientOption {
 	return func(client *YamcsClient) {
 		client.UseProtobuf = useProtobuf
+	}
+}
+
+// OptionSetHTTPClient allows injecting a pre-built *http.Client (e.g. from the
+// Grafana plugin SDK) so that connections are reused across queries.
+func OptionSetHTTPClient(httpClient *http.Client) YamcsClientOption {
+	return func(client *YamcsClient) {
+		client.HTTPClient = httpClient
 	}
 }
 

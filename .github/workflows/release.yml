@@ -13,14 +13,30 @@ jobs:
     release:
         permissions:
             contents: write
+            id-token: write
+            attestations: write
         runs-on: ubuntu-latest
         steps:
+            - name: Check signing token
+              id: check-token
+              run: |
+                if [ -z "${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}" ]; then
+                  echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not found"
+                  echo "has_token=false" >> $GITHUB_OUTPUT
+                else
+                  echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN found"
+                  echo "has_token=true" >> $GITHUB_OUTPUT
+                fi
             - uses: actions/checkout@v4
             - uses: grafana/plugin-actions/build-plugin@main
-              # Uncomment to enable plugin signing
-              # (For more info on how to generate the access policy token see https://grafana.com/developers/plugin-tools/publish-a-plugin/sign-a-plugin#generate-an-access-policy-token)
-              #with:
-              # Make sure to save the token in your repository secrets
-              #policy_token: $
-              # Usage of GRAFANA_API_KEY is deprecated, prefer `policy_token` option above
-              #grafana_token: $
+              with:
+                # Use Go 1.25 to match go.mod requirements
+                go-version: '1.25.7'
+                # Changelog generation disabled - it tries to commit to main branch
+                # which fails when releasing from feature branches
+                # use_changelog_generator: true
+                
+                # Signing controlled by repository variable REPO_VAR_SIGNING_ENABLED
+                # Set to 'true' in repo settings after Grafana approves the plugin
+                policy_token: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' && secrets.GRAFANA_ACCESS_POLICY_TOKEN || '' }}
+                attestation: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' }}
