@@ -15,8 +15,9 @@ const getStyles = (theme: GrafanaTheme2) => ({
   `,
   header: css`
     display: flex;
-    justify-content: space-between;
+    flex-direction: row;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: ${theme.spacing(2)};
   `,
   title: css`
@@ -246,9 +247,11 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
       {/* Header */}
       <div className={styles.header}>
         <h5 className={styles.title}>Yamcs Links - {endpoint}</h5>
-        <Tooltip content="Refresh">
-          <IconButton name="sync" onClick={fetchLinks} disabled={loading} aria-label="Refresh" />
-        </Tooltip>
+        <div style={{ marginLeft: 'auto' }}>
+          <Tooltip content="Refresh">
+            <IconButton name="sync" onClick={fetchLinks} disabled={loading} aria-label="Refresh" />
+          </Tooltip>
+        </div>
       </div>
 
       {/* Messages */}
