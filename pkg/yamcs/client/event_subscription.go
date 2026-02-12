@@ -1,8 +1,7 @@
 package client
 
 import (
-	"log"
-
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -75,7 +74,7 @@ func (client *YamcsClient) HandleEventMessage(message *api.ServerMessage) {
 		// Attempt to unmarshal the event data
 		err := message.Data.UnmarshalTo(event)
 		if err != nil {
-			log.Default().Printf("Error unmarshalling event data: %v\n", err)
+			backend.Logger.Debug("Error unmarshalling event data", "error", err)
 			return
 		}
 

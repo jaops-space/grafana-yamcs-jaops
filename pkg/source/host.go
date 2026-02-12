@@ -1,4 +1,4 @@
-package multiplexer
+package source
 
 import "github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 

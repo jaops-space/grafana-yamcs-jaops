@@ -10,6 +10,8 @@ interface Props {
     endpoint: IndexedEndpoint;
     hosts: Configuration['hosts'];
     index: number;
+    setSecure: (id: string, key: string, value: string) => void;
+    getSecure: (id: string, key: string) => string;
 }
 
 /**
@@ -18,7 +20,7 @@ interface Props {
  * Manages the configuration of an endpoint, allowing users to edit details
  * such as name, description, host, Yamcs instance, and processor.
  */
-export default function ConfigEndpoint({ index, endpoint, hosts, onChange, removeEndpoint }: Props) {
+export default function ConfigEndpoint({ index, endpoint, hosts, onChange, removeEndpoint, setSecure, getSecure }: Props) {
 
     const [editing, setEditing] = useState(false);
     const [uniqueError, setUniqueError] = useState(false);

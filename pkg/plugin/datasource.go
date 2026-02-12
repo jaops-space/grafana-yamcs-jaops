@@ -9,31 +9,52 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/multiplexer"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
-// NewApp creates a new example *App instance.
-func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+// NewDatasource creates a new Datasource instance. Each instance gets its own
+// Multiplexer so that different datasource configurations do not collide.
+func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 
 	var datasource Datasource
-	datasource.multiplexer = GlobalMultiplexer
 
-	config, secure, err := config.ExtractConfig(settings)
+	cfg, secure, err := config.ExtractConfig(settings)
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
 
+	// Create a shared HTTP client via the Grafana plugin SDK.
+	// This applies recommended timeouts, keep-alive, and middlewares.
+	httpClientOpts, err := settings.HTTPClientOptions(ctx)
+	if err != nil {
+		return nil, exception.Wrap("Error reading HTTP client options", "HTTP_CLIENT_OPTIONS_ERROR", err)
+	}
+	httpClient, err := httpclient.New(httpClientOpts)
+	if err != nil {
+		return nil, exception.Wrap("Error creating HTTP client", "HTTP_CLIENT_CREATE_ERROR", err)
+	}
+
+	// Create a per-instance multiplexer so different datasource instances
+	// do not share state or collide with each other.
+	multiplexer := source.NewMultiplexer(cfg)
+	multiplexer.Secure = secure
+	multiplexer.ConnMgr.Configuration = cfg
+	multiplexer.ConnMgr.Secure = secure
+	multiplexer.ConnMgr.HTTPClient = httpClient
+	datasource.multiplexer = multiplexer
+
 	router := mux.NewRouter()
 	datasource.registerRoutes(router)
 	datasource.CallResourceHandler = httpadapter.New(router)
-	GlobalMultiplexer.Configuration = config
-	GlobalMultiplexer.Secure = secure
-	datasource.multiplexer = GlobalMultiplexer
+
+	// Always create querier (it will use Yamcs-only for endpoints without a database)
+	datasource.querier = source.New(cfg.Endpoints)
 
 	return &datasource, nil
 
@@ -59,7 +80,7 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 	var frame *data.Frame
 	switch q.Type {
 	case Graph:
-		frame, err = DatasourceGraphFrame(endpoint, q)
+		frame, err = DatasourceGraphFrame(d.querier, endpoint, q)
 	case SingleValue, Image:
 		frame, err = DatasourceSingleValueFrame(endpoint, q)
 	case DiscreteValue:
@@ -149,10 +170,9 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	}
 }
 
-// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
-// created.
+// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance is created.
 func (d *Datasource) Dispose() {
-	GlobalMultiplexer.Dispose()
+	d.multiplexer.Dispose()
 }
 
 // CheckHealth implements backend.CheckHealthHandler.
@@ -173,8 +193,17 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
-	testMux := multiplexer.NewMultiplexer(config)
+	testMux := source.NewMultiplexer(config)
 	testMux.Secure = secure
+
+	// Use an SDK HTTP client for the health check as well
+	httpClientOpts, err := settings.HTTPClientOptions(ctx)
+	if err == nil {
+		testClient, clientErr := httpclient.New(httpClientOpts)
+		if clientErr == nil {
+			testMux.ConnMgr.HTTPClient = testClient
+		}
+	}
 
 	statusDetails := make(map[string]interface{})
 	hostStatuses := make(map[string]string)
@@ -256,17 +285,17 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return nil, err
 	}
 
-	// If any host or endpoint has errors, return error status
+	// Clean up test connections
+	testMux.Dispose()
+
 	if hasErrors {
-		testMux.Dispose()
 		return &backend.CheckHealthResult{
 			Status:      backend.HealthStatusError,
-			Message:     strings.Join(errorMessages, "\n"),
+			Message:     "Configuration has errors:\n" + strings.Join(errorMessages, "\n"),
 			JSONDetails: jsonBytes,
 		}, nil
 	}
 
-	testMux.Dispose()
 	return &backend.CheckHealthResult{
 		Status:      backend.HealthStatusOk,
 		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
