@@ -26,9 +26,12 @@ coverage.out
 .idea/
 
 # archive files
-.tar.gz
+*.tar.gz
+*.zip
+!jaops-yamcs-app.zip
 
 # development files
 dist/
-pnpm-lock.yaml
 package-lock.json
+.eslintcache
+jaops-yamcs-app.zip

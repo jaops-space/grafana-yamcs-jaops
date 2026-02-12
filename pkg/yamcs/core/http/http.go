@@ -2,13 +2,13 @@ package http
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
@@ -27,27 +27,38 @@ type HTTPManager struct {
 	RefreshStop chan struct{} // Channel to stop the refresh ticker
 }
 
-// NewHTTPManager initializes a new Yamcs HTTPManager
-func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, userAgent string, keepAlive bool, protobuf bool) (*HTTPManager, error) {
+// NewHTTPManager initializes a new Yamcs HTTPManager.
+// If an existing *http.Client is provided, it will be used directly (e.g. one
+// created via the Grafana plugin SDK). Otherwise a new SDK-based client is
+// created with recommended timeouts and middlewares.
+func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, userAgent string, keepAlive bool, protobuf bool, existingClient *http.Client) (*HTTPManager, error) {
 	address = strings.TrimSuffix(address, "/")
 
 	var url, authRoot, apiRoot string
-	var httpClient *http.Client
-	var err error
 
+	// Determine the scheme based on TLS configuration
+	scheme := "http"
 	if tlsConfig.Enabled {
-		httpClient, err = setupTLSClient(tlsConfig)
-		if err != nil {
-			return nil, err
+		scheme = "https"
+	}
+	url = fmt.Sprintf("%s://%s", scheme, address)
+	authRoot = fmt.Sprintf("%s://%s/auth", scheme, address)
+	apiRoot = fmt.Sprintf("%s://%s/api", scheme, address)
+
+	// Use the provided client or create one via the Grafana SDK
+	httpClient := existingClient
+	if httpClient == nil {
+		opts := httpclient.Options{}
+		if tlsConfig.Enabled {
+			opts.TLS = &httpclient.TLSOptions{
+				InsecureSkipVerify: !tlsConfig.Verification,
+			}
 		}
-		url = fmt.Sprintf("https://%s", address)
-		authRoot = fmt.Sprintf("https://%s/auth", address)
-		apiRoot = fmt.Sprintf("https://%s/api", address)
-	} else {
-		httpClient = &http.Client{}
-		url = fmt.Sprintf("http://%s", address)
-		authRoot = fmt.Sprintf("http://%s/auth", address)
-		apiRoot = fmt.Sprintf("http://%s/api", address)
+		var err error
+		httpClient, err = httpclient.New(opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+		}
 	}
 
 	manager := &HTTPManager{
@@ -84,12 +95,18 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 	return manager, nil
 }
 
-func setupTLSClient(tlsConfig TLS) (*http.Client, error) {
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsConfig.Verification},
-		},
-	}, nil
+// NewSDKClient creates an *http.Client via the Grafana plugin SDK with the
+// given TLS settings. This is the recommended way to obtain a client for
+// Grafana data-source plugins because it auto-applies timeouts, keep-alive,
+// and observability middlewares.
+func NewSDKClient(tlsConfig TLS) (*http.Client, error) {
+	opts := httpclient.Options{}
+	if tlsConfig.Enabled {
+		opts.TLS = &httpclient.TLSOptions{
+			InsecureSkipVerify: !tlsConfig.Verification,
+		}
+	}
+	return httpclient.New(opts)
 }
 
 // SendRequest sends an HTTP request and automatically applies credentials

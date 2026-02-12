@@ -271,9 +271,7 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
         const raw = rawField.values as any[];
 
         const parsed: CommandEntry[] = raw.filter(Boolean).reverse();
-        console.log(parsed);
         const deduped = dedupeById(parsed);
-        console.log(deduped);
         return deduped;
     }, [data]);
 

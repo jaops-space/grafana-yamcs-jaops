@@ -6,8 +6,6 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 )
 
-var GlobalMultiplexer *source.Multiplexer = source.NewMultiplexer(nil)
-
 // Make sure App implements required interfaces. This is important to do
 // since otherwise we will only get a not implemented error response from plugin in
 // runtime. Plugin should not implement all these interfaces - only those which are
