@@ -118,6 +118,17 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 			}
 		}
 
+		// Extract values for event alarms
+		if eventDetail := alarm.GetEventDetail(); eventDetail != nil {
+			// For event alarms, use the event message and severity as the "values"
+			if triggerEvent := eventDetail.GetTriggerEvent(); triggerEvent != nil {
+				alarmEntry.TriggerValue = fmt.Sprintf("%s: %s", triggerEvent.GetSeverity().String(), triggerEvent.GetMessage())
+			}
+			if currentEvent := eventDetail.GetCurrentEvent(); currentEvent != nil {
+				alarmEntry.CurrentValue = fmt.Sprintf("%s: %s", currentEvent.GetSeverity().String(), currentEvent.GetMessage())
+			}
+		}
+
 		// Shelve info
 		if shelveInfo := alarm.GetShelveInfo(); shelveInfo != nil {
 			alarmEntry.ShelvedBy = shelveInfo.GetShelvedBy()

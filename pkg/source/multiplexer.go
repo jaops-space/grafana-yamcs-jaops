@@ -1,6 +1,7 @@
 package source
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -78,6 +79,7 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		Events:         make(map[string][]*events.Event),
 		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
 		Alarms:         make(map[string][]*alarms.AlarmData),
+		AlarmCache:     make(map[string]*alarms.AlarmData),
 		ID:             endpointID,
 		Instance:       instance,
 		Processor:      processor,
@@ -136,6 +138,14 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 	return func(alarm *alarms.AlarmData) {
 		for _, dataSource := range mux.Endpoints {
 			if dataSource.Instance.GetName() == instance.GetName() {
+				// Generate unique alarm ID (namespace/name/seqNum)
+				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
+				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
+
+				// Update the cache
+				dataSource.AlarmCache[alarmID] = alarm
+
+				// Also add to update buffer for immediate streaming
 				for path := range dataSource.Alarms {
 					dataSource.Alarms[path] = append(dataSource.Alarms[path], alarm)
 				}

@@ -138,7 +138,25 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
 
         const raw = rawField.values as any[];
         const parsed: AlarmEntry[] = raw.filter(Boolean);
-        return dedupeById(parsed);
+        const result = dedupeById(parsed);
+
+        // Sort consistently by ID to maintain stable order
+        result.sort((a, b) => {
+            // First compare by trigger time (newest first)
+            const timeA = new Date(a.triggerTime).getTime();
+            const timeB = new Date(b.triggerTime).getTime();
+            if (timeA !== timeB) {
+                return timeB - timeA;
+            }
+            // Then by name
+            if (a.name !== b.name) {
+                return a.name.localeCompare(b.name);
+            }
+            // Finally by sequence number
+            return a.seqNum - b.seqNum;
+        });
+
+        return result;
     }, [data]);
 
     // Extract GlobalAlarmStatus from frame metadata
@@ -399,17 +417,20 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     // Render expanded row with details
     function renderSubComponent({ row }: { row: any }) {
         const alarm: AlarmEntry = row;
+        const isEventAlarm = alarm.type === 'EVENT';
+
         return (
             <div style={{ padding: theme.spacing(1), background: theme.colors.background.secondary }}>
                 <Stack direction="column" gap={1}>
-                    <Text><strong>Full Parameter Path:</strong> {alarm.name}</Text>
+                    <Text><strong>{isEventAlarm ? 'Event Source/Type:' : 'Full Parameter Path:'}</strong> {alarm.name}</Text>
+                    <Text><strong>Alarm Type:</strong> {alarm.type}</Text>
                     <Text><strong>Trigger Time:</strong> {formatTime(alarm.triggerTime)}</Text>
                     {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
-                    <Text><strong>Trip Value:</strong> {alarm.triggerValue || '-'}</Text>
-                    <Text><strong>Live Value:</strong> {alarm.currentValue || '-'}</Text>
+                    <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trip Value:'}</strong> {alarm.triggerValue || '-'}</Text>
+                    <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
                     <Text><strong>Violations:</strong> {alarm.violations}</Text>
-                    <Text><strong>Sample Count:</strong> {alarm.count}</Text>
-                    <Text><strong>Latching:</strong> {alarm.latching ? 'Yes' : 'No'}</Text>
+                    <Text><strong>Count:</strong> {alarm.count}</Text>
+                    {!isEventAlarm && <Text><strong>Latching:</strong> {alarm.latching ? 'Yes' : 'No'}</Text>}
                     {alarm.acknowledged && (
                         <>
                             <Text><strong>Acknowledged By:</strong> {alarm.acknowledgedBy}</Text>
@@ -506,7 +527,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                                 style={{ color: theme.colors.text.disabled }}
                             />
                             <Stack direction="column" gap={0}>
-                                <Text weight="bold" style={{ color: theme.colors.text.disabled }}>
+                                <Text weight="bold" color="secondary">
                                     {displayStatus.shelvedCount}
                                 </Text>
                                 <Text variant="bodySmall" color="secondary">
@@ -544,7 +565,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     <Text color="secondary">No alarms to display</Text>
                 </Stack>
             ) : (
-                <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
+                <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
                     {options.pagination ? (
                         <InteractiveTable
                             key="with-pagination"
