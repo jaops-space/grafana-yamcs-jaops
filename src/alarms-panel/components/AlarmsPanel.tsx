@@ -183,7 +183,9 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
 
         const severityOrder = ['WATCH', 'WARNING', 'DISTRESS', 'CRITICAL', 'SEVERE'];
         const getHighestSeverity = (alarms: AlarmEntry[]) => {
-            if (!alarms.length) return null;
+            if (!alarms.length) {
+                return null;
+            }
             let highest = alarms[0].severity;
             for (const alarm of alarms) {
                 if (severityOrder.indexOf(alarm.severity) > severityOrder.indexOf(highest)) {
