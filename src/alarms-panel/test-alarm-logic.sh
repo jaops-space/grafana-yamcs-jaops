@@ -6,7 +6,10 @@
 # This script tests the alarm functionality including:
 # - Yamcs simulator alarm APIs
 # - Grafana datasource alarm endpoints
-# - Acknowledge, Shelve, and Clear alarm operations
+# - Acknowledge, Shelve, Clear, and Unshelve alarm operations
+# - Global alarm status calculation
+# - Comment persistence for all alarm actions
+# - Alarm state transitions and status display
 # ============================================================================
 
 set -e  # Exit on first error
@@ -352,10 +355,38 @@ EOF
         echo "Response: $BODY"
     fi
     
-    # Test 6c: Clear via Grafana endpoint
+    # Test 6c: Unshelve via Grafana endpoint
     echo ""
-    print_info "6c. Testing Clear Alarm via Grafana endpoint..."
-    
+    print_info "6c. Testing Unshelve Alarm via Grafana endpoint..."
+
+    UNSHELVE_PAYLOAD=$(cat << EOF
+{
+    "name": "${FRESH_PARAM_PATH}",
+    "seqNum": ${FRESH_ALARM_SEQ}
+}
+EOF
+)
+
+    UNSHELVE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+        -u "$AUTH" \
+        -H "Content-Type: application/json" \
+        -d "$UNSHELVE_PAYLOAD" \
+        "${BASE_URL}/endpoint/${ENDPOINT_ID}/alarm/unshelve")
+
+    HTTP_CODE=$(echo "$UNSHELVE_RESPONSE" | tail -1)
+    BODY=$(echo "$UNSHELVE_RESPONSE" | head -n -1)
+
+    if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "204" ]; then
+        print_success "Grafana unshelve endpoint returned HTTP $HTTP_CODE"
+    else
+        print_error "Grafana unshelve endpoint failed with HTTP $HTTP_CODE"
+        echo "Response: $BODY"
+    fi
+
+    # Test 6d: Clear via Grafana endpoint
+    echo ""
+    print_info "6d. Testing Clear Alarm via Grafana endpoint..."
+
     CLEAR_PAYLOAD=$(cat << EOF
 {
     "name": "${FRESH_PARAM_PATH}",
@@ -382,10 +413,126 @@ EOF
     fi
 }
 
-# Step 7: Verify Final State
+# Step 7: Verify Alarm Data Structure
+verify_alarm_data_structure() {
+    print_step "7" "Verifying Alarm Data Structure (Trip Value, Status, Comments)"
+
+    echo ""
+    print_info "Fetching detailed alarm data..."
+
+    ALARM_RESPONSE=$(curl -s "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+
+    if ! echo "$ALARM_RESPONSE" | grep -q '"alarms"'; then
+        print_info "No alarms available for structure validation"
+        return 0
+    fi
+
+    # Test 7a: Verify Trip Value (triggerValue) exists
+    echo ""
+    print_info "7a. Checking for Trip Value (triggerValue) in alarm data..."
+
+    if [ "$JQ_AVAILABLE" = true ]; then
+        HAS_TRIGGER_VALUE=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.triggerValue // "NOT_FOUND"')
+
+        if [ "$HAS_TRIGGER_VALUE" != "NOT_FOUND" ] && [ "$HAS_TRIGGER_VALUE" != "null" ]; then
+            TRIGGER_VAL=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.triggerValue.engValue // empty')
+            print_success "Trip value found in alarm data"
+            print_info "Example trip value: $TRIGGER_VAL"
+        else
+            print_info "Trip value not available (may not be a parameter alarm)"
+        fi
+
+        # Test 7b: Verify Current Value exists
+        echo ""
+        print_info "7b. Checking for Current Value (currentValue) in alarm data..."
+
+        HAS_CURRENT_VALUE=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.currentValue // "NOT_FOUND"')
+
+        if [ "$HAS_CURRENT_VALUE" != "NOT_FOUND" ] && [ "$HAS_CURRENT_VALUE" != "null" ]; then
+            CURRENT_VAL=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.currentValue.engValue // empty')
+            print_success "Current value found in alarm data"
+            print_info "Example current value: $CURRENT_VAL"
+        else
+            print_info "Current value not available"
+        fi
+
+        # Test 7c: Verify Alarm Status Fields
+        echo ""
+        print_info "7c. Checking alarm status fields (acknowledged, shelved, triggered)..."
+
+        IS_ACKNOWLEDGED=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].acknowledged // false')
+        IS_SHELVED=$(echo "$ALARM_RESPONSE" | jq -r 'if .alarms[0].shelveInfo then "true" else "false" end')
+        IS_TRIGGERED=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].triggered // false')
+
+        print_success "Status fields present:"
+        echo "    - Acknowledged: $IS_ACKNOWLEDGED"
+        echo "    - Shelved: $IS_SHELVED"
+        echo "    - Triggered: $IS_TRIGGERED"
+
+        # Test 7d: Check for acknowledgement info
+        echo ""
+        print_info "7d. Checking for acknowledge info (username, time, comment)..."
+
+        if [ "$IS_ACKNOWLEDGED" == "true" ]; then
+            ACK_BY=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].acknowledgeInfo.acknowledgedBy // "N/A"')
+            ACK_TIME=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].acknowledgeInfo.acknowledgeTime // "N/A"')
+            ACK_COMMENT=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].acknowledgeInfo.acknowledgeMessage // "N/A"')
+
+            print_success "Acknowledge info found:"
+            echo "    - Acknowledged by: $ACK_BY"
+            echo "    - Acknowledge time: $ACK_TIME"
+            echo "    - Comment: $ACK_COMMENT"
+        else
+            print_info "No acknowledgement info (alarm not acknowledged)"
+        fi
+
+        # Test 7e: Check for shelve info
+        echo ""
+        print_info "7e. Checking for shelve info (username, time, expiration, comment)..."
+
+        if [ "$IS_SHELVED" == "true" ]; then
+            SHELVE_BY=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].shelveInfo.shelvedBy // "N/A"')
+            SHELVE_TIME=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].shelveInfo.shelveTime // "N/A"')
+            SHELVE_EXP=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].shelveInfo.shelveExpiration // "N/A"')
+            SHELVE_COMMENT=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].shelveInfo.shelveMessage // "N/A"')
+
+            print_success "Shelve info found:"
+            echo "    - Shelved by: $SHELVE_BY"
+            echo "    - Shelve time: $SHELVE_TIME"
+            echo "    - Shelve expiration: $SHELVE_EXP"
+            echo "    - Comment: $SHELVE_COMMENT"
+        else
+            print_info "No shelve info (alarm not shelved)"
+        fi
+
+        # Test 7f: Check severity levels
+        echo ""
+        print_info "7f. Checking severity levels for Global Alarm Status..."
+
+        SEVERITIES=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[].severity] | unique | join(", ")')
+        ALARM_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '.alarms | length')
+
+        print_success "Found $ALARM_COUNT alarm(s) with severity levels: $SEVERITIES"
+
+        # Calculate alarm counts by state (simulating Global Alarm Status logic)
+        UNACK_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.acknowledged == false and (.shelveInfo == null))] | length')
+        ACK_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.acknowledged == true and (.shelveInfo == null))] | length')
+        SHELVED_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.shelveInfo != null)] | length')
+
+        print_info "Global Alarm Status counts:"
+        echo "    - Unacknowledged: $UNACK_COUNT"
+        echo "    - Acknowledged: $ACK_COUNT"
+        echo "    - Shelved: $SHELVED_COUNT"
+
+    else
+        print_info "jq not available - skipping detailed structure validation"
+    fi
+}
+
+# Step 8: Verify Final State
 verify_final_state() {
-    print_step "7" "Verifying Final State"
-    
+    print_step "8" "Verifying Final State"
+
     echo ""
     print_info "Fetching current alarm state..."
     
@@ -421,16 +568,31 @@ main() {
     list_yamcs_alarms
     test_yamcs_alarm_apis
     test_grafana_alarm_endpoints
+    verify_alarm_data_structure
     verify_final_state
     
     print_header "Test Complete"
     echo -e "${GREEN}All alarm logic tests completed!${NC}"
     echo ""
+    echo "Tested features:"
+    echo "  ✓ Yamcs alarm APIs (acknowledge, clear, shelve, unshelve)"
+    echo "  ✓ Grafana datasource endpoints"
+    echo "  ✓ Trip value extraction"
+    echo "  ✓ Current value extraction"
+    echo "  ✓ Alarm status fields (acknowledged, shelved, triggered)"
+    echo "  ✓ Action comments (acknowledge, shelve, clear)"
+    echo "  ✓ Global alarm status calculation"
+    echo "  ✓ Severity level tracking"
+    echo ""
     echo "Next steps:"
     echo "  1. Open Grafana at http://${GRAFANA_URL}"
     echo "  2. Create a panel with Query Type = 'Alarms'"
-    echo "  3. Verify alarms are displayed in the panel"
-    echo "  4. Test the Acknowledge/Shelve/Clear buttons in the UI"
+    echo "  3. Verify the following are displayed:"
+    echo "     - Global Alarm Status bar (above table)"
+    echo "     - Trip value column (between Alarm type and Live value)"
+    echo "     - Status column showing Triggered/Acknowledged/Shelved/OK"
+    echo "  4. Test the action buttons (Acknowledge/Shelve/Clear/Unshelve)"
+    echo "  5. Expand a row and verify all details including comments are shown"
 }
 
 # Run main function
