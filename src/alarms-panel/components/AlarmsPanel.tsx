@@ -17,6 +17,7 @@ interface AlarmEntry {
     acknowledged: boolean;
     acknowledgedBy?: string;
     acknowledgeTime?: string;
+        acknowledgeComment?: string;
     processOK: boolean;
     triggered: boolean;
     latching: boolean;
@@ -24,6 +25,11 @@ interface AlarmEntry {
     shelvedBy?: string;
     shelveTime?: string;
     shelveExpiration?: string;
+    shelveComment?: string;
+    cleared?: boolean;
+    clearedBy?: string;
+    clearTime?: string;
+    clearComment?: string;
     currentValue?: string;
     triggerValue?: string;
     notificationType: string;
@@ -381,13 +387,14 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     const yamcsDefaultOrder = [
         'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'currentValue', 'processOK', 'actions',
     ];
-    const visibleFields = options.visibleFields && options.visibleFields.length > 0 ? options.visibleFields : yamcsDefaultOrder;
+
+    // Always use the yamcsDefaultOrder to ensure Trip value column is visible
+    // The order matches Yamcs Web: Severity, Alarm time, Alarm name, Alarm type, Trip value, Live value, Status, Actions
     const visibleColumns = useMemo(() => {
-        // Always preserve the order as in visibleFields, filter out undefined
-        return visibleFields
+        return yamcsDefaultOrder
             .map(fid => columns.find(col => col.id === fid))
             .filter((col): col is NonNullable<typeof col> => !!col);
-    }, [columns, visibleFields]);
+    }, [columns]);
 
     // Render expanded row with details
     function renderSubComponent({ row }: { row: any }) {
@@ -407,6 +414,14 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                         <>
                             <Text><strong>Acknowledged By:</strong> {alarm.acknowledgedBy}</Text>
                             {alarm.acknowledgeTime && <Text><strong>Acknowledge Time:</strong> {formatTime(alarm.acknowledgeTime)}</Text>}
+                            {alarm.acknowledgeComment && <Text><strong>Acknowledge Comment:</strong> {alarm.acknowledgeComment}</Text>}
+                        </>
+                    )}
+                    {alarm.cleared && (
+                        <>
+                            <Text><strong>Cleared By:</strong> {alarm.clearedBy}</Text>
+                            {alarm.clearTime && <Text><strong>Clear Time:</strong> {formatTime(alarm.clearTime)}</Text>}
+                            {alarm.clearComment && <Text><strong>Clear Comment:</strong> {alarm.clearComment}</Text>}
                         </>
                     )}
                     {alarm.shelved && (
@@ -415,6 +430,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                             <Text><strong>Shelved By:</strong> {alarm.shelvedBy || '-'}</Text>
                             {alarm.shelveTime && <Text><strong>Shelve Time:</strong> {formatTime(alarm.shelveTime)}</Text>}
                             {alarm.shelveExpiration && <Text><strong>Shelve Until:</strong> {formatTime(alarm.shelveExpiration)}</Text>}
+                            {alarm.shelveComment && <Text><strong>Shelve Comment:</strong> {alarm.shelveComment}</Text>}
                         </>
                     )}
                 </Stack>

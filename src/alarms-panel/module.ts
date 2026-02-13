@@ -24,13 +24,25 @@ const allFields = [
   'actions',       // Actions
 ];
 
+// Default visible columns for new panels (matching Yamcs Web)
+const defaultVisibleFields = [
+  'severity',      // Severity
+  'triggerTime',   // Alarm time
+  'name',          // Alarm name
+  'type',          // Alarm type
+  'triggerValue',  // Trip value
+  'currentValue',  // Live value
+  'processOK',     // Status
+  'actions',       // Actions
+];
+
 export const plugin = new PanelPlugin<AlarmsOptions>(AlarmsPanel).setPanelOptions(builder => {
   return builder
     .addMultiSelect({
       path: 'visibleFields',
       name: 'Visible Columns',
       description: 'Select which fields to display in the table',
-      defaultValue: allFields,
+      defaultValue: defaultVisibleFields,
       settings: {
         options: allFields.map(field => ({
           value: field as any,

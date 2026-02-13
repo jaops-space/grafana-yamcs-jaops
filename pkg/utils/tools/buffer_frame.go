@@ -57,6 +57,10 @@ type AlarmEntry struct {
 	ShelveTime         string `json:"shelveTime,omitempty"`
 	ShelveExpiration   string `json:"shelveExpiration,omitempty"`
 	ShelveComment      string `json:"shelveComment,omitempty"`
+	Cleared            bool   `json:"cleared,omitempty"`
+	ClearedBy          string `json:"clearedBy,omitempty"`
+	ClearTime          string `json:"clearTime,omitempty"`
+	ClearComment       string `json:"clearComment,omitempty"`
 	CurrentValue       string `json:"currentValue,omitempty"`
 	TriggerValue       string `json:"triggerValue,omitempty"`
 	NotificationType   string `json:"notificationType"`
@@ -124,6 +128,16 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 				alarmEntry.ShelveExpiration = shelveInfo.GetShelveExpiration().AsTime().Format(time.RFC3339)
 			}
 			alarmEntry.ShelveComment = shelveInfo.GetShelveMessage()
+		}
+
+		// Clear info
+		if clearInfo := alarm.GetClearInfo(); clearInfo != nil {
+			alarmEntry.Cleared = true
+			alarmEntry.ClearedBy = clearInfo.GetClearedBy()
+			if clearInfo.GetClearTime() != nil {
+				alarmEntry.ClearTime = clearInfo.GetClearTime().AsTime().Format(time.RFC3339)
+			}
+			alarmEntry.ClearComment = clearInfo.GetClearMessage()
 		}
 
 		rawJson, err := json.Marshal(alarmEntry)
