@@ -123,6 +123,7 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/alarm/acknowledge", d.handleAcknowledgeAlarm)
 	mux.HandleFunc("/endpoint/{endpointID}/alarm/clear", d.handleClearAlarm)
 	mux.HandleFunc("/endpoint/{endpointID}/alarm/shelve", d.handleShelveAlarm)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/unshelve", d.handleUnshelveAlarm)
 }
 
 type CommandIssueBody struct {
@@ -272,3 +273,36 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "shelved"})
 }
+
+func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	body := &AlarmActionBody{}
+	err := json.NewDecoder(req.Body).Decode(&body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	client := endpoint.GetClient()
+	err = client.UnshelveAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "unshelved"})
+}
+

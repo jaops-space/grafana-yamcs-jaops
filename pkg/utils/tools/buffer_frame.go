@@ -36,25 +36,31 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 
 // AlarmEntry represents a processed alarm for the frontend
 type AlarmEntry struct {
-	Id               string `json:"id"`
-	Name             string `json:"name"`
-	TriggerTime      string `json:"triggerTime"`
-	UpdateTime       string `json:"updateTime,omitempty"`
-	Severity         string `json:"severity"`
-	Type             string `json:"type"`
-	Violations       uint32 `json:"violations"`
-	Count            uint32 `json:"count"`
-	Acknowledged     bool   `json:"acknowledged"`
-	AcknowledgedBy   string `json:"acknowledgedBy,omitempty"`
-	AcknowledgeTime  string `json:"acknowledgeTime,omitempty"`
-	ProcessOK        bool   `json:"processOK"`
-	Triggered        bool   `json:"triggered"`
-	Latching         bool   `json:"latching"`
-	Shelved          bool   `json:"shelved"`
-	CurrentValue     string `json:"currentValue,omitempty"`
-	TriggerValue     string `json:"triggerValue,omitempty"`
-	NotificationType string `json:"notificationType"`
-	SeqNum           uint32 `json:"seqNum"`
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	TriggerTime        string `json:"triggerTime"`
+	UpdateTime         string `json:"updateTime,omitempty"`
+	Severity           string `json:"severity"`
+	Type               string `json:"type"`
+	Violations         uint32 `json:"violations"`
+	Count              uint32 `json:"count"`
+	State              string `json:"state"`
+	Acknowledged       bool   `json:"acknowledged"`
+	AcknowledgedBy     string `json:"acknowledgedBy,omitempty"`
+	AcknowledgeTime    string `json:"acknowledgeTime,omitempty"`
+	AcknowledgeComment string `json:"acknowledgeComment,omitempty"`
+	ProcessOK          bool   `json:"processOK"`
+	Triggered          bool   `json:"triggered"`
+	Latching           bool   `json:"latching"`
+	Shelved            bool   `json:"shelved"`
+	ShelvedBy          string `json:"shelvedBy,omitempty"`
+	ShelveTime         string `json:"shelveTime,omitempty"`
+	ShelveExpiration   string `json:"shelveExpiration,omitempty"`
+	ShelveComment      string `json:"shelveComment,omitempty"`
+	CurrentValue       string `json:"currentValue,omitempty"`
+	TriggerValue       string `json:"triggerValue,omitempty"`
+	NotificationType   string `json:"notificationType"`
+	SeqNum             uint32 `json:"seqNum"`
 }
 
 // ConvertAlarmListToFrame converts a list of Yamcs alarms into a Grafana data frame.
@@ -76,6 +82,7 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 			Type:             alarm.GetType().String(),
 			Violations:       alarm.GetViolations(),
 			Count:            alarm.GetCount(),
+			State:            deriveAlarmState(alarm),
 			Acknowledged:     alarm.GetAcknowledged(),
 			ProcessOK:        alarm.GetProcessOK(),
 			Triggered:        alarm.GetTriggered(),
@@ -94,6 +101,7 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 			if ackInfo.GetAcknowledgeTime() != nil {
 				alarmEntry.AcknowledgeTime = ackInfo.GetAcknowledgeTime().AsTime().Format(time.RFC3339)
 			}
+			alarmEntry.AcknowledgeComment = ackInfo.GetAcknowledgeMessage()
 		}
 
 		// Extract values for parameter alarms
@@ -106,6 +114,18 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 			}
 		}
 
+		// Shelve info
+		if shelveInfo := alarm.GetShelveInfo(); shelveInfo != nil {
+			alarmEntry.ShelvedBy = shelveInfo.GetShelvedBy()
+			if shelveInfo.GetShelveTime() != nil {
+				alarmEntry.ShelveTime = shelveInfo.GetShelveTime().AsTime().Format(time.RFC3339)
+			}
+			if shelveInfo.GetShelveExpiration() != nil {
+				alarmEntry.ShelveExpiration = shelveInfo.GetShelveExpiration().AsTime().Format(time.RFC3339)
+			}
+			alarmEntry.ShelveComment = shelveInfo.GetShelveMessage()
+		}
+
 		rawJson, err := json.Marshal(alarmEntry)
 		if err != nil {
 			continue
@@ -114,6 +134,20 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 	}
 
 	return data.NewFrame("response", data.NewField("alarms", nil, alarmEntries))
+}
+
+// deriveAlarmState returns a string state for the alarm, matching Yamcs web vocabulary.
+func deriveAlarmState(alarm *alarms.AlarmData) string {
+	if alarm.GetShelveInfo() != nil {
+		return "Shelved"
+	}
+	if alarm.GetAcknowledged() {
+		return "Acknowledged"
+	}
+	if alarm.GetSeverity().String() != "" {
+		return "Active"
+	}
+	return "Unknown"
 }
 
 type CommandAck struct {

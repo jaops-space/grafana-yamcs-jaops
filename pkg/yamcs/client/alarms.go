@@ -75,6 +75,12 @@ func (c *YamcsClient) ShelveAlarm(instance Instance, processor Processor, alarmN
 	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
 }
 
+// UnshelveAlarm unshelves an alarm.
+func (c *YamcsClient) UnshelveAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32) error {
+	// Yamcs uses the :unshelve action endpoint (similar to :acknowledge, :shelve, :clear)
+	return c.HTTP.PostProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d:unshelve", instance.GetName(), processor.GetName(), alarmName, seqNum), nil, nil)
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
@@ -242,3 +248,9 @@ func (c *YamcsClient) HandleGlobalStatusMessage(msg *api.ServerMessage) {
 func (sub *GlobalStatusSubscription) SetListener(listener GlobalStatusListener) {
 	sub.listener = listener
 }
+
+// GetInstance returns the instance name for this global alarm status subscription.
+func (sub *GlobalStatusSubscription) GetInstance() string {
+	return sub.instance
+}
+

@@ -325,11 +325,31 @@ func RunAlarmsStream(
 			}
 
 			buffer := endpoint.GetAlarmsStream(req.Path)
-			if len(buffer) == 0 {
-				continue
+
+			// Always create a frame, even if buffer is empty (to send GlobalAlarmStatus)
+			frame := tools.ConvertAlarmListToFrame(buffer)
+
+			// Add GlobalAlarmStatus to frame metadata
+			if endpoint.GlobalAlarmStatus != nil {
+				globalStatus := map[string]interface{}{
+					"unacknowledgedCount":    endpoint.GlobalAlarmStatus.GetUnacknowledgedCount(),
+					"unacknowledgedActive":   endpoint.GlobalAlarmStatus.GetUnacknowledgedActive(),
+					"unacknowledgedSeverity": endpoint.GlobalAlarmStatus.GetUnacknowledgedSeverity().String(),
+					"acknowledgedCount":      endpoint.GlobalAlarmStatus.GetAcknowledgedCount(),
+					"acknowledgedActive":     endpoint.GlobalAlarmStatus.GetAcknowledgedActive(),
+					"acknowledgedSeverity":   endpoint.GlobalAlarmStatus.GetAcknowledgedSeverity().String(),
+					"shelvedCount":           endpoint.GlobalAlarmStatus.GetShelvedCount(),
+					"shelvedActive":          endpoint.GlobalAlarmStatus.GetShelvedActive(),
+					"shelvedSeverity":        endpoint.GlobalAlarmStatus.GetShelvedSeverity().String(),
+				}
+
+				frame.Meta = &data.FrameMeta{
+					Custom: map[string]interface{}{
+						"globalAlarmStatus": globalStatus,
+					},
+				}
 			}
 
-			frame := tools.ConvertAlarmListToFrame(buffer)
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,

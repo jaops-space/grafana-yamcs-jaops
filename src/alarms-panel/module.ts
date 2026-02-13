@@ -8,15 +8,20 @@ export interface AlarmsOptions {
   pageSize: number;
 }
 
+
+// Default columns to match Yamcs Web order
 const allFields = [
-  'triggerTime',
-  'name',
-  'severity',
-  'type',
-  'currentValue',
-  'acknowledged',
-  'processOK',
-  'actions',
+  'state',         // State
+  'severity',      // Severity
+  'triggerTime',   // Alarm time
+  'name',          // Alarm name (Parameter)
+  'type',          // Alarm type
+  'triggerValue',  // Trip value
+  'currentValue',  // Live value
+  'violations',    // Violations
+  'acknowledged',  // Ack
+  'processOK',     // Status
+  'actions',       // Actions
 ];
 
 export const plugin = new PanelPlugin<AlarmsOptions>(AlarmsPanel).setPanelOptions(builder => {

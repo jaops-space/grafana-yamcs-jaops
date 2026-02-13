@@ -25,6 +25,7 @@ type YamcsEndpoint struct {
 	Events         map[string][]*events.Event
 	CommandHistory map[string][]*commanding.CommandHistoryEntry
 	Alarms         map[string][]*alarms.AlarmData
+	GlobalAlarmStatus *alarms.GlobalAlarmStatus
 
 	CurrentTime time.Time
 }
@@ -318,6 +319,7 @@ Alarms
 
 func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
 	ep.GetAlarmsSubscription()
+	ep.GetGlobalAlarmStatusSubscription()
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 }
 
@@ -333,6 +335,23 @@ func (ep *YamcsEndpoint) GetAlarmsSubscription() (*client.AlarmSubscription, err
 		return nil, err
 	}
 	subscription.SetListener(ep.Multiplexer.GetAlarmsListener(ep.Instance))
+	return subscription, nil
+}
+
+func (ep *YamcsEndpoint) GetGlobalAlarmStatusSubscription() (*client.GlobalStatusSubscription, error) {
+	c := ep.GetClient()
+	for _, subscription := range c.GlobalAlarmStatusSubscriptions {
+		if subscription.GetInstance() == ep.Instance.GetName() {
+			return subscription, nil
+		}
+	}
+	subscription, err := c.CreateGlobalAlarmStatusSubscription(ep.Instance, ep.Processor)
+	if err != nil {
+		return nil, err
+	}
+	subscription.SetListener(func(status *alarms.GlobalAlarmStatus) {
+		ep.GlobalAlarmStatus = status
+	})
 	return subscription, nil
 }
 
