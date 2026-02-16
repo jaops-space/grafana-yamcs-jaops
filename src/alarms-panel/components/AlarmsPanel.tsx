@@ -578,9 +578,9 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             </div>
 
             {!deduped.length ? (
-                <Stack alignItems="center" justifyContent="center" style={{ flex: 1 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Text color="secondary">No alarms to display</Text>
-                </Stack>
+                </div>
             ) : (
                 <div style={{
                     flex: 1,
