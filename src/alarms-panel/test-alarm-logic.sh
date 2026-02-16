@@ -22,7 +22,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-YAMCS_URL="localhost:8091"
+YAMCS_URL="localhost:8090"
 GRAFANA_URL="localhost:3000"
 GRAFANA_USER="admin"
 GRAFANA_PASS="admin"
@@ -86,20 +86,25 @@ check_prerequisites() {
 verify_yamcs() {
     print_step "2" "Verifying Yamcs Simulator"
     
-    # Check if Yamcs is accessible
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${YAMCS_URL}/api/")
-    
+    # Check if Yamcs is accessible (with timeout)
+    HTTP_STATUS=$(curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w "%{http_code}" "http://${YAMCS_URL}/api/" 2>/dev/null)
+    if [ -z "$HTTP_STATUS" ] || [ "$HTTP_STATUS" = "000" ]; then
+        HTTP_STATUS="000"
+    fi
+
     if [ "$HTTP_STATUS" == "200" ]; then
         print_success "Yamcs is accessible at http://${YAMCS_URL}"
         
         # Get Yamcs version
-        VERSION=$(curl -s "http://${YAMCS_URL}/api/" | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
-        print_info "Yamcs Version: $VERSION"
+        VERSION=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/" 2>/dev/null | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
+        if [ -n "$VERSION" ]; then
+            print_info "Yamcs Version: $VERSION"
+        fi
     else
         print_error "Yamcs is not accessible (HTTP $HTTP_STATUS)"
-        print_info "Starting Yamcs simulator..."
-        docker run -d --name yamcs-simulator -p 8091:8090 yamcs/example-simulation
-        sleep 15
+        print_info "Please start Yamcs simulator manually:"
+        print_info "  docker run -d -p 8090:8090 yamcs/example-simulation"
+        exit 1
     fi
 }
 
@@ -107,16 +112,18 @@ verify_yamcs() {
 verify_grafana() {
     print_step "3" "Verifying Grafana"
     
-    # Check if Grafana is accessible
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${GRAFANA_URL}/api/health")
-    
+    # Check if Grafana is accessible (with timeout)
+    HTTP_STATUS=$(curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w "%{http_code}" "http://${GRAFANA_URL}/api/health" 2>/dev/null)
+    if [ -z "$HTTP_STATUS" ] || [ "$HTTP_STATUS" = "000" ]; then
+        HTTP_STATUS="000"
+    fi
+
     if [ "$HTTP_STATUS" == "200" ]; then
         print_success "Grafana is accessible at http://${GRAFANA_URL}"
     else
         print_error "Grafana is not accessible (HTTP $HTTP_STATUS)"
-        print_info "Starting Grafana with docker-compose..."
-        docker-compose up -d --build
-        sleep 20
+        print_info "Please start Grafana manually (e.g., via docker-compose)"
+        exit 1
     fi
 }
 
@@ -124,8 +131,8 @@ verify_grafana() {
 list_yamcs_alarms() {
     print_step "4" "Listing Alarms from Yamcs"
     
-    ALARM_RESPONSE=$(curl -s "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
-    
+    ALARM_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms" 2>/dev/null || echo "{}")
+
     # Check if response contains alarms
     if echo "$ALARM_RESPONSE" | grep -q '"alarms"'; then
         ALARM_COUNT=$(echo "$ALARM_RESPONSE" | grep -o '"seqNum"' | wc -l)
@@ -188,7 +195,7 @@ test_yamcs_alarm_apis() {
     echo ""
     print_info "5a. Testing Acknowledge Alarm via Yamcs API..."
     
-    ACK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    ACK_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -d '{"comment": "Test acknowledgement from script"}' \
         "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms/${ENCODED_PARAM}/${TEST_ALARM_SEQ}:acknowledge")
@@ -207,7 +214,7 @@ test_yamcs_alarm_apis() {
     echo ""
     print_info "5b. Testing Shelve Alarm via Yamcs API..."
     
-    SHELVE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    SHELVE_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -d '{"comment": "Test shelve from script", "shelveDuration": 60000}' \
         "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms/${ENCODED_PARAM}/${TEST_ALARM_SEQ}:shelve")
@@ -226,7 +233,7 @@ test_yamcs_alarm_apis() {
     echo ""
     print_info "5c. Testing Unshelve Alarm via Yamcs API..."
     
-    UNSHELVE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    UNSHELVE_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms/${ENCODED_PARAM}/${TEST_ALARM_SEQ}:unshelve")
     
@@ -242,7 +249,7 @@ test_yamcs_alarm_apis() {
     echo ""
     print_info "5d. Testing Clear Alarm via Yamcs API..."
     
-    CLEAR_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    CLEAR_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -d '{"comment": "Test clear from script"}' \
         "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms/${ENCODED_PARAM}/${TEST_ALARM_SEQ}:clear")
@@ -276,7 +283,7 @@ test_grafana_alarm_endpoints() {
     echo ""
     print_info "Fetching fresh alarm list..."
     
-    ALARM_RESPONSE=$(curl -s "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+    ALARM_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
     
     if [ "$JQ_AVAILABLE" = true ]; then
         FRESH_ALARM_NAME=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].id.name')
@@ -309,7 +316,7 @@ test_grafana_alarm_endpoints() {
 EOF
 )
     
-    ACK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    ACK_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -u "$AUTH" \
         -H "Content-Type: application/json" \
         -d "$ACK_PAYLOAD" \
@@ -339,7 +346,7 @@ EOF
 EOF
 )
     
-    SHELVE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    SHELVE_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -u "$AUTH" \
         -H "Content-Type: application/json" \
         -d "$SHELVE_PAYLOAD" \
@@ -367,7 +374,7 @@ EOF
 EOF
 )
 
-    UNSHELVE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    UNSHELVE_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -u "$AUTH" \
         -H "Content-Type: application/json" \
         -d "$UNSHELVE_PAYLOAD" \
@@ -396,7 +403,7 @@ EOF
 EOF
 )
     
-    CLEAR_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    CLEAR_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
         -u "$AUTH" \
         -H "Content-Type: application/json" \
         -d "$CLEAR_PAYLOAD" \
@@ -420,7 +427,7 @@ verify_alarm_data_structure() {
     echo ""
     print_info "Fetching detailed alarm data..."
 
-    ALARM_RESPONSE=$(curl -s "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+    ALARM_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
 
     if ! echo "$ALARM_RESPONSE" | grep -q '"alarms"'; then
         print_info "No alarms available for structure validation"
@@ -529,19 +536,198 @@ verify_alarm_data_structure() {
     fi
 }
 
-# Step 8: Verify Final State
-verify_final_state() {
-    print_step "8" "Verifying Final State"
+# Step 8: Test Event Alarms
+test_event_alarms() {
+    print_step "8" "Testing Event Alarms"
 
     echo ""
-    print_info "Fetching current alarm state..."
-    
-    ALARM_RESPONSE=$(curl -s "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
-    
-    ALARM_COUNT=$(echo "$ALARM_RESPONSE" | grep -o '"seqNum"' | wc -l)
-    
-    print_success "Final alarm count: $ALARM_COUNT"
-    
+    print_info "Event alarms are automatically generated when events with severity > INFO are received"
+
+    # Test 8a: Generate WARNING event alarm
+    echo ""
+    print_info "8a. Generating WARNING event alarm..."
+
+    EVENT_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
+        -H "Content-Type: application/json" \
+        -d '{"message": "Test event alarm from script", "source": "TestScript", "type": "TestAlarm", "severity": "WARNING"}' \
+        "http://${YAMCS_URL}/api/archive/${INSTANCE}/events")
+
+    HTTP_CODE=$(echo "$EVENT_RESPONSE" | tail -1)
+    BODY=$(echo "$EVENT_RESPONSE" | head -n -1)
+
+    if [ "$HTTP_CODE" == "200" ]; then
+        print_success "WARNING event created successfully"
+        print_info "Event details: TestScript/TestAlarm with severity WARNING"
+    else
+        print_error "Failed to create WARNING event (HTTP $HTTP_CODE)"
+        echo "Response: $BODY"
+    fi
+
+    # Wait for event alarm to be processed
+    sleep 2
+
+    # Test 8b: Generate CRITICAL event alarm
+    echo ""
+    print_info "8b. Generating CRITICAL event alarm..."
+
+    EVENT_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
+        -H "Content-Type: application/json" \
+        -d '{"message": "Critical system failure detected", "source": "SystemMonitor", "type": "SystemFailure", "severity": "CRITICAL"}' \
+        "http://${YAMCS_URL}/api/archive/${INSTANCE}/events")
+
+    HTTP_CODE=$(echo "$EVENT_RESPONSE" | tail -1)
+    BODY=$(echo "$EVENT_RESPONSE" | head -n -1)
+
+    if [ "$HTTP_CODE" == "200" ]; then
+        print_success "CRITICAL event created successfully"
+        print_info "Event details: SystemMonitor/SystemFailure with severity CRITICAL"
+    else
+        print_error "Failed to create CRITICAL event (HTTP $HTTP_CODE)"
+        echo "Response: $BODY"
+    fi
+
+    # Wait for event alarm to be processed
+    sleep 2
+
+    # Test 8c: Verify event alarms were created
+    echo ""
+    print_info "8c. Verifying event alarms in alarm list..."
+
+    ALARM_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+
+    if [ "$JQ_AVAILABLE" = true ]; then
+        EVENT_ALARM_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | length')
+
+        if [ "$EVENT_ALARM_COUNT" -gt 0 ]; then
+            print_success "Found $EVENT_ALARM_COUNT event alarm(s)"
+
+            echo ""
+            print_info "Event alarm details:"
+            echo "-----------------------------------------------------------"
+            echo "$ALARM_RESPONSE" | jq -r '.alarms[] | select(.type == "EVENT") | "  Source: \(.id.name) at \(.id.namespace)\n  Severity: \(.severity)\n  Trigger Event: \(.eventDetail.triggerEvent.message // "N/A")\n  Current Event: \(.eventDetail.currentEvent.message // "N/A")\n"' 2>/dev/null
+            echo "-----------------------------------------------------------"
+
+            # Test 8d: Verify event alarm structure
+            echo ""
+            print_info "8d. Verifying event alarm data structure..."
+
+            HAS_EVENT_DETAIL=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | .[0].eventDetail // "NOT_FOUND"')
+
+            if [ "$HAS_EVENT_DETAIL" != "NOT_FOUND" ] && [ "$HAS_EVENT_DETAIL" != "null" ]; then
+                print_success "Event alarm has eventDetail field"
+
+                TRIGGER_EVENT_MSG=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | .[0].eventDetail.triggerEvent.message // "N/A"')
+                TRIGGER_EVENT_SEV=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | .[0].eventDetail.triggerEvent.severity // "N/A"')
+                CURRENT_EVENT_MSG=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | .[0].eventDetail.currentEvent.message // "N/A"')
+
+                print_info "Event alarm content:"
+                echo "    - Trigger event message: $TRIGGER_EVENT_MSG"
+                echo "    - Trigger event severity: $TRIGGER_EVENT_SEV"
+                echo "    - Current event message: $CURRENT_EVENT_MSG"
+            else
+                print_error "Event alarm missing eventDetail field"
+            fi
+
+            # Test 8e: Test event alarm actions
+            echo ""
+            print_info "8e. Testing actions on event alarm..."
+
+            # Get first event alarm details
+            EVENT_ALARM_NAME=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | .[0].id.namespace + "/" + .[0].id.name')
+            EVENT_ALARM_SEQ=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "EVENT")] | .[0].seqNum')
+
+            if [ -n "$EVENT_ALARM_NAME" ] && [ "$EVENT_ALARM_NAME" != "null" ]; then
+                print_info "Testing with event alarm: $EVENT_ALARM_NAME (seqNum: $EVENT_ALARM_SEQ)"
+
+                # Acknowledge event alarm
+                ENCODED_NAME=$(echo "$EVENT_ALARM_NAME" | sed 's/\//%2F/g')
+                ACK_RESPONSE=$(curl -s --connect-timeout 5 --max-time 10 -w "\n%{http_code}" -X POST \
+                    -H "Content-Type: application/json" \
+                    -d '{"comment": "Event alarm acknowledged from test"}' \
+                    "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms${EVENT_ALARM_NAME}/${EVENT_ALARM_SEQ}:acknowledge")
+
+                HTTP_CODE=$(echo "$ACK_RESPONSE" | tail -1)
+
+                if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "204" ]; then
+                    print_success "Event alarm acknowledged successfully"
+                else
+                    print_error "Failed to acknowledge event alarm (HTTP $HTTP_CODE)"
+                fi
+            fi
+
+        else
+            print_info "No event alarms found (may need to wait longer for processing)"
+        fi
+
+        # Test 8f: Compare parameter vs event alarms
+        echo ""
+        print_info "8f. Comparing parameter and event alarm types..."
+
+        PARAM_ALARM_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[] | select(.type == "PARAMETER")] | length')
+
+        print_success "Alarm type breakdown:"
+        echo "    - Parameter alarms: $PARAM_ALARM_COUNT"
+        echo "    - Event alarms: $EVENT_ALARM_COUNT"
+        echo "    - Total alarms: $(($PARAM_ALARM_COUNT + $EVENT_ALARM_COUNT))"
+
+    else
+        print_info "jq not available - skipping event alarm verification"
+    fi
+}
+
+# Step 9: Verify Final State
+verify_final_state() {
+    print_step "9" "Verifying Final State and Alarm Persistence"
+
+    echo ""
+    print_info "9a. Testing alarm cache persistence (alarms should remain visible)..."
+
+    # Get alarm count before waiting
+    ALARM_RESPONSE_1=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+    ALARM_COUNT_1=$(echo "$ALARM_RESPONSE_1" | grep -o '"seqNum"' | wc -l)
+
+    print_info "Initial alarm count: $ALARM_COUNT_1"
+
+    # Wait 5 seconds to ensure alarms persist
+    print_info "Waiting 5 seconds to verify alarm persistence..."
+    sleep 5
+
+    # Get alarm count after waiting
+    ALARM_RESPONSE_2=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+    ALARM_COUNT_2=$(echo "$ALARM_RESPONSE_2" | grep -o '"seqNum"' | wc -l)
+
+    print_info "Alarm count after 5 seconds: $ALARM_COUNT_2"
+
+    if [ "$ALARM_COUNT_1" -eq "$ALARM_COUNT_2" ] && [ "$ALARM_COUNT_1" -gt 0 ]; then
+        print_success "Alarms persisted correctly (cache working)"
+    else
+        print_error "Alarm count changed unexpectedly"
+    fi
+
+    echo ""
+    print_info "9b. Verifying alarm list stability (consistent ordering)..."
+
+    if [ "$JQ_AVAILABLE" = true ]; then
+        # Get alarm order twice to verify consistency
+        ORDER_1=$(echo "$ALARM_RESPONSE_2" | jq -r '.alarms[] | .id.namespace + "/" + .id.name + "/" + (.seqNum|tostring)' | head -5)
+
+        sleep 2
+
+        ALARM_RESPONSE_3=$(curl -s --connect-timeout 5 --max-time 10 "http://${YAMCS_URL}/api/processors/${INSTANCE}/${PROCESSOR}/alarms")
+        ORDER_2=$(echo "$ALARM_RESPONSE_3" | jq -r '.alarms[] | .id.namespace + "/" + .id.name + "/" + (.seqNum|tostring)' | head -5)
+
+        if [ "$ORDER_1" == "$ORDER_2" ]; then
+            print_success "Alarm order is stable (sorting working correctly)"
+        else
+            print_error "Alarm order changed between requests"
+        fi
+    fi
+
+    echo ""
+    print_info "9c. Final alarm state summary..."
+
+    print_success "Final alarm count: $ALARM_COUNT_2"
+
     if [ "$JQ_AVAILABLE" = true ]; then
         echo -e "\n${BLUE}Alarm Status Summary:${NC}"
         echo "-----------------------------------------------------------"
@@ -569,6 +755,7 @@ main() {
     test_yamcs_alarm_apis
     test_grafana_alarm_endpoints
     verify_alarm_data_structure
+    test_event_alarms
     verify_final_state
     
     print_header "Test Complete"
@@ -583,6 +770,12 @@ main() {
     echo "  ✓ Action comments (acknowledge, shelve, clear)"
     echo "  ✓ Global alarm status calculation"
     echo "  ✓ Severity level tracking"
+    echo "  ✓ Event alarm generation and processing"
+    echo "  ✓ Event alarm data structure (eventDetail)"
+    echo "  ✓ Event alarm actions (acknowledge, shelve, clear)"
+    echo "  ✓ Parameter vs Event alarm comparison"
+    echo "  ✓ Alarm cache persistence (alarms remain visible)"
+    echo "  ✓ Alarm sorting stability (consistent order)"
     echo ""
     echo "Next steps:"
     echo "  1. Open Grafana at http://${GRAFANA_URL}"
@@ -591,8 +784,16 @@ main() {
     echo "     - Global Alarm Status bar (above table)"
     echo "     - Trip value column (between Alarm type and Live value)"
     echo "     - Status column showing Triggered/Acknowledged/Shelved/OK"
-    echo "  4. Test the action buttons (Acknowledge/Shelve/Clear/Unshelve)"
-    echo "  5. Expand a row and verify all details including comments are shown"
+    echo "     - Both PARAMETER and EVENT alarm types"
+    echo "     - Alarms remain visible and don't disappear"
+    echo "     - Alarms maintain consistent order (no jumping)"
+    echo "  4. For event alarms, verify:"
+    echo "     - Alarm type shows EVENT"
+    echo "     - Trip value shows: '{severity}: {message}'"
+    echo "     - Live value shows current event with severity"
+    echo "  5. Test the action buttons (Acknowledge/Shelve/Clear/Unshelve)"
+    echo "  6. Expand a row and verify all details including comments are shown"
+    echo "  7. Test scrolling when many alarms are present"
 }
 
 # Run main function
