@@ -331,6 +331,10 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
 		alarmList, err := yamcs.ListProcessorAlarms(ep.Instance, ep.Processor)
 		if err == nil {
 			for _, alarm := range alarmList {
+				// Skip cleared alarms when loading initial cache
+				if alarm.GetClearInfo() != nil {
+					continue
+				}
 				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
 				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
 				ep.AlarmCache[alarmID] = alarm

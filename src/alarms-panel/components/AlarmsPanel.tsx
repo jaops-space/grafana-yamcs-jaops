@@ -140,8 +140,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         const parsed: AlarmEntry[] = raw.filter(Boolean);
         const result = dedupeById(parsed);
 
+        // Filter out cleared alarms - they should not appear in the active alarms list
+        const activeAlarms = result.filter(alarm => !alarm.cleared);
+
         // Sort consistently by ID to maintain stable order
-        result.sort((a, b) => {
+        activeAlarms.sort((a, b) => {
             // First compare by trigger time (newest first)
             const timeA = new Date(a.triggerTime).getTime();
             const timeB = new Date(b.triggerTime).getTime();
@@ -156,7 +159,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             return a.seqNum - b.seqNum;
         });
 
-        return result;
+        return activeAlarms;
     }, [data]);
 
     // Extract GlobalAlarmStatus from frame metadata
@@ -195,9 +198,9 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             return highest;
         };
 
-        const unacknowledged = deduped.filter(a => !a.acknowledged && !a.shelved);
-        const acknowledged = deduped.filter(a => a.acknowledged && !a.shelved);
-        const shelved = deduped.filter(a => a.shelved);
+        const unacknowledged = deduped.filter(a => !a.acknowledged && !a.shelved && !a.cleared);
+        const acknowledged = deduped.filter(a => a.acknowledged && !a.shelved && !a.cleared);
+        const shelved = deduped.filter(a => a.shelved && !a.cleared);
 
         return {
             unacknowledgedCount: unacknowledged.length,
@@ -321,6 +324,10 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     statusText = 'Shelved';
                     statusColor = 'disabled';
                     icon = 'clock-nine';
+                } else if (alarm.cleared) {
+                    statusText = 'Cleared';
+                    statusColor = 'success';
+                    icon = 'check-circle';
                 } else if (!alarm.triggered) {
                     statusText = 'OK';
                     statusColor = 'success';
@@ -362,7 +369,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                                 }}
                             />
                         )}
-                        {alarm.acknowledged && (
+                        {alarm.acknowledged && !alarm.cleared && (
                             <Button
                                 size="sm"
                                 variant="secondary"
