@@ -3,25 +3,28 @@ A Grafana panel plugin for monitoring and managing Yamcs alarms in real-time via
 ## Features
 ### Core Features
 - **Real-time Monitoring**: Live table of active alarms with automatic WebSocket updates
-- **Global Alarm Status**: Dashboard-wide alarm status summary showing unacknowledged, acknowledged, and shelved alarm counts with severity levels
+- **Global Alarm Status**: Dashboard-wide alarm status summary showing unacknowledged, acknowledged, and shelved alarm counts (always visible, including zero counts)
 - **Dual Alarm Type Support**: Full support for both **Parameter Alarms** (out-of-limit conditions) and **Event Alarms** (severity-based event triggers)
-- **Alarm Actions**: Acknowledge, Clear, Shelve, and Unshelve alarms with optional comments and confirmation dialogs
-- **Severity Indicators**: Color-coded levels: Watch (blue), Warning/Distress (orange), Critical/Severe (red)
-- **Status Display**: Clear text-based status showing alarm state (Triggered, Acknowledged, Shelved, OK)
-- **Expandable Details**: View full parameter path or event source/type, trip/live values or event messages, violation counts, acknowledgement history, shelve information, and action comments
+- **Alarm Actions**: Acknowledge, Clear, Shelve (with duration selector: 15 min to unlimited), and Unshelve alarms with optional comments and confirmation dialogs
+- **5 Distinct Severity Levels**: Color-coded solid circles for Watch (light blue), Warning (orange), Distress (dark orange), Critical (red), Severe (dark red) - no information loss
+- **Precise Duration Display**: "Alarm time" column shows exact duration (e.g., "56 minutes ago", "1h 10 minutes ago") for quick assessment
+- **Status Display**: Clear state indicators in first column showing alarm status (Triggered, Acknowledged, Shelved, Cleared, OK)
+- **Optimized Column Order**: Matches Yamcs Web layout (State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trip value, Live value, Actions)
+- **Expandable Details**: View full parameter path or event source, trip/live values or event messages, violation counts, acknowledgement history, shelve information, and action comments
 - **Action Audit Trail**: All alarm actions (acknowledge, shelve, clear) include who performed the action, when, and optional comments
+
 
 ## Usage
 1. Add a new panel -> select the **JAOPS Yamcs** datasource
 2. Set **Query Type** = `Alarms` and select your endpoint
 3. Active alarms appear automatically via WebSocket streaming
-4. View the Global Alarm Status bar above the table for an overview of all alarms
+4. View the Global Alarm Status bar above the table for a complete overview (all categories always visible)
 5. Use the action buttons in each row to manage alarms:
    - **Acknowledge** (✓): Mark an alarm as seen
    - **Clear** (✗): Remove an acknowledged alarm from the active list
-   - **Shelve** (🕘): Temporarily hide an alarm
+   - **Shelve** (🕘): Temporarily hide an alarm (select duration: 15 min, 30 min, 1h, 2h, 1 day, or unlimited)
    - **Unshelve** (👁): Restore a shelved alarm to visibility
-6. Click the expand arrow (▶) on any row to see detailed information including comments from previous actions
+6. Click the expand arrow (▶) on any row to see detailed information including full parameter path and action history
 ## Panel Options
 | Option | Description |
 |--------|-------------|
@@ -62,12 +65,16 @@ chmod +x test-alarm-logic.sh
 - Alarm sorting stability (consistent ordering across requests)
 ### Manual Testing - Parameter Alarms
 **Prerequisites:** Yamcs simulator + Grafana running.
+
 The default Yamcs quickstart simulator (`yamcs/example-simulation`) has parameter alarms pre-configured in its MDB and generates out-of-limit values automatically (~30s after startup).
+
+```bash
+docker run -d -p 8090:8090 yamcs/example-simulation
+```
+
 #### Test Procedure:
-1. **Start the simulator**: 
-   ```bash
-   docker run -d -p 8090:8090 yamcs/example-simulation
-   ```
+
+1. **Start the simulator** (use either option above)
 2. **Open Grafana** -> Create a panel with **Query Type** = `Alarms`
 3. **Wait for parameter alarms** to appear (typically `BatteryVoltage1`, `BatteryVoltage2`)
 4. **Verify parameter alarm display**:

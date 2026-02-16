@@ -6,10 +6,13 @@
 # This script tests the alarm functionality including:
 # - Yamcs simulator alarm APIs
 # - Grafana datasource alarm endpoints
-# - Acknowledge, Shelve, Clear, and Unshelve alarm operations
-# - Global alarm status calculation
+# - Acknowledge, Shelve (with duration), Clear, and Unshelve alarm operations
+# - Global alarm status calculation (always showing all categories including zeros)
 # - Comment persistence for all alarm actions
 # - Alarm state transitions and status display
+# - 5 distinct severity levels (Watch, Warning, Distress, Critical, Severe)
+# - Precise duration display ("56 minutes ago", "1h 10 minutes ago")
+# - Column layout matching Yamcs Web (State first, then Severity, Alarm time, etc.)
 # ============================================================================
 
 set -e  # Exit on first error
@@ -762,14 +765,14 @@ main() {
     echo -e "${GREEN}All alarm logic tests completed!${NC}"
     echo ""
     echo "Tested features:"
-    echo "  ✓ Yamcs alarm APIs (acknowledge, clear, shelve, unshelve)"
+    echo "  ✓ Yamcs alarm APIs (acknowledge, clear, shelve with duration, unshelve)"
     echo "  ✓ Grafana datasource endpoints"
     echo "  ✓ Trip value extraction"
     echo "  ✓ Current value extraction"
-    echo "  ✓ Alarm status fields (acknowledged, shelved, triggered)"
+    echo "  ✓ Alarm status fields (acknowledged, shelved, triggered, cleared)"
     echo "  ✓ Action comments (acknowledge, shelve, clear)"
-    echo "  ✓ Global alarm status calculation"
-    echo "  ✓ Severity level tracking"
+    echo "  ✓ Global alarm status calculation (always showing all categories)"
+    echo "  ✓ 5 distinct severity levels (Watch, Warning, Distress, Critical, Severe)"
     echo "  ✓ Event alarm generation and processing"
     echo "  ✓ Event alarm data structure (eventDetail)"
     echo "  ✓ Event alarm actions (acknowledge, shelve, clear)"
@@ -781,19 +784,29 @@ main() {
     echo "  1. Open Grafana at http://${GRAFANA_URL}"
     echo "  2. Create a panel with Query Type = 'Alarms'"
     echo "  3. Verify the following are displayed:"
-    echo "     - Global Alarm Status bar (above table)"
-    echo "     - Trip value column (between Alarm type and Live value)"
-    echo "     - Status column showing Triggered/Acknowledged/Shelved/OK"
+    echo "     - Global Alarm Status bar (all categories visible, including zeros)"
+    echo "     - Column order: State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trip value, Live value, Actions"
+    echo "     - Alarm time shows precise duration (e.g., '56 minutes ago', '1h 10 minutes ago')"
+    echo "     - Trigger Timestamp shows exact time (YYYY-MM-DD HH:mm:ss)"
+    echo "     - Severity shows 5 distinct colored circles (light blue to dark red)"
+    echo "     - State column (first) shows: Triggered/Acknowledged/Shelved/Cleared/OK"
+    echo "     - Alarm name shows parameter name only (full path in tooltip and details)"
     echo "     - Both PARAMETER and EVENT alarm types"
     echo "     - Alarms remain visible and don't disappear"
     echo "     - Alarms maintain consistent order (no jumping)"
+    echo "     - Panel respects boundaries (no overlap with other panels)"
     echo "  4. For event alarms, verify:"
     echo "     - Alarm type shows EVENT"
     echo "     - Trip value shows: '{severity}: {message}'"
     echo "     - Live value shows current event with severity"
-    echo "  5. Test the action buttons (Acknowledge/Shelve/Clear/Unshelve)"
-    echo "  6. Expand a row and verify all details including comments are shown"
-    echo "  7. Test scrolling when many alarms are present"
+    echo "     - Expanded details show 'Event Source:' (not 'Event Source/Type:')"
+    echo "  5. Test the action buttons:"
+    echo "     - Acknowledge (✓): Adds comment and changes state"
+    echo "     - Shelve (🕘): Opens modal with duration selector (15 min to unlimited)"
+    echo "     - Clear (✗): Removes acknowledged alarms from display"
+    echo "     - Unshelve (👁): Restores shelved alarms"
+    echo "  6. Expand a row and verify all details including full path and comments"
+    echo "  7. Test panel resize to ensure table stays within boundaries"
 }
 
 # Run main function
