@@ -88,13 +88,45 @@ const dedupeById = (entries: AlarmEntry[]): AlarmEntry[] => {
     return result;
 };
 
-// Severity colors and icons
+// Severity colors and icons - 5 distinct levels
 const severityConfig: Record<string, { color: string; icon: any }> = {
-    'WATCH': { color: 'blue', icon: 'info-circle' },
-    'WARNING': { color: 'orange', icon: 'exclamation-triangle' },
-    'DISTRESS': { color: 'orange', icon: 'exclamation-triangle' },
-    'CRITICAL': { color: 'red', icon: 'exclamation-circle' },
-    'SEVERE': { color: 'red', icon: 'times-circle' },
+    'WATCH': { color: '#3399FF', icon: 'record-audio' },      // Light blue
+    'WARNING': { color: '#FF9933', icon: 'record-audio' },    // Orange
+    'DISTRESS': { color: '#FF6600', icon: 'record-audio' },   // Dark orange
+    'CRITICAL': { color: '#FF3333', icon: 'record-audio' },   // Red
+    'SEVERE': { color: '#CC0000', icon: 'record-audio' },     // Dark red
+};
+
+// Format precise duration (e.g., "56 minutes ago", "1h 10 minutes ago")
+const formatPreciseDuration = (timestamp: string): string => {
+    const now = Date.now();
+    const then = new Date(timestamp).getTime();
+    const diffMs = now - then;
+
+    if (diffMs < 0) return 'just now';
+
+    const seconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+        const remainingHours = hours % 24;
+        if (remainingHours > 0) {
+            return `${days}d ${remainingHours}h ago`;
+        }
+        return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+    } else if (hours > 0) {
+        const remainingMinutes = minutes % 60;
+        if (remainingMinutes > 0) {
+            return `${hours}h ${remainingMinutes} minutes ago`;
+        }
+        return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    } else if (minutes > 0) {
+        return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+    } else {
+        return `${seconds} ${seconds === 1 ? 'second' : 'seconds'} ago`;
+    }
 };
 
 
@@ -250,69 +282,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     }, [selectedAlarm, endpoint, datasource, actionType, comment, shelveDuration]);
 
     // Build columns
-    // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trip value, Live value, Status, Actions
+    // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trip value, Live value, Actions
     const columns = useMemo(() => [
         {
-            id: 'severity',
-            header: 'Severity',
-            cell: (info: any) => {
-                const severity = info.row.original.row.severity;
-                const config = severityConfig[severity] || { color: 'gray', icon: 'question-circle' };
-                return (
-                    <Stack direction="row" gap={1} alignItems="center">
-                        <Icon name={config.icon} color={config.color} />
-                        <Text color={config.color as any}>{severity}</Text>
-                    </Stack>
-                );
-            },
-        },
-        {
-            id: 'triggerTime',
-            header: 'Alarm time',
-            accessorKey: 'triggerTime',
-            cell: (info: any) => {
-                const dt = dateTime(info.row.original.row.triggerTime);
-                return <span title={dt.fromNow()}>{dt.format('YYYY-MM-DD HH:mm:ss')}</span>;
-            },
-        },
-        {
-            id: 'name',
-            header: 'Alarm name',
-            accessorKey: 'name',
-            cell: (info: any) => {
-                const name = info.row.original.row.name;
-                return (
-                    <Tooltip content={name}>
-                        <span>{name}</span>
-                    </Tooltip>
-                );
-            },
-        },
-        {
-            id: 'type',
-            header: 'Alarm type',
-            accessorKey: 'type',
-            cell: (info: any) => info.row.original.row.type || '-',
-        },
-        {
-            id: 'triggerValue',
-            header: 'Trip value',
-            accessorKey: 'triggerValue',
-            cell: (info: any) => {
-                // Try both triggerValue and tripValue for compatibility
-                const row = info.row.original.row;
-                return row.triggerValue || row.tripValue || '-';
-            },
-        },
-        {
-            id: 'currentValue',
-            header: 'Live value',
-            accessorKey: 'currentValue',
-            cell: (info: any) => info.row.original.row.currentValue || '-',
-        },
-        {
             id: 'processOK',
-            header: 'Status',
+            header: 'State',
             cell: (info: any) => {
                 const alarm = info.row.original.row;
 
@@ -350,6 +324,75 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     </Stack>
                 );
             },
+        },
+        {
+            id: 'severity',
+            header: 'Severity',
+            cell: (info: any) => {
+                const severity = info.row.original.row.severity;
+                const config = severityConfig[severity] || { color: 'gray', icon: 'question-circle' };
+                return (
+                    <Stack direction="row" gap={1} alignItems="center">
+                        <Icon name={config.icon} color={config.color} />
+                        <Text color={config.color as any}>{severity}</Text>
+                    </Stack>
+                );
+            },
+        },
+        {
+            id: 'alarmTime',
+            header: 'Alarm time',
+            accessorKey: 'triggerTime',
+            cell: (info: any) => {
+                const triggerTime = info.row.original.row.triggerTime;
+                return <span>{formatPreciseDuration(triggerTime)}</span>;
+            },
+        },
+        {
+            id: 'triggerTimestamp',
+            header: 'Trigger Timestamp',
+            accessorKey: 'triggerTime',
+            cell: (info: any) => {
+                const dt = dateTime(info.row.original.row.triggerTime);
+                return <span title={dt.fromNow()}>{dt.format('YYYY-MM-DD HH:mm:ss')}</span>;
+            },
+        },
+        {
+            id: 'name',
+            header: 'Alarm name',
+            accessorKey: 'name',
+            cell: (info: any) => {
+                const fullPath = info.row.original.row.name;
+                // Extract just the parameter name (last part after the last '/')
+                const paramName = fullPath.split('/').pop() || fullPath;
+                return (
+                    <Tooltip content={fullPath}>
+                        <span>{paramName}</span>
+                    </Tooltip>
+                );
+            },
+        },
+        {
+            id: 'type',
+            header: 'Alarm type',
+            accessorKey: 'type',
+            cell: (info: any) => info.row.original.row.type || '-',
+        },
+        {
+            id: 'triggerValue',
+            header: 'Trip value',
+            accessorKey: 'triggerValue',
+            cell: (info: any) => {
+                // Try both triggerValue and tripValue for compatibility
+                const row = info.row.original.row;
+                return row.triggerValue || row.tripValue || '-';
+            },
+        },
+        {
+            id: 'currentValue',
+            header: 'Live value',
+            accessorKey: 'currentValue',
+            cell: (info: any) => info.row.original.row.currentValue || '-',
         },
         {
             id: 'actions',
@@ -413,11 +456,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
 
     // Filter columns based on options, but if not set, use Yamcs Web default order
     const yamcsDefaultOrder = [
-        'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'currentValue', 'processOK', 'actions',
+        'processOK', 'severity', 'alarmTime', 'triggerTimestamp', 'name', 'type', 'triggerValue', 'currentValue', 'actions',
     ];
 
-    // Always use the yamcsDefaultOrder to ensure Trip value column is visible
-    // The order matches Yamcs Web: Severity, Alarm time, Alarm name, Alarm type, Trip value, Live value, Status, Actions
+    // Always use the yamcsDefaultOrder to ensure all columns are visible
+    // The order matches Yamcs Web: State, Severity, Alarm time (duration), Trigger Timestamp, Alarm name, Alarm type, Trip value, Live value, Actions
     const visibleColumns = useMemo(() => {
         return yamcsDefaultOrder
             .map(fid => columns.find(col => col.id === fid))
@@ -432,7 +475,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         return (
             <div style={{ padding: theme.spacing(1), background: theme.colors.background.secondary }}>
                 <Stack direction="column" gap={1}>
-                    <Text><strong>{isEventAlarm ? 'Event Source/Type:' : 'Full Parameter Path:'}</strong> {alarm.name}</Text>
+                    <Text><strong>{isEventAlarm ? 'Event Source:' : 'Full Parameter Path:'}</strong> {alarm.name}</Text>
                     <Text><strong>Alarm Type:</strong> {alarm.type}</Text>
                     <Text><strong>Trigger Time:</strong> {formatTime(alarm.triggerTime)}</Text>
                     {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
@@ -487,93 +530,71 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                 flexShrink: 0
             }}>
                 <Stack direction="row" gap={3} alignItems="center" wrap="wrap">
-                    {/* Unacknowledged Alarms */}
-                    {displayStatus.unacknowledgedCount > 0 && (
-                        <Stack direction="row" gap={1} alignItems="center">
-                            <Icon
-                                name="exclamation-triangle"
-                                size="lg"
-                                style={{ color: theme.colors.error.text }}
-                            />
-                            <Stack direction="column" gap={0}>
-                                <Text weight="bold" color="error">
-                                    {displayStatus.unacknowledgedCount}
-                                </Text>
-                                <Text variant="bodySmall" color="secondary">
-                                    Unacknowledged
-                                </Text>
-                            </Stack>
-                            {displayStatus.unacknowledgedSeverity && displayStatus.unacknowledgedSeverity !== 'UNRECOGNIZED' && (
-                                <Text variant="bodySmall" color="secondary">
-                                    ({displayStatus.unacknowledgedSeverity})
-                                </Text>
-                            )}
-                        </Stack>
-                    )}
-
-                    {/* Acknowledged Alarms */}
-                    {displayStatus.acknowledgedCount > 0 && (
-                        <Stack direction="row" gap={1} alignItems="center">
-                            <Icon
-                                name="check"
-                                size="lg"
-                                style={{ color: theme.colors.info.text }}
-                            />
-                            <Stack direction="column" gap={0}>
-                                <Text weight="bold" color="info">
-                                    {displayStatus.acknowledgedCount}
-                                </Text>
-                                <Text variant="bodySmall" color="secondary">
-                                    Acknowledged
-                                </Text>
-                            </Stack>
-                            {displayStatus.acknowledgedSeverity && displayStatus.acknowledgedSeverity !== 'UNRECOGNIZED' && (
-                                <Text variant="bodySmall" color="secondary">
-                                    ({displayStatus.acknowledgedSeverity})
-                                </Text>
-                            )}
-                        </Stack>
-                    )}
-
-                    {/* Shelved Alarms */}
-                    {displayStatus.shelvedCount > 0 && (
-                        <Stack direction="row" gap={1} alignItems="center">
-                            <Icon
-                                name="clock-nine"
-                                size="lg"
-                                style={{ color: theme.colors.text.disabled }}
-                            />
-                            <Stack direction="column" gap={0}>
-                                <Text weight="bold" color="secondary">
-                                    {displayStatus.shelvedCount}
-                                </Text>
-                                <Text variant="bodySmall" color="secondary">
-                                    Shelved
-                                </Text>
-                            </Stack>
-                            {displayStatus.shelvedSeverity && displayStatus.shelvedSeverity !== 'UNRECOGNIZED' && (
-                                <Text variant="bodySmall" color="secondary">
-                                    ({displayStatus.shelvedSeverity})
-                                </Text>
-                            )}
-                        </Stack>
-                    )}
-
-                    {/* Show "No active alarms" when all counts are 0 */}
-                    {displayStatus.unacknowledgedCount === 0 &&
-                     displayStatus.acknowledgedCount === 0 &&
-                     displayStatus.shelvedCount === 0 && (
-                        <Stack direction="row" gap={1} alignItems="center">
-                            <Icon
-                                name="check-circle"
-                                size="lg"
-                                style={{ color: theme.colors.success.text }}
-                            />
-                            <Text color="success" weight="bold">
-                                No active alarms
+                    {/* Unacknowledged Alarms - Always displayed */}
+                    <Stack direction="row" gap={1} alignItems="center">
+                        <Icon
+                            name="exclamation-triangle"
+                            size="lg"
+                            style={{ color: displayStatus.unacknowledgedCount > 0 ? theme.colors.error.text : theme.colors.text.disabled }}
+                        />
+                        <Stack direction="column" gap={0}>
+                            <Text weight="bold" color={displayStatus.unacknowledgedCount > 0 ? "error" : "secondary"}>
+                                {displayStatus.unacknowledgedCount}
+                            </Text>
+                            <Text variant="bodySmall" color="secondary">
+                                Unacknowledged
                             </Text>
                         </Stack>
-                    )}
+                        {displayStatus.unacknowledgedSeverity && displayStatus.unacknowledgedSeverity !== 'UNRECOGNIZED' && (
+                            <Text variant="bodySmall" color="secondary">
+                                ({displayStatus.unacknowledgedSeverity})
+                            </Text>
+                        )}
+                    </Stack>
+
+                    {/* Acknowledged Alarms - Always displayed */}
+                    <Stack direction="row" gap={1} alignItems="center">
+                        <Icon
+                            name="check"
+                            size="lg"
+                            style={{ color: displayStatus.acknowledgedCount > 0 ? theme.colors.info.text : theme.colors.text.disabled }}
+                        />
+                        <Stack direction="column" gap={0}>
+                            <Text weight="bold" color={displayStatus.acknowledgedCount > 0 ? "info" : "secondary"}>
+                                {displayStatus.acknowledgedCount}
+                            </Text>
+                            <Text variant="bodySmall" color="secondary">
+                                Acknowledged
+                            </Text>
+                        </Stack>
+                        {displayStatus.acknowledgedSeverity && displayStatus.acknowledgedSeverity !== 'UNRECOGNIZED' && (
+                            <Text variant="bodySmall" color="secondary">
+                                ({displayStatus.acknowledgedSeverity})
+                            </Text>
+                        )}
+                    </Stack>
+
+                    {/* Shelved Alarms - Always displayed */}
+                    <Stack direction="row" gap={1} alignItems="center">
+                        <Icon
+                            name="clock-nine"
+                            size="lg"
+                            style={{ color: theme.colors.text.disabled }}
+                        />
+                        <Stack direction="column" gap={0}>
+                            <Text weight="bold" color="secondary">
+                                {displayStatus.shelvedCount}
+                            </Text>
+                            <Text variant="bodySmall" color="secondary">
+                                Shelved
+                            </Text>
+                        </Stack>
+                        {displayStatus.shelvedSeverity && displayStatus.shelvedSeverity !== 'UNRECOGNIZED' && (
+                            <Text variant="bodySmall" color="secondary">
+                                ({displayStatus.shelvedSeverity})
+                            </Text>
+                        )}
+                    </Stack>
                 </Stack>
             </div>
 
