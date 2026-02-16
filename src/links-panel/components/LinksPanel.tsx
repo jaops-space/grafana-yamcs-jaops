@@ -246,7 +246,6 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
     <div className={styles.container}>
       {/* Header */}
       <div className={styles.header}>
-        <h5 className={styles.title}>Yamcs Links - {endpoint}</h5>
         <div style={{ marginLeft: 'auto' }}>
           <Tooltip content="Refresh">
             <IconButton name="sync" onClick={fetchLinks} disabled={loading} aria-label="Refresh" />
