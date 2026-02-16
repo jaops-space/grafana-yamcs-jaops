@@ -103,7 +103,9 @@ const formatPreciseDuration = (timestamp: string): string => {
     const then = new Date(timestamp).getTime();
     const diffMs = now - then;
 
-    if (diffMs < 0) return 'just now';
+    if (diffMs < 0) {
+        return 'just now';
+    }
 
     const seconds = Math.floor(diffMs / 1000);
     const minutes = Math.floor(seconds / 60);
