@@ -470,14 +470,21 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     }
 
     return (
-        <>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            width: '100%',
+            overflow: 'hidden'
+        }}>
             {/* GlobalAlarmStatus Bar - show computed stats */}
             <div style={{
                 padding: theme.spacing(1, 2),
                 marginBottom: theme.spacing(1),
                 background: theme.colors.background.secondary,
                 borderRadius: theme.shape.radius.default,
-                border: `1px solid ${theme.colors.border.weak}`
+                border: `1px solid ${theme.colors.border.weak}`,
+                flexShrink: 0
             }}>
                 <Stack direction="row" gap={3} alignItems="center" wrap="wrap">
                     {/* Unacknowledged Alarms */}
@@ -571,11 +578,16 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             </div>
 
             {!deduped.length ? (
-                <Stack alignItems="center" justifyContent="center" height="100%">
+                <Stack alignItems="center" justifyContent="center" style={{ flex: 1 }}>
                     <Text color="secondary">No alarms to display</Text>
                 </Stack>
             ) : (
-                <div style={{ overflow: 'auto', width: '100%', height: '100%' }}>
+                <div style={{
+                    flex: 1,
+                    overflow: 'auto',
+                    minHeight: 0,
+                    width: '100%'
+                }}>
                     {options.pagination ? (
                         <InteractiveTable
                             key="with-pagination"
@@ -652,7 +664,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     </Stack>
                 </Stack>
             </Modal>
-        </>
+        </div>
     );
 };
 
