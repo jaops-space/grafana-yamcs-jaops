@@ -1,6 +1,6 @@
 import { dateTime, PanelProps } from '@grafana/data';
 import { DataSourceWithBackend } from '@grafana/runtime';
-import { Button, Icon, InteractiveTable, Modal, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
+import { Button, Icon, InteractiveTable, Modal, Select, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
 import { AlarmsOptions } from 'alarms-panel/module';
 import React, { useCallback, useMemo, useState } from 'react';
 
@@ -105,6 +105,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     const [actionType, setActionType] = useState<'acknowledge' | 'clear' | 'shelve' | 'unshelve'>('acknowledge');
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
+    const [shelveDuration, setShelveDuration] = useState<number>(7200000); // Default 2 hours in milliseconds
 
     // Extract endpoint from query target
     const endpoint = useMemo(() => {
@@ -237,7 +238,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     name: selectedAlarm.name,
                     seqNum: selectedAlarm.seqNum,
                     comment: comment,
-                    ...(actionType === 'shelve' ? { shelveDuration: 3600000 } : {}), // Default 1 hour
+                    ...(actionType === 'shelve' ? { shelveDuration: shelveDuration } : {}),
                 }
             );
             setModalOpen(false);
@@ -246,7 +247,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         } finally {
             setLoading(false);
         }
-    }, [selectedAlarm, endpoint, datasource, actionType, comment]);
+    }, [selectedAlarm, endpoint, datasource, actionType, comment, shelveDuration]);
 
     // Build columns
     // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trip value, Live value, Status, Actions
@@ -612,6 +613,26 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                         <Text color="secondary">
                             <strong>Alarm:</strong> {selectedAlarm.name}
                         </Text>
+                    )}
+                    {actionType === 'shelve' && (
+                        <div>
+                            <label htmlFor="shelve-duration" style={{ display: 'block', marginBottom: '8px' }}>
+                                <strong>Duration</strong>
+                            </label>
+                            <Select
+                                id="shelve-duration"
+                                value={shelveDuration}
+                                options={[
+                                    { label: '15 minutes', value: 900000 },
+                                    { label: '30 minutes', value: 1800000 },
+                                    { label: '1 hour', value: 3600000 },
+                                    { label: '2 hours', value: 7200000 },
+                                    { label: '1 day', value: 86400000 },
+                                    { label: 'unlimited', value: 0 },
+                                ]}
+                                onChange={(option) => setShelveDuration(option.value as number)}
+                            />
+                        </div>
                     )}
                     {actionType !== 'unshelve' && (
                         <TextArea
