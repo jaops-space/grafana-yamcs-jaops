@@ -1,0 +1,29 @@
+{
+    "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+    "type": "panel",
+    "name": "JAOPS Links Panel",
+    "id": "jaops-links-panel",
+    "info": {
+        "keywords": [
+            "yamcs",
+            "links",
+            "panel",
+            "jaops"
+        ],
+        "description": "Links Management Panel for JAOPS Yamcs plugin - Enable/disable Yamcs links",
+        "author": {
+            "name": "JAOPS"
+        },
+        "logos": {
+            "small": "img/logo.png",
+            "large": "img/logo.png"
+        },
+        "screenshots": [],
+        "version": "%VERSION%",
+        "updated": "%TODAY%"
+    },
+    "dependencies": {
+        "grafanaDependency": ">=10.4.0",
+        "plugins": []
+    }
+}

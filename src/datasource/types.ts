@@ -41,6 +41,8 @@ export enum QueryType {
     COMMANDING = 'commanding',
     COMMAND_HISTORY = 'command-history',
     ALARMS = 'alarms'
+    COMMAND_HISTORY = 'command-history',
+    LINKS = 'links'
 }
 
 /**

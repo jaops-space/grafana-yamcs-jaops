@@ -10,6 +10,7 @@ export enum QueryCategory {
     IMAGE = 'image',
     COMMANDING = 'commanding',
     ALARMS = 'alarms',
+    LINKS = 'links',
     DEBUG = 'debug',
 }
 
@@ -76,6 +77,13 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         description: 'Monitor and manage active alarms in real-time.',
         value: QueryType.ALARMS,
         category: QueryCategory.ALARMS,
+        additionalFields: false,
+    },
+    {
+        label: 'Links',
+        description: 'View and manage Yamcs data links (enable/disable).',
+        value: QueryType.LINKS,
+        category: QueryCategory.LINKS,
         additionalFields: false,
     },
     {
