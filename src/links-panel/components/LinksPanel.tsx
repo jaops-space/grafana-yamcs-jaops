@@ -13,18 +13,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
     height: 100%;
     overflow: auto;
   `,
-  header: css`
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: ${theme.spacing(2)};
-  `,
-  title: css`
-    font-size: ${theme.typography.h5.fontSize};
-    font-weight: ${theme.typography.fontWeightMedium};
-    margin: 0;
-  `,
   linkRow: css`
     display: flex;
     justify-content: space-between;
@@ -244,14 +232,6 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
 
   return (
     <div className={styles.container}>
-      {/* Header */}
-      <div className={styles.header}>
-        <div style={{ marginLeft: 'auto' }}>
-          <Tooltip content="Refresh">
-            <IconButton name="sync" onClick={fetchLinks} disabled={loading} aria-label="Refresh" />
-          </Tooltip>
-        </div>
-      </div>
 
       {/* Messages */}
       {error && (
