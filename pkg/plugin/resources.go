@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -120,6 +121,14 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
+
+	// Link management routes
+	mux.HandleFunc("/endpoint/{endpointID}/links", d.handleListLinks)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}", d.handleGetLink)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/enable", d.handleEnableLink)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/disable", d.handleDisableLink)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/reset", d.handleResetLinkCounters)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", d.handleRunLinkAction)
 }
 
 type CommandIssueBody struct {
@@ -164,4 +173,264 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responseJSON)
+}
+
+// LinkInfoResult is a JSON-friendly representation of a link.
+type LinkInfoResult struct {
+	Instance       string         `json:"instance"`
+	Name           string         `json:"name"`
+	Type           string         `json:"type"`
+	Disabled       bool           `json:"disabled"`
+	Status         string         `json:"status"`
+	DataInCount    int64          `json:"dataInCount"`
+	DataOutCount   int64          `json:"dataOutCount"`
+	DetailedStatus string         `json:"detailedStatus"`
+	ParentName     string         `json:"parentName,omitempty"`
+	Actions        []ActionResult `json:"actions,omitempty"`
+	Extra          map[string]any `json:"extra,omitempty"`
+}
+
+// ActionResult is a JSON-friendly representation of a link action.
+type ActionResult struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Style   string `json:"style"`
+	Enabled bool   `json:"enabled"`
+	Checked bool   `json:"checked"`
+}
+
+// handleListLinks handles incoming requests to list all links for an endpoint.
+func (d *Datasource) handleListLinks(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := endpoint.GetClient()
+	links, err := client.ListLinks(endpoint.Instance)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	results := make([]LinkInfoResult, 0, len(links))
+	for _, link := range links {
+		results = append(results, convertLinkInfo(link))
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+// handleGetLink handles incoming requests to get a specific link.
+func (d *Datasource) handleGetLink(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	linkName := vars["linkName"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := endpoint.GetClient()
+	link, err := client.GetLink(endpoint.Instance, linkName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result := convertLinkInfo(link)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// handleEnableLink handles incoming requests to enable a link.
+func (d *Datasource) handleEnableLink(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	linkName := vars["linkName"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := endpoint.GetClient()
+	link, err := client.EnableLink(endpoint.Instance, linkName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result := convertLinkInfo(link)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// handleDisableLink handles incoming requests to disable a link.
+func (d *Datasource) handleDisableLink(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	linkName := vars["linkName"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := endpoint.GetClient()
+	link, err := client.DisableLink(endpoint.Instance, linkName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result := convertLinkInfo(link)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// handleResetLinkCounters handles incoming requests to reset link counters.
+func (d *Datasource) handleResetLinkCounters(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	linkName := vars["linkName"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := endpoint.GetClient()
+	link, err := client.ResetLinkCounters(endpoint.Instance, linkName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result := convertLinkInfo(link)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// LinkActionBody represents the request body for running a link action.
+type LinkActionBody struct {
+	Message map[string]any `json:"message,omitempty"`
+}
+
+// handleRunLinkAction handles incoming requests to run a link action.
+func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	linkName := vars["linkName"]
+	actionID := vars["actionID"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Parse optional message body
+	var body LinkActionBody
+	if req.Body != nil {
+		json.NewDecoder(req.Body).Decode(&body)
+	}
+
+	client := endpoint.GetClient()
+	response, err := client.RunLinkAction(endpoint.Instance, linkName, actionID, body.Message)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Convert response to JSON
+	var result map[string]any
+	if response != nil {
+		result = response.AsMap()
+	} else {
+		result = make(map[string]any)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// convertLinkInfo converts a protobuf LinkInfo to a JSON-friendly LinkInfoResult.
+func convertLinkInfo(link *links.LinkInfo) LinkInfoResult {
+	result := LinkInfoResult{
+		Instance:       link.GetInstance(),
+		Name:           link.GetName(),
+		Type:           link.GetType(),
+		Disabled:       link.GetDisabled(),
+		Status:         link.GetStatus(),
+		DataInCount:    link.GetDataInCount(),
+		DataOutCount:   link.GetDataOutCount(),
+		DetailedStatus: link.GetDetailedStatus(),
+		ParentName:     link.GetParentName(),
+	}
+
+	// Convert actions
+	if link.GetActions() != nil {
+		result.Actions = make([]ActionResult, 0, len(link.GetActions()))
+		for _, action := range link.GetActions() {
+			result.Actions = append(result.Actions, ActionResult{
+				ID:      action.GetId(),
+				Label:   action.GetLabel(),
+				Style:   action.GetStyle(),
+				Enabled: action.GetEnabled(),
+				Checked: action.GetChecked(),
+			})
+		}
+	}
+
+	// Convert extra fields
+	if link.GetExtra() != nil {
+		result.Extra = link.GetExtra().AsMap()
+	}
+
+	return result
 }

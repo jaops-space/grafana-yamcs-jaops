@@ -4,6 +4,7 @@ import {
     DataQueryResponse,
     DataSourceInstanceSettings,
     LiveChannelScope,
+    LoadingState,
     StreamingFrameAction,
 } from '@grafana/data';
 
@@ -44,6 +45,15 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
             .map((query) => {
                 if ((!query.endpoint && !query.asVariable) || !query.type) {
                     return undefined; // Skip invalid queries
+                }
+
+                // Links query type doesn't need streaming - return empty observable
+                // The panel handles API calls directly but needs the request metadata
+                if (query.type === QueryType.LINKS) {
+                    return new Observable<DataQueryResponse>((subscriber) => {
+                        subscriber.next({ data: [], state: LoadingState.Done });
+                        subscriber.complete();
+                    });
                 }
 
                 let pathName = 'query';
