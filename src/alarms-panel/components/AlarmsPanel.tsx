@@ -347,7 +347,12 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             accessorKey: 'triggerTime',
             cell: (info: any) => {
                 const triggerTime = info.row.original.row.triggerTime;
-                return <span>{formatPreciseDuration(triggerTime)}</span>;
+                const timestamp = formatTime(triggerTime);
+                return (
+                    <Tooltip content={timestamp}>
+                        <span>{formatPreciseDuration(triggerTime)}</span>
+                    </Tooltip>
+                );
             },
         },
         {
