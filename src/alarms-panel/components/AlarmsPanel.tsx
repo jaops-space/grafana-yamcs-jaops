@@ -479,7 +479,8 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                 <Stack direction="column" gap={1}>
                     <Text><strong>{isEventAlarm ? 'Event Source:' : 'Full Parameter Path:'}</strong> {alarm.name}</Text>
                     <Text><strong>Alarm Type:</strong> {alarm.type}</Text>
-                    <Text><strong>Trigger Time:</strong> {formatTime(alarm.triggerTime)}</Text>
+                    <Text><strong>Trigger Timestamp:</strong> {formatTime(alarm.triggerTime)}</Text>
+                    <Text><strong>Alarm time:</strong> {formatPreciseDuration(alarm.triggerTime)}</Text>
                     {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
                     <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trip Value:'}</strong> {alarm.triggerValue || '-'}</Text>
                     <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
