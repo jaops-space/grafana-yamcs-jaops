@@ -32,6 +32,11 @@ interface AlarmEntry {
     clearComment?: string;
     currentValue?: string;
     triggerValue?: string;
+    mostSevereValue?: string;
+    triggerValueDetail?: any;
+    mostSevereValueDetail?: any;
+    currentValueDetail?: any;
+    parameterInfo?: any;
     notificationType: string;
     seqNum: number;
 }
@@ -140,6 +145,8 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [shelveDuration, setShelveDuration] = useState<number>(7200000); // Default 2 hours in milliseconds
+    const [expandedParamData, setExpandedParamData] = useState<Record<string, boolean>>({});
+    const [expandedFields, setExpandedFields] = useState<Record<string, Record<string, boolean>>>({});
 
     // Extract endpoint from query target
     const endpoint = useMemo(() => {
@@ -284,7 +291,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     }, [selectedAlarm, endpoint, datasource, actionType, comment, shelveDuration]);
 
     // Build columns
-    // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trigger value, Live value, Actions
+    // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trigger value, Most severe value, Live value, Actions
     const columns = useMemo(() => [
         {
             id: 'processOK',
@@ -396,6 +403,12 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             },
         },
         {
+            id: 'mostSevereValue',
+            header: 'Most severe value',
+            accessorKey: 'mostSevereValue',
+            cell: (info: any) => info.row.original.row.mostSevereValue || '-',
+        },
+        {
             id: 'currentValue',
             header: 'Live value',
             accessorKey: 'currentValue',
@@ -463,11 +476,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
 
     // Filter columns based on options, but if not set, use Yamcs Web default order
     const yamcsDefaultOrder = [
-        'processOK', 'severity', 'alarmTime', 'triggerTimestamp', 'name', 'type', 'triggerValue', 'currentValue', 'actions',
+        'processOK', 'severity', 'alarmTime', 'triggerTimestamp', 'name', 'type', 'triggerValue', 'mostSevereValue', 'currentValue', 'actions',
     ];
 
     // Always use the yamcsDefaultOrder to ensure all columns are visible
-    // The order matches Yamcs Web: State, Severity, Alarm time (duration), Trigger Timestamp, Alarm name, Alarm type, Trigger value, Live value, Actions
+    // The order matches Yamcs Web: State, Severity, Alarm time (duration), Trigger Timestamp, Alarm name, Alarm type, Trigger value, Most severe value, Live value, Actions
     const visibleColumns = useMemo(() => {
         return yamcsDefaultOrder
             .map(fid => columns.find(col => col.id === fid))
@@ -478,6 +491,25 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     function renderSubComponent({ row }: { row: any }) {
         const alarm: AlarmEntry = row;
         const isEventAlarm = alarm.type === 'EVENT';
+        const isParamDataExpanded = expandedParamData[alarm.id] || false;
+        const alarmExpandedFields = expandedFields[alarm.id] || {};
+
+        const toggleParamData = () => {
+            setExpandedParamData(prev => ({
+                ...prev,
+                [alarm.id]: !prev[alarm.id]
+            }));
+        };
+
+        const toggleField = (fieldName: string) => {
+            setExpandedFields(prev => ({
+                ...prev,
+                [alarm.id]: {
+                    ...(prev[alarm.id] || {}),
+                    [fieldName]: !(prev[alarm.id]?.[fieldName] || false)
+                }
+            }));
+        };
 
         return (
             <div style={{ padding: theme.spacing(1), background: theme.colors.background.secondary }}>
@@ -488,10 +520,200 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     <Text><strong>Alarm time:</strong> {formatPreciseDuration(alarm.triggerTime)}</Text>
                     {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
                     <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trigger Value:'}</strong> {alarm.triggerValue || '-'}</Text>
+                    {!isEventAlarm && alarm.mostSevereValue && <Text><strong>Most Severe Value:</strong> {alarm.mostSevereValue}</Text>}
                     <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
                     <Text><strong>Violations:</strong> {alarm.violations}</Text>
                     <Text><strong>Count:</strong> {alarm.count}</Text>
                     {!isEventAlarm && <Text><strong>Latching:</strong> {alarm.latching ? 'Yes' : 'No'}</Text>}
+
+                    {/* ParameterAlarmData Section - Collapsible */}
+                    {!isEventAlarm && (alarm.triggerValueDetail || alarm.mostSevereValueDetail || alarm.currentValueDetail || alarm.parameterInfo) && (
+                        <div style={{ marginTop: theme.spacing(1) }}>
+                            <div
+                                onClick={toggleParamData}
+                                style={{
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: theme.spacing(0.5),
+                                    background: theme.colors.background.primary,
+                                    borderRadius: theme.shape.radius.default
+                                }}
+                            >
+                                <Icon name={isParamDataExpanded ? 'angle-down' : 'angle-right'} />
+                                <Text><strong>ParameterAlarmData</strong></Text>
+                            </div>
+
+                            {isParamDataExpanded && (
+                                <div style={{ marginLeft: theme.spacing(2), marginTop: theme.spacing(1) }}>
+                                    <Stack direction="column" gap={0.5}>
+                                        {/* Trigger Value - Collapsible */}
+                                        {alarm.triggerValueDetail && (
+                                            <div>
+                                                <div
+                                                    onClick={() => toggleField('triggerValue')}
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: theme.spacing(0.25)
+                                                    }}
+                                                >
+                                                    <Icon name={alarmExpandedFields['triggerValue'] ? 'angle-down' : 'angle-right'} size="sm" />
+                                                    <Text><strong>triggerValue: {alarm.triggerValue || JSON.stringify(alarm.triggerValueDetail.engValue)}</strong></Text>
+                                                </div>
+                                                {alarmExpandedFields['triggerValue'] && (
+                                                    <div style={{ marginLeft: theme.spacing(3) }}>
+                                                        <Stack direction="column" gap={0.5}>
+                                                            {alarm.triggerValueDetail.engValue !== undefined && (
+                                                                <Text>engValue: {JSON.stringify(alarm.triggerValueDetail.engValue)}</Text>
+                                                            )}
+                                                            {alarm.triggerValueDetail.rawValue !== undefined && (
+                                                                <Text>rawValue: {JSON.stringify(alarm.triggerValueDetail.rawValue)}</Text>
+                                                            )}
+                                                            {alarm.triggerValueDetail.acquisitionTime && (
+                                                                <Text>acquisitionTime: {alarm.triggerValueDetail.acquisitionTime}</Text>
+                                                            )}
+                                                            {alarm.triggerValueDetail.generationTime && (
+                                                                <Text>generationTime: {alarm.triggerValueDetail.generationTime}</Text>
+                                                            )}
+                                                            {alarm.triggerValueDetail.monitoringResult && (
+                                                                <Text>monitoringResult: {alarm.triggerValueDetail.monitoringResult}</Text>
+                                                            )}
+                                                            {alarm.triggerValueDetail.rangeCondition && (
+                                                                <Text>rangeCondition: {alarm.triggerValueDetail.rangeCondition}</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Most Severe Value - Collapsible */}
+                                        {alarm.mostSevereValueDetail && (
+                                            <div style={{ marginTop: theme.spacing(0.5) }}>
+                                                <div
+                                                    onClick={() => toggleField('mostSevereValue')}
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: theme.spacing(0.25)
+                                                    }}
+                                                >
+                                                    <Icon name={alarmExpandedFields['mostSevereValue'] ? 'angle-down' : 'angle-right'} size="sm" />
+                                                    <Text><strong>mostSevereValue: {alarm.mostSevereValue || JSON.stringify(alarm.mostSevereValueDetail.engValue)}</strong></Text>
+                                                </div>
+                                                {alarmExpandedFields['mostSevereValue'] && (
+                                                    <div style={{ marginLeft: theme.spacing(3) }}>
+                                                        <Stack direction="column" gap={0.5}>
+                                                            {alarm.mostSevereValueDetail.engValue !== undefined && (
+                                                                <Text>engValue: {JSON.stringify(alarm.mostSevereValueDetail.engValue)}</Text>
+                                                            )}
+                                                            {alarm.mostSevereValueDetail.rawValue !== undefined && (
+                                                                <Text>rawValue: {JSON.stringify(alarm.mostSevereValueDetail.rawValue)}</Text>
+                                                            )}
+                                                            {alarm.mostSevereValueDetail.acquisitionTime && (
+                                                                <Text>acquisitionTime: {alarm.mostSevereValueDetail.acquisitionTime}</Text>
+                                                            )}
+                                                            {alarm.mostSevereValueDetail.generationTime && (
+                                                                <Text>generationTime: {alarm.mostSevereValueDetail.generationTime}</Text>
+                                                            )}
+                                                            {alarm.mostSevereValueDetail.monitoringResult && (
+                                                                <Text>monitoringResult: {alarm.mostSevereValueDetail.monitoringResult}</Text>
+                                                            )}
+                                                            {alarm.mostSevereValueDetail.rangeCondition && (
+                                                                <Text>rangeCondition: {alarm.mostSevereValueDetail.rangeCondition}</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Current Value - Collapsible */}
+                                        {alarm.currentValueDetail && (
+                                            <div style={{ marginTop: theme.spacing(0.5) }}>
+                                                <div
+                                                    onClick={() => toggleField('currentValue')}
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: theme.spacing(0.25)
+                                                    }}
+                                                >
+                                                    <Icon name={alarmExpandedFields['currentValue'] ? 'angle-down' : 'angle-right'} size="sm" />
+                                                    <Text><strong>currentValue: {alarm.currentValue || JSON.stringify(alarm.currentValueDetail.engValue)}</strong></Text>
+                                                </div>
+                                                {alarmExpandedFields['currentValue'] && (
+                                                    <div style={{ marginLeft: theme.spacing(3) }}>
+                                                        <Stack direction="column" gap={0.5}>
+                                                            {alarm.currentValueDetail.engValue !== undefined && (
+                                                                <Text>engValue: {JSON.stringify(alarm.currentValueDetail.engValue)}</Text>
+                                                            )}
+                                                            {alarm.currentValueDetail.rawValue !== undefined && (
+                                                                <Text>rawValue: {JSON.stringify(alarm.currentValueDetail.rawValue)}</Text>
+                                                            )}
+                                                            {alarm.currentValueDetail.acquisitionTime && (
+                                                                <Text>acquisitionTime: {alarm.currentValueDetail.acquisitionTime}</Text>
+                                                            )}
+                                                            {alarm.currentValueDetail.generationTime && (
+                                                                <Text>generationTime: {alarm.currentValueDetail.generationTime}</Text>
+                                                            )}
+                                                            {alarm.currentValueDetail.monitoringResult && (
+                                                                <Text>monitoringResult: {alarm.currentValueDetail.monitoringResult}</Text>
+                                                            )}
+                                                            {alarm.currentValueDetail.rangeCondition && (
+                                                                <Text>rangeCondition: {alarm.currentValueDetail.rangeCondition}</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Parameter Info - Collapsible */}
+                                        {alarm.parameterInfo && (
+                                            <div style={{ marginTop: theme.spacing(0.5) }}>
+                                                <div
+                                                    onClick={() => toggleField('parameter')}
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: theme.spacing(0.25)
+                                                    }}
+                                                >
+                                                    <Icon name={alarmExpandedFields['parameter'] ? 'angle-down' : 'angle-right'} size="sm" />
+                                                    <Text><strong>parameter: {alarm.parameterInfo.qualifiedName || alarm.name}</strong></Text>
+                                                </div>
+                                                {alarmExpandedFields['parameter'] && (
+                                                    <div style={{ marginLeft: theme.spacing(3) }}>
+                                                        <Stack direction="column" gap={0.5}>
+                                                            {alarm.parameterInfo.qualifiedName !== undefined && alarm.parameterInfo.qualifiedName !== null && alarm.parameterInfo.qualifiedName !== '' && (
+                                                                <Text>qualifiedName: {alarm.parameterInfo.qualifiedName}</Text>
+                                                            )}
+                                                            {alarm.parameterInfo.dataSource !== undefined && alarm.parameterInfo.dataSource !== null && alarm.parameterInfo.dataSource !== '' && (
+                                                                <Text>dataSource: {alarm.parameterInfo.dataSource}</Text>
+                                                            )}
+                                                            {alarm.parameterInfo.shortDescription !== undefined && alarm.parameterInfo.shortDescription !== null && alarm.parameterInfo.shortDescription !== '' && (
+                                                                <Text>shortDescription: {alarm.parameterInfo.shortDescription}</Text>
+                                                            )}
+                                                            {alarm.parameterInfo.longDescription !== undefined && alarm.parameterInfo.longDescription !== null && alarm.parameterInfo.longDescription !== '' && (
+                                                                <Text>longDescription: {alarm.parameterInfo.longDescription}</Text>
+                                                            )}
+                                                        </Stack>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </Stack>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {alarm.acknowledged && (
                         <>
                             <Text><strong>Acknowledged By:</strong> {alarm.acknowledgedBy}</Text>
@@ -526,18 +748,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             flexDirection: 'column',
             height: '100%',
             width: '100%',
-            overflow: 'hidden'
+            overflow: 'hidden',
         }}>
-            {/* GlobalAlarmStatus Bar - show computed stats */}
-            <div style={{
-                padding: theme.spacing(1, 2),
-                marginBottom: theme.spacing(1),
-                background: theme.colors.background.secondary,
-                borderRadius: theme.shape.radius.default,
-                border: `1px solid ${theme.colors.border.weak}`,
-                flexShrink: 0
-            }}>
-                <Stack direction="row" gap={3} alignItems="center" wrap="wrap">
+            {/* Global Alarm Status Bar - Always show all categories */}
+            <div style={{ padding: theme.spacing(1), background: theme.colors.background.canvas, borderBottom: `1px solid ${theme.colors.border.weak}` }}>
+                <Stack direction="row" gap={2} alignItems="center" justifyContent="space-around">
                     {/* Unacknowledged Alarms - Always displayed */}
                     <Stack direction="row" gap={1} alignItems="center">
                         <Icon
@@ -617,7 +832,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     minHeight: 0,
                     width: '100%'
                 }}>
-                    {options.pagination ? (
+                    {options.enablePagination ? (
                         <InteractiveTable
                             key="with-pagination"
                             data={deduped.map(d => ({ row: d, id: d.id }))}

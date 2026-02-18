@@ -452,9 +452,23 @@ verify_alarm_data_structure() {
             print_info "Trigger value not available (may not be a parameter alarm)"
         fi
 
-        # Test 7b: Verify Current Value exists
+        # Test 7b: Verify Most Severe Value exists
         echo ""
-        print_info "7b. Checking for Current Value (currentValue) in alarm data..."
+        print_info "7b. Checking for Most Severe Value (mostSevereValue) in alarm data..."
+
+        HAS_MOST_SEVERE_VALUE=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.mostSevereValue // "NOT_FOUND"')
+
+        if [ "$HAS_MOST_SEVERE_VALUE" != "NOT_FOUND" ] && [ "$HAS_MOST_SEVERE_VALUE" != "null" ]; then
+            MOST_SEVERE_VAL=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.mostSevereValue.engValue // empty')
+            print_success "Most severe value found in alarm data"
+            print_info "Example most severe value: $MOST_SEVERE_VAL"
+        else
+            print_info "Most severe value not available (may not be a parameter alarm)"
+        fi
+
+        # Test 7c: Verify Current Value exists
+        echo ""
+        print_info "7c. Checking for Current Value (currentValue) in alarm data..."
 
         HAS_CURRENT_VALUE=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.currentValue // "NOT_FOUND"')
 
@@ -466,9 +480,9 @@ verify_alarm_data_structure() {
             print_info "Current value not available"
         fi
 
-        # Test 7c: Verify Alarm Status Fields
+        # Test 7d: Verify Alarm Status Fields
         echo ""
-        print_info "7c. Checking alarm status fields (acknowledged, shelved, triggered)..."
+        print_info "7d. Checking alarm status fields (acknowledged, shelved, triggered)..."
 
         IS_ACKNOWLEDGED=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].acknowledged // false')
         IS_SHELVED=$(echo "$ALARM_RESPONSE" | jq -r 'if .alarms[0].shelveInfo then "true" else "false" end')
@@ -479,9 +493,9 @@ verify_alarm_data_structure() {
         echo "    - Shelved: $IS_SHELVED"
         echo "    - Triggered: $IS_TRIGGERED"
 
-        # Test 7d: Check for acknowledgement info
+        # Test 7e: Check for acknowledgement info
         echo ""
-        print_info "7d. Checking for acknowledge info (username, time, comment)..."
+        print_info "7e. Checking for acknowledge info (username, time, comment)..."
 
         if [ "$IS_ACKNOWLEDGED" == "true" ]; then
             ACK_BY=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].acknowledgeInfo.acknowledgedBy // "N/A"')
@@ -496,9 +510,9 @@ verify_alarm_data_structure() {
             print_info "No acknowledgement info (alarm not acknowledged)"
         fi
 
-        # Test 7e: Check for shelve info
+        # Test 7f: Check for shelve info
         echo ""
-        print_info "7e. Checking for shelve info (username, time, expiration, comment)..."
+        print_info "7f. Checking for shelve info (username, time, expiration, comment)..."
 
         if [ "$IS_SHELVED" == "true" ]; then
             SHELVE_BY=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].shelveInfo.shelvedBy // "N/A"')
@@ -515,9 +529,9 @@ verify_alarm_data_structure() {
             print_info "No shelve info (alarm not shelved)"
         fi
 
-        # Test 7f: Check severity levels
+        # Test 7g: Check severity levels
         echo ""
-        print_info "7f. Checking severity levels for Global Alarm Status..."
+        print_info "7g. Checking severity levels for Global Alarm Status..."
 
         SEVERITIES=$(echo "$ALARM_RESPONSE" | jq -r '[.alarms[].severity] | unique | join(", ")')
         ALARM_COUNT=$(echo "$ALARM_RESPONSE" | jq -r '.alarms | length')
@@ -768,6 +782,7 @@ main() {
     echo "  ✓ Yamcs alarm APIs (acknowledge, clear, shelve with duration, unshelve)"
     echo "  ✓ Grafana datasource endpoints"
     echo "  ✓ Trigger value extraction"
+    echo "  ✓ Most severe value extraction"
     echo "  ✓ Current value extraction"
     echo "  ✓ Alarm status fields (acknowledged, shelved, triggered, cleared)"
     echo "  ✓ Action comments (acknowledge, shelve, clear)"
@@ -785,7 +800,7 @@ main() {
     echo "  2. Create a panel with Query Type = 'Alarms'"
     echo "  3. Verify the following are displayed:"
     echo "     - Global Alarm Status bar (all categories visible, including zeros)"
-    echo "     - Column order: State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trigger value, Live value, Actions"
+    echo "     - Column order: State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trigger value, Most severe value, Live value, Actions"
     echo "     - Alarm time shows precise duration (e.g., '56 minutes ago', '1h 10 minutes ago')"
     echo "     - Trigger Timestamp shows exact time (YYYY-MM-DD HH:mm:ss)"
     echo "     - Severity shows 5 distinct colored circles (light blue to dark red)"
