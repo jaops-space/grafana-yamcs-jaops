@@ -425,7 +425,7 @@ EOF
 
 # Step 7: Verify Alarm Data Structure
 verify_alarm_data_structure() {
-    print_step "7" "Verifying Alarm Data Structure (Trip Value, Status, Comments)"
+    print_step "7" "Verifying Alarm Data Structure (Trigger Value, Status, Comments)"
 
     echo ""
     print_info "Fetching detailed alarm data..."
@@ -437,19 +437,19 @@ verify_alarm_data_structure() {
         return 0
     fi
 
-    # Test 7a: Verify Trip Value (triggerValue) exists
+    # Test 7a: Verify Trigger Value (triggerValue) exists
     echo ""
-    print_info "7a. Checking for Trip Value (triggerValue) in alarm data..."
+    print_info "7a. Checking for Trigger Value (triggerValue) in alarm data..."
 
     if [ "$JQ_AVAILABLE" = true ]; then
         HAS_TRIGGER_VALUE=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.triggerValue // "NOT_FOUND"')
 
         if [ "$HAS_TRIGGER_VALUE" != "NOT_FOUND" ] && [ "$HAS_TRIGGER_VALUE" != "null" ]; then
             TRIGGER_VAL=$(echo "$ALARM_RESPONSE" | jq -r '.alarms[0].parameterDetail.triggerValue.engValue // empty')
-            print_success "Trip value found in alarm data"
-            print_info "Example trip value: $TRIGGER_VAL"
+            print_success "Trigger value found in alarm data"
+            print_info "Example trigger value: $TRIGGER_VAL"
         else
-            print_info "Trip value not available (may not be a parameter alarm)"
+            print_info "Trigger value not available (may not be a parameter alarm)"
         fi
 
         # Test 7b: Verify Current Value exists
@@ -767,7 +767,7 @@ main() {
     echo "Tested features:"
     echo "  ✓ Yamcs alarm APIs (acknowledge, clear, shelve with duration, unshelve)"
     echo "  ✓ Grafana datasource endpoints"
-    echo "  ✓ Trip value extraction"
+    echo "  ✓ Trigger value extraction"
     echo "  ✓ Current value extraction"
     echo "  ✓ Alarm status fields (acknowledged, shelved, triggered, cleared)"
     echo "  ✓ Action comments (acknowledge, shelve, clear)"
@@ -785,7 +785,7 @@ main() {
     echo "  2. Create a panel with Query Type = 'Alarms'"
     echo "  3. Verify the following are displayed:"
     echo "     - Global Alarm Status bar (all categories visible, including zeros)"
-    echo "     - Column order: State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trip value, Live value, Actions"
+    echo "     - Column order: State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trigger value, Live value, Actions"
     echo "     - Alarm time shows precise duration (e.g., '56 minutes ago', '1h 10 minutes ago')"
     echo "     - Trigger Timestamp shows exact time (YYYY-MM-DD HH:mm:ss)"
     echo "     - Severity shows 5 distinct colored circles (light blue to dark red)"
@@ -797,7 +797,7 @@ main() {
     echo "     - Panel respects boundaries (no overlap with other panels)"
     echo "  4. For event alarms, verify:"
     echo "     - Alarm type shows EVENT"
-    echo "     - Trip value shows: '{severity}: {message}'"
+    echo "     - Trigger value shows: '{severity}: {message}'"
     echo "     - Live value shows current event with severity"
     echo "     - Expanded details show 'Event Source:' (not 'Event Source/Type:')"
     echo "  5. Test the action buttons:"

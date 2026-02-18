@@ -9,8 +9,8 @@ A Grafana panel plugin for monitoring and managing Yamcs alarms in real-time via
 - **5 Distinct Severity Levels**: Color-coded solid circles for Watch (light blue), Warning (orange), Distress (dark orange), Critical (red), Severe (dark red) - no information loss
 - **Precise Duration Display**: "Alarm time" column shows exact duration (e.g., "56 minutes ago", "1h 10 minutes ago") for quick assessment
 - **Status Display**: Clear state indicators in first column showing alarm status (Triggered, Acknowledged, Shelved, Cleared, OK)
-- **Optimized Column Order**: Matches Yamcs Web layout (State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trip value, Live value, Actions)
-- **Expandable Details**: View full parameter path or event source, trip/live values or event messages, violation counts, acknowledgement history, shelve information, and action comments
+- **Optimized Column Order**: Matches Yamcs Web layout (State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trigger value, Live value, Actions)
+- **Expandable Details**: View full parameter path or event source, trigger/live values or event messages, violation counts, acknowledgement history, shelve information, and action comments
 - **Action Audit Trail**: All alarm actions (acknowledge, shelve, clear) include who performed the action, when, and optional comments
 
 
@@ -53,7 +53,7 @@ chmod +x test-alarm-logic.sh
 
 - Yamcs simulator alarm APIs (acknowledge, clear, shelve, unshelve)
 - Grafana datasource alarm endpoints
-- Trip value extraction from parameter alarms
+- Trigger value extraction from parameter alarms
 - Event alarm generation and processing
 - Event alarm data structure (eventDetail with trigger/current events)
 - Event alarm actions (acknowledge, shelve, clear, unshelve)
@@ -79,7 +79,7 @@ docker run -d -p 8090:8090 yamcs/example-simulation
 3. **Wait for parameter alarms** to appear (typically `BatteryVoltage1`, `BatteryVoltage2`)
 4. **Verify parameter alarm display**:
    - Alarm type shows `PARAMETER`
-   - Trip value shows the numeric value that triggered the alarm (e.g., "57")
+   - Trigger value shows the numeric value that triggered the alarm (e.g., "57")
    - Live value shows the current parameter value
    - Global Alarm Status shows counts above the table
    - Alarms remain in consistent order
@@ -119,7 +119,7 @@ Event alarms are automatically generated when events with severity > INFO are re
 4. **Verify event alarm display** in the Grafana panel:
    -  Alarm type shows `EVENT`
    - Alarm name shows event source and type (e.g., "/yamcs/event/TestSource/TestAlarm")
-   - Trip value shows trigger event message with severity (e.g., "WARNING: This is a test event alarm")
+   - Trigger value shows trigger event message with severity (e.g., "WARNING: This is a test event alarm")
    - Live value shows current event message with severity
    - Both parameter and event alarms visible simultaneously
    - Alarms remain in consistent order (no jumping)

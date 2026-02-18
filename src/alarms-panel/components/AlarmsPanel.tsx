@@ -284,7 +284,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     }, [selectedAlarm, endpoint, datasource, actionType, comment, shelveDuration]);
 
     // Build columns
-    // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trip value, Live value, Actions
+    // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trigger value, Live value, Actions
     const columns = useMemo(() => [
         {
             id: 'processOK',
@@ -387,7 +387,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         },
         {
             id: 'triggerValue',
-            header: 'Trip value',
+            header: 'Trigger value',
             accessorKey: 'triggerValue',
             cell: (info: any) => {
                 // Try both triggerValue and tripValue for compatibility
@@ -467,7 +467,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     ];
 
     // Always use the yamcsDefaultOrder to ensure all columns are visible
-    // The order matches Yamcs Web: State, Severity, Alarm time (duration), Trigger Timestamp, Alarm name, Alarm type, Trip value, Live value, Actions
+    // The order matches Yamcs Web: State, Severity, Alarm time (duration), Trigger Timestamp, Alarm name, Alarm type, Trigger value, Live value, Actions
     const visibleColumns = useMemo(() => {
         return yamcsDefaultOrder
             .map(fid => columns.find(col => col.id === fid))
@@ -487,7 +487,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     <Text><strong>Trigger Timestamp:</strong> {formatTime(alarm.triggerTime)}</Text>
                     <Text><strong>Alarm time:</strong> {formatPreciseDuration(alarm.triggerTime)}</Text>
                     {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
-                    <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trip Value:'}</strong> {alarm.triggerValue || '-'}</Text>
+                    <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trigger Value:'}</strong> {alarm.triggerValue || '-'}</Text>
                     <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
                     <Text><strong>Violations:</strong> {alarm.violations}</Text>
                     <Text><strong>Count:</strong> {alarm.count}</Text>

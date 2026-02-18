@@ -16,7 +16,7 @@ const allFields = [
   'triggerTime',   // Alarm time
   'name',          // Alarm name (Parameter)
   'type',          // Alarm type
-  'triggerValue',  // Trip value
+  'triggerValue',  // Trigger value
   'currentValue',  // Live value
   'violations',    // Violations
   'acknowledged',  // Ack
@@ -30,7 +30,7 @@ const defaultVisibleFields = [
   'triggerTime',   // Alarm time
   'name',          // Alarm name
   'type',          // Alarm type
-  'triggerValue',  // Trip value
+  'triggerValue',  // Trigger value
   'currentValue',  // Live value
   'processOK',     // Status
   'actions',       // Actions
