@@ -41,6 +41,21 @@ Remove an acknowledged alarm from the active alarms list. Only acknowledged alar
 Temporarily hide an alarm from the active display. Useful for known issues being investigated.
 ### Unshelve
 Restore a shelved alarm to make it visible again in the active alarms list.
+
+## Using with Grafana Alerts
+
+This panel displays **YAMCS-native alarms** from your Mission Database (MDB). You can also use **[Grafana Alerts](https://grafana.com/docs/grafana/latest/alerting/)** in parallel for custom notifications.
+
+**YAMCS Alarms Panel** (this panel):
+- View official YAMCS alarms with full operator workflow (acknowledge/shelve/clear)
+- Primary interface for mission control
+
+**Grafana Alerts** (native Grafana feature):
+- Create custom alert rules on any YAMCS telemetry parameter
+- Set up notifications (email, Slack, PagerDuty, etc.)
+- Define thresholds not in your YAMCS MDB
+
+**Example**: Create a Grafana Alert that sends a Slack notification when `BatteryVoltage1 < 50V for 5 minutes`, while still viewing all YAMCS MDB alarms in this panel.
 ## Testing
 ### Automated Testing
 Run the comprehensive test script to validate all alarm panel features:
