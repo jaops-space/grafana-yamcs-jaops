@@ -93,6 +93,20 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
 
     const validateInput = (commandName: string, arg: any, value: any) => {
         let error = '';
+
+        // Skip validation if the value contains a variable reference
+        if (typeof value === 'string' && (value.includes('$') || value.includes('{'))) {
+            // Clear any existing error for this field
+            setErrors(prev => ({
+                ...prev,
+                [commandName]: {
+                    ...prev[commandName],
+                    [arg.name]: '',
+                },
+            }));
+            return;
+        }
+
         if (arg.type.engType === 'integer' || arg.type.engType === 'float') {
             const numValue = parseFloat(value);
             if (isNaN(numValue) || (arg.type.rangeMin && numValue < arg.type.rangeMin) || (arg.type.rangeMax && numValue > arg.type.rangeMax)) {
@@ -185,10 +199,27 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
             }
         }
 
+        // Apply variable substitution to all argument values
+        const resolvedArguments: { [key: string]: any } = {};
+        if (argumentsToUse) {
+            Object.keys(argumentsToUse).forEach((argName) => {
+                const argValue = argumentsToUse[argName];
+                // If the argument is a string, apply template variable substitution
+                if (typeof argValue === 'string') {
+                    const resolvedValue = getTemplateSrv().replace(argValue, scopedVars);
+                    // Try to parse as number if it looks like a number
+                    const numValue = parseFloat(resolvedValue);
+                    resolvedArguments[argName] = !isNaN(numValue) && resolvedValue.trim() !== '' ? numValue : resolvedValue;
+                } else {
+                    resolvedArguments[argName] = argValue;
+                }
+            });
+        }
+
         datasource.postResource(`endpoint/${endpoint}/command/issue`, {
             name: command.qualifiedName,
-            arguments: argumentsToUse,
-            comment: commentToUse,
+            arguments: resolvedArguments,
+            comment: getTemplateSrv().replace(commentToUse || '', scopedVars),
         })
             .then((_: any) => {
                 setLoading(false);
@@ -218,7 +249,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 {commandInfos.map((commandInfo, i) => {
                     const command = commandInfo.command;
                     const commandState = formState[command.name + i];
-                    
+
                     // Enhanced render function to support dual button mode
                     const render = (withSubmit = false) => {
                         // If this is a dual button, render the split view
@@ -452,23 +483,26 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 inputField = (
                                                     <Input
                                                         disabled={loading}
-                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        type="text"
                                                         value={inputValue}
+                                                        placeholder={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'Enter value or $variable' : undefined}
                                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                                             let val: any = e.target.value;
-                                                            if (arg.type.engType === 'integer') {
-                                                                val = parseInt(val, 10);
-                                                            }
-                                                            if (arg.type.engType === 'float') {
-                                                                val = parseFloat(val);
+                                                            // Keep as string if it looks like a variable reference
+                                                            if (!val.includes('$') && !val.includes('{')) {
+                                                                if (arg.type.engType === 'integer') {
+                                                                    const parsed = parseInt(val, 10);
+                                                                    val = isNaN(parsed) ? val : parsed;
+                                                                }
+                                                                if (arg.type.engType === 'float') {
+                                                                    const parsed = parseFloat(val);
+                                                                    val = isNaN(parsed) ? val : parsed;
+                                                                }
                                                             }
                                                             handleInputChange(command.name, arg.name, val, i);
                                                             validateInput(command.name, arg, e.target.value);
                                                         }}
-                                                        min={arg.type.rangeMin}
-                                                        max={arg.type.rangeMax}
                                                         style={{ width: '100%' }}
-                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
                                                     />
                                                 );
                                             }
@@ -540,15 +574,21 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 inputField = (
                                                     <Input
                                                         disabled={loading}
-                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        type="text"
                                                         value={inputValue}
+                                                        placeholder={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'Enter value or $variable' : undefined}
                                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                                             let val: any = e.target.value;
-                                                            if (arg.type.engType === 'integer') {
-                                                                val = parseInt(val, 10);
-                                                            }
-                                                            if (arg.type.engType === 'float') {
-                                                                val = parseFloat(val);
+                                                            // Keep as string if it looks like a variable reference
+                                                            if (!val.includes('$') && !val.includes('{')) {
+                                                                if (arg.type.engType === 'integer') {
+                                                                    const parsed = parseInt(val, 10);
+                                                                    val = isNaN(parsed) ? val : parsed;
+                                                                }
+                                                                if (arg.type.engType === 'float') {
+                                                                    const parsed = parseFloat(val);
+                                                                    val = isNaN(parsed) ? val : parsed;
+                                                                }
                                                             }
                                                             handleOptionChange(command.name, 'onCommand', {
                                                                 ...commandState?.onCommand,
@@ -558,10 +598,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                                 }
                                                             }, i);
                                                         }}
-                                                        min={arg.type.rangeMin}
-                                                        max={arg.type.rangeMax}
                                                         style={{ width: '100%' }}
-                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
                                                     />
                                                 );
                                             }
@@ -686,15 +723,21 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 inputField = (
                                                     <Input
                                                         disabled={loading}
-                                                        type={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'number' : 'text'}
+                                                        type="text"
                                                         value={inputValue}
+                                                        placeholder={arg.type.engType === 'integer' || arg.type.engType === 'float' ? 'Enter value or $variable' : undefined}
                                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                                             let val: any = e.target.value;
-                                                            if (arg.type.engType === 'integer') {
-                                                                val = parseInt(val, 10);
-                                                            }
-                                                            if (arg.type.engType === 'float') {
-                                                                val = parseFloat(val);
+                                                            // Keep as string if it looks like a variable reference
+                                                            if (!val.includes('$') && !val.includes('{')) {
+                                                                if (arg.type.engType === 'integer') {
+                                                                    const parsed = parseInt(val, 10);
+                                                                    val = isNaN(parsed) ? val : parsed;
+                                                                }
+                                                                if (arg.type.engType === 'float') {
+                                                                    const parsed = parseFloat(val);
+                                                                    val = isNaN(parsed) ? val : parsed;
+                                                                }
                                                             }
                                                             handleOptionChange(command.name, 'offCommand', {
                                                                 ...commandState?.offCommand,
@@ -704,10 +747,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                                 }
                                                             }, i);
                                                         }}
-                                                        min={arg.type.rangeMin}
-                                                        max={arg.type.rangeMax}
                                                         style={{ width: '100%' }}
-                                                        step={arg.type.engType === 'integer' ? 1 : undefined}
                                                     />
                                                 );
                                             }
