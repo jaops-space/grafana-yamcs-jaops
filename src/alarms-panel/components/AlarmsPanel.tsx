@@ -294,7 +294,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
     // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trigger value, Most severe value, Live value, Actions
     const columns = useMemo(() => [
         {
-            id: 'processOK',
+            id: 'state',
             header: 'State',
             cell: (info: any) => {
                 const alarm = info.row.original.row;
@@ -349,7 +349,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             },
         },
         {
-            id: 'alarmTime',
+            id: 'triggerTime',
             header: 'Alarm time',
             accessorKey: 'triggerTime',
             cell: (info: any) => {
@@ -415,6 +415,25 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             cell: (info: any) => info.row.original.row.currentValue || '-',
         },
         {
+            id: 'violations',
+            header: 'Violations',
+            accessorKey: 'violations',
+            cell: (info: any) => info.row.original.row.violations || 0,
+        },
+        {
+            id: 'acknowledged',
+            header: 'Ack',
+            accessorKey: 'acknowledged',
+            cell: (info: any) => {
+                const acknowledged = info.row.original.row.acknowledged;
+                return acknowledged ? (
+                    <Icon name="check" color="success" />
+                ) : (
+                    <span>-</span>
+                );
+            },
+        },
+        {
             id: 'actions',
             header: 'Actions',
             cell: (info: any) => {
@@ -474,18 +493,18 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         },
     ], [handleAction]);
 
-    // Filter columns based on options, but if not set, use Yamcs Web default order
-    const yamcsDefaultOrder = [
-        'processOK', 'severity', 'alarmTime', 'triggerTimestamp', 'name', 'type', 'triggerValue', 'mostSevereValue', 'currentValue', 'actions',
-    ];
-
-    // Always use the yamcsDefaultOrder to ensure all columns are visible
-    // The order matches Yamcs Web: State, Severity, Alarm time (duration), Trigger Timestamp, Alarm name, Alarm type, Trigger value, Most severe value, Live value, Actions
+    // Filter columns based on user's visible fields selection
     const visibleColumns = useMemo(() => {
-        return yamcsDefaultOrder
-            .map(fid => columns.find(col => col.id === fid))
+        // If no visible fields are configured, use all columns
+        const fieldsToShow = options.visibleFields && options.visibleFields.length > 0
+            ? options.visibleFields
+            : ['state', 'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'mostSevereValue', 'currentValue', 'violations', 'acknowledged', 'actions'];
+
+        // Return columns in the order they appear in the visibleFields array
+        return fieldsToShow
+            .map(fieldId => columns.find(col => col.id === fieldId))
             .filter((col): col is NonNullable<typeof col> => !!col);
-    }, [columns]);
+    }, [columns, options.visibleFields]);
 
     // Render expanded row with details
     function renderSubComponent({ row }: { row: any }) {

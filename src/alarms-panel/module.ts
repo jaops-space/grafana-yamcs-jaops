@@ -14,6 +14,7 @@ const allFields = [
   'state',            // State
   'severity',         // Severity
   'triggerTime',      // Alarm time
+  'triggerTimestamp', // Trigger Timestamp
   'name',             // Alarm name (Parameter)
   'type',             // Alarm type
   'triggerValue',     // Trigger value
@@ -21,7 +22,6 @@ const allFields = [
   'currentValue',     // Live value
   'violations',       // Violations
   'acknowledged',     // Ack
-  'processOK',        // Status
   'actions',          // Actions
 ];
 
@@ -34,9 +34,24 @@ const defaultVisibleFields = [
   'triggerValue',     // Trigger value
   'mostSevereValue',  // Most severe value
   'currentValue',     // Live value
-  'processOK',        // Status
   'actions',          // Actions
 ];
+
+// Field labels for better UX
+const fieldLabels: Record<string, string> = {
+  state: 'State',
+  severity: 'Severity',
+  triggerTime: 'Alarm time',
+  triggerTimestamp: 'Trigger Timestamp',
+  name: 'Alarm name',
+  type: 'Alarm type',
+  triggerValue: 'Trigger value',
+  mostSevereValue: 'Most severe value',
+  currentValue: 'Live value',
+  violations: 'Violations',
+  acknowledged: 'Ack',
+  actions: 'Actions',
+};
 
 export const plugin = new PanelPlugin<AlarmsOptions>(AlarmsPanel).setPanelOptions(builder => {
   return builder
@@ -48,7 +63,7 @@ export const plugin = new PanelPlugin<AlarmsOptions>(AlarmsPanel).setPanelOption
       settings: {
         options: allFields.map(field => ({
           value: field as any,
-          label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
+          label: fieldLabels[field] || field,
         })),
       },
     })
