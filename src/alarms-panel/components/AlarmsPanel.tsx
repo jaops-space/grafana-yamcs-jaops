@@ -832,7 +832,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     minHeight: 0,
                     width: '100%'
                 }}>
-                    {options.enablePagination ? (
+                    {options.pagination ? (
                         <InteractiveTable
                             key="with-pagination"
                             data={deduped.map(d => ({ row: d, id: d.id }))}
