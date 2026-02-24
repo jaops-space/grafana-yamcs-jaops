@@ -132,11 +132,12 @@ func (cm *ConnectionManager) GetClient(hostID string) (*client.YamcsClient, erro
 	return host.Client, nil
 }
 
-// Dispose closes all websocket connections.
+// Dispose shuts down all Yamcs clients (stopping auto-refresh goroutines and
+// closing WebSocket connections) and releases host resources.
 func (cm *ConnectionManager) Dispose() {
 	for _, host := range cm.Hosts {
 		if host.Client != nil {
-			host.Client.CloseWebSocketConnection()
+			host.Client.Close()
 		}
 	}
 	cm.Hosts = make(map[string]*YamcsHost)
