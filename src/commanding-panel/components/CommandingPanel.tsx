@@ -1,6 +1,6 @@
 import { AppEvents, PanelProps, SelectableValue, VariableWithMultiSupport } from '@grafana/data';
 import { DataSourceWithBackend, getAppEvents, getTemplateSrv, locationService, useLocationService } from '@grafana/runtime';
-import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
+import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select, Combobox } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState, useEffect, useRef } from 'react';
 import Shapes from './Shapes';
@@ -476,8 +476,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                             <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
                                 {variableMode ? <>
                                     <Field label='Variable' description='Variable to change'>
-                                        <Select
-                                            type='text'
+                                        <Combobox
                                             disabled={loading}
                                             options={getTemplateSrv().getVariables().map(vr => ({ label: vr.label || vr.name, value: vr.name }))}
                                             value={commandState?.variableToSet || ''}
@@ -488,8 +487,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                     <Field label='Change Mode' description='How to change the value'>
-                                        <Select
-                                            type='text'
+                                        <Combobox
                                             disabled={loading}
                                             options={[
                                                 { label: "Set", value: 'change', description: "Set the variable to a value" },
