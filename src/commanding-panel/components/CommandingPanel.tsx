@@ -16,8 +16,20 @@ export interface CommandingPanelProps extends PanelProps<PanelOptions> {
 
 // Component for input mode that displays current value and accepts keyboard input
 function InputModeField({ variableToSet, scopedVars, loading, unit }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string }) {
+    // Subscribe to location changes so the component re-renders when dashboard variable labels change
+    const locService = useLocationService();
+    locService.getLocation();
+
     const currentVariableValue = variableToSet
         ? getTemplateSrv().replace("$" + variableToSet, scopedVars)
+        : '';
+
+    // Get the variable's display label from dashboard settings (label takes priority over name)
+    const variableDisplayLabel = variableToSet
+        ? (() => {
+            const variable = getTemplateSrv().getVariables().find(vr => vr.name === variableToSet);
+            return variable ? (variable.label || variable.name) : variableToSet;
+        })()
         : '';
 
     const [inputValue, setInputValue] = useState<string>(currentVariableValue);
@@ -62,7 +74,10 @@ function InputModeField({ variableToSet, scopedVars, loading, unit }: { variable
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+            {variableDisplayLabel && (
+                <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{variableDisplayLabel}</span>
+            )}
             <Input
                 type="text"
                 disabled={loading}
@@ -72,9 +87,9 @@ function InputModeField({ variableToSet, scopedVars, loading, unit }: { variable
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
                 onFocus={handleFocus}
-                style={{ width: '100%', height: '100%' }}
+                style={{ flex: 1, height: '100%' }}
             />
-            {unit && <span>{unit}</span>} {/* Display the unit */}
+            {unit && <span style={{ whiteSpace: 'nowrap' }}>{unit}</span>} {/* Display the unit */}
         </div>
     );
 }
