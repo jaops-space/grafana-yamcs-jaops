@@ -431,6 +431,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                         if (variableMode && commandState?.changeMode === 'input') {
                             return (
                                 <InputModeField
+                                    key={command.name + i}
                                     variableToSet={commandState?.variableToSet}
                                     scopedVars={scopedVars}
                                     loading={loading}
