@@ -30,7 +30,10 @@ Enable to create on/off button pairs. Configure both commands separately with in
 ### Variable Integration
 Enable to update Grafana variables on command execution:
 - Select target variable
-- Choose mode: `change` (replace), `add` (append), or `multiply`
+- Choose mode: `change` (replace), `add` (append), `multiply`, `input`
+
+#### Input Mode
+Displays the current variable value and allows direct keyboard editing. The value is applied on **Enter**.
 
 ## Usage
 

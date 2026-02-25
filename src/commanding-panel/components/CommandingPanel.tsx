@@ -2,7 +2,7 @@ import { AppEvents, PanelProps, SelectableValue, VariableWithMultiSupport } from
 import { DataSourceWithBackend, getAppEvents, getTemplateSrv, locationService, useLocationService } from '@grafana/runtime';
 import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Shapes from './Shapes';
 
 type CommandInfos = Array<{
@@ -12,6 +12,68 @@ type CommandInfos = Array<{
 
 export interface CommandingPanelProps extends PanelProps<PanelOptions> {
     variableMode?: boolean;
+}
+
+// Component for input mode that displays current value and accepts keyboard input
+function InputModeField({ variableToSet, scopedVars, loading }: { variableToSet?: string, scopedVars?: any, loading: boolean }) {
+    const currentVariableValue = variableToSet
+        ? getTemplateSrv().replace("$" + variableToSet, scopedVars)
+        : '';
+
+    const [inputValue, setInputValue] = useState<string>(currentVariableValue);
+    const isFocused = useRef(false);
+    const lastSubmitted = useRef<string | null>(null);
+
+    // Sync from external variable changes only when not focused and not just submitted
+    useEffect(() => {
+        if (!isFocused.current && currentVariableValue !== lastSubmitted.current) {
+            setInputValue(currentVariableValue);
+        }
+    }, [currentVariableValue]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputValue(e.target.value);
+    };
+
+    const handleSubmit = (value: string) => {
+        if (variableToSet) {
+            lastSubmitted.current = value;
+            locationService.partial({
+                [`var-${variableToSet}`]: value,
+                replace: true
+            });
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleSubmit(inputValue);
+            (e.target as HTMLInputElement).blur();
+        }
+    };
+
+    const handleBlur = () => {
+        isFocused.current = false;
+        handleSubmit(inputValue);
+    };
+
+    const handleFocus = () => {
+        isFocused.current = true;
+    };
+
+    return (
+        <Input
+            type='text'
+            disabled={loading}
+            value={inputValue}
+            placeholder="Enter value"
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
+            style={{ width: '100%', height: '100%' }}
+        />
+    );
 }
 
 export default function CommandingPanel({ variableMode = false, ...props }: CommandingPanelProps) {
@@ -166,6 +228,9 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                     try {
                         newValue = parseFloat(variableValueBefore) * parseFloat(valueToSet);
                     }catch(err){};
+                    break;
+                case 'input':
+                    newValue = valueToSet;
                     break;
             }
             locationService.partial({[`var-${commandData.variableToSet}`]: newValue, replace: true})
@@ -362,6 +427,16 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                     };
                     
                     if (!editing) {
+                        // For variable mode with 'input' change mode, render an input field
+                        if (variableMode && commandState?.changeMode === 'input') {
+                            return (
+                                <InputModeField
+                                    variableToSet={commandState?.variableToSet}
+                                    scopedVars={scopedVars}
+                                    loading={loading}
+                                />
+                            );
+                        }
                         return render(true);
                     }
 
@@ -400,6 +475,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 { label: "Set", value: 'change', description: "Set the variable to a value" },
                                                 { label: "Add", value: 'add', description: "Add a number to the variable" },
                                                 { label: "Multiply", value: 'multiply', description: "Multiply the variable by a number" },
+                                                { label: "Input", value: 'input', description: "Text box that displays current value and accepts keyboard input" },
                                             ]}
                                             value={commandState?.changeMode || ''}
                                             onChange={(e: SelectableValue<string>) => {
@@ -408,6 +484,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
+                                    {commandState?.changeMode !== 'input' && (
                                     <Field label='Value' description='Value to use. You may write a custom value.'>
                                         <Select
                                             type='text'
@@ -423,6 +500,23 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             }}
                                             style={{ width: '100%' }}
                                         />
+                                    </Field>
+                                    )}
+                                    <Field label='Preview' description={commandState?.changeMode === 'input' ? 'Preview of the input box' : 'Preview of the button'}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            height: '50px', width: '100%', objectFit: 'contain'
+                                        }}>
+                                            {commandState?.changeMode === 'input' ? (
+                                                <InputModeField
+                                                    variableToSet={commandState?.variableToSet}
+                                                    scopedVars={scopedVars}
+                                                    loading={false}
+                                                />
+                                            ) : (
+                                                render()
+                                            )}
+                                        </div>
                                     </Field>
                                 </> :
                                     <>
@@ -983,6 +1077,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     </Field>
                                 </>}
                                 </>}
+                                {!variableMode && (
                                 <Field label='Preview' description='Preview of the button'>
                                     <div style={{
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -991,6 +1086,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         {render()}
                                     </div>
                                 </Field>
+                                )}
                             </FieldSet>
                         </Card.Description>
                     </Card>;

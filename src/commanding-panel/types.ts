@@ -6,7 +6,7 @@ export interface CommandForms {
         comment: string,
         variableMode: boolean,
         variableToSet: string,
-        changeMode: 'change' | 'add' | 'multiply',
+        changeMode: 'change' | 'add' | 'multiply' | 'input',
         valueToSet: string,
         label: string,
         tooltip: string,
