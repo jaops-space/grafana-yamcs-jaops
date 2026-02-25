@@ -15,7 +15,7 @@ export interface CommandingPanelProps extends PanelProps<PanelOptions> {
 }
 
 // Component for input mode that displays current value and accepts keyboard input
-function InputModeField({ variableToSet, scopedVars, loading }: { variableToSet?: string, scopedVars?: any, loading: boolean }) {
+function InputModeField({ variableToSet, scopedVars, loading, unit }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string }) {
     const currentVariableValue = variableToSet
         ? getTemplateSrv().replace("$" + variableToSet, scopedVars)
         : '';
@@ -62,17 +62,20 @@ function InputModeField({ variableToSet, scopedVars, loading }: { variableToSet?
     };
 
     return (
-        <Input
-            type='text'
-            disabled={loading}
-            value={inputValue}
-            placeholder="Enter value"
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            onFocus={handleFocus}
-            style={{ width: '100%', height: '100%' }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Input
+                type="text"
+                disabled={loading}
+                value={inputValue}
+                placeholder="Enter value"
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                onFocus={handleFocus}
+                style={{ width: '100%', height: '100%' }}
+            />
+            {unit && <span>{unit}</span>} {/* Display the unit */}
+        </div>
     );
 }
 
@@ -351,7 +354,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         }}
                                         size={commandState?.size as any}
                                         fill={commandState?.transparent as any}
-                                        tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
+                                        tooltip={getTemplateSrv().replace(commandState?.onCommand?.label ?? commandState?.label ?? 'ON', scopedVars)}
                                         onClick={withSubmit ? () => handleSubmit(commandInfo, i, false) : undefined}
                                     >
                                         {getTemplateSrv().replace(commandState?.onCommand?.label ?? commandState?.label ?? 'ON', scopedVars)}
@@ -435,6 +438,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     variableToSet={commandState?.variableToSet}
                                     scopedVars={scopedVars}
                                     loading={loading}
+                                    unit={commandState?.unit} // Pass the unit to InputModeField
                                 />
                             );
                         }
@@ -503,6 +507,18 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                     )}
+                                    <Field label='Unit of Measurement' description='Unit to display next to the value (e.g., m/s, deg)'>
+                                        <Input
+                                            type='text'
+                                            disabled={loading}
+                                            value={commandState?.unit || ''}
+                                            placeholder='Enter unit (e.g. m/s, deg)'
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                handleOptionChange(command.name, 'unit', e.target.value, i);
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
                                     <Field label='Preview' description={commandState?.changeMode === 'input' ? 'Preview of the input box' : 'Preview of the button'}>
                                         <div style={{
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -513,6 +529,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     variableToSet={commandState?.variableToSet}
                                                     scopedVars={scopedVars}
                                                     loading={false}
+                                                    unit={commandState?.unit}
                                                 />
                                             ) : (
                                                 render()
@@ -1077,8 +1094,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                 </>}
-                                </>}
-                                {!variableMode && (
                                 <Field label='Preview' description='Preview of the button'>
                                     <div style={{
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1087,7 +1102,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         {render()}
                                     </div>
                                 </Field>
-                                )}
+                                </>}
                             </FieldSet>
                         </Card.Description>
                     </Card>;
