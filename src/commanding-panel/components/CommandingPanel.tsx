@@ -483,7 +483,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'variableToSet', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
                                         />
                                     </Field>
                                     <Field label='Change Mode' description='How to change the value'>
@@ -499,7 +498,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'changeMode', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
                                         />
                                     </Field>
                                     {commandState?.changeMode !== 'input' && (
@@ -514,7 +512,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'valueToSet', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
                                         />
                                     </Field>
                                     )}
@@ -561,7 +558,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'isDualButton', e.value === 'true', i);
                                             }}
-                                            style={{ width: '100%' }}
                                         />
                                     </Field>
                                     <Divider />
@@ -590,7 +586,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Combobox
                                                         value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
-                                                        style={{ width: '100%' }}
                                                         onChange={(e: SelectableValue<any>) => {
                                                             const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
                                                             handleInputChange(command.name, arg.name, val, i);
@@ -676,7 +671,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Combobox
                                                         value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
-                                                        style={{ width: '100%' }}
                                                         onChange={(e: SelectableValue<any>) => {
                                                             const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
                                                             handleOptionChange(command.name, 'onCommand', {
@@ -825,7 +819,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Combobox
                                                         value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
-                                                        style={{ width: '100%' }}
                                                         onChange={(e: SelectableValue<any>) => {
                                                             const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
                                                             handleOptionChange(command.name, 'offCommand', {
@@ -986,7 +979,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'icon', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
                                     />
                                 </Field>
                                 <Field label='Size' description='Button size'>
@@ -1002,7 +994,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'size', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
                                     />
                                 </Field>
                                 <Field label='Color' description='Button color'>
@@ -1035,7 +1026,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'transparent', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
                                     />
                                 </Field>
                                 <Field label='Shape' description='Button shape'>
@@ -1049,7 +1039,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'shape', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
                                     />
                                 </Field>
                                 {commandState?.shape === 'svg' && <>
@@ -1084,7 +1073,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(v: SelectableValue<string>) =>
                                                 handleOptionChange(command.name, 'bgSize', v.value, i)
                                             }
-                                            style={{ width: '100%' }}
                                         />
                                     </Field>
                                     <Field label="SVG Position" description="Controls the position of the background image. You may write custom CSS backgroundPosition value.">
@@ -1101,7 +1089,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(v: SelectableValue<string>) =>
                                                 handleOptionChange(command.name, 'bgPosition', v.value, i)
                                             }
-                                            style={{ width: '100%' }}
                                         />
                                     </Field>
                                 </>}
