@@ -1,6 +1,6 @@
 import { AppEvents, PanelProps, SelectableValue, VariableWithMultiSupport } from '@grafana/data';
 import { DataSourceWithBackend, getAppEvents, getTemplateSrv, locationService, useLocationService } from '@grafana/runtime';
-import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select, Combobox } from '@grafana/ui';
+import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Combobox } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState, useEffect, useRef } from 'react';
 import Shapes from './Shapes';
@@ -504,15 +504,13 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     </Field>
                                     {commandState?.changeMode !== 'input' && (
                                     <Field label='Value' description='Value to use. You may write a custom value.'>
-                                        <Select
-                                            type='text'
+                                        <Combobox
                                             disabled={loading}
                                             options={((getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet) as VariableWithMultiSupport)
                                                 ?.options || []).map(option => ({ label: option.text as string, value: option.value as string }))
                                             }
                                             value={commandState?.valueToSet || ''}
-                                            defaultValue={commandState?.valueToSet || ''}
-                                            allowCustomValue
+                                            createCustomValue
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'valueToSet', e.value, i);
                                             }}
@@ -553,15 +551,15 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     <>
                                     {/* Button Type Selector */}
                                     <Field label='Button Type (Single or Dual)' description='Create a split button with separate commands'>
-                                        <Select
+                                        <Combobox
                                             disabled={loading}
                                             options={[
-                                                { label: 'Single Button', value: false },
-                                                { label: 'Dual Button', value: true },
+                                                { label: 'Single Button', value: 'false' },
+                                                { label: 'Dual Button', value: 'true' },
                                             ]}
-                                            value={commandState?.isDualButton === true ? { label: 'Dual Button', value: true } : { label: 'Single Button', value: false }}
-                                            onChange={(e: SelectableValue<boolean>) => {
-                                                handleOptionChange(command.name, 'isDualButton', e.value, i);
+                                            value={commandState?.isDualButton === true ? 'true' : 'false'}
+                                            onChange={(e: SelectableValue<string>) => {
+                                                handleOptionChange(command.name, 'isDualButton', e.value === 'true', i);
                                             }}
                                             style={{ width: '100%' }}
                                         />
@@ -577,7 +575,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
 
                                             if (arg.type.engType === 'enumeration') {
                                                 inputField = (
-                                                    <Select
+                                                    <Combobox
                                                         disabled={loading}
                                                         value={inputValue}
                                                         onChange={(e: SelectableValue<any>) => {
@@ -589,19 +587,19 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 );
                                             } else if (arg.type.engType === 'boolean') {
                                                 inputField = (
-                                                    <Select
-                                                        value={inputValue}
+                                                    <Combobox
+                                                        value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
                                                         style={{ width: '100%' }}
                                                         onChange={(e: SelectableValue<any>) => {
-                                                            handleInputChange(command.name, arg.name, e.value, i);
-                                                            validateInput(command.name, arg, e.value);
+                                                            const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
+                                                            handleInputChange(command.name, arg.name, val, i);
+                                                            validateInput(command.name, arg, val);
                                                         }}
                                                         options={[
-                                                            { label: arg.type.zeroStringValue || 'False', value: false },
-                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                            { label: arg.type.zeroStringValue || 'False', value: 'false' },
+                                                            { label: arg.type.oneStringValue || 'True', value: 'true' },
                                                         ]}
-                                                        fullWidth
                                                     />
                                                 );
                                             } else {
@@ -658,7 +656,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
 
                                             if (arg.type.engType === 'enumeration') {
                                                 inputField = (
-                                                    <Select
+                                                    <Combobox
                                                         disabled={loading}
                                                         value={inputValue}
                                                         onChange={(e: SelectableValue<any>) => {
@@ -675,24 +673,24 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 );
                                             } else if (arg.type.engType === 'boolean') {
                                                 inputField = (
-                                                    <Select
-                                                        value={inputValue}
+                                                    <Combobox
+                                                        value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
                                                         style={{ width: '100%' }}
                                                         onChange={(e: SelectableValue<any>) => {
+                                                            const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
                                                             handleOptionChange(command.name, 'onCommand', {
                                                                 ...commandState?.onCommand,
                                                                 arguments: {
                                                                     ...commandState?.onCommand?.arguments,
-                                                                    [arg.name]: e.value
+                                                                    [arg.name]: val
                                                                 }
                                                             }, i);
                                                         }}
                                                         options={[
-                                                            { label: arg.type.zeroStringValue || 'False', value: false },
-                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                            { label: arg.type.zeroStringValue || 'False', value: 'false' },
+                                                            { label: arg.type.oneStringValue || 'True', value: 'true' },
                                                         ]}
-                                                        fullWidth
                                                     />
                                                 );
                                             } else {
@@ -807,7 +805,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
 
                                             if (arg.type.engType === 'enumeration') {
                                                 inputField = (
-                                                    <Select
+                                                    <Combobox
                                                         disabled={loading}
                                                         value={inputValue}
                                                         onChange={(e: SelectableValue<any>) => {
@@ -824,24 +822,24 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 );
                                             } else if (arg.type.engType === 'boolean') {
                                                 inputField = (
-                                                    <Select
-                                                        value={inputValue}
+                                                    <Combobox
+                                                        value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
                                                         style={{ width: '100%' }}
                                                         onChange={(e: SelectableValue<any>) => {
+                                                            const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
                                                             handleOptionChange(command.name, 'offCommand', {
                                                                 ...commandState?.offCommand,
                                                                 arguments: {
                                                                     ...commandState?.offCommand?.arguments,
-                                                                    [arg.name]: e.value
+                                                                    [arg.name]: val
                                                                 }
                                                             }, i);
                                                         }}
                                                         options={[
-                                                            { label: arg.type.zeroStringValue || 'False', value: false },
-                                                            { label: arg.type.oneStringValue || 'True', value: true },
+                                                            { label: arg.type.zeroStringValue || 'False', value: 'false' },
+                                                            { label: arg.type.oneStringValue || 'True', value: 'true' },
                                                         ]}
-                                                        fullWidth
                                                     />
                                                 );
                                             } else {
@@ -979,11 +977,11 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     />
                                 </Field>
                                 <Field label='Icon' description='Icon name'>
-                                    <Select
+                                    <Combobox
                                         disabled={loading}
                                         options={
                                             [{ label: 'None', value: '' },
-                                            ...getAvailableIcons().map(icon => ({ label: icon, value: icon, icon: icon }))]}
+                                            ...getAvailableIcons().map(icon => ({ label: icon, value: icon }))]}
                                         value={commandState?.icon || ''}
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'icon', e.value, i);
@@ -992,7 +990,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     />
                                 </Field>
                                 <Field label='Size' description='Button size'>
-                                    <Select
+                                    <Combobox
                                         disabled={loading}
                                         options={[
                                             { label: 'Mini', value: 'xs' },
@@ -1026,7 +1024,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     />
                                 </Field>
                                 <Field label='Transparent' description='Button transparency'>
-                                    <Select
+                                    <Combobox
                                         disabled={loading}
                                         options={[
                                             { label: 'Fill', value: 'solid' },
@@ -1041,7 +1039,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     />
                                 </Field>
                                 <Field label='Shape' description='Button shape'>
-                                    <Select
+                                    <Combobox
                                         disabled={loading}
                                         options={Object.keys(Shapes).map((shape) => ({
                                             label: Shapes[shape as any].name,
@@ -1074,7 +1072,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                     <Field label="SVG Size" description="Controls how the background image is scaled. You may write custom css backgroundSize value.">
-                                        <Select
+                                        <Combobox
                                             options={[
                                                 { label: 'Contain', value: 'contain' },
                                                 { label: 'Cover', value: 'cover' },
@@ -1082,15 +1080,15 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 { label: 'Stretch', value: '100% 100%' },
                                             ]}
                                             value={commandState?.bgSize || 'contain'}
-                                            allowCustomValue
-                                            onChange={(v) =>
+                                            createCustomValue
+                                            onChange={(v: SelectableValue<string>) =>
                                                 handleOptionChange(command.name, 'bgSize', v.value, i)
                                             }
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
                                     <Field label="SVG Position" description="Controls the position of the background image. You may write custom CSS backgroundPosition value.">
-                                        <Select
+                                        <Combobox
                                             options={[
                                                 { label: 'Center', value: 'center' },
                                                 { label: 'Top Left', value: 'top left' },
@@ -1098,9 +1096,9 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 { label: 'Bottom Left', value: 'bottom left' },
                                                 { label: 'Bottom Right', value: 'bottom right' },
                                             ]}
-                                            allowCustomValue
+                                            createCustomValue
                                             value={commandState?.bgPosition || 'center'}
-                                            onChange={(v) =>
+                                            onChange={(v: SelectableValue<string>) =>
                                                 handleOptionChange(command.name, 'bgPosition', v.value, i)
                                             }
                                             style={{ width: '100%' }}
