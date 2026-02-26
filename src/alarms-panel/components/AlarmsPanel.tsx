@@ -729,6 +729,20 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         );
     }
 
+    // Pagination state to avoid InteractiveTable resetting to page 1 on data updates
+    const [currentPage, setCurrentPage] = useState<number>(1);
+
+    const pageSize = Math.max(1, options.pageSize || 10);
+    const totalPages = Math.max(1, Math.ceil(deduped.length / pageSize));
+
+    // Keep current page within bounds when data changes
+    React.useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+        // Don't reset to 1 on data updates; preserve the user's current page
+    }, [totalPages]);
+
     return (
         <div style={{
             display: 'flex',
@@ -820,14 +834,50 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     width: '100%'
                 }}>
                     {options.pagination ? (
-                        <InteractiveTable
-                            key="with-pagination"
-                            data={deduped.map(d => ({ row: d, id: d.id }))}
-                            getRowId={(row: any) => row.id}
-                            columns={visibleColumns}
-                            renderExpandedRow={options.showDetails ? renderSubComponent : undefined}
-                            pageSize={Math.max(1, options.pageSize)}
-                        />
+                        <>
+                            {/* Render only the rows for the current page so updates don't reset pagination */}
+                            <InteractiveTable
+                                key={`page-${currentPage}`}
+                                data={deduped.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(d => ({ row: d, id: d.id }))}
+                                getRowId={(row: any) => row.id}
+                                columns={visibleColumns}
+                                renderExpandedRow={options.showDetails ? renderSubComponent : undefined}
+                                // Do not pass pageSize to let us control pagination externally
+                            />
+
+                            {/* Pagination controls */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px' }}>
+                                <Stack direction="row" gap={0.5} alignItems="center">
+                                    <Button size="sm" variant="secondary" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} icon="angle-left" />
+
+                                    {/* Render page buttons (limit to reasonable number) */}
+                                    {(() => {
+                                        const buttons = [] as any[];
+                                        const maxButtons = 7;
+                                        let start = 1;
+                                        let end = totalPages;
+                                        if (totalPages > maxButtons) {
+                                            const half = Math.floor(maxButtons / 2);
+                                            start = Math.max(1, currentPage - half);
+                                            end = Math.min(totalPages, start + maxButtons - 1);
+                                            if (end - start + 1 < maxButtons) {
+                                                start = Math.max(1, end - maxButtons + 1);
+                                            }
+                                        }
+                                        for (let p = start; p <= end; p++) {
+                                            buttons.push(
+                                                <Button key={p} size="sm" variant={p === currentPage ? 'primary' : 'secondary'} onClick={() => setCurrentPage(p)}>
+                                                    {p}
+                                                </Button>
+                                            );
+                                        }
+                                        return buttons;
+                                    })()}
+
+                                    <Button size="sm" variant="secondary" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} icon="angle-right" />
+                                </Stack>
+                            </div>
+                        </>
                     ) : (
                         <InteractiveTable
                             key="without-pagination"
