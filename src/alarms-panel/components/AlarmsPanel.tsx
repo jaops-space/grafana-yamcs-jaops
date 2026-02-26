@@ -13,7 +13,6 @@ interface AlarmEntry {
     severity: string;
     type: string;
     violations: number;
-    count: number;
     acknowledged: boolean;
     acknowledgedBy?: string;
     acknowledgeTime?: string;
@@ -436,7 +435,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                             <Button
                                 size="sm"
                                 variant="secondary"
-                                icon="play-circle" // Updated icon for unshelve
+                                icon="play" // use allowed icon name
                                 tooltip="Unshelve alarm"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -508,8 +507,10 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trigger Value:'}</strong> {alarm.triggerValue || '-'}</Text>
                     {!isEventAlarm && alarm.mostSevereValue && <Text><strong>Most Severe Value:</strong> {alarm.mostSevereValue}</Text>}
                     <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
-                    <Text><strong>Violations:</strong> {alarm.violations}</Text>
-                    <Text><strong>Count:</strong> {alarm.count}</Text>
+                    <Tooltip content="Number of rule violations (this is what Yamcs web shows)">
+                        <Text><strong>Violations:</strong> {alarm.violations}</Text>
+                    </Tooltip>
+
                     {!isEventAlarm && <Text><strong>Latching:</strong> {alarm.latching ? 'Yes' : 'No'}</Text>}
 
                     {/* ParameterAlarmData Section - Collapsible */}
