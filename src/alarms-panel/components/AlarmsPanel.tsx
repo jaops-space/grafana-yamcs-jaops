@@ -299,38 +299,29 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             cell: (info: any) => {
                 const alarm = info.row.original.row;
 
-                // Determine the alarm state based on flags (priority order like Yamcs Web)
+                // Determine the alarm state using Yamcs-style combined labels
                 let statusText = '';
-                let statusColor: any = 'primary';
-                let icon: any = 'circle';
+                let statusColor: string;
 
                 if (alarm.shelved) {
                     statusText = 'Shelved';
-                    statusColor = 'disabled';
-                    icon = 'clock-nine';
+                    statusColor = theme.colors.text.secondary;
                 } else if (alarm.cleared) {
                     statusText = 'Cleared';
-                    statusColor = 'success';
-                    icon = 'check-circle';
+                    statusColor = theme.colors.success.text;
                 } else if (!alarm.triggered) {
-                    statusText = 'OK';
-                    statusColor = 'success';
-                    icon = 'check-circle';
+                    statusText = 'Active, acknowledged';
+                    statusColor = theme.colors.success.text;
                 } else if (alarm.acknowledged) {
-                    statusText = 'Acknowledged';
-                    statusColor = 'info';
-                    icon = 'check';
+                    statusText = 'Active, acknowledged';
+                    statusColor = theme.colors.warning.text;
                 } else {
-                    statusText = 'Triggered';
-                    statusColor = 'error';
-                    icon = 'exclamation-triangle';
+                    statusText = 'Active, unacknowledged';
+                    statusColor = theme.colors.error.text;
                 }
 
                 return (
-                    <Stack direction="row" gap={0.5} alignItems="center">
-                        <Icon name={icon} color={statusColor} />
-                        <Text color={statusColor}>{statusText}</Text>
-                    </Stack>
+                    <span style={{ color: statusColor, whiteSpace: 'nowrap' }}>{statusText}</span>
                 );
             },
         },
@@ -363,15 +354,6 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             },
         },
         {
-            id: 'triggerTimestamp',
-            header: 'Trigger Timestamp',
-            accessorKey: 'triggerTime',
-            cell: (info: any) => {
-                const dt = dateTime(info.row.original.row.triggerTime);
-                return <span title={dt.fromNow()}>{dt.format('YYYY-MM-DD HH:mm:ss')}</span>;
-            },
-        },
-        {
             id: 'name',
             header: 'Alarm name',
             accessorKey: 'name',
@@ -394,7 +376,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         },
         {
             id: 'triggerValue',
-            header: 'Trigger value',
+            header: 'Trip value',
             accessorKey: 'triggerValue',
             cell: (info: any) => {
                 // Try both triggerValue and tripValue for compatibility
@@ -403,35 +385,10 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             },
         },
         {
-            id: 'mostSevereValue',
-            header: 'Most severe value',
-            accessorKey: 'mostSevereValue',
-            cell: (info: any) => info.row.original.row.mostSevereValue || '-',
-        },
-        {
             id: 'currentValue',
             header: 'Live value',
             accessorKey: 'currentValue',
             cell: (info: any) => info.row.original.row.currentValue || '-',
-        },
-        {
-            id: 'violations',
-            header: 'Violations',
-            accessorKey: 'violations',
-            cell: (info: any) => info.row.original.row.violations || 0,
-        },
-        {
-            id: 'acknowledged',
-            header: 'Ack',
-            accessorKey: 'acknowledged',
-            cell: (info: any) => {
-                const acknowledged = info.row.original.row.acknowledged;
-                return acknowledged ? (
-                    <Icon name="check" color="success" />
-                ) : (
-                    <span>-</span>
-                );
-            },
         },
         {
             id: 'actions',
@@ -468,7 +425,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                             <Button
                                 size="sm"
                                 variant="secondary"
-                                icon="clock-nine"
+                                icon="pause-circle" // Updated icon for shelve
                                 tooltip="Shelve alarm"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -479,7 +436,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                             <Button
                                 size="sm"
                                 variant="secondary"
-                                icon="eye"
+                                icon="play-circle" // Updated icon for unshelve
                                 tooltip="Unshelve alarm"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -491,14 +448,24 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                 );
             },
         },
-    ], [handleAction]);
+    ], [severityConfig, formatTime, formatPreciseDuration, handleAction, theme]);
 
     // Filter columns based on user's visible fields selection
     const visibleColumns = useMemo(() => {
         // If no visible fields are configured, use all columns
-        const fieldsToShow = options.visibleFields && options.visibleFields.length > 0
-            ? options.visibleFields
+        let fieldsToShow = options.visibleFields && options.visibleFields.length > 0
+            ? [...options.visibleFields]
             : ['state', 'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'mostSevereValue', 'currentValue', 'violations', 'acknowledged', 'actions'];
+
+        // Ensure 'state' is always present (for panels saved before the State column was added).
+        if (!fieldsToShow.includes('state')) {
+            const sevIdx = fieldsToShow.indexOf('severity');
+            if (sevIdx >= 0) {
+                fieldsToShow.splice(sevIdx, 0, 'state');
+            } else {
+                fieldsToShow.unshift('state');
+            }
+        }
 
         // Return columns in the order they appear in the visibleFields array
         return fieldsToShow

@@ -27,6 +27,7 @@ const allFields = [
 
 // Default visible columns for new panels (matching Yamcs Web)
 const defaultVisibleFields = [
+  'state',            // State
   'severity',         // Severity
   'triggerTime',      // Alarm time
   'name',             // Alarm name
