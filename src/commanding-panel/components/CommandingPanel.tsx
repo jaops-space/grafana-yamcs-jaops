@@ -1,6 +1,6 @@
 import { AppEvents, PanelProps, SelectableValue, VariableWithMultiSupport } from '@grafana/data';
 import { DataSourceWithBackend, getAppEvents, getTemplateSrv, locationService, useLocationService } from '@grafana/runtime';
-import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Combobox } from '@grafana/ui';
+import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Combobox, Checkbox } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState, useEffect, useRef } from 'react';
 import Shapes from './Shapes';
@@ -15,7 +15,7 @@ export interface CommandingPanelProps extends PanelProps<PanelOptions> {
 }
 
 // Component for input mode that displays current value and accepts keyboard input
-function InputModeField({ variableToSet, scopedVars, loading, unit }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string }) {
+function InputModeField({ variableToSet, scopedVars, loading, unit, showVariableLabel }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string, showVariableLabel?: boolean }) {
     // Subscribe to location changes so the component re-renders when dashboard variable labels change
     const locService = useLocationService();
     locService.getLocation();
@@ -75,7 +75,7 @@ function InputModeField({ variableToSet, scopedVars, loading, unit }: { variable
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-            {variableDisplayLabel && (
+            {showVariableLabel !== false && variableDisplayLabel && (
                 <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{variableDisplayLabel}</span>
             )}
             <Input
@@ -454,6 +454,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     scopedVars={scopedVars}
                                     loading={loading}
                                     unit={commandState?.unit} // Pass the unit to InputModeField
+                                    showVariableLabel={commandState?.showVariableLabel}
                                 />
                             );
                         }
@@ -500,8 +501,15 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             }}
                                         />
                                     </Field>
+                                    <Field label='Display variable name' description='Show the variable display name to the left of the input box in runtime'>
+                                        <Checkbox
+                                            value={commandState?.showVariableLabel !== false}
+                                            onChange={(e) => handleOptionChange(command.name, 'showVariableLabel', e.currentTarget.checked, i)}
+                                            label='Show variable name'
+                                        />
+                                    </Field>
                                     {commandState?.changeMode !== 'input' && (
-                                    <Field label='Value' description='Value to use. You may write a custom value.'>
+                                     <Field label='Value' description='Value to use. You may write a custom value.'>
                                         <Combobox
                                             disabled={loading}
                                             options={((getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet) as VariableWithMultiSupport)
@@ -538,6 +546,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     scopedVars={scopedVars}
                                                     loading={false}
                                                     unit={commandState?.unit}
+                                                    showVariableLabel={commandState?.showVariableLabel}
                                                 />
                                             ) : (
                                                 render()

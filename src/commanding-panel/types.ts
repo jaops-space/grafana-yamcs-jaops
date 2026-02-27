@@ -22,6 +22,7 @@ export interface CommandForms {
         bgWidth: string,
         bgHeight: string,
         unit?: string,
+        showVariableLabel?: boolean,
         isDualButton?: boolean;  // Flag to indicate if this is a dual on/off button
         onCommand?: {            // Configuration for the "on" command
             arguments?: { [key: string]: any };
