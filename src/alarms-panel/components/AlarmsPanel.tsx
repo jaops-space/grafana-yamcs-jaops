@@ -1,6 +1,6 @@
 import { dateTime, PanelProps } from '@grafana/data';
 import { DataSourceWithBackend } from '@grafana/runtime';
-import { Button, Icon, InteractiveTable, Modal, Select, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
+import { Button, Icon, InteractiveTable, Modal, Combobox, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
 import { AlarmsOptions } from 'alarms-panel/module';
 import React, { useCallback, useMemo, useState } from 'react';
 
@@ -918,7 +918,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                             <label htmlFor="shelve-duration" style={{ display: 'block', marginBottom: '8px' }}>
                                 <strong>Duration</strong>
                             </label>
-                            <Select
+                            <Combobox
                                 id="shelve-duration"
                                 value={shelveDuration}
                                 options={[
@@ -929,7 +929,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                                     { label: '1 day', value: 86400000 },
                                     { label: 'unlimited', value: 0 },
                                 ]}
-                                onChange={(option) => setShelveDuration(option.value as number)}
+                                onChange={(option) => { setShelveDuration(option.value as number); }}
                             />
                         </div>
                     )}
@@ -972,7 +972,7 @@ const YAMCS_DATA_SOURCE_NAMES: Record<string, string> = {
 
 // Helper to get the human-readable Yamcs DataSourceType name for a given numeric value
 function getDatasourceDisplayName(dsValue: string | number | undefined): string | null {
-  if (dsValue === undefined || dsValue === null || dsValue === '') return null;
+  if (dsValue === undefined || dsValue === null || dsValue === '') { return null; }
   const dsStr = String(dsValue);
   return YAMCS_DATA_SOURCE_NAMES[dsStr] || null;
 }
