@@ -682,7 +682,13 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                                                                 <Text>qualifiedName: {alarm.parameterInfo.qualifiedName}</Text>
                                                             )}
                                                             {alarm.parameterInfo.dataSource !== undefined && alarm.parameterInfo.dataSource !== null && alarm.parameterInfo.dataSource !== '' && (
-                                                                <Text>dataSource: {alarm.parameterInfo.dataSource}</Text>
+                                                                <Text>
+                                                                    <strong>dataSource:</strong> {alarm.parameterInfo.dataSource}
+                                                                    {(() => {
+                                                                      const name = getDatasourceDisplayName(alarm.parameterInfo.dataSource);
+                                                                      return name ? ` (${name})` : '';
+                                                                    })()}
+                                                                </Text>
                                                             )}
                                                             {alarm.parameterInfo.shortDescription !== undefined && alarm.parameterInfo.shortDescription !== null && alarm.parameterInfo.shortDescription !== '' && (
                                                                 <Text>shortDescription: {alarm.parameterInfo.shortDescription}</Text>
@@ -948,5 +954,27 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         </div>
     );
 };
+
+// Yamcs DataSourceType enum mapping (from mdb.pb.go)
+const YAMCS_DATA_SOURCE_NAMES: Record<string, string> = {
+  '0': 'TELEMETERED',
+  '1': 'DERIVED',
+  '2': 'CONSTANT',
+  '3': 'LOCAL',
+  '4': 'SYSTEM',
+  '5': 'COMMAND',
+  '6': 'COMMAND_HISTORY',
+  '7': 'EXTERNAL1',
+  '8': 'EXTERNAL2',
+  '9': 'EXTERNAL3',
+  '10': 'GROUND',
+};
+
+// Helper to get the human-readable Yamcs DataSourceType name for a given numeric value
+function getDatasourceDisplayName(dsValue: string | number | undefined): string | null {
+  if (dsValue === undefined || dsValue === null || dsValue === '') return null;
+  const dsStr = String(dsValue);
+  return YAMCS_DATA_SOURCE_NAMES[dsStr] || null;
+}
 
 export default AlarmsPanel;
