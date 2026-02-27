@@ -1,5 +1,5 @@
 import { SelectableValue } from '@grafana/data';
-import { Badge, Box, Button, Checkbox, InlineField, Input, Select, Stack, Text } from '@grafana/ui';
+import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
 import React, { useCallback, useEffect, useState } from 'react';
 import { QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
@@ -74,16 +74,6 @@ export function QueryEditor(props: QueryProps) {
         onRunQuery();
     }, [query]);
 
-    const getBadge = (status: any) => {
-        if (!status) {
-            return <></>;
-        }
-        if (status.error) {
-            return <Badge color="red" tooltip={status.error} text="Error" data-testid="status-badge" />;
-        }
-        return status.online ? <Badge color="green" text="Online" data-testid="status-badge" /> : <Badge color="orange" text="Offline" data-testid="status-badge" />;
-    };
-
     const variableOptions = getTemplateSrv().getVariables().map((variable) => ({
         label: variable.label || variable.name,
         description: variable.description ?? undefined,
@@ -91,29 +81,18 @@ export function QueryEditor(props: QueryProps) {
     }));
 
     const endpointOptions = Object.entries(endpoints).map(([id, endpoint]) => ({
-        label: endpoint.name || <Text variant='code'>#{id}</Text>,
-        status: endpoint,
-        description: endpoint.description,
+        label: (endpoint as any).name || `#${id}`,
+        description: (endpoint as any).description,
         value: id,
     }));
-
-    const getEndpointLabel = (value: any) => (
-        <Stack direction='row' justifyContent='space-between'>
-            <span>{value.label}</span>
-            <span style={{ zIndex: 212 }}>{getBadge(value.status)}</span>
-        </Stack>
-    );
 
     const renderSelect = () => {
         if (!query.asVariable) {
             return (
-                <Select
+                <Combobox
                     options={endpointOptions}
-                    getOptionLabel={getEndpointLabel}
-                    value={query.endpoint}  
-                    onChange={(e: SelectableValue) => setEndpoint(e.value)}
-                    isLoading={loading}
-                    loadingMessage="Fetching endpoints..."
+                    value={query.endpoint ?? null}
+                    onChange={(e: ComboboxOption | null) => { setEndpoint(e?.value ?? ''); }}
                     data-testid='endpoint-select'
                 />
             );
@@ -129,10 +108,10 @@ export function QueryEditor(props: QueryProps) {
         }
 
         return (
-            <Select
-                options={variableOptions}
-                value={query.endpointVariable}
-                onChange={(e: SelectableValue) => setEndpointVariable(e.value)}
+            <Combobox
+                options={variableOptions.map((o: any) => ({ label: o.label, value: o.value }))}
+                value={query.endpointVariable ?? null}
+                onChange={(e: ComboboxOption | null) => { setEndpointVariable(e?.value ?? ''); }}
                 data-testid='endpoint-select'
             />
         );

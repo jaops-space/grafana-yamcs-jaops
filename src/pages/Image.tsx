@@ -1,5 +1,5 @@
 import { PluginPage } from '@grafana/runtime';
-import { Card, List, Alert, Text } from '@grafana/ui';
+import { Card, Alert, Text } from '@grafana/ui';
 import React from 'react';
 
 function ImagePanelSetup() {
@@ -26,13 +26,10 @@ function ImagePanelSetup() {
                 <Card.Heading>Step 3: Configure the Image Panel</Card.Heading>
                 <Card.Description>
                     There are two types of image panels you can choose from:
-                    <List 
-                        items={[ 
-                            { label: 'Static Image', description: 'Supports manual URL input for static images.' },
-                            { label: 'Telemetric Image', description: 'Queries data as you would for a parameter, but instead shows an image based on the URL provided.' }
-                        ]} 
-                        renderItem={(item: any) => <><Text color='primary'>{item.label}:</Text> {item.description}</>} 
-                    />
+                    <ul>
+                        <li><Text color='primary'>Static Image:</Text> Supports manual URL input for static images.</li>
+                        <li><Text color='primary'>Telemetric Image:</Text> Queries data as you would for a parameter, but instead shows an image based on the URL provided.</li>
+                    </ul>
                 </Card.Description>
             </Card>
 
