@@ -1,5 +1,5 @@
 import { PluginPage } from '@grafana/runtime';
-import { Card, List, Alert, Text } from '@grafana/ui';
+import { Card, Alert, Text } from '@grafana/ui';
 import React from 'react';
 import StepOneImage from '../img/how-to-use/step-1.png';
 import StepTwoImage from '../img/how-to-use/step-2.png';
@@ -23,14 +23,11 @@ function HowToUse() {
                 <Card.Heading>Step 2: Configure the Datasource</Card.Heading>
                 <Card.Description>
                     <p>The data source needs to know what to connect to, use the following configuration items for your needs:</p>
-                    <List 
-                        items={[ 
-                            { label: 'Host', description: <>The path to your Yamcs server (e.g., <code>your-yamcs-server:8090</code>).</> },
-                            { label: 'Endpoint', description: 'The instance and processor inside that host.' }
-                        ]} 
-                        renderItem={(item: any) => <><Text color='primary'>{item.label}:</Text> {item.description}</>} 
-                    />
-                    <p>Once configured, click <Text color='success'>Save & Test</Text> to verify the connection.</p>
+                    <ul>
+                        <li><Text color='primary'>Host:</Text> The path to your Yamcs server (e.g., <code>your-yamcs-server:8090</code>).</li>
+                        <li><Text color='primary'>Endpoint:</Text> The instance and processor inside that host.</li>
+                    </ul>
+                    <p>Once configured, click <Text color='success'>Save &amp; Test</Text> to verify the connection.</p>
                 </Card.Description>
             </Card>
 
@@ -51,13 +48,10 @@ function HowToUse() {
                 <Card.Heading>Step 4: Start Querying</Card.Heading>
                 <Card.Description>
                     <p>Choose a query type:</p>
-                    <List 
-                        items={[ 
-                            { label: 'Parameter Query', description: 'Fetch real-time or historical telemetry data (Graph, Single value, Discrete value...).' },
-                            { label: 'Event Query', description: 'Retrieve system events from Yamcs.' }
-                        ]} 
-                        renderItem={(item: any) => <><Text color='primary'>{item.label}:</Text> {item.description}</>} 
-                    />
+                    <ul>
+                        <li><Text color='primary'>Parameter Query:</Text> Fetch real-time or historical telemetry data (Graph, Single value, Discrete value...).</li>
+                        <li><Text color='primary'>Event Query:</Text> Retrieve system events from Yamcs.</li>
+                    </ul>
                     <p>Search for a parameter and start querying data.</p>
                 </Card.Description>
             </Card>

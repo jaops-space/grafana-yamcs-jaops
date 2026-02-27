@@ -1,5 +1,4 @@
-import { SelectableValue } from '@grafana/data';
-import { AsyncSelect, InlineField, Stack } from '@grafana/ui';
+import { Combobox, ComboboxOption, InlineField, Stack } from '@grafana/ui';
 import { debounce } from 'lodash';
 import React, { useEffect, useRef, useState } from 'react';
 import { Optional } from '../types';
@@ -16,6 +15,9 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
     const { endpoint } = query;
     
     const [command, setCommand] = useState(query.command);
+    const [options, setOptions] = useState<ComboboxOption[]>(
+        query.command ? [{ label: query.command, value: query.command }] : []
+    );
 
     useEffect(() => {
         onChange({
@@ -25,43 +27,32 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
     }, [command]);
 
     // Handle command selection
-    const handleCommandChange = (v: SelectableValue<string>) => {
-        setCommand(v.value ?? '' );
+    const handleCommandChange = (v: ComboboxOption | null) => {
+        setCommand(v?.value ?? '' );
     };
-
-    const defaultOptions = command ? [{ label: command, value: command }] : [];
 
     // Debounced fetch function for loading commands
     const debouncedFetchCommands = useRef(
         debounce(
-            async (inputValue: string, endpoint: Optional<string>, callback: (options: Array<SelectableValue<string>>) => void) => {
+            async (inputValue: string, ep: Optional<string>) => {
                 const parameters: CommandInfo[] = await datasource.getResource(
-                    `endpoint/${endpoint}/commands`,
+                    `endpoint/${ep}/commands`,
                     inputValue ? { q: inputValue } : undefined
                 );
-                callback(parameters.map((command) => ({ label: command.name, value: command.name, description: command.description })));
+                setOptions(parameters.map((cmd) => ({ label: cmd.name, value: cmd.name, description: cmd.description })));
             },
-            1000
+            300
         )
     ).current;
-
-    // Load parameter options
-    const loadCommands = (inputValue: string): Promise<Array<SelectableValue<string>>> => {
-        return new Promise((resolve) => {
-            debouncedFetchCommands(inputValue, endpoint, resolve);
-        });
-    };
 
     return (
         <Stack direction="row" alignItems="center" gap={0}>
             <InlineField label="Command" grow>
-                <AsyncSelect
-                    loadOptions={loadCommands}
-                    defaultOptions={defaultOptions}
+                <Combobox
+                    options={options}
                     onChange={handleCommandChange}
-                    value={command ? { label: command, value: command } : null}
-                    allowCreateWhileLoading
-                    allowCustomValue
+                    value={command ?? null}
+                    onBlur={() => { debouncedFetchCommands('', endpoint); }}
                 />
             </InlineField>
         </Stack>

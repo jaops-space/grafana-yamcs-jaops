@@ -1,4 +1,5 @@
 import { getBackendSrv } from '@grafana/runtime';
+import { firstValueFrom } from 'rxjs';
 import { Alert, Box, Collapse, Icon, Spinner, Stack, Text, useStyles2 } from '@grafana/ui';
 import React, { useCallback, useEffect, useState } from 'react';
 import { css } from '@emotion/css';
@@ -137,10 +138,10 @@ export default function ConnectionStatus({ datasourceUid, configVersion }: Conne
         setResult(null);
         
         try {
-            const response = await getBackendSrv().fetch({
+            const response = await firstValueFrom(getBackendSrv().fetch({
                 url: `/api/datasources/uid/${datasourceUid}/health`,
                 method: 'GET',
-            }).toPromise();
+            }));
 
             const data = response?.data as any;
             
