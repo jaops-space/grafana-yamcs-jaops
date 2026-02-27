@@ -298,29 +298,41 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
             cell: (info: any) => {
                 const alarm = info.row.original.row;
 
-                // Determine the alarm state using Yamcs-style combined labels
-                let statusText = '';
-                let statusColor: string;
+                // Determine concise icon + color for the alarm state
+                let iconName = 'question-circle';
+                let iconColor = theme.colors.text.disabled; // default grey
+                let tooltipText = 'Unknown';
 
                 if (alarm.shelved) {
-                    statusText = 'Shelved';
-                    statusColor = theme.colors.text.secondary;
+                    iconName = 'clock-nine';
+                    iconColor = theme.colors.text.disabled; // grey
+                    tooltipText = 'Shelved';
                 } else if (alarm.cleared) {
-                    statusText = 'Cleared';
-                    statusColor = theme.colors.success.text;
+                    iconName = 'check';
+                    iconColor = theme.colors.text.disabled; // show cleared as grey
+                    tooltipText = 'Cleared';
                 } else if (!alarm.triggered) {
-                    statusText = 'Active, acknowledged';
-                    statusColor = theme.colors.success.text;
+                    // Not triggered but not cleared -> treat as acknowledged active
+                    iconName = 'check';
+                    iconColor = theme.colors.info.text; // blue for acknowledged
+                    tooltipText = 'Active, acknowledged';
                 } else if (alarm.acknowledged) {
-                    statusText = 'Active, acknowledged';
-                    statusColor = theme.colors.warning.text;
+                    iconName = 'check';
+                    iconColor = theme.colors.info.text; // blue for acknowledged
+                    tooltipText = 'Active, acknowledged';
                 } else {
-                    statusText = 'Active, unacknowledged';
-                    statusColor = theme.colors.error.text;
+                    // active and unacknowledged
+                    iconName = 'exclamation-triangle';
+                    iconColor = theme.colors.error.text; // red for unacknowledged
+                    tooltipText = 'Active, unacknowledged';
                 }
 
                 return (
-                    <span style={{ color: statusColor, whiteSpace: 'nowrap' }}>{statusText}</span>
+                    <Tooltip content={tooltipText}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28 }}>
+                            <Icon name={iconName as any} color={iconColor} />
+                        </span>
+                    </Tooltip>
                 );
             },
         },
