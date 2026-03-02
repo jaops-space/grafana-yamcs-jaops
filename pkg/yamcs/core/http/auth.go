@@ -256,13 +256,21 @@ func (a *APIKeyCredentials) BeforeRequest(req *http.Request) error {
 // StartAutoRefresh launches a background goroutine that periodically refreshes
 // expired credentials. If a previous refresh loop is running it is stopped
 // first so that at most one goroutine is active at any time.
+//
+// The entire cancel-then-create cycle is performed under a single lock so that
+// concurrent callers cannot race and leak a goroutine.
 func (m *HTTPManager) StartAutoRefresh() {
-	m.StopAutoRefresh() // cancel any previously running refresh loop
+	m.refreshMu.Lock()
+
+	// Cancel any previously running refresh loop while still holding the lock.
+	if m.refreshCancel != nil {
+		m.refreshCancel()
+		m.refreshCancel = nil
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	m.refreshMu.Lock()
 	m.refreshCancel = cancel
+
 	m.refreshMu.Unlock()
 
 	ticker := time.NewTicker(30 * time.Second)
