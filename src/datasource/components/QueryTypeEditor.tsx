@@ -44,6 +44,7 @@ export function QueryTypeEditor(props: QueryProps) {
         <>
             <Stack direction="row" alignItems="center">
                 <InlineField label="Query Type" grow>
+                    {/* eslint-disable-next-line @typescript-eslint/no-deprecated */}
                     <Select
                         onChange={(s) => setQueryType(s.value ?? QueryType.PLOT)}
                         value={query.type}

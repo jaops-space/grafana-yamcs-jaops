@@ -106,6 +106,7 @@ export function QueryEditor(props: QueryProps) {
     const renderSelect = () => {
         if (!query.asVariable) {
             return (
+                // eslint-disable-next-line @typescript-eslint/no-deprecated
                 <Select
                     options={endpointOptions}
                     getOptionLabel={getEndpointOptionLabel}
