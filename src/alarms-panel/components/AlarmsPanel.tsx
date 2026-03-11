@@ -387,19 +387,66 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         },
         {
             id: 'triggerValue',
-            header: 'Trip value',
+            header: 'Trigger value',
             accessorKey: 'triggerValue',
             cell: (info: any) => {
-                // Try both triggerValue and tripValue for compatibility
-                const row = info.row.original.row;
-                return row.triggerValue || row.tripValue || '-';
+                const alarm = info.row.original.row;
+                const val = alarm.triggerValue;
+                if (!val) { return '-'; }
+                if (alarm.type === 'EVENT') {
+                    // "SEVERITY: message" -> show only "SEVERITY"
+                    const colonIdx = val.indexOf(': ');
+                    return colonIdx >= 0 ? val.substring(0, colonIdx) : val;
+                }
+                return val;
             },
         },
+
         {
             id: 'currentValue',
             header: 'Live value',
             accessorKey: 'currentValue',
-            cell: (info: any) => info.row.original.row.currentValue || '-',
+            cell: (info: any) => {
+                const alarm = info.row.original.row;
+                const val = alarm.currentValue;
+                if (!val) { return '-'; }
+                if (alarm.type === 'EVENT') {
+                    const colonIdx = val.indexOf(': ');
+                    return colonIdx >= 0 ? val.substring(0, colonIdx) : val;
+                }
+                return val;
+            },
+        },
+        {
+            id: 'triggerTimestamp',
+            header: 'Trigger Timestamp',
+            accessorKey: 'triggerTime',
+            cell: (info: any) => {
+                const triggerTime = info.row.original.row.triggerTime;
+                return triggerTime ? formatTime(triggerTime) : '-';
+            },
+        },
+        {
+            id: 'violations',
+            header: 'Violations',
+            accessorKey: 'violations',
+            cell: (info: any) => {
+                const v = info.row.original.row.violations;
+                return v !== undefined && v !== null ? v : '-';
+            },
+        },
+        {
+            id: 'acknowledged',
+            header: 'Ack',
+            accessorKey: 'acknowledged',
+            cell: (info: any) => {
+                const alarm = info.row.original.row;
+                return alarm.acknowledged ? (
+                    <Tooltip content={alarm.acknowledgedBy ? `By: ${alarm.acknowledgedBy}` : 'Acknowledged'}>
+                        <Icon name="check" color={theme.colors.info.text} />
+                    </Tooltip>
+                ) : '-';
+            },
         },
         {
             id: 'actions',
@@ -466,7 +513,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
         // If no visible fields are configured, use all columns
         let fieldsToShow = options.visibleFields && options.visibleFields.length > 0
             ? [...options.visibleFields]
-            : ['state', 'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'mostSevereValue', 'currentValue', 'violations', 'acknowledged', 'actions'];
+            : ['state', 'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'currentValue', 'actions'];
 
         // Ensure 'state' is always present (for panels saved before the State column was added).
         if (!fieldsToShow.includes('state')) {

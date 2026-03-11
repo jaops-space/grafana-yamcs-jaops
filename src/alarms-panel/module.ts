@@ -18,7 +18,6 @@ const allFields = [
   'name',             // Alarm name (Parameter)
   'type',             // Alarm type
   'triggerValue',     // Trigger value
-  'mostSevereValue',  // Most severe value
   'currentValue',     // Live value
   'violations',       // Violations
   'acknowledged',     // Ack
@@ -33,7 +32,6 @@ const defaultVisibleFields = [
   'name',             // Alarm name
   'type',             // Alarm type
   'triggerValue',     // Trigger value
-  'mostSevereValue',  // Most severe value
   'currentValue',     // Live value
   'actions',          // Actions
 ];
@@ -47,7 +45,6 @@ const fieldLabels: Record<string, string> = {
   name: 'Alarm name',
   type: 'Alarm type',
   triggerValue: 'Trigger value',
-  mostSevereValue: 'Most severe value',
   currentValue: 'Live value',
   violations: 'Violations',
   acknowledged: 'Ack',
