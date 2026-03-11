@@ -440,7 +440,23 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                             tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
                             onClick={withSubmit ? () => handleSubmit(commandInfo, i) : undefined}
                         >
-                            {getTemplateSrv().replace(commandState?.label, scopedVars)}
+                            {variableMode && commandState?.changeMode !== 'input' ? (() => {
+                                const actionValue = getTemplateSrv().replace(commandState?.valueToSet || '', scopedVars);
+                                const actionLabel = commandState?.changeMode === 'change'
+                                    ? `= ${actionValue}`
+                                    : commandState?.changeMode === 'add'
+                                        ? `+ ${actionValue}`
+                                        : commandState?.changeMode === 'multiply'
+                                            ? `× ${actionValue}`
+                                            : null;
+                                const userLabel = getTemplateSrv().replace(commandState?.label, scopedVars);
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.2 }}>
+                                        {userLabel && <span>{userLabel}</span>}
+                                        {actionLabel && <span style={{ fontSize: '0.85em', opacity: 0.85 }}>{actionLabel}</span>}
+                                    </div>
+                                );
+                            })() : getTemplateSrv().replace(commandState?.label, scopedVars)}
                         </Button>
                     };
                     
@@ -456,6 +472,26 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     unit={commandState?.unit} // Pass the unit to InputModeField
                                     showVariableLabel={commandState?.showVariableLabel}
                                 />
+                            );
+                        }
+                        // For variable mode with add/multiply/set, wrap the button with label and unit
+                        if (variableMode) {
+                            const variableDisplayLabel = commandState?.variableToSet
+                                ? (() => {
+                                    const variable = getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet);
+                                    return variable ? (variable.label || variable.name) : commandState?.variableToSet;
+                                })()
+                                : '';
+                            return (
+                                <div key={command.name + i} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', height: '100%' }}>
+                                    {commandState?.showVariableLabel !== false && variableDisplayLabel && (
+                                        <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{variableDisplayLabel}</span>
+                                    )}
+                                    <div style={{ flex: 1, height: '100%' }}>{render(true)}</div>
+                                    {commandState?.unit && (
+                                        <span style={{ whiteSpace: 'nowrap' }}>{commandState.unit}</span>
+                                    )}
+                                </div>
                             );
                         }
                         return render(true);
@@ -509,19 +545,19 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         />
                                     </Field>
                                     {commandState?.changeMode !== 'input' && (
-                                     <Field label='Value' description='Value to use. You may write a custom value.'>
-                                        <Combobox
-                                            disabled={loading}
-                                            options={((getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet) as VariableWithMultiSupport)
-                                                ?.options || []).map(option => ({ label: option.text as string, value: option.value as string }))
-                                            }
-                                            value={commandState?.valueToSet || ''}
-                                            createCustomValue
-                                            onChange={(e: SelectableValue<string>) => {
-                                                handleOptionChange(command.name, 'valueToSet', e.value, i);
-                                            }}
-                                        />
-                                    </Field>
+                                        <Field label='Value' description='Value to use. You may write a custom value.'>
+                                            <Combobox
+                                                disabled={loading}
+                                                options={((getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet) as VariableWithMultiSupport)
+                                                    ?.options || []).map(option => ({ label: option.text as string, value: option.value as string }))
+                                                }
+                                                value={commandState?.valueToSet || ''}
+                                                createCustomValue
+                                                onChange={(e: SelectableValue<string>) => {
+                                                    handleOptionChange(command.name, 'valueToSet', e.value, i);
+                                                }}
+                                            />
+                                        </Field>
                                     )}
                                     <Field label='Unit of Measurement' description='Unit to display next to the value (e.g., m/s, deg)'>
                                         <Input
@@ -549,7 +585,20 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     showVariableLabel={commandState?.showVariableLabel}
                                                 />
                                             ) : (
-                                                render()
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', height: '100%' }}>
+                                                    {commandState?.showVariableLabel !== false && commandState?.variableToSet && (
+                                                        <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>
+                                                            {(() => {
+                                                                const variable = getTemplateSrv().getVariables().find(vr => vr.name === commandState?.variableToSet);
+                                                                return variable ? (variable.label || variable.name) : commandState?.variableToSet;
+                                                            })()}
+                                                        </span>
+                                                    )}
+                                                    <div style={{ flex: 1, height: '100%' }}>{render()}</div>
+                                                    {commandState?.unit && (
+                                                        <span style={{ whiteSpace: 'nowrap' }}>{commandState.unit}</span>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </Field>
