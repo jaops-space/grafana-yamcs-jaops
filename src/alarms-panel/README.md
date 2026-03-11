@@ -9,7 +9,7 @@ A Grafana panel plugin for monitoring and managing Yamcs alarms in real-time via
 - **5 Distinct Severity Levels**: Color-coded solid circles for Watch (light blue), Warning (orange), Distress (dark orange), Critical (red), Severe (dark red) - no information loss
 - **Precise Duration Display**: "Alarm time" column shows exact duration (e.g., "56 minutes ago", "1h 10 minutes ago") for quick assessment
 - **Status Display**: Clear state indicators in first column showing alarm status (Triggered, Acknowledged, Shelved, Cleared, OK)
-- **Optimized Column Order**: Matches Yamcs Web layout (State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trigger value, Most severe value, Live value, Actions)
+- **Optimized Column Order**: Matches Yamcs Web layout (State, Severity, Alarm time, Trigger Timestamp, Alarm name, Type, Trigger value, Live value, Actions)
 - **Expandable Details**: View full parameter path or event source, trigger/most severe/live values or event messages, violation counts, acknowledgement history, shelve information, and action comments. For parameter alarms, also includes detailed ParameterValue objects (eng/raw values, acquisition/generation times, monitoring results) and ParameterInfo metadata.
 - **Action Audit Trail**: All alarm actions (acknowledge, shelve, clear) include who performed the action, when, and optional comments
 
