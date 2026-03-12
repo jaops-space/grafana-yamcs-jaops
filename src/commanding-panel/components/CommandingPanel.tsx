@@ -15,7 +15,7 @@ export interface CommandingPanelProps extends PanelProps<PanelOptions> {
 }
 
 // Component for input mode that displays current value and accepts keyboard input
-function InputModeField({ variableToSet, scopedVars, loading, unit, showVariableLabel }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string, showVariableLabel?: boolean }) {
+function InputModeField({ variableToSet, scopedVars, loading, unit, showVariableLabel, color, textColor, size }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string, showVariableLabel?: boolean, color?: string, textColor?: string, size?: string }) {
     // Subscribe to location changes so the component re-renders when dashboard variable labels change
     const locService = useLocationService();
     locService.getLocation();
@@ -73,6 +73,13 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
         isFocused.current = true;
     };
 
+    const fontSizeMap: { [key: string]: string } = {
+        xs: '10px',
+        sm: '12px',
+        md: '14px',
+        lg: '18px',
+    };
+
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
             {showVariableLabel !== false && variableDisplayLabel && (
@@ -87,9 +94,15 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
                 onFocus={handleFocus}
-                style={{ flex: 1, height: '100%' }}
+                style={{
+                    flex: 1,
+                    height: '100%',
+                    backgroundColor: color || undefined,
+                    color: textColor || undefined,
+                    fontSize: size ? fontSizeMap[size] : undefined,
+                }}
             />
-            {unit && <span style={{ whiteSpace: 'nowrap' }}>{unit}</span>} {/* Display the unit */}
+            {unit && <span style={{ whiteSpace: 'nowrap' }}>{unit}</span>}
         </div>
     );
 }
@@ -469,7 +482,6 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     variableToSet={commandState?.variableToSet}
                                     scopedVars={scopedVars}
                                     loading={loading}
-                                    unit={commandState?.unit} // Pass the unit to InputModeField
                                     showVariableLabel={commandState?.showVariableLabel}
                                 />
                             );
@@ -559,6 +571,17 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             />
                                         </Field>
                                     )}
+                                    <Field label='Comment' description='Optional comment'>
+                                        <Input
+                                            type='text'
+                                            disabled={loading}
+                                            value={commandState?.comment || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                handleOptionChange(command.name, 'comment', e.target.value, i);
+                                            }}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </Field>
                                     <Field label='Unit of Measurement' description='Unit to display next to the value (e.g., m/s, deg)'>
                                         <Input
                                             type='text'
@@ -571,6 +594,154 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             style={{ width: '100%' }}
                                         />
                                     </Field>
+                                    {commandState?.changeMode !== 'input' && <>
+                                        <Divider />
+                                        <Field label='Button Label' description='Button label'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.label || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'label', e.target.value, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        <Field label='Button Tooltip' description='Button tooltip'>
+                                            <Input
+                                                type='text'
+                                                disabled={loading}
+                                                value={commandState?.tooltip || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    handleOptionChange(command.name, 'tooltip', e.target.value, i);
+                                                }}
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        <Field label='Icon' description='Icon name'>
+                                            <Combobox
+                                                disabled={loading}
+                                                options={[
+                                                    { label: 'None', value: '' },
+                                                    ...getAvailableIcons().map(icon => ({ label: icon, value: icon }))
+                                                ]}
+                                                value={commandState?.icon || ''}
+                                                onChange={(e: SelectableValue<string>) => {
+                                                    handleOptionChange(command.name, 'icon', e.value, i);
+                                                }}
+                                            />
+                                        </Field>
+                                        <Field label='Size' description='Button size'>
+                                            <Combobox
+                                                disabled={loading}
+                                                options={[
+                                                    { label: 'Mini', value: 'xs' },
+                                                    { label: 'Small', value: 'sm' },
+                                                    { label: 'Medium', value: 'md' },
+                                                    { label: 'Large', value: 'lg' },
+                                                ]}
+                                                value={commandState?.size || 'md'}
+                                                onChange={(e: SelectableValue<string>) => {
+                                                    handleOptionChange(command.name, 'size', e.value, i);
+                                                }}
+                                            />
+                                        </Field>
+                                        <Field label='Color' description='Button color'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'color', color, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.color || ''}
+                                            />
+                                        </Field>
+                                        <Field label='Text Color' description='Text and icon color'>
+                                            <ColorPickerInput
+                                                onChange={(color: string) => {
+                                                    handleOptionChange(command.name, 'textColor', color, i);
+                                                }}
+                                                disabled={loading}
+                                                color={commandState?.textColor || ''}
+                                            />
+                                        </Field>
+                                        <Field label='Transparent' description='Button transparency'>
+                                            <Combobox
+                                                disabled={loading}
+                                                options={[
+                                                    { label: 'Fill', value: 'solid' },
+                                                    { label: 'Outline', value: 'outline' },
+                                                    { label: 'Text', value: 'text' },
+                                                ]}
+                                                value={commandState?.transparent || 'solid'}
+                                                onChange={(e: SelectableValue<string>) => {
+                                                    handleOptionChange(command.name, 'transparent', e.value, i);
+                                                }}
+                                            />
+                                        </Field>
+                                        <Field label='Shape' description='Button shape'>
+                                            <Combobox
+                                                disabled={loading}
+                                                options={Object.keys(Shapes).map((shape) => ({
+                                                    label: Shapes[shape as any].name,
+                                                    value: shape,
+                                                }))}
+                                                value={commandState?.shape || 'rectangle'}
+                                                onChange={(e: SelectableValue<string>) => {
+                                                    handleOptionChange(command.name, 'shape', e.value, i);
+                                                }}
+                                            />
+                                        </Field>
+                                        {commandState?.shape === 'svg' && <>
+                                            <Field label="Custom SVG Shape">
+                                                <FileUpload
+                                                    accept=".svg"
+                                                    onFileUpload={({ currentTarget: target }) => {
+                                                        const file = target?.files?.[0];
+                                                        if (!file) { return; }
+                                                        const reader = new FileReader();
+                                                        reader.onload = (event) => {
+                                                            const svgContent = event.target?.result?.toString() || '';
+                                                            handleOptionChange(command.name, 'customSVG', svgContent, i);
+                                                        };
+                                                        reader.readAsText(file);
+                                                    }}
+                                                    size="md"
+                                                />
+                                            </Field>
+                                            <Field label="SVG Size" description="Controls how the background image is scaled.">
+                                                <Combobox
+                                                    options={[
+                                                        { label: 'Contain', value: 'contain' },
+                                                        { label: 'Cover', value: 'cover' },
+                                                        { label: 'Auto', value: 'auto' },
+                                                        { label: 'Stretch', value: '100% 100%' },
+                                                    ]}
+                                                    value={commandState?.bgSize || 'contain'}
+                                                    createCustomValue
+                                                    onChange={(v: SelectableValue<string>) =>
+                                                        handleOptionChange(command.name, 'bgSize', v.value, i)
+                                                    }
+                                                />
+                                            </Field>
+                                            <Field label="SVG Position" description="Controls the position of the background image.">
+                                                <Combobox
+                                                    options={[
+                                                        { label: 'Center', value: 'center' },
+                                                        { label: 'Top Left', value: 'top left' },
+                                                        { label: 'Top Right', value: 'top right' },
+                                                        { label: 'Bottom Left', value: 'bottom left' },
+                                                        { label: 'Bottom Right', value: 'bottom right' },
+                                                    ]}
+                                                    createCustomValue
+                                                    value={commandState?.bgPosition || 'center'}
+                                                    onChange={(v: SelectableValue<string>) =>
+                                                        handleOptionChange(command.name, 'bgPosition', v.value, i)
+                                                    }
+                                                />
+                                            </Field>
+                                        </>}
+                                        <Divider />
+                                    </>}
                                     <Field label='Preview' description={commandState?.changeMode === 'input' ? 'Preview of the input box' : 'Preview of the button'}>
                                         <div style={{
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -583,6 +754,9 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     loading={false}
                                                     unit={commandState?.unit}
                                                     showVariableLabel={commandState?.showVariableLabel}
+                                                    color={commandState?.color}
+                                                    textColor={commandState?.textColor}
+                                                    size={commandState?.size}
                                                 />
                                             ) : (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', height: '100%' }}>
