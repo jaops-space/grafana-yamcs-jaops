@@ -81,9 +81,9 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', overflow: 'hidden' }}>
             {showVariableLabel !== false && variableDisplayLabel && (
-                <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{variableDisplayLabel}</span>
+                <span style={{ whiteSpace: 'nowrap', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1, minWidth: 0 }}>{variableDisplayLabel}</span>
             )}
             <Input
                 type="text"
@@ -96,6 +96,7 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
                 onFocus={handleFocus}
                 style={{
                     flex: 1,
+                    minWidth: 0,
                     height: '100%',
                     backgroundColor: color || undefined,
                     color: textColor || undefined,
@@ -495,13 +496,13 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                 })()
                                 : '';
                             return (
-                                <div key={command.name + i} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', height: '100%' }}>
+                                <div key={command.name + i} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', height: '100%', overflow: 'hidden' }}>
                                     {commandState?.showVariableLabel !== false && variableDisplayLabel && (
-                                        <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{variableDisplayLabel}</span>
+                                        <span style={{ whiteSpace: 'nowrap', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1, minWidth: 0 }}>{variableDisplayLabel}</span>
                                     )}
-                                    <div style={{ flex: 1, height: '100%' }}>{render(true)}</div>
+                                    <div style={{ flex: 1, height: '100%', minWidth: 0 }}>{render(true)}</div>
                                     {commandState?.unit && (
-                                        <span style={{ whiteSpace: 'nowrap' }}>{commandState.unit}</span>
+                                        <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{commandState.unit}</span>
                                     )}
                                 </div>
                             );
