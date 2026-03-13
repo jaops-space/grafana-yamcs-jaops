@@ -11,6 +11,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
+	"google.golang.org/protobuf/proto"
 )
 
 // Multiplexer manages live parameter subscriptions, ensuring that only one subscription is active per parameter.
@@ -149,8 +150,16 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 					continue
 				}
 
-				// Update the cache with the alarm
-				dataSource.AlarmCache[alarmID] = alarm
+				// Update the cache: merge incoming alarm data onto the existing cached entry
+				// so that fields only sent in TRIGGERED/SEVERITY_INCREASED (e.g. mostSevereValue)
+				// are not lost when VALUE_UPDATED notifications arrive with partial data.
+				if existing, ok := dataSource.AlarmCache[alarmID]; ok {
+					merged := proto.Clone(existing).(*alarms.AlarmData)
+					proto.Merge(merged, alarm)
+					dataSource.AlarmCache[alarmID] = merged
+				} else {
+					dataSource.AlarmCache[alarmID] = alarm
+				}
 
 				// Add to update buffer for immediate streaming (only non-cleared alarms)
 				for path := range dataSource.Alarms {

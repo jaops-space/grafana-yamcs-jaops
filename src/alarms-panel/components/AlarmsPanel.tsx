@@ -564,7 +564,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, repla
                     <Text><strong>Alarm time:</strong> {formatPreciseDuration(alarm.triggerTime)}</Text>
                     {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
                     <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trigger Value:'}</strong> {alarm.triggerValue || '-'}</Text>
-                    {!isEventAlarm && alarm.mostSevereValue && <Text><strong>Most Severe Value:</strong> {alarm.mostSevereValue}</Text>}
+                    {!isEventAlarm && alarm.mostSevereValue && (
+                        <Tooltip content="The parameter value at the moment this alarm reached its highest severity level. This is not necessarily the highest numeric value seen — it only updates when the alarm severity increases (e.g. WARNING → CRITICAL).">
+                            <Text><strong>Most Severe Value:</strong> {alarm.mostSevereValue}</Text>
+                        </Tooltip>
+                    )}
                     <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
                     <Tooltip content="Number of rule violations (this is what Yamcs web shows)">
                         <Text><strong>Violations:</strong> {alarm.violations}</Text>
