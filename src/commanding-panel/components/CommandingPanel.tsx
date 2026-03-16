@@ -83,7 +83,10 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', overflow: 'hidden' }}>
             {showVariableLabel !== false && variableDisplayLabel && (
-                <span style={{ whiteSpace: 'nowrap', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1, minWidth: 0 }}>{variableDisplayLabel}</span>
+                <span
+                    title={variableDisplayLabel}
+                    style={{ whiteSpace: 'nowrap', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, maxWidth: '40%' }}
+                >{variableDisplayLabel}</span>
             )}
             <Input
                 type="text"
@@ -483,7 +486,11 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     variableToSet={commandState?.variableToSet}
                                     scopedVars={scopedVars}
                                     loading={loading}
+                                    unit={commandState?.unit}
                                     showVariableLabel={commandState?.showVariableLabel}
+                                    color={commandState?.color}
+                                    textColor={commandState?.textColor}
+                                    size={commandState?.size}
                                 />
                             );
                         }
