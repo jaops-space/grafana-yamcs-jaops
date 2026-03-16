@@ -26,7 +26,7 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
             fields,
             aggregatePath: isAggregate ? aggregatePath : '',
         });
-    }, [parameter, aggregatePath, fields]);
+    }, [parameter, aggregatePath, fields, isAggregate, query, onChange]);
 
     const handleParameterChange = (v: ComboboxOption | null) => {
         setParameter(v?.value ?? '');
