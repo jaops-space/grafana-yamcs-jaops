@@ -28,6 +28,7 @@ export interface CommandForms {
             arguments?: { [key: string]: any };
             comment?: string;
             label?: string;
+            tooltip?: string;
             color?: string;
             textColor?: string;
         };
@@ -35,6 +36,7 @@ export interface CommandForms {
             arguments?: { [key: string]: any };
             comment?: string;
             label?: string;
+            tooltip?: string;
             color?: string;
             textColor?: string;
         };
