@@ -892,7 +892,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         
                                         {/* ON Button Arguments */}
                                         {command.argument?.map((arg: any) => {
-                                            const inputValue = commandState?.onCommand?.arguments?.[arg.name] || arg.initialValue;
+                                            const inputValue = commandState?.onCommand?.arguments?.[arg.name] ?? arg.initialValue;
                                             let inputField;
 
                                             if (arg.type.engType === 'enumeration') {
