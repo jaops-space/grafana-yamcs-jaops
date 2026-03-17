@@ -45,6 +45,14 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
         )
     ).current;
 
+    useEffect(() => {
+        if (endpoint) {
+            debouncedFetchCommands('', endpoint);
+        } else {
+            setOptions([]);
+        }
+    }, [endpoint]);
+
     return (
         <Stack direction="row" alignItems="center" gap={0}>
             <InlineField label="Command" grow>
@@ -52,7 +60,12 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
                     options={options}
                     onChange={handleCommandChange}
                     value={command ?? null}
-                    onBlur={() => { debouncedFetchCommands('', endpoint); }}
+                    onInputChange={(value) => {
+                        debouncedFetchCommands(value ?? '', endpoint);
+                    }}
+                    onOpenMenu={() => {
+                        debouncedFetchCommands('', endpoint);
+                    }}
                 />
             </InlineField>
         </Stack>
