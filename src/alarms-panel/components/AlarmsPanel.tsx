@@ -345,7 +345,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                 return (
                     <Stack direction="row" gap={1} alignItems="center">
                         <Icon name={config.icon} color={config.color} />
-                        <Text style={{ color: config.color }}>{severity}</Text>
+                        <span style={{ color: config.color }}><Text>{severity}</Text></span>
                     </Stack>
                 );
             },
