@@ -801,7 +801,10 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 { label: 'Dual Button', value: 'true' },
                                             ]}
                                             value={commandState?.isDualButton === true ? 'true' : 'false'}
-                                            onChange={(e: SelectableValue<string>) => {
+                                            onChange={(e: SelectableValue<string> | null) => {
+                                                if (!e || e.value === null || e.value === undefined) {
+                                                    return;
+                                                }
                                                 handleOptionChange(command.name, 'isDualButton', e.value === 'true', i);
                                             }}
                                         />
@@ -820,7 +823,10 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Combobox
                                                         disabled={loading}
                                                         value={inputValue}
-                                                        onChange={(e: SelectableValue<any>) => {
+                                                        onChange={(e: SelectableValue<any> | null) => {
+                                                            if (!e || e.value === null || e.value === undefined) {
+                                                                return;
+                                                            }
                                                             handleInputChange(command.name, arg.name, e.value, i);
                                                             validateInput(command.name, arg, e.value);
                                                         }}
@@ -832,7 +838,10 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Combobox
                                                         value={inputValue !== undefined && inputValue !== null ? String(inputValue) : ''}
                                                         disabled={loading}
-                                                        onChange={(e: SelectableValue<any>) => {
+                                                        onChange={(e: SelectableValue<any> | null) => {
+                                                            if (!e || e.value === null || e.value === undefined) {
+                                                                return;
+                                                            }
                                                             const val = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
                                                             handleInputChange(command.name, arg.name, val, i);
                                                             validateInput(command.name, arg, val);
