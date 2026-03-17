@@ -66,7 +66,9 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
 
     const handleBlur = () => {
         isFocused.current = false;
-        handleSubmit(inputValue);
+        if (inputValue !== lastSubmitted.current) {
+            handleSubmit(inputValue);
+        }
     };
 
     const handleFocus = () => {
