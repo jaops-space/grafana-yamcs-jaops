@@ -28,6 +28,12 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
         });
     }, [parameter, aggregatePath, fields, isAggregate, query, onChange]);
 
+    useEffect(() => {
+        if (endpoint) {
+            debouncedFetchParameters('', endpoint);
+        }
+    }, [endpoint]);
+
     const handleParameterChange = (v: ComboboxOption | null) => {
         setParameter(v?.value ?? '');
     };
@@ -54,7 +60,8 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                             options={options}
                             onChange={handleParameterChange}
                             value={parameter ?? null}
-                            onBlur={() => { debouncedFetchParameters('', endpoint); }}
+                            onInputChange={(v) => { debouncedFetchParameters(v, endpoint); }}
+                            onOpenMenu={() => { debouncedFetchParameters('', endpoint); }}
                         />
                     </InlineField>
 
