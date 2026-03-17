@@ -136,7 +136,7 @@ const formatPreciseDuration = (timestamp: string): string => {
 };
 
 
-const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options, replaceVariables }) => {
+const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => {
     const theme = useTheme2();
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedAlarm, setSelectedAlarm] = useState<AlarmEntry | null>(null);
