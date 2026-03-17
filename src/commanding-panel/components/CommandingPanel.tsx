@@ -814,7 +814,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     {/* Single Button Configuration */}
                                     {!commandState?.isDualButton && <>
                                         {command.argument?.map((arg: any) => {
-                                            const inputValue = commandState?.arguments?.[arg.name] || arg.initialValue;
+                                            const inputValue = commandState?.arguments?.[arg.name] ?? arg.initialValue;
                                             const errorMessage = errors[command.name]?.[arg.name];
                                             let inputField;
 
