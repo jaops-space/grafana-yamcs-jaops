@@ -385,7 +385,14 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         }}
                                         size={commandState?.size as any}
                                         fill={commandState?.transparent as any}
-                                        tooltip={getTemplateSrv().replace(commandState?.onCommand?.label ?? commandState?.label ?? 'ON', scopedVars)}
+                                        tooltip={getTemplateSrv().replace(
+                                            commandState?.onCommand?.tooltip
+                                                ?? commandState?.tooltip
+                                                ?? commandState?.onCommand?.label
+                                                ?? commandState?.label
+                                                ?? 'ON',
+                                            scopedVars
+                                        )}
                                         onClick={withSubmit ? () => handleSubmit(commandInfo, i, false) : undefined}
                                     >
                                         {getTemplateSrv().replace(commandState?.onCommand?.label ?? commandState?.label ?? 'ON', scopedVars)}
