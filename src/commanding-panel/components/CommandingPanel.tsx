@@ -307,9 +307,8 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 // If the argument is a string, apply template variable substitution
                 if (typeof argValue === 'string') {
                     const resolvedValue = getTemplateSrv().replace(argValue, scopedVars);
-                    // Try to parse as number if it looks like a number
-                    const numValue = parseFloat(resolvedValue);
-                    resolvedArguments[argName] = !isNaN(numValue) && resolvedValue.trim() !== '' ? numValue : resolvedValue;
+                    // Preserve string type after variable substitution to avoid unintended numeric coercion
+                    resolvedArguments[argName] = resolvedValue;
                 } else {
                     resolvedArguments[argName] = argValue;
                 }
