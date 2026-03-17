@@ -421,5 +421,10 @@ func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) {
 				subscription.Halt()
 			}
 		}
+		for _, subscription := range c.GlobalAlarmStatusSubscriptions {
+			if subscription.GetInstance() == ep.Instance.GetName() {
+				subscription.Halt()
+			}
+		}
 	}
 }
