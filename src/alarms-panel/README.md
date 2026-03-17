@@ -144,6 +144,6 @@ Event alarms are automatically generated when events with severity > INFO are re
    - Unshelve
    - Clear (after acknowledging)
 6. **Expand row details** to verify:
-   - Shows "Event Source/Type" instead of "Full Parameter Path"
+   - Shows "Event Source:" instead of "Full Parameter Path"
    - Shows "Trigger Event" and "Current Event" labels
    - Displays event messages with severity
