@@ -1040,7 +1040,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         
                                         {/* OFF Button Arguments */}
                                         {command.argument?.map((arg: any) => {
-                                            const inputValue = commandState?.offCommand?.arguments?.[arg.name] || arg.initialValue;
+                                            const inputValue = commandState?.offCommand?.arguments?.[arg.name] ?? arg.initialValue;
                                             let inputField;
 
                                             if (arg.type.engType === 'enumeration') {
