@@ -196,10 +196,14 @@ func (d *Datasource) handleAcknowledgeAlarm(w http.ResponseWriter, req *http.Req
 	vars := mux.Vars(req)
 	endpointID := vars["endpointID"]
 
-	body := &AlarmActionBody{}
+	var body AlarmActionBody
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Name == "" {
+		http.Error(w, "missing required field: name", http.StatusBadRequest)
 		return
 	}
 
