@@ -21,7 +21,7 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
             ...query,
             command,
         })
-    }, [command]);
+    }, [command, query, onChange]);
 
     // Reset combobox when endpoint changes so options are re-fetched
     useEffect(() => {
