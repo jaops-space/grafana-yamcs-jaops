@@ -254,3 +254,8 @@ func (sub *GlobalStatusSubscription) GetInstance() string {
 	return sub.instance
 }
 
+// Halt stops the global alarm status subscription and removes it from the client.
+func (sub *GlobalStatusSubscription) Halt() {
+	delete(sub.client.GlobalAlarmStatusSubscriptions, sub.callID)
+}
+
