@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
@@ -869,6 +870,249 @@ func TestHashToRGB(t *testing.T) {
 			assert.Regexp(t, "^#[0-9A-F]{6}$", got)
 		})
 	}
+}
+
+// TestConvertAlarmListToFrame tests the ConvertAlarmListToFrame function.
+func TestConvertAlarmListToFrame(t *testing.T) {
+	triggerTime := time.Date(2024, 3, 1, 10, 0, 0, 0, time.UTC)
+	updateTime := time.Date(2024, 3, 1, 10, 5, 0, 0, time.UTC)
+	ackTime := time.Date(2024, 3, 1, 10, 10, 0, 0, time.UTC)
+	shelveTime := time.Date(2024, 3, 1, 10, 15, 0, 0, time.UTC)
+	shelveExpiry := time.Date(2024, 3, 1, 11, 15, 0, 0, time.UTC)
+	clearTime := time.Date(2024, 3, 1, 10, 20, 0, 0, time.UTC)
+
+	t.Run("Empty alarm list returns frame with zero rows", func(t *testing.T) {
+		frame := ConvertAlarmListToFrame([]*alarms.AlarmData{})
+		require.NotNil(t, frame)
+		assert.Equal(t, "response", frame.Name)
+		require.Len(t, frame.Fields, 1)
+		assert.Equal(t, "alarms", frame.Fields[0].Name)
+		assert.Equal(t, 0, frame.Fields[0].Len())
+	})
+
+	t.Run("Parameter alarm - basic fields", func(t *testing.T) {
+		alarm := &alarms.AlarmData{
+			Type:             alarms.AlarmType_PARAMETER.Enum(),
+			Severity:         alarms.AlarmSeverity_WARNING.Enum(),
+			TriggerTime:      timestamppb.New(triggerTime),
+			UpdateTime:       timestamppb.New(updateTime),
+			SeqNum:           pointer[uint32](42),
+			Violations:       pointer[uint32](3),
+			Count:            pointer[uint32](5),
+			Acknowledged:     pointer(false),
+			ProcessOK:        pointer(false),
+			Triggered:        pointer(true),
+			Latching:         pointer(false),
+			NotificationType: alarms.AlarmNotificationType_TRIGGERED.Enum(),
+			Id: &protobuf.NamedObjectId{
+				Namespace: pointer("/YSS/SIMULATOR"),
+				Name:      pointer("BatteryVoltage1"),
+			},
+			ParameterDetail: &alarms.ParameterAlarmData{
+				TriggerValue: &pvalue.ParameterValue{
+					EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(57.0)},
+				},
+				CurrentValue: &pvalue.ParameterValue{
+					EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(55.2)},
+				},
+			},
+		}
+
+		frame := ConvertAlarmListToFrame([]*alarms.AlarmData{alarm})
+		require.Equal(t, 1, frame.Fields[0].Len())
+
+		var entry AlarmEntry
+		err := json.Unmarshal(frame.Fields[0].At(0).(json.RawMessage), &entry)
+		require.NoError(t, err)
+
+		assert.Equal(t, "/YSS/SIMULATOR/BatteryVoltage1/42", entry.Id)
+		assert.Equal(t, "/YSS/SIMULATOR/BatteryVoltage1", entry.Name)
+		assert.Equal(t, "WARNING", entry.Severity)
+		assert.Equal(t, "PARAMETER", entry.Type)
+		assert.Equal(t, uint32(3), entry.Violations)
+		assert.Equal(t, uint32(5), entry.Count)
+		assert.Equal(t, uint32(42), entry.SeqNum)
+		assert.Equal(t, "Active", entry.State)
+		assert.False(t, entry.Acknowledged)
+		assert.True(t, entry.Triggered)
+		assert.False(t, entry.Latching)
+		assert.Equal(t, "TRIGGERED", entry.NotificationType)
+		assert.Equal(t, triggerTime.Format(time.RFC3339), entry.TriggerTime)
+		assert.Equal(t, updateTime.Format(time.RFC3339), entry.UpdateTime)
+		assert.Equal(t, "57.00", entry.TriggerValue)
+		assert.Equal(t, "55.20", entry.CurrentValue)
+	})
+
+	t.Run("Parameter alarm - with acknowledge info", func(t *testing.T) {
+		alarm := &alarms.AlarmData{
+			Type:             alarms.AlarmType_PARAMETER.Enum(),
+			Severity:         alarms.AlarmSeverity_CRITICAL.Enum(),
+			TriggerTime:      timestamppb.New(triggerTime),
+			SeqNum:           pointer[uint32](10),
+			Acknowledged:     pointer(true),
+			ProcessOK:        pointer(false),
+			Triggered:        pointer(true),
+			NotificationType: alarms.AlarmNotificationType_ACKNOWLEDGED.Enum(),
+			Id: &protobuf.NamedObjectId{
+				Namespace: pointer("/YSS"),
+				Name:      pointer("Pressure"),
+			},
+			AcknowledgeInfo: &alarms.AcknowledgeInfo{
+				AcknowledgedBy:     pointer("operator1"),
+				AcknowledgeTime:    timestamppb.New(ackTime),
+				AcknowledgeMessage: pointer("Acknowledged, investigating"),
+			},
+		}
+
+		frame := ConvertAlarmListToFrame([]*alarms.AlarmData{alarm})
+		require.Equal(t, 1, frame.Fields[0].Len())
+
+		var entry AlarmEntry
+		err := json.Unmarshal(frame.Fields[0].At(0).(json.RawMessage), &entry)
+		require.NoError(t, err)
+
+		assert.Equal(t, "CRITICAL", entry.Severity)
+		assert.Equal(t, "Acknowledged", entry.State)
+		assert.True(t, entry.Acknowledged)
+		assert.Equal(t, "operator1", entry.AcknowledgedBy)
+		assert.Equal(t, ackTime.Format(time.RFC3339), entry.AcknowledgeTime)
+		assert.Equal(t, "Acknowledged, investigating", entry.AcknowledgeComment)
+	})
+
+	t.Run("Parameter alarm - shelved fields", func(t *testing.T) {
+		alarm := &alarms.AlarmData{
+			Type:             alarms.AlarmType_PARAMETER.Enum(),
+			Severity:         alarms.AlarmSeverity_WATCH.Enum(),
+			TriggerTime:      timestamppb.New(triggerTime),
+			SeqNum:           pointer[uint32](7),
+			Acknowledged:     pointer(false),
+			ProcessOK:        pointer(false),
+			Triggered:        pointer(true),
+			NotificationType: alarms.AlarmNotificationType_SHELVED.Enum(),
+			Id: &protobuf.NamedObjectId{
+				Namespace: pointer("/YSS"),
+				Name:      pointer("Temperature"),
+			},
+			ShelveInfo: &alarms.ShelveInfo{
+				ShelvedBy:       pointer("operator2"),
+				ShelveTime:      timestamppb.New(shelveTime),
+				ShelveExpiration: timestamppb.New(shelveExpiry),
+				ShelveMessage:   pointer("Known issue, shelved for 1h"),
+			},
+		}
+
+		frame := ConvertAlarmListToFrame([]*alarms.AlarmData{alarm})
+		require.Equal(t, 1, frame.Fields[0].Len())
+
+		var entry AlarmEntry
+		err := json.Unmarshal(frame.Fields[0].At(0).(json.RawMessage), &entry)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Shelved", entry.State)
+		assert.True(t, entry.Shelved)
+		assert.Equal(t, "operator2", entry.ShelvedBy)
+		assert.Equal(t, shelveTime.Format(time.RFC3339), entry.ShelveTime)
+		assert.Equal(t, shelveExpiry.Format(time.RFC3339), entry.ShelveExpiration)
+		assert.Equal(t, "Known issue, shelved for 1h", entry.ShelveComment)
+	})
+
+	t.Run("Parameter alarm - cleared fields", func(t *testing.T) {
+		alarm := &alarms.AlarmData{
+			Type:             alarms.AlarmType_PARAMETER.Enum(),
+			Severity:         alarms.AlarmSeverity_WARNING.Enum(),
+			TriggerTime:      timestamppb.New(triggerTime),
+			SeqNum:           pointer[uint32](99),
+			Acknowledged:     pointer(true),
+			ProcessOK:        pointer(true),
+			Triggered:        pointer(false),
+			NotificationType: alarms.AlarmNotificationType_CLEARED.Enum(),
+			Id: &protobuf.NamedObjectId{
+				Namespace: pointer("/YSS"),
+				Name:      pointer("Voltage"),
+			},
+			ClearInfo: &alarms.ClearInfo{
+				ClearedBy:    pointer("operator3"),
+				ClearTime:    timestamppb.New(clearTime),
+				ClearMessage: pointer("Issue resolved"),
+			},
+		}
+
+		frame := ConvertAlarmListToFrame([]*alarms.AlarmData{alarm})
+		require.Equal(t, 1, frame.Fields[0].Len())
+
+		var entry AlarmEntry
+		err := json.Unmarshal(frame.Fields[0].At(0).(json.RawMessage), &entry)
+		require.NoError(t, err)
+
+		assert.True(t, entry.Cleared)
+		assert.Equal(t, "operator3", entry.ClearedBy)
+		assert.Equal(t, clearTime.Format(time.RFC3339), entry.ClearTime)
+		assert.Equal(t, "Issue resolved", entry.ClearComment)
+	})
+
+	t.Run("Event alarm - trigger and current event values", func(t *testing.T) {
+		alarm := &alarms.AlarmData{
+			Type:             alarms.AlarmType_EVENT.Enum(),
+			Severity:         alarms.AlarmSeverity_CRITICAL.Enum(),
+			TriggerTime:      timestamppb.New(triggerTime),
+			SeqNum:           pointer[uint32](55),
+			Acknowledged:     pointer(false),
+			ProcessOK:        pointer(false),
+			Triggered:        pointer(true),
+			NotificationType: alarms.AlarmNotificationType_TRIGGERED.Enum(),
+			Id: &protobuf.NamedObjectId{
+				Namespace: pointer("/yamcs/event/SystemMonitor"),
+				Name:      pointer("SystemFailure"),
+			},
+			EventDetail: &alarms.EventAlarmData{
+				TriggerEvent: &events.Event{
+					Message:  pointer("Critical system failure detected"),
+					Severity: events.Event_CRITICAL.Enum(),
+				},
+				CurrentEvent: &events.Event{
+					Message:  pointer("System still failing"),
+					Severity: events.Event_CRITICAL.Enum(),
+				},
+			},
+		}
+
+		frame := ConvertAlarmListToFrame([]*alarms.AlarmData{alarm})
+		require.Equal(t, 1, frame.Fields[0].Len())
+
+		var entry AlarmEntry
+		err := json.Unmarshal(frame.Fields[0].At(0).(json.RawMessage), &entry)
+		require.NoError(t, err)
+
+		assert.Equal(t, "EVENT", entry.Type)
+		assert.Equal(t, "/yamcs/event/SystemMonitor/SystemFailure", entry.Name)
+		assert.Equal(t, "CRITICAL: Critical system failure detected", entry.TriggerValue)
+		assert.Equal(t, "CRITICAL: System still failing", entry.CurrentValue)
+		assert.Equal(t, "Active", entry.State)
+	})
+
+	t.Run("Multiple alarms returns correct count", func(t *testing.T) {
+		alarmList := []*alarms.AlarmData{
+			{
+				Type:             alarms.AlarmType_PARAMETER.Enum(),
+				Severity:         alarms.AlarmSeverity_WARNING.Enum(),
+				TriggerTime:      timestamppb.New(triggerTime),
+				SeqNum:           pointer[uint32](1),
+				NotificationType: alarms.AlarmNotificationType_TRIGGERED.Enum(),
+				Id:               &protobuf.NamedObjectId{Namespace: pointer("/YSS"), Name: pointer("Param1")},
+			},
+			{
+				Type:             alarms.AlarmType_EVENT.Enum(),
+				Severity:         alarms.AlarmSeverity_CRITICAL.Enum(),
+				TriggerTime:      timestamppb.New(triggerTime),
+				SeqNum:           pointer[uint32](2),
+				NotificationType: alarms.AlarmNotificationType_TRIGGERED.Enum(),
+				Id:               &protobuf.NamedObjectId{Namespace: pointer("/YSS"), Name: pointer("Param2")},
+			},
+		}
+
+		frame := ConvertAlarmListToFrame(alarmList)
+		assert.Equal(t, 2, frame.Fields[0].Len())
+	})
 }
 
 // Helper to create float64 pointer
