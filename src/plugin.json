@@ -110,9 +110,9 @@
         },
         {
             "type": "panel",
-            "name": "JAOPS Variable Commanding Panel",
-            "id": "jaops-variable-commanding-panel",
-            "path": "variable-commanding-panel/plugin.json"
+            "name": "JAOPS Variable Setting Panel",
+            "id": "jaops-variable-setting-panel",
+            "path": "variable-setting-panel/plugin.json"
         }
     ],
     "dependencies": {

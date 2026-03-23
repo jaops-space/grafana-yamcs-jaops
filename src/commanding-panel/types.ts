@@ -6,7 +6,7 @@ export interface CommandForms {
         comment: string,
         variableMode: boolean,
         variableToSet: string,
-        changeMode: 'change' | 'add' | 'multiply',
+        changeMode: 'change' | 'add' | 'multiply' | 'input',
         valueToSet: string,
         label: string,
         tooltip: string,
@@ -21,11 +21,14 @@ export interface CommandForms {
         bgPosition: string,
         bgWidth: string,
         bgHeight: string,
+        unit?: string,
+        showVariableLabel?: boolean,
         isDualButton?: boolean;  // Flag to indicate if this is a dual on/off button
         onCommand?: {            // Configuration for the "on" command
             arguments?: { [key: string]: any };
             comment?: string;
             label?: string;
+            tooltip?: string;
             color?: string;
             textColor?: string;
         };
@@ -33,6 +36,7 @@ export interface CommandForms {
             arguments?: { [key: string]: any };
             comment?: string;
             label?: string;
+            tooltip?: string;
             color?: string;
             textColor?: string;
         };

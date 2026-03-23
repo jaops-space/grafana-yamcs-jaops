@@ -1,8 +1,5 @@
-import { SelectableValue } from '@grafana/data';
-import { AsyncSelect, InlineField, Stack } from '@grafana/ui';
-import { debounce } from 'lodash';
-import React, { useEffect, useRef, useState } from 'react';
-import { Optional } from '../types';
+import { Combobox, ComboboxOption, InlineField, Stack } from '@grafana/ui';
+import React, { useEffect, useState } from 'react';
 import { QueryProps } from './constants';
 
 type CommandInfo = {
@@ -14,54 +11,48 @@ export function CommandQuery({ query, onChange, datasource }: QueryProps) {
 
     // Extract query fields
     const { endpoint } = query;
-    
+
     const [command, setCommand] = useState(query.command);
+    // comboboxKey forces the Combobox to remount (and re-fetch options) when endpoint changes
+    const [comboboxKey, setComboboxKey] = useState(0);
 
     useEffect(() => {
         onChange({
             ...query,
             command,
         })
-    }, [command]);
+    }, [command, query, onChange]);
+
+    // Reset combobox when endpoint changes so options are re-fetched
+    useEffect(() => {
+        setComboboxKey((k) => k + 1);
+    }, [endpoint]);
 
     // Handle command selection
-    const handleCommandChange = (v: SelectableValue<string>) => {
-        setCommand(v.value ?? '' );
+    const handleCommandChange = (v: ComboboxOption | null) => {
+        setCommand(v?.value ?? '');
     };
 
-    const defaultOptions = command ? [{ label: command, value: command }] : [];
-
-    // Debounced fetch function for loading commands
-    const debouncedFetchCommands = useRef(
-        debounce(
-            async (inputValue: string, endpoint: Optional<string>, callback: (options: Array<SelectableValue<string>>) => void) => {
-                const parameters: CommandInfo[] = await datasource.getResource(
-                    `endpoint/${endpoint}/commands`,
-                    inputValue ? { q: inputValue } : undefined
-                );
-                callback(parameters.map((command) => ({ label: command.name, value: command.name, description: command.description })));
-            },
-            1000
-        )
-    ).current;
-
-    // Load parameter options
-    const loadCommands = (inputValue: string): Promise<Array<SelectableValue<string>>> => {
-        return new Promise((resolve) => {
-            debouncedFetchCommands(inputValue, endpoint, resolve);
-        });
+    // Async options function — Grafana Combobox calls this on open and on every keypress
+    const fetchOptions = async (inputValue: string): Promise<ComboboxOption[]> => {
+        if (!endpoint) {
+            return [];
+        }
+        const parameters: CommandInfo[] = await datasource.getResource(
+            `endpoint/${endpoint}/commands`,
+            inputValue ? { q: inputValue } : undefined
+        );
+        return parameters.map((cmd) => ({ label: cmd.name, value: cmd.name, description: cmd.description }));
     };
 
     return (
         <Stack direction="row" alignItems="center" gap={0}>
             <InlineField label="Command" grow>
-                <AsyncSelect
-                    loadOptions={loadCommands}
-                    defaultOptions={defaultOptions}
+                <Combobox
+                    key={comboboxKey}
+                    options={fetchOptions}
                     onChange={handleCommandChange}
-                    value={command ? { label: command, value: command } : null}
-                    allowCreateWhileLoading
-                    allowCustomValue
+                    value={command ?? null}
                 />
             </InlineField>
         </Stack>

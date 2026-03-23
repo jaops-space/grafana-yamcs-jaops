@@ -1,21 +1,20 @@
 import { SelectableValue } from '@grafana/data';
-import { AsyncSelect, Checkbox, InlineField, Input, MultiSelect, Stack } from '@grafana/ui';
-import { debounce } from 'lodash';
-import React, { useEffect, useRef, useState } from 'react';
-import { Optional, QueryField } from '../types';
+import { Combobox, ComboboxOption, Checkbox, InlineField, Input, MultiSelect, Stack } from '@grafana/ui';
+import React, { useEffect, useState } from 'react';
+import { QueryField } from '../types';
 import { FieldsOptions, QueryOptions, QueryProps } from './constants';
 
 export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
-    // Extract query fields
-    const { endpoint, type } = query;
+    const { endpoint } = query;
 
     const [aggregatePath, setAggregatePath] = useState(query.aggregatePath || '');
     const [parameter, setParameter] = useState(query.parameter);
     const [fields, setFields] = useState(query.fields);
     const [isAggregate, setIsAggregate] = useState(Boolean(query.aggregatePath));
+    // comboboxKey forces the Combobox to remount (and re-fetch options) when endpoint changes
+    const [comboboxKey, setComboboxKey] = useState(0);
 
-    // Get additional fields if available
-    const queryTypeInfo = QueryOptions.find((o) => o.value === type);
+    const queryTypeInfo = QueryOptions.find((o) => o.value === query.type);
     const additionalFields = queryTypeInfo?.additionalFields;
 
     useEffect(() => {
@@ -24,56 +23,27 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
             parameter,
             fields,
             aggregatePath: isAggregate ? aggregatePath : '',
-        })
-    }, [parameter, aggregatePath, fields]);
-
-    // Handle parameter selection
-    const handleParameterChange = (v: SelectableValue<string>) => {
-        setParameter(v.value ?? '');
-    };
-
-    // Toggle aggregation state
-    const toggleAggregate = (toggle: boolean) => {
-        setIsAggregate(() => {
-            const newState = toggle;
-            setAggregatePath(newState ? aggregatePath : '');
-            return newState;
         });
+    }, [parameter, aggregatePath, fields, isAggregate, query, onChange]);
+
+    useEffect(() => {
+        setComboboxKey((k) => k + 1);
+    }, [endpoint]);
+
+    const handleParameterChange = (v: ComboboxOption | null) => {
+        setParameter(v?.value ?? '');
     };
 
-    // Handle aggregate path input changes
-    const handleAggregatePathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setAggregatePath(value);
-    };
-
-    // Handle additional fields selection
-    const handleFieldsChange = (arr: Array<SelectableValue<QueryField>>) => {
-        setFields(arr.map((v) => v.value).filter(Boolean) as QueryField[]);
-    };
-
-    // Default parameter options
-    const defaultOptions = parameter ? [{ label: parameter, value: parameter }] : [];
-
-    // Debounced fetch function for loading parameters
-    const debouncedFetchParameters = useRef(
-        debounce(
-            async (inputValue: string, endpoint: Optional<string>, callback: (options: Array<SelectableValue<string>>) => void) => {
-                const parameters: string[] = await datasource.getResource(
-                    `endpoint/${endpoint}/parameters`,
-                    inputValue ? { q: inputValue } : undefined
-                );
-                callback(parameters.map((p) => ({ label: p, value: p })));
-            },
-            1000
-        )
-    ).current;
-
-    // Load parameter options
-    const loadParameters = (inputValue: string): Promise<Array<SelectableValue<string>>> => {
-        return new Promise((resolve) => {
-            debouncedFetchParameters(inputValue, endpoint, resolve);
-        });
+    // Async options function — Grafana Combobox calls this on open and on every keypress
+    const fetchOptions = async (inputValue: string): Promise<ComboboxOption[]> => {
+        if (!endpoint) {
+            return [];
+        }
+        const parameters: string[] = await datasource.getResource(
+            `endpoint/${endpoint}/parameters`,
+            inputValue ? { q: inputValue } : undefined
+        );
+        return parameters.map((p) => ({ label: p, value: p }));
     };
 
     return (
@@ -81,13 +51,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
             <Stack direction="row" alignItems="center">
                 <Stack direction="row" alignItems="center" gap={0} grow={1}>
                     <InlineField label="Parameter to query" grow>
-                        <AsyncSelect
-                            loadOptions={loadParameters}
-                            defaultOptions={defaultOptions}
+                        <Combobox
+                            key={comboboxKey}
+                            options={fetchOptions}
                             onChange={handleParameterChange}
-                            value={parameter ? { label: parameter, value: parameter } : null}
-                            allowCreateWhileLoading
-                            allowCustomValue
+                            value={parameter ?? null}
                         />
                     </InlineField>
 
@@ -95,7 +63,7 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                         <InlineField label="." grow>
                             <Input
                                 marginWidth={0}
-                                onChange={handleAggregatePathChange}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setAggregatePath(e.target.value); }}
                                 placeholder='Path to value (case sensitive)'
                                 value={aggregatePath}
                             />
@@ -107,7 +75,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                 <InlineField>
                     <Checkbox
                         value={isAggregate}
-                        onChange={(e) => toggleAggregate(e.currentTarget.checked)}
+                        onChange={(e) => {
+                            const newState = e.currentTarget.checked;
+                            setIsAggregate(newState);
+                            if (!newState) { setAggregatePath(''); }
+                        }}
                         label='Aggregate'
                     />
                 </InlineField>
@@ -117,7 +89,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
             {additionalFields && (
                 <Stack direction="row">
                     <InlineField label="Additional fields" grow>
-                        <MultiSelect options={FieldsOptions} onChange={handleFieldsChange} values={fields} />
+                        <MultiSelect
+                            options={FieldsOptions}
+                            onChange={(arr: Array<SelectableValue<QueryField>>) => { setFields(arr.map((v) => v.value).filter(Boolean) as QueryField[]); }}
+                            values={fields}
+                        />
                     </InlineField>
                 </Stack>
             )}

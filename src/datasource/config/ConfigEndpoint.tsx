@@ -1,4 +1,4 @@
-import { Box, Button, Card, Field, Input, Select, Text } from '@grafana/ui';
+import { Box, Button, Card, Combobox, ComboboxOption, Field, Input, Text } from '@grafana/ui';
 import { Configuration, IndexedEndpoint } from '../types';
 import React, { ChangeEvent, useState } from 'react';
 import { getAppEvents } from '@grafana/runtime';
@@ -69,13 +69,13 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                 />
             </Field>
             <Field label="Host" description="Corresponding Host" required>
-                <Select
+                <Combobox
                     options={Object.keys(hosts).map((id) => ({
                         label: hosts[id].name || hosts[id].path || 'Unnamed Host',
                         value: id,
                     }))}
-                    value={endpoint.host}
-                    onChange={(e) => onChange(index, 'host', e?.value)}
+                    value={endpoint.host ?? null}
+                    onChange={(e: ComboboxOption | null) => { onChange(index, 'host', e?.value); }}
                 />
             </Field>
             <Field label="Yamcs Instance" description="Corresponding Instance on the Yamcs Server" required>
