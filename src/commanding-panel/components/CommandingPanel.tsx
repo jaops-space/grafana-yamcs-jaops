@@ -16,13 +16,29 @@ export interface CommandingPanelProps extends PanelProps<PanelOptions> {
 
 // Component for input mode that displays current value and accepts keyboard input
 function InputModeField({ variableToSet, scopedVars, loading, unit, showVariableLabel, color, textColor, size }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string, showVariableLabel?: boolean, color?: string, textColor?: string, size?: string }) {
-    // Subscribe to location changes so the component re-renders when dashboard variable labels change
+    // Subscribe reactively to location changes to get notified on every variable update
     const locService = useLocationService();
-    locService.getLocation();
+    const [locationTick, setLocationTick] = useState(0);
 
-    // Read the live variable value directly (no scopedVars) so external changes from other buttons are reflected
+    useEffect(() => {
+        const subscription = locService.getLocationObservable().subscribe(() => {
+            setLocationTick(n => n + 1);
+        });
+        return () => subscription.unsubscribe();
+    }, [locService]);
+
+    // Read the variable value directly from the URL search params — these are updated synchronously
+    // with every locationService.partial() call, so they always reflect the latest value immediately.
     const currentVariableValue = variableToSet
-        ? getTemplateSrv().replace("$" + variableToSet)
+        ? (() => {
+            const search = locService.getSearch();
+            const fromUrl = search.get(`var-${variableToSet}`);
+            if (fromUrl !== null) {
+                return fromUrl;
+            }
+            // Fallback to template service (for initial load before any URL param is set)
+            return getTemplateSrv().replace("$" + variableToSet);
+        })()
         : '';
 
     // Get the variable's display label from dashboard settings (label takes priority over name)
@@ -37,17 +53,15 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
     const isFocused = useRef(false);
     const lastSubmitted = useRef<string | null>(null);
 
-    // Sync from external variable changes when not focused.
-    // If the live value differs from what we last submitted, an external change happened — always sync.
+    // Sync the input box with the live variable value on every location change,
+    // as long as the user is not actively typing.
     useEffect(() => {
         if (!isFocused.current) {
-            if (currentVariableValue !== lastSubmitted.current) {
-                setInputValue(currentVariableValue);
-                // Clear lastSubmitted so the next external change is also picked up
-                lastSubmitted.current = currentVariableValue;
-            }
+            setInputValue(currentVariableValue);
+            lastSubmitted.current = currentVariableValue;
         }
-    }, [currentVariableValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locationTick]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInputValue(e.target.value);
