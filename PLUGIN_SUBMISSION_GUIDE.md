@@ -24,7 +24,7 @@ jaops-yamcs-app/                    # Main app plugin
 ├── command-history-panel/          # Command history panel plugin
 ├── image-panel/                    # Image panel plugin
 ├── static-image-panel/             # Static image panel plugin
-├── variable-commanding-panel/      # Variable commanding panel plugin
+├── variable-setting-panel/         # Variable setting panel plugin
 └── screenshots/                    # Plugin screenshots
 ```
 
