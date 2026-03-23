@@ -20,8 +20,9 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
     const locService = useLocationService();
     locService.getLocation();
 
+    // Read the live variable value directly (no scopedVars) so external changes from other buttons are reflected
     const currentVariableValue = variableToSet
-        ? getTemplateSrv().replace("$" + variableToSet, scopedVars)
+        ? getTemplateSrv().replace("$" + variableToSet)
         : '';
 
     // Get the variable's display label from dashboard settings (label takes priority over name)
@@ -36,10 +37,15 @@ function InputModeField({ variableToSet, scopedVars, loading, unit, showVariable
     const isFocused = useRef(false);
     const lastSubmitted = useRef<string | null>(null);
 
-    // Sync from external variable changes only when not focused and not just submitted
+    // Sync from external variable changes when not focused.
+    // If the live value differs from what we last submitted, an external change happened — always sync.
     useEffect(() => {
-        if (!isFocused.current && currentVariableValue !== lastSubmitted.current) {
-            setInputValue(currentVariableValue);
+        if (!isFocused.current) {
+            if (currentVariableValue !== lastSubmitted.current) {
+                setInputValue(currentVariableValue);
+                // Clear lastSubmitted so the next external change is also picked up
+                lastSubmitted.current = currentVariableValue;
+            }
         }
     }, [currentVariableValue]);
 
@@ -465,23 +471,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                             tooltip={getTemplateSrv().replace(commandState?.tooltip, scopedVars)}
                             onClick={withSubmit ? () => handleSubmit(commandInfo, i) : undefined}
                         >
-                            {variableMode && commandState?.changeMode !== 'input' ? (() => {
-                                const actionValue = getTemplateSrv().replace(commandState?.valueToSet || '', scopedVars);
-                                const actionLabel = commandState?.changeMode === 'change'
-                                    ? `= ${actionValue}`
-                                    : commandState?.changeMode === 'add'
-                                        ? `+ ${actionValue}`
-                                        : commandState?.changeMode === 'multiply'
-                                            ? `× ${actionValue}`
-                                            : null;
-                                const userLabel = getTemplateSrv().replace(commandState?.label, scopedVars);
-                                return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.2 }}>
-                                        {userLabel && <span>{userLabel}</span>}
-                                        {actionLabel && <span style={{ fontSize: '0.85em', opacity: 0.85 }}>{actionLabel}</span>}
-                                    </div>
-                                );
-                            })() : getTemplateSrv().replace(commandState?.label, scopedVars)}
+                            {getTemplateSrv().replace(commandState?.label, scopedVars)}
                         </Button>
                     };
                     
