@@ -156,6 +156,12 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 				if existing, ok := dataSource.AlarmCache[alarmID]; ok {
 					merged := proto.Clone(existing).(*alarms.AlarmData)
 					proto.Merge(merged, alarm)
+					// When an alarm is unshelved, Yamcs sends a notification with no shelveInfo.
+					// proto.Merge does not clear existing fields, so we must explicitly clear
+					// ShelveInfo when the notification type is UNSHELVED.
+					if alarm.GetNotificationType() == alarms.AlarmNotificationType_UNSHELVED {
+						merged.ShelveInfo = nil
+					}
 					dataSource.AlarmCache[alarmID] = merged
 				} else {
 					dataSource.AlarmCache[alarmID] = alarm

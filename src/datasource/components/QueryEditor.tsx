@@ -1,5 +1,5 @@
 import { SelectableValue } from '@grafana/data';
-import { Badge, Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Select, Stack } from '@grafana/ui';
+import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
 import React, { useCallback, useEffect, useState } from 'react';
 import { QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
@@ -80,15 +80,6 @@ export function QueryEditor(props: QueryProps) {
         value: `$${variable.name}`,
     }));
 
-    const getStatusBadge = (endpoint: any) => {
-        if (endpoint.error) {
-            return <Badge color="red" text="Error" data-testid="status-badge" />;
-        }
-        return endpoint.online
-            ? <Badge color="green" text="Online" data-testid="status-badge" />
-            : <Badge color="orange" text="Offline" data-testid="status-badge" />;
-    };
-
     const endpointOptions = Object.entries(endpoints).map(([id, endpoint]) => ({
         label: (endpoint as any).name || `#${id}`,
         description: (endpoint as any).description,
@@ -96,24 +87,13 @@ export function QueryEditor(props: QueryProps) {
         status: endpoint,
     }));
 
-    const getEndpointOptionLabel = (option: any) => (
-        <Stack direction="row" justifyContent="space-between" alignItems="center" grow={1}>
-            <span>{option.label}</span>
-            {option.status && getStatusBadge(option.status)}
-        </Stack>
-    );
-
     const renderSelect = () => {
         if (!query.asVariable) {
             return (
-                // eslint-disable-next-line @typescript-eslint/no-deprecated
-                <Select
+                <Combobox
                     options={endpointOptions}
-                    getOptionLabel={getEndpointOptionLabel}
-                    value={query.endpoint}
-                    onChange={(e: SelectableValue) => setEndpoint(e.value)}
-                    isLoading={loading}
-                    loadingMessage="Fetching endpoints..."
+                    value={query.endpoint ?? null}
+                    onChange={(e: ComboboxOption | null) => { setEndpoint(e?.value ?? ''); }}
                     data-testid='endpoint-select'
                 />
             );
@@ -130,7 +110,7 @@ export function QueryEditor(props: QueryProps) {
 
         return (
             <Combobox
-                options={variableOptions.map((o: any) => ({ label: o.label, value: o.value }))}
+                options={variableOptions.map((o) => ({ label: o.label, value: o.value }))}
                 value={query.endpointVariable ?? null}
                 onChange={(e: ComboboxOption | null) => { setEndpointVariable(e?.value ?? ''); }}
                 data-testid='endpoint-select'

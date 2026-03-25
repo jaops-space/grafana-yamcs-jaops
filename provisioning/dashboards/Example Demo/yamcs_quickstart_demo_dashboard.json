@@ -46,7 +46,7 @@
       },
       "pluginVersion": "1.0.0",
       "title": "Variable Setter",
-      "type": "jaops-varcommanding-panel"
+      "type": "jaops-variable-setting-panel"
     },
     {
       "fieldConfig": {
@@ -73,7 +73,7 @@
       },
       "pluginVersion": "1.0.0",
       "title": "",
-      "type": "jaops-varcommanding-panel"
+      "type": "jaops-variable-setting-panel"
     },
     {
       "datasource": {
@@ -1012,7 +1012,7 @@
       },
       "pluginVersion": "1.0.0",
       "title": "Rotate Image",
-      "type": "jaops-varcommanding-panel"
+      "type": "jaops-variable-setting-panel"
     },
     {
       "description": "Set, Add or Multiply the value of a Grafana variable",
@@ -1042,7 +1042,7 @@
       },
       "pluginVersion": "1.0.0",
       "title": "",
-      "type": "jaops-varcommanding-panel"
+      "type": "jaops-variable-setting-panel"
     },
     {
       "collapsed": false,
