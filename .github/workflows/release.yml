@@ -1,14 +1,13 @@
 # This GitHub Action automates the process of building Grafana plugins.
 # (For more information, see https://github.com/grafana/plugin-actions/blob/main/build-plugin/README.md)
 name: Release
-
 on:
     push:
         tags:
             - 'v*' # Run workflow on version tags, e.g. v1.0.0.
-
 permissions: read-all
-
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
     release:
         permissions:
@@ -30,13 +29,6 @@ jobs:
             - uses: actions/checkout@v4
             - uses: grafana/plugin-actions/build-plugin@main
               with:
-                # Use Go 1.25 to match go.mod requirements
-                go-version: '1.25.7'
-                # Changelog generation disabled - it tries to commit to main branch
-                # which fails when releasing from feature branches
-                # use_changelog_generator: true
-                
-                # Signing controlled by repository variable REPO_VAR_SIGNING_ENABLED
-                # Set to 'true' in repo settings after Grafana approves the plugin
+                go-version: '1.24.1'
                 policy_token: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' && secrets.GRAFANA_ACCESS_POLICY_TOKEN || '' }}
                 attestation: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' }}
