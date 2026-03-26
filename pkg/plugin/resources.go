@@ -120,6 +120,7 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/fetch/endpoints", d.handleFetchSources)
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
+	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
 	mux.HandleFunc("/endpoint/{endpointID}/alarm/acknowledge", d.handleAcknowledgeAlarm)
 	mux.HandleFunc("/endpoint/{endpointID}/alarm/clear", d.handleClearAlarm)
@@ -139,6 +140,43 @@ type CommandIssueBody struct {
 	Name      string         `json:"name"`
 	Arguments map[string]any `json:"arguments"`
 	Comment   string         `json:"comment"`
+}
+
+func (d *Datasource) handleGetCommandInfo(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	commandName := req.URL.Query().Get("name")
+	if commandName == "" {
+		http.Error(w, "missing required query parameter: name", http.StatusBadRequest)
+		return
+	}
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	client := endpoint.GetClient()
+	commandInfo, err := client.GetCommandInfo(endpoint.Instance, commandName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	marshalled, err := protojson.Marshal(commandInfo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(marshalled)
 }
 
 func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Request) {

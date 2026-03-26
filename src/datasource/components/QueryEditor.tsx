@@ -1,6 +1,6 @@
 import { SelectableValue } from '@grafana/data';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
 import { getTemplateSrv } from '@grafana/runtime';
@@ -70,8 +70,16 @@ export function QueryEditor(props: QueryProps) {
         fetchEndpoints();
     }, [fetchEndpoints]);
 
+    // Run the query only when the serialized query content actually changes,
+    // not on every object reference change (which would cause an infinite refresh loop).
+    const prevQueryJson = useRef<string>('');
     useEffect(() => {
-        onRunQuery();
+        const json = JSON.stringify(query);
+        if (json !== prevQueryJson.current) {
+            prevQueryJson.current = json;
+            onRunQuery();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     const variableOptions = getTemplateSrv().getVariables().map((variable) => ({
