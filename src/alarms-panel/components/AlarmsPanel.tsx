@@ -1,8 +1,8 @@
 import { dateTime, PanelProps } from '@grafana/data';
-import { DataSourceWithBackend } from '@grafana/runtime';
+import { DataSourceWithBackend, getDataSourceSrv } from '@grafana/runtime';
 import { Button, Icon, InteractiveTable, Modal, Combobox, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
 import { AlarmsOptions } from 'alarms-panel/module';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 
 interface AlarmEntry {
@@ -157,18 +157,17 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
         return null;
     }, [data]);
 
-    // Extract datasource from query target
-    const datasource = useMemo(() => {
-        const request = data.request;
-        if (request?.targets?.[0]) {
-            const ds = request.targets[0].datasource as DataSourceWithBackend;
-            if (ds) {
-                Object.setPrototypeOf(ds, DataSourceWithBackend.prototype);
-                return ds;
-            }
-        }
-        return null;
-    }, [data]);
+    // Get a live datasource instance (needed for postResource)
+    const [datasource, setDatasource] = useState<DataSourceWithBackend | null>(null);
+    useEffect(() => {
+        const uid = (data.request?.targets?.[0]?.datasource as any)?.uid;
+        if (!uid) { return; }
+        getDataSourceSrv().get(uid).then((ds) => {
+            setDatasource(ds as DataSourceWithBackend);
+        }).catch(console.error);
+    // re-run only when the datasource UID changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [(data.request?.targets?.[0]?.datasource as any)?.uid]);
 
     const deduped = useMemo(() => {
         const frame = data.series[0];
