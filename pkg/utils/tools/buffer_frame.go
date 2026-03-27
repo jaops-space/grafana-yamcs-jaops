@@ -82,12 +82,22 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 		// Yamcs returns id.name as short name (e.g. "BatteryVoltage1") and
 		// id.namespace as the path (e.g. "/YSS/SIMULATOR"). The Edit Alarm
 		// API requires the full qualified name in the URL path.
-		qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
+		alarmId := alarm.GetId()
+		if alarmId == nil {
+			continue
+		}
+		qualifiedName := alarmId.GetNamespace() + "/" + alarmId.GetName()
+
+		// Guard TriggerTime: use zero time as fallback if nil
+		triggerTime := time.Time{}
+		if tt := alarm.GetTriggerTime(); tt != nil {
+			triggerTime = tt.AsTime()
+		}
 
 		alarmEntry := &AlarmEntry{
 			Id:               fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum()),
 			Name:             qualifiedName,
-			TriggerTime:      alarm.GetTriggerTime().AsTime().Format(time.RFC3339),
+			TriggerTime:      triggerTime.Format(time.RFC3339),
 			Severity:         alarm.GetSeverity().String(),
 			Type:             alarm.GetType().String(),
 			Violations:       alarm.GetViolations(),
