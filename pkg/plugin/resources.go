@@ -276,6 +276,10 @@ func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) 
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if body.Name == "" {
+		http.Error(w, "missing required field: name", http.StatusBadRequest)
+		return
+	}
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
@@ -308,6 +312,10 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if body.Name == "" {
+		http.Error(w, "missing required field: name", http.StatusBadRequest)
+		return
+	}
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
@@ -338,6 +346,10 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Name == "" {
+		http.Error(w, "missing required field: name", http.StatusBadRequest)
 		return
 	}
 
