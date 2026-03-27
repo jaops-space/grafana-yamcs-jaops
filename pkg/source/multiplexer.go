@@ -166,11 +166,6 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 				} else {
 					dataSource.AlarmCache[alarmID] = alarm
 				}
-
-				// Add to update buffer for immediate streaming (only non-cleared alarms)
-				for path := range dataSource.Alarms {
-					dataSource.Alarms[path] = append(dataSource.Alarms[path], alarm)
-				}
 			}
 		}
 	}
