@@ -47,7 +47,8 @@ export function QueryTypeEditor(props: QueryProps) {
                         isClearable={false}
                         defaultValue={query.type}
                         options={queryOptions}
-                        getOptionLabel={(value: any) => (
+                        getOptionLabel={(value: any) => value.label ?? ''}
+                        formatOptionLabel={(value: any) => (
                             <Stack direction="row" justifyContent="space-between">
                                 <span>{value.label}</span>
                                 <span style={{ zIndex: 212 }}>{getBadgeCategory(value.category)}</span>
