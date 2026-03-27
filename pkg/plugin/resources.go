@@ -270,7 +270,7 @@ func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) 
 	vars := mux.Vars(req)
 	endpointID := vars["endpointID"]
 
-	body := &AlarmActionBody{}
+	body := AlarmActionBody{}
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -302,7 +302,7 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 	vars := mux.Vars(req)
 	endpointID := vars["endpointID"]
 
-	body := &AlarmActionBody{}
+	body := AlarmActionBody{}
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -334,7 +334,7 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 	vars := mux.Vars(req)
 	endpointID := vars["endpointID"]
 
-	body := &AlarmActionBody{}
+	body := AlarmActionBody{}
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
