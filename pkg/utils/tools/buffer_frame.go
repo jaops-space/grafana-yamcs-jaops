@@ -190,6 +190,9 @@ func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
 
 // deriveAlarmState returns a string state for the alarm, matching Yamcs web vocabulary.
 func deriveAlarmState(alarm *alarms.AlarmData) string {
+	if alarm.GetClearInfo() != nil {
+		return "Cleared"
+	}
 	if alarm.GetShelveInfo() != nil {
 		return "Shelved"
 	}
