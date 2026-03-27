@@ -3,6 +3,7 @@ package source
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -19,6 +20,8 @@ import (
 // YamcsEndpoint represents an endpoint for Yamcs communication.
 type YamcsEndpoint struct {
 	Multiplexer *Multiplexer
+
+	mu sync.RWMutex // guards AlarmCache and GlobalAlarmStatus
 
 	ID             string
 	Instance       client.Instance
@@ -326,10 +329,14 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 
 	// Load initial alarms into cache if cache is empty
-	if len(ep.AlarmCache) == 0 {
+	ep.mu.Lock()
+	cacheEmpty := len(ep.AlarmCache) == 0
+	ep.mu.Unlock()
+	if cacheEmpty {
 		yamcs := ep.GetClient()
 		alarmList, err := yamcs.ListProcessorAlarms(ep.Instance, ep.Processor)
 		if err == nil {
+			ep.mu.Lock()
 			for _, alarm := range alarmList {
 				// Skip cleared alarms when loading initial cache
 				if alarm.GetClearInfo() != nil {
@@ -339,6 +346,7 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
 				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
 				ep.AlarmCache[alarmID] = alarm
 			}
+			ep.mu.Unlock()
 		}
 	}
 }
@@ -370,17 +378,28 @@ func (ep *YamcsEndpoint) GetGlobalAlarmStatusSubscription() (*client.GlobalStatu
 		return nil, err
 	}
 	subscription.SetListener(func(status *alarms.GlobalAlarmStatus) {
+		ep.mu.Lock()
 		ep.GlobalAlarmStatus = status
+		ep.mu.Unlock()
 	})
 	return subscription, nil
 }
 
+// GetGlobalAlarmStatus returns a consistent snapshot of GlobalAlarmStatus under the read lock.
+func (ep *YamcsEndpoint) GetGlobalAlarmStatus() *alarms.GlobalAlarmStatus {
+	ep.mu.RLock()
+	defer ep.mu.RUnlock()
+	return ep.GlobalAlarmStatus
+}
+
 func (ep *YamcsEndpoint) GetAlarmsStream(path string) []*alarms.AlarmData {
 	// Return all cached alarms (complete list of active alarms)
+	ep.mu.RLock()
 	result := make([]*alarms.AlarmData, 0, len(ep.AlarmCache))
 	for _, alarm := range ep.AlarmCache {
 		result = append(result, alarm)
 	}
+	ep.mu.RUnlock()
 
 	// Sort alarms consistently to prevent UI reordering
 	// Sort by: 1) Trigger time (newest first), 2) Qualified name, 3) SeqNum

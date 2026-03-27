@@ -143,9 +143,11 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
 				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
 
+				dataSource.mu.Lock()
 				// If the alarm has been cleared, remove it from the cache
 				if alarm.GetClearInfo() != nil {
 					delete(dataSource.AlarmCache, alarmID)
+					dataSource.mu.Unlock()
 					// Skip adding cleared alarms to streaming buffer
 					continue
 				}
@@ -166,6 +168,7 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 				} else {
 					dataSource.AlarmCache[alarmID] = alarm
 				}
+				dataSource.mu.Unlock()
 			}
 		}
 	}

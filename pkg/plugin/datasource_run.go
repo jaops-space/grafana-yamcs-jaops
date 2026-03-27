@@ -329,18 +329,21 @@ func RunAlarmsStream(
 			// Always create a frame, even if buffer is empty (to send GlobalAlarmStatus)
 			frame := tools.ConvertAlarmListToFrame(buffer)
 
+			// Take a consistent snapshot of GlobalAlarmStatus under the read lock
+			globalAlarmStatus := endpoint.GetGlobalAlarmStatus()
+
 			// Add GlobalAlarmStatus to frame metadata
-			if endpoint.GlobalAlarmStatus != nil {
+			if globalAlarmStatus != nil {
 				globalStatus := map[string]interface{}{
-					"unacknowledgedCount":    endpoint.GlobalAlarmStatus.GetUnacknowledgedCount(),
-					"unacknowledgedActive":   endpoint.GlobalAlarmStatus.GetUnacknowledgedActive(),
-					"unacknowledgedSeverity": endpoint.GlobalAlarmStatus.GetUnacknowledgedSeverity().String(),
-					"acknowledgedCount":      endpoint.GlobalAlarmStatus.GetAcknowledgedCount(),
-					"acknowledgedActive":     endpoint.GlobalAlarmStatus.GetAcknowledgedActive(),
-					"acknowledgedSeverity":   endpoint.GlobalAlarmStatus.GetAcknowledgedSeverity().String(),
-					"shelvedCount":           endpoint.GlobalAlarmStatus.GetShelvedCount(),
-					"shelvedActive":          endpoint.GlobalAlarmStatus.GetShelvedActive(),
-					"shelvedSeverity":        endpoint.GlobalAlarmStatus.GetShelvedSeverity().String(),
+					"unacknowledgedCount":    globalAlarmStatus.GetUnacknowledgedCount(),
+					"unacknowledgedActive":   globalAlarmStatus.GetUnacknowledgedActive(),
+					"unacknowledgedSeverity": globalAlarmStatus.GetUnacknowledgedSeverity().String(),
+					"acknowledgedCount":      globalAlarmStatus.GetAcknowledgedCount(),
+					"acknowledgedActive":     globalAlarmStatus.GetAcknowledgedActive(),
+					"acknowledgedSeverity":   globalAlarmStatus.GetAcknowledgedSeverity().String(),
+					"shelvedCount":           globalAlarmStatus.GetShelvedCount(),
+					"shelvedActive":          globalAlarmStatus.GetShelvedActive(),
+					"shelvedSeverity":        globalAlarmStatus.GetShelvedSeverity().String(),
 				}
 
 				frame.Meta = &data.FrameMeta{
