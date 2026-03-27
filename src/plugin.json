@@ -33,10 +33,6 @@
             {
                 "name": "Documentation",
                 "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/README.md"
-            },
-            {
-                "name": "Setup Instructions",
-                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/setup_instructions.md"
             }
         ],
         "version": "%VERSION%",

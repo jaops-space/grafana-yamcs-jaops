@@ -70,7 +70,6 @@ func (httpManager *HTTPManager) Login(account *Credentials) error {
 	if err != nil {
 		return err
 	}
-	httpManager.RefreshStop = make(chan struct{})
 	httpManager.StartAutoRefresh()
 	return nil
 }

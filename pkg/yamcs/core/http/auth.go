@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -252,7 +253,26 @@ func (a *APIKeyCredentials) BeforeRequest(req *http.Request) error {
 	return nil
 }
 
+// StartAutoRefresh launches a background goroutine that periodically refreshes
+// expired credentials. If a previous refresh loop is running it is stopped
+// first so that at most one goroutine is active at any time.
+//
+// The entire cancel-then-create cycle is performed under a single lock so that
+// concurrent callers cannot race and leak a goroutine.
 func (m *HTTPManager) StartAutoRefresh() {
+	m.refreshMu.Lock()
+
+	// Cancel any previously running refresh loop while still holding the lock.
+	if m.refreshCancel != nil {
+		m.refreshCancel()
+		m.refreshCancel = nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.refreshCancel = cancel
+
+	m.refreshMu.Unlock()
+
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		defer ticker.Stop()
@@ -264,9 +284,20 @@ func (m *HTTPManager) StartAutoRefresh() {
 						backend.Logger.Error("failed to refresh token", "error", err)
 					}
 				}
-			case <-m.RefreshStop:
+			case <-ctx.Done():
 				return
 			}
 		}
 	}()
+}
+
+// StopAutoRefresh cancels the background credential-refresh goroutine, if one
+// is running. It is safe to call multiple times.
+func (m *HTTPManager) StopAutoRefresh() {
+	m.refreshMu.Lock()
+	defer m.refreshMu.Unlock()
+	if m.refreshCancel != nil {
+		m.refreshCancel()
+		m.refreshCancel = nil
+	}
 }

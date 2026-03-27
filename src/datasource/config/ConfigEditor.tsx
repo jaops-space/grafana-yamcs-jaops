@@ -1,7 +1,7 @@
 import { AppEvents, DataSourcePluginOptionsEditorProps } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
 import { Button, Checkbox, Collapse, Field, FileDropzone, InlineField, Input, Modal, Stack } from '@grafana/ui';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Configuration, DefaultConfiguration, DefaultSecureConfiguration, Endpoints, IndexedEndpoint, SecureConfiguration } from '../types';
 import ConfigEndpoint from './ConfigEndpoint';
 import ConfigHost from './ConfigHost';
@@ -26,6 +26,18 @@ interface ConfigProps extends DataSourcePluginOptionsEditorProps<Configuration, 
  * It manages state and handles updates to the Grafana plugin settings.
  */
 export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) {
+
+    const downloadRef = useRef<HTMLAnchorElement>(null);
+    const objectUrlRef = useRef<string | null>(null);
+
+    // Revoke any outstanding object URL when the component unmounts
+    useEffect(() => {
+        return () => {
+            if (objectUrlRef.current) {
+                URL.revokeObjectURL(objectUrlRef.current);
+            }
+        };
+    }, []);
 
     const [secureConfig, setSecureConfig] = useState<SecureConfiguration>(options.secureJsonData ?? DefaultSecureConfiguration);
     const [config, setConfig] = useState<Configuration>(options.jsonData ?? DefaultConfiguration);
@@ -159,22 +171,30 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     };
 
     /**
-     * Exports the current configuration to a JSON file.
+     * Exports the current configuration to a JSON file using the hidden
+     * anchor ref so we avoid direct DOM manipulation.
      */
-    const exportConfig = () => {
-        const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const exportConfig = useCallback(() => {
+        // Revoke any previously created object URL
+        if (objectUrlRef.current) {
+            URL.revokeObjectURL(objectUrlRef.current);
+        }
+
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-    
-        const downloadAnchorNode = document.createElement("a");
-        downloadAnchorNode.href = url;
-        downloadAnchorNode.download = "YamcsGrafanaConfiguration.json";
-        downloadAnchorNode.target = "_blank";
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        
-        document.body.removeChild(downloadAnchorNode);
-        URL.revokeObjectURL(url); // Clean up the object URL
-    };
+        objectUrlRef.current = url;
+
+        const anchor = downloadRef.current;
+        if (anchor) {
+            anchor.href = url;
+            anchor.download = 'YamcsGrafanaConfiguration.json';
+            anchor.click();
+        }
+
+        // Revoke immediately — the browser has already started the download
+        URL.revokeObjectURL(url);
+        objectUrlRef.current = null;
+    }, [config]);
 
     const appEvents = getAppEvents();
 
@@ -218,6 +238,8 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     }, [options.jsonData]);
 
     return (<>
+        {/* Hidden anchor used by exportConfig to trigger downloads without direct DOM manipulation */}
+        <a ref={downloadRef} style={{ display: 'none' }} />
         <Stack direction="column">
             <Stack direction='row' justifyContent='flex-end'>
                 <Button onClick={() => setExportOpen(true)} size='sm' variant='secondary'>Import / Export</Button>

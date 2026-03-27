@@ -128,6 +128,16 @@ func (client *YamcsClient) CloseWebSocketConnection() error {
 	return client.WebSocket.Disconnect()
 }
 
+// Close shuts down the client by stopping the credential auto-refresh loop
+// and closing the WebSocket connection. It should be called when the client
+// is no longer needed (e.g. during plugin dispose).
+func (client *YamcsClient) Close() {
+	if client.HTTP != nil {
+		client.HTTP.StopAutoRefresh()
+	}
+	_ = client.CloseWebSocketConnection()
+}
+
 func (client *YamcsClient) IsWebSocketConnected() bool {
 	return client.WebSocket.IsConnected()
 }

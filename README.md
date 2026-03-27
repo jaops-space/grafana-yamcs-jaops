@@ -1,9 +1,10 @@
-# JAOPS Grafana Yamcs Plugin
+# Grafana Plugin for the Yamcs Mission Control Software
 
-A Grafana plugin to directly connect to the Yamcs server, display telemetry and send commands.
-This plugin is engineered for high reliability to be used in Mission Control Centers and anywhere Yamcs is used.
+A Grafana plugin to directly connect to the [Yamcs](https://yamcs.org/) server, display telemetry, send commands, and more!
 
-The current version has already been tested in real-world deployments but active development continues and community feedback and contributions are very welcome.
+This plugin is engineered for high reliability to be used in Mission Control Centers and anywhere Yamcs is used. The current version has already been tested in real-world deployments but active development continues and community feedback and contributions are very welcome.
+
+Development led by [JAOPS](https://www.jaops.com/): providing Mission Control software, tools and training for spacecraft in orbit and rovers on the Moon!
 
 
 ## Features
@@ -12,18 +13,17 @@ The current version has already been tested in real-world deployments but active
 
 - **Modular and Scalable Architecture** – Clean separation of concerns and a solid backend structure built for reliability and flexibility.
 
-- **Telemetry & Static Image Panel** – Visualize real-time telemetry data or overlay data on static images (e.g. spacecraft layouts, maps).
+- **Image Panel** – Visualize real-time images from Yamcs or overlay data on static images (e.g. spacecraft layouts, maps).
 
-- **Commanding Panel** – Issue commands via a Grafana panel with fully customizable buttons, supporting arguments, comments, and endpoint targeting.
+- **Commanding Panel** – Issue commands via Grafana panels with fully customizable buttons, supporting arguments, comments, and endpoint targeting. Use the Command History Panel to keep track of commands sent, arguments and acknowledgements.
 
-- **Intuitive UI/UX** – Clean and simple user interface designed to be easy to use, even for non-experts.
-
-- **Live Status Feedback** – Displays endpoint availability and WebSocket status in real-time, ensuring quick diagnostics.
-
-- **Fully Configurable** – Every aspect of the plugin—from endpoint configuration to command structure and visual layout is configurable through Grafana's settings.
-
+- **Intuitive UI/UX** – Clean and simple user interface designed to be easy to use, even for non-experts. Displays endpoint availability and WebSocket status in real-time, ensuring quick diagnostics. Every aspect of the plugin is configurable through Grafana's settings.
 
 ![Design Document](./screenshots/DesignDocument.png)
+
+## Try Out the Plugin for Yourself
+Search for Yamcs or JAOPS in the Grafana Marketplace.
+Click "install"
 
 ## Example Grafana Dashboard Connected to Yamcs
 
@@ -32,23 +32,26 @@ They are made to use data from the [Yamcs quickstart](https://github.com/jaops-s
 After cloning the repository, run in three separate terminals:
 ```bash
 ./mvn yamcs:run
-python3 simulator.sh
-python3 simulator/images/generate_images.py
-``` 
 
+python simulator.sh
+
+pip install -r simulator/images/requirements.txt
+python simulator/images/generate_images.py
+``` 
+Then launch grafana, configure the datasource for Yamcs and open the Demo Dashboard:
 ![Screenshot of Demo Dashboard](./screenshots/DemoDashboard.png)
 
+The plugin itself includes helpful tutorials for each panel.
+Access them via the main navigation menu (on the left side)
 
-## Archive Database Configuration
-
-The plugin supports querying telemetry from live Yamcs data.
-## Try Out the Plugin for Yourself
-Follow the [setup instruction](./setup_instructions.md) to get started in just a few minutes.
+![Panel Tutorials](./screenshots/PanelTutorials.png)
 
 ## Contributions
+Contributions are very welcome!  
 
-Contributions are welcome!  
 If you find a bug, have a feature request, or want to improve the project, feel free to open an issue or submit a pull request.
+
+Follow the [setup instruction](./setup_instructions.md) to get started with the development environment in just a few minutes.
 
 Please follow the existing code style and include tests if applicable. For major changes, it's recommended to open a discussion first. Read the [contributing guidelines](CONTRIBUTING.md) for further indications on how to contribute.
 

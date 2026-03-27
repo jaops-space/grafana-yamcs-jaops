@@ -2,11 +2,13 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
@@ -24,7 +26,8 @@ type HTTPManager struct {
 	UsingProtobuf bool
 	OnTokenUpdate func(Credentials)
 
-	RefreshStop chan struct{} // Channel to stop the refresh ticker
+	refreshCancel context.CancelFunc // cancels the current auto-refresh goroutine
+	refreshMu     sync.Mutex         // guards refreshCancel
 }
 
 // NewHTTPManager initializes a new Yamcs HTTPManager.

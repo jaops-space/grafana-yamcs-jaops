@@ -1,50 +1,48 @@
-<!-- This README file is going to be the one displayed on the Grafana.com website for your plugin. Uncomment and replace the content here before publishing.
+# Grafana Plugin for the Yamcs Mission Control Software
 
-Remove any remaining comments before publishing as these may be displayed on Grafana.com -->
+A Grafana plugin to directly connect to the [Yamcs](https://yamcs.org/) server, display telemetry, send commands, and more!
 
-# Grafana-Yamcs-Jaops
+This plugin is engineered for high reliability to be used in Mission Control Centers and anywhere Yamcs is used. The current version has already been tested in real-world deployments but active development continues and community feedback and contributions are very welcome.
 
-<!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
+Development led by [JAOPS](https://www.jaops.com/): providing Mission Control software, tools and training for spacecraft in orbit and rovers on the Moon!
 
-**BEFORE YOU BEGIN**
-- Ensure all links are absolute URLs so that they will work when the README is displayed within Grafana and Grafana.com
-- Be inspired ✨
-  - [grafana-polystat-panel](https://github.com/grafana/grafana-polystat-panel)
-  - [volkovlabs-variable-panel](https://github.com/volkovlabs/volkovlabs-variable-panel)
 
-**ADD SOME BADGES**
+## Features
 
-Badges convey useful information at a glance for users whether in the Catalog or viewing the source code. You can use the generator on [Shields.io](https://shields.io/badges/dynamic-json-badge) together with the Grafana.com API
-to create dynamic badges that update automatically when you publish a new version to the marketplace.
+- **Multiplexed Endpoint Support** – Designed to handle complex setups with multiple Yamcs endpoints through a robust multiplexer system. Supports scaling to many Grafana clients efficiently by multiplexing the connections to Yamcs: the same data is only requested once.
 
-- For the URL parameter use `https://grafana.com/api/plugins/your-plugin-id`.
-- Example queries:
-  - Downloads: `$.downloads`
-  - Catalog Version: `$.version`
-  - Grafana Dependency: `$.grafanaDependency`
-  - Signature Type: `$.versionSignatureType`
-- Optionally, for the logo parameter use `grafana`.
+- **Modular and Scalable Architecture** – Clean separation of concerns and a solid backend structure built for reliability and flexibility.
 
-Full example: ![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/grafana-polystat-panel&label=Marketplace&prefix=v&color=F47A20)
+- **Image Panel** – Visualize real-time images from Yamcs or overlay data on static images (e.g. spacecraft layouts, maps).
 
-Consider other [badges](https://shields.io/badges) as you feel appropriate for your project.
+- **Commanding Panel** – Issue commands via Grafana panels with fully customizable buttons, supporting arguments, comments, and endpoint targeting. Use the Command History Panel to keep track of commands sent, arguments and acknowledgements.
 
-## Overview / Introduction
-Provide one or more paragraphs as an introduction to your plugin to help users understand why they should use it.
+- **Intuitive UI/UX** – Clean and simple user interface designed to be easy to use, even for non-experts. Displays endpoint availability and WebSocket status in real-time, ensuring quick diagnostics. Every aspect of the plugin is configurable through Grafana's settings.
 
-Consider including screenshots:
-- in [plugin.json](https://grafana.com/developers/plugin-tools/reference/plugin-json#info) include them as relative links.
-- in the README ensure they are absolute URLs.
 
-## Requirements
-List any requirements or dependencies they may need to run the plugin.
+![Design Document](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/DesignDocument.png)
 
-## Getting Started
-Provide a quick start on how to configure and use the plugin.
+## Example Grafana Dashboard Connected to Yamcs
 
-## Documentation
-If your project has dedicated documentation available for users, provide links here. For help in following Grafana's style recommendations for technical documentation, refer to our [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/).
+Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
+They are made to use data from the [Yamcs quickstart](https://github.com/jaops-space/yamcs-quickstart).
+After cloning the repository, run in three separate terminals:
+```bash
+./mvn yamcs:run
 
-## Contributing
-Do you want folks to contribute to the plugin or provide feedback through specific means? If so, tell them how!
--->
+python simulator.sh
+
+pip install -r simulator/images/requirements.txt
+python simulator/images/generate_images.py
+``` 
+Then launch grafana, configure the datasource for Yamcs and open the Demo Dashboard:
+![Screenshot of Demo Dashboard](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/DemoDashboard.png)
+
+The plugin itself includes helpful tutorials for each panel.
+Access them via the main navigation menu (on the left side)
+
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/PanelTutorials.png)
+
+## Documentation and Contributing
+Check out the open-source [GitHub repository](https://github.com/jaops-space/grafana-yamcs-jaops) for the latest features and documentation. 
+Community feedback and contributions are very welcome!
