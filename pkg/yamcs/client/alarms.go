@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
@@ -45,7 +46,7 @@ func (c *YamcsClient) AcknowledgeAlarm(instance Instance, processor Processor, a
 		State:     stringPtr("acknowledged"),
 		Comment:   &comment,
 	}
-	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
+	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 // ClearAlarm clears an alarm.
@@ -58,7 +59,7 @@ func (c *YamcsClient) ClearAlarm(instance Instance, processor Processor, alarmNa
 		State:     stringPtr("cleared"),
 		Comment:   &comment,
 	}
-	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
+	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 // ShelveAlarm shelves an alarm.
@@ -72,13 +73,13 @@ func (c *YamcsClient) ShelveAlarm(instance Instance, processor Processor, alarmN
 		Comment:        &comment,
 		ShelveDuration: &durationMs,
 	}
-	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d", instance.GetName(), processor.GetName(), alarmName, seqNum), request, nil)
+	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 // UnshelveAlarm unshelves an alarm.
 func (c *YamcsClient) UnshelveAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32) error {
 	// Yamcs uses the :unshelve action endpoint (similar to :acknowledge, :shelve, :clear)
-	return c.HTTP.PostProto(fmt.Sprintf("/processors/%s/%s/alarms%s/%d:unshelve", instance.GetName(), processor.GetName(), alarmName, seqNum), nil, nil)
+	return c.HTTP.PostProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d:unshelve", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), nil, nil)
 }
 
 func stringPtr(s string) *string {
