@@ -78,8 +78,14 @@ func (c *YamcsClient) ShelveAlarm(instance Instance, processor Processor, alarmN
 
 // UnshelveAlarm unshelves an alarm.
 func (c *YamcsClient) UnshelveAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32) error {
+	request := &alarms.EditAlarmRequest{
+		Instance:  instance.Name,
+		Processor: processor.Name,
+		Name:      &alarmName,
+		Seqnum:    &seqNum,
+	}
 	// Yamcs uses the :unshelve action endpoint (similar to :acknowledge, :shelve, :clear)
-	return c.HTTP.PostProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d:unshelve", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), nil, nil)
+	return c.HTTP.PostProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d:unshelve", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 func stringPtr(s string) *string {
