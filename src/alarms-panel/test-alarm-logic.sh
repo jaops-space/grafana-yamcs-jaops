@@ -24,15 +24,15 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-YAMCS_URL="localhost:8090"
-GRAFANA_URL="localhost:3000"
-GRAFANA_USER="admin"
-GRAFANA_PASS="admin"
-DATASOURCE_UID="df76fq85bmha8f"  # From Grafana datasources
-ENDPOINT_ID="new-endpoint-1"     # From endpoint configuration
-INSTANCE="simulator"
-PROCESSOR="realtime"
+# Configuration (overridable via environment variables)
+YAMCS_URL="${YAMCS_URL:-localhost:8090}"
+GRAFANA_URL="${GRAFANA_URL:-localhost:3000}"
+GRAFANA_USER="${GRAFANA_USER:-admin}"
+GRAFANA_PASS="${GRAFANA_PASS:-admin}"
+DATASOURCE_UID="${DATASOURCE_UID:-df76fq85bmha8f}"  # From Grafana datasources
+ENDPOINT_ID="${ENDPOINT_ID:-new-endpoint-1}"        # From endpoint configuration
+INSTANCE="${INSTANCE:-simulator}"
+PROCESSOR="${PROCESSOR:-realtime}"
 
 # Print functions
 print_header() {
