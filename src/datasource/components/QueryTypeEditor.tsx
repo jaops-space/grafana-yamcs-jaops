@@ -1,6 +1,7 @@
+// eslint-disable-next-line no-restricted-imports
 import { Badge, InlineField, Select, Stack } from '@grafana/ui';
 import { QueryType } from '../types';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { QueryCategory, QueryOptions, QueryProps } from './constants';
 import { ParameterQuery } from './ParameterQuery';
 import { CommandQuery } from './CommandQuery';
@@ -13,7 +14,15 @@ export function QueryTypeEditor(props: QueryProps) {
         onChange({ ...query, type });
     };
 
-    const queryTypeInfo = QueryOptions.find((o) => o.value === query.type);
+    // Default to PLOT if no type is set
+    useEffect(() => {
+        if (!query.type) {
+            onChange({ ...query, type: QueryType.PLOT });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const queryTypeInfo = QueryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
     const queryOptions = datasource.debugMode ? QueryOptions : QueryOptions.filter((o) => o.category !== QueryCategory.DEBUG);
 
     function getBadgeCategory(category: any): React.ReactNode {
@@ -41,11 +50,11 @@ export function QueryTypeEditor(props: QueryProps) {
         <>
             <Stack direction="row" alignItems="center">
                 <InlineField label="Query Type" grow>
+                    {/* eslint-disable-next-line @typescript-eslint/no-deprecated */}
                     <Select
                         onChange={(s) => setQueryType(s.value ?? QueryType.PLOT)}
                         value={query.type}
                         isClearable={false}
-                        defaultValue={query.type}
                         options={queryOptions}
                         getOptionLabel={(value: any) => value.label ?? ''}
                         formatOptionLabel={(value: any) => (
