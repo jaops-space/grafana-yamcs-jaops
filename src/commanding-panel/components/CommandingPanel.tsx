@@ -542,10 +542,17 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         }}
                                         size={commandState?.size as any}
                                         fill={commandState?.transparent as any}
-                                        tooltip="Turn off"
+                                        tooltip={getTemplateSrv().replace(
+                                            commandState?.offCommand?.tooltip
+                                                ?? commandState?.tooltip
+                                                ?? commandState?.offCommand?.label
+                                                ?? commandState?.label
+                                                ?? 'OFF',
+                                            scopedVars
+                                        )}
                                         onClick={withSubmit ? () => handleSubmit(commandInfo, i, true) : undefined}
                                     >
-                                        {commandState?.offCommand?.label || 'OFF'}
+                                        {getTemplateSrv().replace(commandState?.offCommand?.label || 'OFF', scopedVars)}
                                     </Button>
                                 </div>
                             );
@@ -1084,9 +1091,14 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOptionChange(command.name, 'onCommand', { ...commandState?.onCommand, comment: e.target.value }, i)}
                                                 style={{ width: '100%' }} />
                                         </Field>
-                                        <Field label='LEFT Label' description='Label for LEFT button'>
+                                        <Field label='LEFT Label' description='Label for LEFT button (supports $variable)'>
                                             <Input type='text' disabled={loading} value={commandState?.onCommand?.label ?? ''}
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOptionChange(command.name, 'onCommand', { ...commandState?.onCommand, label: e.target.value }, i)}
+                                                style={{ width: '100%' }} />
+                                        </Field>
+                                        <Field label='LEFT Tooltip' description='Tooltip for LEFT button (supports $variable)'>
+                                            <Input type='text' disabled={loading} value={commandState?.onCommand?.tooltip ?? ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOptionChange(command.name, 'onCommand', { ...commandState?.onCommand, tooltip: e.target.value }, i)}
                                                 style={{ width: '100%' }} />
                                         </Field>
                                         <Field label='LEFT Color' description='Button color for LEFT button'>
@@ -1177,9 +1189,14 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOptionChange(command.name, 'offCommand', { ...commandState?.offCommand, comment: e.target.value }, i)}
                                                 style={{ width: '100%' }} />
                                         </Field>
-                                        <Field label='RIGHT Label' description='Label for RIGHT button'>
+                                        <Field label='RIGHT Label' description='Label for RIGHT button (supports $variable)'>
                                             <Input type='text' disabled={loading} value={commandState?.offCommand?.label ?? ''}
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOptionChange(command.name, 'offCommand', { ...commandState?.offCommand, label: e.target.value }, i)}
+                                                style={{ width: '100%' }} />
+                                        </Field>
+                                        <Field label='RIGHT Tooltip' description='Tooltip for RIGHT button (supports $variable)'>
+                                            <Input type='text' disabled={loading} value={commandState?.offCommand?.tooltip ?? ''}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOptionChange(command.name, 'offCommand', { ...commandState?.offCommand, tooltip: e.target.value }, i)}
                                                 style={{ width: '100%' }} />
                                         </Field>
                                         <Field label='RIGHT Color' description='Button color for RIGHT button'>
