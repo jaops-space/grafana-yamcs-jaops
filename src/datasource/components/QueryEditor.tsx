@@ -88,22 +88,61 @@ export function QueryEditor(props: QueryProps) {
         value: `$${variable.name}`,
     }));
 
-    const endpointOptions = Object.entries(endpoints).map(([id, endpoint]) => ({
-        label: (endpoint as any).name || `#${id}`,
-        description: (endpoint as any).description,
-        value: id,
-        status: endpoint,
-    }));
+    const endpointOptions: Array<ComboboxOption<string>> = Object.entries(endpoints).map(([id, endpoint]) => {
+        const online = (endpoint as any).online as boolean;
+        const desc = (endpoint as any).description;
+        const statusLabel = online ? '🟢 Online' : '🔴 Offline';
+        return {
+            label: (endpoint as any).name || `#${id}`,
+            description: desc ? `${desc} — ${statusLabel}` : statusLabel,
+            value: id,
+        };
+    });
+
+    const selectedEndpointOnline: boolean | null = query.endpoint && endpoints[query.endpoint] != null
+        ? (endpoints[query.endpoint] as any).online ?? false
+        : null;
 
     const renderSelect = () => {
         if (!query.asVariable) {
             return (
-                <Combobox
-                    options={endpointOptions}
-                    value={query.endpoint ?? null}
-                    onChange={(e: ComboboxOption | null) => { setEndpoint(e?.value ?? ''); }}
-                    data-testid='endpoint-select'
-                />
+                <div style={{ position: 'relative', width: '100%' }}>
+                    <Combobox
+                        options={endpointOptions}
+                        value={query.endpoint ?? null}
+                        onChange={(e: ComboboxOption | null) => { setEndpoint(e?.value ?? ''); }}
+                        data-testid='endpoint-select'
+                    />
+                    {selectedEndpointOnline !== null && (
+                        <span style={{
+                            position: 'absolute',
+                            right: 36,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            pointerEvents: 'none',
+                            zIndex: 1,
+                        }}>
+                            <span style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: selectedEndpointOnline ? '#36BA00' : '#E02F44',
+                                display: 'inline-block',
+                                flexShrink: 0,
+                            }} />
+                            <span style={{
+                                fontSize: '0.85em',
+                                color: selectedEndpointOnline ? '#36BA00' : '#E02F44',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                {selectedEndpointOnline ? 'Online' : 'Offline'}
+                            </span>
+                        </span>
+                    )}
+                </div>
             );
         }
 
