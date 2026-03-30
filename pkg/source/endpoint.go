@@ -1,10 +1,14 @@
 package source
 
 import (
+	"fmt"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
@@ -17,12 +21,17 @@ import (
 type YamcsEndpoint struct {
 	Multiplexer *Multiplexer
 
+	mu sync.RWMutex // guards AlarmCache and GlobalAlarmStatus
+
 	ID             string
 	Instance       client.Instance
 	Processor      client.Processor
 	Parameters     map[string]*ParameterDemand
 	Events         map[string][]*events.Event
 	CommandHistory map[string][]*commanding.CommandHistoryEntry
+	Alarms         map[string][]*alarms.AlarmData
+	AlarmCache     map[string]*alarms.AlarmData // Cache of all active alarms by ID
+	GlobalAlarmStatus *alarms.GlobalAlarmStatus
 
 	CurrentTime time.Time
 }
@@ -302,6 +311,137 @@ func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) {
 		client := ep.GetClient()
 		for _, subscription := range client.CommandHistorySubscriptions {
 			if subscription.Instance == ep.Instance.GetName() {
+				subscription.Halt()
+			}
+		}
+	}
+}
+
+/**
+
+Alarms
+
+**/
+
+func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
+	ep.GetAlarmsSubscription()
+	ep.GetGlobalAlarmStatusSubscription()
+	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
+
+	// Load initial alarms into cache if cache is empty
+	ep.mu.Lock()
+	cacheEmpty := len(ep.AlarmCache) == 0
+	ep.mu.Unlock()
+	if cacheEmpty {
+		yamcs := ep.GetClient()
+		alarmList, err := yamcs.ListProcessorAlarms(ep.Instance, ep.Processor)
+		if err == nil {
+			ep.mu.Lock()
+			for _, alarm := range alarmList {
+				// Skip cleared alarms when loading initial cache
+				if alarm.GetClearInfo() != nil {
+					continue
+				}
+				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
+				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
+				ep.AlarmCache[alarmID] = alarm
+			}
+			ep.mu.Unlock()
+		}
+	}
+}
+
+func (ep *YamcsEndpoint) GetAlarmsSubscription() (*client.AlarmSubscription, error) {
+	c := ep.GetClient()
+	for _, subscription := range c.AlarmSubscriptions {
+		if subscription.GetInstance() == ep.Instance.GetName() {
+			return subscription, nil
+		}
+	}
+	subscription, err := c.CreateAlarmSubscription(ep.Instance, ep.Processor)
+	if err != nil {
+		return nil, err
+	}
+	subscription.SetListener(ep.Multiplexer.GetAlarmsListener(ep.Instance))
+	return subscription, nil
+}
+
+func (ep *YamcsEndpoint) GetGlobalAlarmStatusSubscription() (*client.GlobalStatusSubscription, error) {
+	c := ep.GetClient()
+	for _, subscription := range c.GlobalAlarmStatusSubscriptions {
+		if subscription.GetInstance() == ep.Instance.GetName() {
+			return subscription, nil
+		}
+	}
+	subscription, err := c.CreateGlobalAlarmStatusSubscription(ep.Instance, ep.Processor)
+	if err != nil {
+		return nil, err
+	}
+	subscription.SetListener(func(status *alarms.GlobalAlarmStatus) {
+		ep.mu.Lock()
+		ep.GlobalAlarmStatus = status
+		ep.mu.Unlock()
+	})
+	return subscription, nil
+}
+
+// GetGlobalAlarmStatus returns a consistent snapshot of GlobalAlarmStatus under the read lock.
+func (ep *YamcsEndpoint) GetGlobalAlarmStatus() *alarms.GlobalAlarmStatus {
+	ep.mu.RLock()
+	defer ep.mu.RUnlock()
+	return ep.GlobalAlarmStatus
+}
+
+func (ep *YamcsEndpoint) GetAlarmsStream(path string) []*alarms.AlarmData {
+	// Return all cached alarms (complete list of active alarms)
+	ep.mu.RLock()
+	result := make([]*alarms.AlarmData, 0, len(ep.AlarmCache))
+	for _, alarm := range ep.AlarmCache {
+		result = append(result, alarm)
+	}
+	ep.mu.RUnlock()
+
+	// Sort alarms consistently to prevent UI reordering
+	// Sort by: 1) Trigger time (newest first), 2) Qualified name, 3) SeqNum
+	sort.Slice(result, func(i, j int) bool {
+		timeI := result[i].GetTriggerTime().AsTime()
+		timeJ := result[j].GetTriggerTime().AsTime()
+
+		// Sort by trigger time (newest first)
+		if !timeI.Equal(timeJ) {
+			return timeI.After(timeJ)
+		}
+
+		// If same time, sort by qualified name
+		nameI := result[i].GetId().GetNamespace() + "/" + result[i].GetId().GetName()
+		nameJ := result[j].GetId().GetNamespace() + "/" + result[j].GetId().GetName()
+		if nameI != nameJ {
+			return nameI < nameJ
+		}
+
+		// If same name, sort by sequence number
+		return result[i].GetSeqNum() < result[j].GetSeqNum()
+	})
+
+	return result
+}
+
+func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
+	// Clear only the update buffer, not the cache
+	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
+}
+
+func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) {
+	delete(ep.Alarms, path)
+	if len(ep.Alarms) == 0 {
+		c := ep.GetClient()
+		for _, subscription := range c.AlarmSubscriptions {
+			if subscription.GetInstance() == ep.Instance.GetName() {
+				subscription.Halt()
+			}
+		}
+		for _, subscription := range c.GlobalAlarmStatusSubscriptions {
+			if subscription.GetInstance() == ep.Instance.GetName() {
 				subscription.Halt()
 			}
 		}

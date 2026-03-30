@@ -12,6 +12,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
@@ -31,6 +32,177 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 	}
 
 	return data.NewFrame("response", timeField, messageField, severityField)
+}
+
+// AlarmEntry represents a processed alarm for the frontend
+type AlarmEntry struct {
+	Id                 string `json:"id"`
+	Name               string `json:"name"`
+	TriggerTime        string `json:"triggerTime"`
+	UpdateTime         string `json:"updateTime,omitempty"`
+	Severity           string `json:"severity"`
+	Type               string `json:"type"`
+	Violations         uint32 `json:"violations"`
+	Count              uint32 `json:"count"`
+	State              string `json:"state"`
+	Acknowledged       bool   `json:"acknowledged"`
+	AcknowledgedBy     string `json:"acknowledgedBy,omitempty"`
+	AcknowledgeTime    string `json:"acknowledgeTime,omitempty"`
+	AcknowledgeComment string `json:"acknowledgeComment,omitempty"`
+	ProcessOK          bool   `json:"processOK"`
+	Triggered          bool   `json:"triggered"`
+	Latching           bool   `json:"latching"`
+	Shelved            bool   `json:"shelved"`
+	ShelvedBy          string `json:"shelvedBy,omitempty"`
+	ShelveTime         string `json:"shelveTime,omitempty"`
+	ShelveExpiration   string `json:"shelveExpiration,omitempty"`
+	ShelveComment      string `json:"shelveComment,omitempty"`
+	Cleared            bool   `json:"cleared,omitempty"`
+	ClearedBy          string `json:"clearedBy,omitempty"`
+	ClearTime          string `json:"clearTime,omitempty"`
+	ClearComment       string `json:"clearComment,omitempty"`
+	CurrentValue       string `json:"currentValue,omitempty"`
+	TriggerValue       string `json:"triggerValue,omitempty"`
+	MostSevereValue    string `json:"mostSevereValue,omitempty"`
+	// Detailed parameter value objects for inspection
+	TriggerValueDetail    interface{} `json:"triggerValueDetail,omitempty"`
+	MostSevereValueDetail interface{} `json:"mostSevereValueDetail,omitempty"`
+	CurrentValueDetail    interface{} `json:"currentValueDetail,omitempty"`
+	ParameterInfo         interface{} `json:"parameterInfo,omitempty"`
+	NotificationType      string      `json:"notificationType"`
+	SeqNum                uint32      `json:"seqNum"`
+}
+
+// ConvertAlarmListToFrame converts a list of Yamcs alarms into a Grafana data frame.
+func ConvertAlarmListToFrame(alarmList []*alarms.AlarmData) *data.Frame {
+	alarmEntries := make([]json.RawMessage, 0)
+
+	for _, alarm := range alarmList {
+		// Construct the full qualified name from namespace and short name.
+		// Yamcs returns id.name as short name (e.g. "BatteryVoltage1") and
+		// id.namespace as the path (e.g. "/YSS/SIMULATOR"). The Edit Alarm
+		// API requires the full qualified name in the URL path.
+		alarmId := alarm.GetId()
+		if alarmId == nil {
+			continue
+		}
+		qualifiedName := alarmId.GetNamespace() + "/" + alarmId.GetName()
+
+		// Guard TriggerTime: use zero time as fallback if nil
+		triggerTime := time.Time{}
+		if tt := alarm.GetTriggerTime(); tt != nil {
+			triggerTime = tt.AsTime()
+		}
+
+		alarmEntry := &AlarmEntry{
+			Id:               fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum()),
+			Name:             qualifiedName,
+			TriggerTime:      triggerTime.Format(time.RFC3339),
+			Severity:         alarm.GetSeverity().String(),
+			Type:             alarm.GetType().String(),
+			Violations:       alarm.GetViolations(),
+			Count:            alarm.GetCount(),
+			State:            deriveAlarmState(alarm),
+			Acknowledged:     alarm.GetAcknowledged(),
+			ProcessOK:        alarm.GetProcessOK(),
+			Triggered:        alarm.GetTriggered(),
+			Latching:         alarm.GetLatching(),
+			NotificationType: alarm.GetNotificationType().String(),
+			SeqNum:           alarm.GetSeqNum(),
+			Shelved:          alarm.GetShelveInfo() != nil,
+		}
+
+		if alarm.GetUpdateTime() != nil {
+			alarmEntry.UpdateTime = alarm.GetUpdateTime().AsTime().Format(time.RFC3339)
+		}
+
+		if ackInfo := alarm.GetAcknowledgeInfo(); ackInfo != nil {
+			alarmEntry.AcknowledgedBy = ackInfo.GetAcknowledgedBy()
+			if ackInfo.GetAcknowledgeTime() != nil {
+				alarmEntry.AcknowledgeTime = ackInfo.GetAcknowledgeTime().AsTime().Format(time.RFC3339)
+			}
+			alarmEntry.AcknowledgeComment = ackInfo.GetAcknowledgeMessage()
+		}
+
+		// Extract values for parameter alarms
+		if paramDetail := alarm.GetParameterDetail(); paramDetail != nil {
+			// Extract stringified values for display
+			if currentVal := paramDetail.GetCurrentValue(); currentVal != nil {
+				alarmEntry.CurrentValue = StringifyValue(currentVal.GetEngValue())
+				alarmEntry.CurrentValueDetail = convertParameterValueToMap(currentVal)
+			}
+			if triggerVal := paramDetail.GetTriggerValue(); triggerVal != nil {
+				alarmEntry.TriggerValue = StringifyValue(triggerVal.GetEngValue())
+				alarmEntry.TriggerValueDetail = convertParameterValueToMap(triggerVal)
+			}
+			if mostSevereVal := paramDetail.GetMostSevereValue(); mostSevereVal != nil {
+				alarmEntry.MostSevereValue = StringifyValue(mostSevereVal.GetEngValue())
+				alarmEntry.MostSevereValueDetail = convertParameterValueToMap(mostSevereVal)
+			}
+			// Extract parameter info
+			if paramInfo := paramDetail.GetParameter(); paramInfo != nil {
+				alarmEntry.ParameterInfo = convertParameterInfoToMap(paramInfo)
+			}
+		}
+
+		// Extract values for event alarms
+		if eventDetail := alarm.GetEventDetail(); eventDetail != nil {
+			// For event alarms, use the event message and severity as the "values"
+			if triggerEvent := eventDetail.GetTriggerEvent(); triggerEvent != nil {
+				alarmEntry.TriggerValue = fmt.Sprintf("%s: %s", triggerEvent.GetSeverity().String(), triggerEvent.GetMessage())
+			}
+			if currentEvent := eventDetail.GetCurrentEvent(); currentEvent != nil {
+				alarmEntry.CurrentValue = fmt.Sprintf("%s: %s", currentEvent.GetSeverity().String(), currentEvent.GetMessage())
+			}
+		}
+
+		// Shelve info
+		if shelveInfo := alarm.GetShelveInfo(); shelveInfo != nil {
+			alarmEntry.ShelvedBy = shelveInfo.GetShelvedBy()
+			if shelveInfo.GetShelveTime() != nil {
+				alarmEntry.ShelveTime = shelveInfo.GetShelveTime().AsTime().Format(time.RFC3339)
+			}
+			if shelveInfo.GetShelveExpiration() != nil {
+				alarmEntry.ShelveExpiration = shelveInfo.GetShelveExpiration().AsTime().Format(time.RFC3339)
+			}
+			alarmEntry.ShelveComment = shelveInfo.GetShelveMessage()
+		}
+
+		// Clear info
+		if clearInfo := alarm.GetClearInfo(); clearInfo != nil {
+			alarmEntry.Cleared = true
+			alarmEntry.ClearedBy = clearInfo.GetClearedBy()
+			if clearInfo.GetClearTime() != nil {
+				alarmEntry.ClearTime = clearInfo.GetClearTime().AsTime().Format(time.RFC3339)
+			}
+			alarmEntry.ClearComment = clearInfo.GetClearMessage()
+		}
+
+		rawJson, err := json.Marshal(alarmEntry)
+		if err != nil {
+			continue
+		}
+		alarmEntries = append(alarmEntries, rawJson)
+	}
+
+	return data.NewFrame("response", data.NewField("alarms", nil, alarmEntries))
+}
+
+// deriveAlarmState returns a string state for the alarm, matching Yamcs web vocabulary.
+func deriveAlarmState(alarm *alarms.AlarmData) string {
+	if alarm.GetClearInfo() != nil {
+		return "Cleared"
+	}
+	if alarm.GetShelveInfo() != nil {
+		return "Shelved"
+	}
+	if alarm.GetAcknowledged() {
+		return "Acknowledged"
+	}
+	if alarm.GetSeverity().String() != "" {
+		return "Active"
+	}
+	return "Unknown"
 }
 
 type CommandAck struct {
@@ -642,3 +814,141 @@ func HashToRGB(name string) string {
 	r, g, b := hslToRgb(hue, 70, 50)
 	return fmt.Sprintf("#%02X%02X%02X", r, g, b) // Format as hex string
 }
+
+// convertParameterValueToMap converts a ParameterValue protobuf to a JSON-serializable map
+func convertParameterValueToMap(pv *pvalue.ParameterValue) map[string]interface{} {
+	if pv == nil {
+		return nil
+	}
+
+	result := make(map[string]interface{})
+
+	if id := pv.GetId(); id != nil {
+		result["id"] = map[string]interface{}{
+			"namespace": id.GetNamespace(),
+			"name":      id.GetName(),
+		}
+	}
+
+	if engValue := pv.GetEngValue(); engValue != nil {
+		result["engValue"] = convertValueToInterface(engValue)
+	}
+
+	if rawValue := pv.GetRawValue(); rawValue != nil {
+		result["rawValue"] = convertValueToInterface(rawValue)
+	}
+
+	if acqTime := pv.GetAcquisitionTime(); acqTime != nil {
+		result["acquisitionTime"] = acqTime.AsTime().Format(time.RFC3339)
+	}
+
+	if genTime := pv.GetGenerationTime(); genTime != nil {
+		result["generationTime"] = genTime.AsTime().Format(time.RFC3339)
+	}
+
+	if acqStatus := pv.GetAcquisitionStatus(); acqStatus != 0 {
+		result["acquisitionStatus"] = acqStatus.String()
+	}
+
+	if monResult := pv.GetMonitoringResult(); monResult != 0 {
+		result["monitoringResult"] = monResult.String()
+	}
+
+	if rangeCondition := pv.GetRangeCondition(); rangeCondition != 0 {
+		result["rangeCondition"] = rangeCondition.String()
+	}
+
+	if expireMs := pv.GetExpireMillis(); expireMs != 0 {
+		result["expireMillis"] = expireMs
+	}
+
+	return result
+}
+
+// convertValueToInterface converts a protobuf Value to a basic Go type
+func convertValueToInterface(v *protobuf.Value) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch v.GetType() {
+	case protobuf.Value_DOUBLE:
+		return v.GetDoubleValue()
+	case protobuf.Value_FLOAT:
+		return v.GetFloatValue()
+	case protobuf.Value_SINT32:
+		return v.GetSint32Value()
+	case protobuf.Value_UINT32:
+		return v.GetUint32Value()
+	case protobuf.Value_SINT64:
+		return v.GetSint64Value()
+	case protobuf.Value_UINT64:
+		return v.GetUint64Value()
+	case protobuf.Value_BOOLEAN:
+		return v.GetBooleanValue()
+	case protobuf.Value_STRING:
+		return v.GetStringValue()
+	case protobuf.Value_BINARY:
+		return formatBinary(v.GetBinaryValue())
+	case protobuf.Value_TIMESTAMP:
+		return v.GetTimestampValue()
+	case protobuf.Value_AGGREGATE:
+		agg := v.GetAggregateValue()
+		result := make(map[string]interface{})
+		for i, name := range agg.GetName() {
+			if i < len(agg.GetValue()) {
+				result[name] = convertValueToInterface(agg.GetValue()[i])
+			}
+		}
+		return result
+	case protobuf.Value_ARRAY:
+		arr := v.GetArrayValue()
+		result := make([]interface{}, len(arr))
+		for i, val := range arr {
+			result[i] = convertValueToInterface(val)
+		}
+		return result
+	default:
+		return v.GetStringValue()
+	}
+}
+
+// convertParameterInfoToMap converts a ParameterInfo protobuf to a JSON-serializable map
+func convertParameterInfoToMap(pi interface{}) map[string]interface{} {
+	if pi == nil {
+		return nil
+	}
+
+	result := make(map[string]interface{})
+
+	// Try to marshal and unmarshal to get a JSON representation
+	jsonBytes, err := json.Marshal(pi)
+	if err != nil {
+		return result
+	}
+
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &jsonMap); err != nil {
+		return result
+	}
+
+	// Extract only the most relevant fields to avoid clutter
+	if qualifiedName, ok := jsonMap["qualifiedName"]; ok {
+		result["qualifiedName"] = qualifiedName
+	}
+	if dataSource, ok := jsonMap["dataSource"]; ok {
+		result["dataSource"] = dataSource
+	}
+	if typeInfo, ok := jsonMap["type"]; ok {
+		result["type"] = typeInfo
+	}
+	if shortDesc, ok := jsonMap["shortDescription"]; ok {
+		result["shortDescription"] = shortDesc
+	}
+	if longDesc, ok := jsonMap["longDescription"]; ok {
+		result["longDescription"] = longDesc
+	}
+
+	return result
+}
+

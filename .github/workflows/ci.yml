@@ -184,12 +184,20 @@ jobs:
             - name: Start Grafana
               run: |
                   docker compose pull
-                  ANONYMOUS_AUTH_ENABLED=false DEVELOPMENT=false GRAFANA_VERSION=${{ matrix.GRAFANA_IMAGE.VERSION }} GRAFANA_IMAGE=${{ matrix.GRAFANA_IMAGE.NAME }} docker compose up -d
+                  GF_LOG_LEVEL=debug ANONYMOUS_AUTH_ENABLED=false DEVELOPMENT=false GRAFANA_VERSION=${{ matrix.GRAFANA_IMAGE.VERSION }} GRAFANA_IMAGE=${{ matrix.GRAFANA_IMAGE.NAME }} docker compose up -d
+
+            - name: Check if Grafana container is running
+              run: |
+                  sleep 10
+                  docker ps -a
+                  echo "=== Grafana container logs ==="
+                  docker logs jaops-yamcs-app || true
 
             - name: Wait for grafana server
               uses: grafana/plugin-actions/wait-for-grafana@main
               with:
                   url: http://localhost:3000/login
+                  timeout: 120
 
             - name: Install Playwright Browsers
               run: pnpm exec playwright install chromium --with-deps

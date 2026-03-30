@@ -47,9 +47,10 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     return undefined; // Skip invalid queries
                 }
 
-                // Links query type doesn't need streaming - return empty observable
-                // The panel handles API calls directly but needs the request metadata
-                if (query.type === QueryType.LINKS) {
+                // Links and Commanding query types don't need streaming.
+                // Links panel handles API calls directly.
+                // Commanding panel fetches command info via a resource call and sends commands via postResource.
+                if (query.type === QueryType.LINKS || query.type === QueryType.COMMANDING) {
                     return new Observable<DataQueryResponse>((subscriber) => {
                         subscriber.next({ data: [], state: LoadingState.Done });
                         subscriber.complete();
@@ -67,10 +68,12 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     pathName = 'subscriptions'
                 } else if (query.type === QueryType.COMMAND_HISTORY) {
                     pathName = 'commands'
+                } else if (query.type === QueryType.ALARMS) {
+                    pathName = 'alarms'
                 }   
 
                 let action = StreamingFrameAction.Append;
-                if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.COMMANDING) {
+                if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.ALARMS) {
                     action = StreamingFrameAction.Replace;
                 }
 

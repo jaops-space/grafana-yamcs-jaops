@@ -260,3 +260,18 @@ func telemetryPointsToSamples(points []source.TelemetryPoint) []client.Sample {
 	}
 	return samples
 }
+
+func DatasourceAlarmsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+
+	yamcs := endpoint.GetClient()
+	alarmList, err := yamcs.ListProcessorAlarms(endpoint.Instance, endpoint.Processor)
+	if err != nil {
+		return nil, err
+	}
+
+	frame := tools.ConvertAlarmListToFrame(alarmList)
+	frame.Meta = &data.FrameMeta{}
+	frame.Meta.PreferredVisualization = data.VisTypeTable
+	return frame, nil
+
+}

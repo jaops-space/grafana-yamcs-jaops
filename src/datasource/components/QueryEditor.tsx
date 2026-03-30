@@ -1,6 +1,6 @@
 import { SelectableValue } from '@grafana/data';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
 import { getTemplateSrv } from '@grafana/runtime';
@@ -70,8 +70,16 @@ export function QueryEditor(props: QueryProps) {
         fetchEndpoints();
     }, [fetchEndpoints]);
 
+    // Run the query only when the serialized query content actually changes,
+    // not on every object reference change (which would cause an infinite refresh loop).
+    const prevQueryJson = useRef<string>('');
     useEffect(() => {
-        onRunQuery();
+        const json = JSON.stringify(query);
+        if (json !== prevQueryJson.current) {
+            prevQueryJson.current = json;
+            onRunQuery();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     const variableOptions = getTemplateSrv().getVariables().map((variable) => ({
@@ -80,21 +88,61 @@ export function QueryEditor(props: QueryProps) {
         value: `$${variable.name}`,
     }));
 
-    const endpointOptions = Object.entries(endpoints).map(([id, endpoint]) => ({
-        label: (endpoint as any).name || `#${id}`,
-        description: (endpoint as any).description,
-        value: id,
-    }));
+    const endpointOptions: Array<ComboboxOption<string>> = Object.entries(endpoints).map(([id, endpoint]) => {
+        const online = (endpoint as any).online as boolean;
+        const desc = (endpoint as any).description;
+        const statusLabel = online ? '🟢 Online' : '🔴 Offline';
+        return {
+            label: (endpoint as any).name || `#${id}`,
+            description: desc ? `${desc} — ${statusLabel}` : statusLabel,
+            value: id,
+        };
+    });
+
+    const selectedEndpointOnline: boolean | null = query.endpoint && endpoints[query.endpoint] != null
+        ? (endpoints[query.endpoint] as any).online ?? false
+        : null;
 
     const renderSelect = () => {
         if (!query.asVariable) {
             return (
-                <Combobox
-                    options={endpointOptions}
-                    value={query.endpoint ?? null}
-                    onChange={(e: ComboboxOption | null) => { setEndpoint(e?.value ?? ''); }}
-                    data-testid='endpoint-select'
-                />
+                <div style={{ position: 'relative', width: '100%' }}>
+                    <Combobox
+                        options={endpointOptions}
+                        value={query.endpoint ?? null}
+                        onChange={(e: ComboboxOption | null) => { setEndpoint(e?.value ?? ''); }}
+                        data-testid='endpoint-select'
+                    />
+                    {selectedEndpointOnline !== null && (
+                        <span style={{
+                            position: 'absolute',
+                            right: 36,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            pointerEvents: 'none',
+                            zIndex: 1,
+                        }}>
+                            <span style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: selectedEndpointOnline ? '#36BA00' : '#E02F44',
+                                display: 'inline-block',
+                                flexShrink: 0,
+                            }} />
+                            <span style={{
+                                fontSize: '0.85em',
+                                color: selectedEndpointOnline ? '#36BA00' : '#E02F44',
+                                whiteSpace: 'nowrap',
+                            }}>
+                                {selectedEndpointOnline ? 'Online' : 'Offline'}
+                            </span>
+                        </span>
+                    )}
+                </div>
             );
         }
 

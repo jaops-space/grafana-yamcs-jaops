@@ -35,7 +35,11 @@ func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Mes
 	}
 
 	// Unmarshal the response based on the format (Protobuf or JSON)
-	return unmarshalResponse(response, unmarshalTo, httpManager.UsingProtobuf)
+	// Skip unmarshalling if unmarshalTo is nil (for operations that don't return data)
+	if unmarshalTo != nil {
+		return unmarshalResponse(response, unmarshalTo, httpManager.UsingProtobuf)
+	}
+	return nil
 }
 
 // marshalMessage marshals a given proto message into either Protobuf or JSON format.
@@ -88,6 +92,11 @@ func (httpManager *HTTPManager) PutProto(path string, body proto.Message, unmars
 // PostProto sends a POST request with the given path, body, and unmarshals the response into the provided proto.Message.
 func (httpManager *HTTPManager) PostProto(path string, body proto.Message, unmarshalTo proto.Message) error {
 	return httpManager.ProtoRequest("POST", path, body, unmarshalTo)
+}
+
+// PatchProto sends a PATCH request with the given path, body, and unmarshals the response into the provided proto.Message.
+func (httpManager *HTTPManager) PatchProto(path string, body proto.Message, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequest("PATCH", path, body, unmarshalTo)
 }
 
 // DeleteProto sends a DELETE request with the given path, body, and unmarshals the response into the provided proto.Message.

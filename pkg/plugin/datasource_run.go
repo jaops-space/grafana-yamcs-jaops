@@ -293,3 +293,72 @@ func RunTimeStream(
 		}
 	}
 }
+
+func RunAlarmsStream(
+	ctx context.Context,
+	req *backend.RunStreamRequest,
+	sender *backend.StreamSender,
+	endpoint *source.YamcsEndpoint,
+	q PluginQuery,
+) error {
+
+	yamcs := endpoint.GetClient()
+
+	// Start listening for alarm events for this path
+	endpoint.RequestAlarmsStream(req.Path)
+
+	// Calculate ticker interval
+	tickerInterval := time.Second * 1
+	ticker := time.NewTicker(tickerInterval)
+
+	defer ticker.Stop()
+	defer endpoint.WithdrawAlarmsStreamRequest(req.Path)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+
+			if !yamcs.WebSocket.IsConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
+
+			buffer := endpoint.GetAlarmsStream(req.Path)
+
+			// Always create a frame, even if buffer is empty (to send GlobalAlarmStatus)
+			frame := tools.ConvertAlarmListToFrame(buffer)
+
+			// Take a consistent snapshot of GlobalAlarmStatus under the read lock
+			globalAlarmStatus := endpoint.GetGlobalAlarmStatus()
+
+			// Add GlobalAlarmStatus to frame metadata
+			if globalAlarmStatus != nil {
+				globalStatus := map[string]interface{}{
+					"unacknowledgedCount":    globalAlarmStatus.GetUnacknowledgedCount(),
+					"unacknowledgedActive":   globalAlarmStatus.GetUnacknowledgedActive(),
+					"unacknowledgedSeverity": globalAlarmStatus.GetUnacknowledgedSeverity().String(),
+					"acknowledgedCount":      globalAlarmStatus.GetAcknowledgedCount(),
+					"acknowledgedActive":     globalAlarmStatus.GetAcknowledgedActive(),
+					"acknowledgedSeverity":   globalAlarmStatus.GetAcknowledgedSeverity().String(),
+					"shelvedCount":           globalAlarmStatus.GetShelvedCount(),
+					"shelvedActive":          globalAlarmStatus.GetShelvedActive(),
+					"shelvedSeverity":        globalAlarmStatus.GetShelvedSeverity().String(),
+				}
+
+				frame.Meta = &data.FrameMeta{
+					Custom: map[string]interface{}{
+						"globalAlarmStatus": globalStatus,
+					},
+				}
+			}
+
+			sender.SendFrame(
+				frame,
+				data.IncludeDataOnly,
+			)
+
+			endpoint.ClearAlarmsStream(req.Path)
+		}
+	}
+}

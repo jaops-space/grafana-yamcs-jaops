@@ -24,7 +24,8 @@ export interface CommandForms {
         unit?: string,
         showVariableLabel?: boolean,
         isDualButton?: boolean;  // Flag to indicate if this is a dual on/off button
-        onCommand?: {            // Configuration for the "on" command
+        onCommand?: {            // Configuration for the "on" (left) command
+            commandName?: string; // Override command name for this button
             arguments?: { [key: string]: any };
             comment?: string;
             label?: string;
@@ -32,7 +33,8 @@ export interface CommandForms {
             color?: string;
             textColor?: string;
         };
-        offCommand?: {           // Configuration for the "off" command
+        offCommand?: {           // Configuration for the "off" (right) command
+            commandName?: string; // Override command name for this button
             arguments?: { [key: string]: any };
             comment?: string;
             label?: string;
