@@ -473,7 +473,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                     // Enhanced render function to support dual button mode
                     const render = (withSubmit = false) => {
                         // If this is a dual button, render the split view
-                        if (commandState?.isDualButton && !editing) {
+                        if (commandState?.isDualButton) {
                             const activeState = dualButtonStates[command.name + i];
                             return (
                                 <div style={{ 
