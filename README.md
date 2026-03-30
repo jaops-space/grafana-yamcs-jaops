@@ -36,8 +36,9 @@ python3 simulator.sh
 python3 simulator/images/generate_images.py
 ``` 
 
-![Screenshot of Demo Dashboard](./screenshots/DemoDashboard.png)
-
+![Screenshot of Demo Dashboard 1](./screenshots/demo_dash1.png)
+![Screenshot of Demo Dashboard 2](./screenshots/demo_dash2.png)
+![Screenshot of Demo Dashboard 3](./screenshots/demo_dash3.png)
 
 ## Archive Database Configuration
 

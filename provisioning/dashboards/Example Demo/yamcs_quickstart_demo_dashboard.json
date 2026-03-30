@@ -1236,7 +1236,7 @@
       "targets": [
         {
           "aggregatePath": "",
-          "asVariable": false,
+          "asVariable": true,
           "endpoint": "new-endpoint-0",
           "endpointVariable": "$datasource_endpoint",
           "refId": "A",
@@ -1289,13 +1289,13 @@
     "list": [
       {
         "current": {
-          "text": "1",
-          "value": "1"
+          "text": "0",
+          "value": "0"
         },
         "name": "TestVariable",
         "options": [
           {
-            "selected": false,
+            "selected": true,
             "text": "0",
             "value": "0"
           }
@@ -1351,5 +1351,5 @@
   "timezone": "browser",
   "title": "Yamcs Quickstart Demo Dashboard",
   "uid": "0708823c-c106-407b-9861-f64283746167",
-  "version": 28
+  "version": 30
 }
