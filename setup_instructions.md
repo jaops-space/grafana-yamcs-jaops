@@ -7,13 +7,54 @@ Local installation:
 ### Pre-requisites
 
 To try out the plugin on a local machine, you will need the following tools:
+
 - Go 1.23+
+```bash
+# Remove any old version, download and install latest
+sudo rm -rf /usr/local/go
+curl -fsSL https://go.dev/dl/go1.24.2.linux-amd64.tar.gz -o go.tar.gz
+sudo tar -C /usr/local -xzf go.tar.gz
+rm go.tar.gz
+
+# Add to PATH (add to ~/.bashrc for persistence)
+export PATH=$PATH:/usr/local/go/bin
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+```
+
 - [Mage](https://magefile.org/) 
+```bash
+# Install using Go
+go install github.com/magefile/mage@latest
+
+# Ensure ~/go/bin is in PATH
+echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
 - Node.js (with NPM or PNPM)
+```bash
+# Install Node.js via nvm (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc
+nvm install --lts
+
+# Install pnpm
+corepack enable
+corepack prepare pnpm@latest --activate
+```
+
 - Docker
+```bash
+# Install Docker using the official convenience script
+curl -fsSL https://get.docker.com | sudo sh
+
+# Allow running docker without sudo
+sudo usermod -aG docker $USER
+newgrp docker
+```
 
 > [!IMPORTANT]  
-> If you want to set-up the plugin in a Windows environment, you will need to run the plugin under WSL, so you will need WSL installed, and have the tools above all installed in the WSL environment except for Docker. Docker needs to be installed in the default Windows environment, because Docker has a WSL relay.
+> If you want to set-up the plugin in a Windows environment, you will need to run the plugin inside WSL2, so you will need WSL2 installed, and have the tools above all installed in the WSL2 environment 
 
 ### Set up the plugin
 
