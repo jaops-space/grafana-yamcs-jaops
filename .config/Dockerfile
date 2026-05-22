@@ -5,8 +5,12 @@ FROM grafana/${grafana_image}:${grafana_version}
 
 ARG anonymous_auth_enabled=true
 ARG development=false
-ARG TARGETARCH
 
+# Platform diagnostics: surfaces any host/builder/target arch mismatch in the build log.
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETARCH
+RUN echo "[platform] BUILDPLATFORM=${BUILDPLATFORM} TARGETPLATFORM=${TARGETPLATFORM} TARGETARCH=${TARGETARCH} runtime=$(uname -m)"
 
 ENV DEV "${development}"
 
