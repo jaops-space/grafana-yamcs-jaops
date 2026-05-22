@@ -11,6 +11,7 @@ To try out the plugin on a local machine, you will need the following tools:
 - Go 1.23+
 ```bash
 # Remove any old version, download and install latest
+# Note: if you are on arm/mac silicon then adjust the architecture accordingly
 sudo rm -rf /usr/local/go
 curl -fsSL https://go.dev/dl/go1.24.2.linux-amd64.tar.gz -o go.tar.gz
 sudo tar -C /usr/local -xzf go.tar.gz
@@ -71,25 +72,24 @@ newgrp docker
     mage build:backend
     ```
 
-### Run the plugin
 
-1. Run front-end in dev mode (watches for changes)
-
-    ```bash
-    pnpm run dev
-    ```
-
-- Or just build the front-end:
+3. Build the front-end:
 
     ```bash
     pnpm run build
     ```
 
-2. Run back-end with a Grafana instance
+> [!NOTE]  
+> for development, it's convenient to run the front-end in dev mode (watches for changes)
+> use `pnpm run dev` instead
 
-    ```bash
-    pnpm run server
-    ```
+### Run the plugin
+
+Run the back-end and front-end with a Grafana instance
+
+```bash
+pnpm run server
+```
 
 That's it, you should have a grafana instance running at port `3000`, head inside to find further instructions on how to use the plugin (click on **More Apps > Grafana-Yamcs Integration** on the side bar).
 
