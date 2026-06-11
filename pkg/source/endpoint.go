@@ -23,14 +23,14 @@ type YamcsEndpoint struct {
 
 	mu sync.RWMutex // guards AlarmCache and GlobalAlarmStatus
 
-	ID             string
-	Instance       client.Instance
-	Processor      client.Processor
-	Parameters     map[string]*ParameterDemand
-	Events         map[string][]*events.Event
-	CommandHistory map[string][]*commanding.CommandHistoryEntry
-	Alarms         map[string][]*alarms.AlarmData
-	AlarmCache     map[string]*alarms.AlarmData // Cache of all active alarms by ID
+	ID                string
+	Instance          client.Instance
+	Processor         client.Processor
+	Parameters        map[string]*ParameterDemand
+	Events            map[string][]*events.Event
+	CommandHistory    map[string][]*commanding.CommandHistoryEntry
+	Alarms            map[string][]*alarms.AlarmData
+	AlarmCache        map[string]*alarms.AlarmData // Cache of all active alarms by ID
 	GlobalAlarmStatus *alarms.GlobalAlarmStatus
 
 	CurrentTime time.Time
@@ -199,11 +199,7 @@ func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(name string, path string
 
 // GetClient retrieves the Yamcs client for this endpoint.
 func (ep *YamcsEndpoint) GetClient() *client.YamcsClient {
-	yamcsClient, err := ep.Multiplexer.ConnMgr.GetClient(ep.GetConfiguration().Host)
-	if err != nil {
-		return nil
-	}
-	return yamcsClient
+	return ep.Multiplexer.Hosts[ep.GetConfiguration().Host].Client
 }
 
 // GetParameterSubscription retrieves or creates a parameter subscription.
@@ -228,19 +224,19 @@ func (ep *YamcsEndpoint) RequestEventsStream(path string) {
 	ep.Events[path] = make([]*events.Event, 0)
 }
 
-func (source *YamcsEndpoint) GetEventsSubscription() (*client.EventSubscription, error) {
+func (ep *YamcsEndpoint) GetEventsSubscription() (*client.EventSubscription, error) {
 
-	client := source.GetClient()
+	client := ep.GetClient()
 	for _, subscription := range client.EventSubscriptions {
-		if subscription.Instance == source.Instance.GetName() {
+		if subscription.Instance == ep.Instance.GetName() {
 			return subscription, nil
 		}
 	}
-	subscription, err := client.CreateEventSubscription(source.Instance)
+	subscription, err := client.CreateEventSubscription(ep.Instance)
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(source.Multiplexer.GetEventListener(source.Instance))
+	subscription.SetListener(ep.Multiplexer.GetEventListener(ep.Instance))
 	return subscription, nil
 
 }

@@ -203,6 +203,8 @@ func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfi
 	secure.Hosts = make(map[string]*YamcsSecureHost)
 	for hostName, hostConfig := range configuration.Hosts {
 		if hostConfig.Auth {
+			backend.Logger.Debug("ExtractConfig processing secure config for host",
+				"hostName", hostName)
 			secure.Hosts[hostName] = &YamcsSecureHost{}
 			passwordKey := hostName + "-password"
 			if password, ok := source.DecryptedSecureJSONData[passwordKey]; ok {

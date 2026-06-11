@@ -39,7 +39,7 @@ type TelemetryPoint struct {
 
 // Querier orchestrates queries across Yamcs live data.
 type Querier struct {
-	endpoints    map[string]*config.YamcsEndpointConfiguration
+	endpoints map[string]*config.YamcsEndpointConfiguration
 }
 
 // New creates a new Querier instance.

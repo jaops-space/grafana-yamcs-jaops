@@ -83,6 +83,7 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
 
     const setSecureProperty = (index: string, key: string, value: any) => {
         const updatedSecure = {...secureConfig, [`${index}-${key}`]: value};
+        console.log(updatedSecure);
         onOptionsChange({
             ...options,
             secureJsonData: updatedSecure

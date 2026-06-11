@@ -18,7 +18,7 @@ import (
 // It will automatically terminate subscriptions when they are no longer needed.
 // It delegates connection management to ConnectionManager.
 type Multiplexer struct {
-	ConnMgr       *ConnectionManager
+	Hosts         map[string]*YamcsHost
 	Endpoints     map[string]*YamcsEndpoint
 	Configuration *config.YamcsPluginConfiguration
 	Secure        *config.YamcsSecureConfiguration
@@ -29,16 +29,11 @@ type Multiplexer struct {
 // NewMultiplexer creates a fresh multiplexer with a connection manager.
 func NewMultiplexer(cfg *config.YamcsPluginConfiguration) *Multiplexer {
 	return &Multiplexer{
-		ConnMgr:       NewConnectionManager(cfg),
+		Hosts:         make(map[string]*YamcsHost),
 		Endpoints:     make(map[string]*YamcsEndpoint),
 		Configuration: cfg,
 		SyncMux:       sync.Mutex{},
 	}
-}
-
-// SetupHost sets up a host for live subscriptions.
-func (mux *Multiplexer) SetupHost(hostID string) error {
-	return mux.ConnMgr.SetupHost(hostID)
 }
 
 // GetEndpoint retrieves or creates an Endpoint for the given ID.
@@ -46,13 +41,17 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 	mux.SyncMux.Lock()
 	defer mux.SyncMux.Unlock()
 
+	// add logs
+
+	backend.Logger.Debug("retrieving endpoint", "endpointID", endpointID)
 	endpointConfig, exists := mux.Configuration.Endpoints[endpointID]
 	if !exists {
 		return nil, exception.New("Configuration for endpoint "+endpointID+" not found", "ENDPOINT_CONFIG_NOT_FOUND")
 	}
 
 	// Get the Yamcs client from the connection manager
-	yamcsClient, err := mux.ConnMgr.GetClient(endpointConfig.Host)
+	backend.Logger.Debug("retrieving Yamcs client for host", "hostID", endpointConfig.Host)
+	yamcsClient, err := mux.GetClient(endpointConfig.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +60,13 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		return endpoint, nil
 	}
 
+	backend.Logger.Debug("creating new endpoint", "endpointID", endpointID, "instance", endpointConfig.Instance, "processor", endpointConfig.Processor)
 	instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
 	if err != nil {
 		return nil, err
 	}
 
+	backend.Logger.Debug("retrieving processor for instance", "instance", instance.GetName(), "processor", endpointConfig.Processor)
 	processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
 	if err != nil {
 		processor = yamcsClient.GetInstanceDefaultProcessor(instance)
@@ -175,6 +176,35 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 }
 
 func (mux *Multiplexer) Dispose() {
-	mux.ConnMgr.Dispose()
+	for _, host := range mux.Hosts {
+		if host.Client != nil {
+			host.Client.CloseWebSocketConnection()
+		}
+	}
+	mux.Hosts = make(map[string]*YamcsHost)
 	mux.Endpoints = make(map[string]*YamcsEndpoint)
+}
+
+// GetClient gets or creates a YamcsClient for the given host ID.
+func (mux *Multiplexer) GetClient(hostID string) (*client.YamcsClient, error) {
+
+	host, exists := mux.Hosts[hostID]
+	if !exists {
+		if err := mux.SetupHost(hostID); err != nil {
+			return nil, err
+		}
+		host = mux.Hosts[hostID]
+	}
+
+	if host.Client == nil {
+		return nil, exception.New("Unexpected error retrieving Yamcs client", "CONNECTION_CLIENT_NOT_FOUND")
+	}
+
+	if !host.Client.IsWebSocketConnected() {
+		if err := host.Client.EstablishWebSocketConnection(); err != nil {
+			return nil, err
+		}
+	}
+
+	return host.Client, nil
 }

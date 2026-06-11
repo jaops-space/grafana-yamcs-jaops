@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
@@ -29,24 +28,10 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
 
-	// Create a shared HTTP client via the Grafana plugin SDK.
-	// This applies recommended timeouts, keep-alive, and middlewares.
-	httpClientOpts, err := settings.HTTPClientOptions(ctx)
-	if err != nil {
-		return nil, exception.Wrap("Error reading HTTP client options", "HTTP_CLIENT_OPTIONS_ERROR", err)
-	}
-	httpClient, err := httpclient.New(httpClientOpts)
-	if err != nil {
-		return nil, exception.Wrap("Error creating HTTP client", "HTTP_CLIENT_CREATE_ERROR", err)
-	}
-
 	// Create a per-instance multiplexer so different datasource instances
 	// do not share state or collide with each other.
 	multiplexer := source.NewMultiplexer(cfg)
 	multiplexer.Secure = secure
-	multiplexer.ConnMgr.Configuration = cfg
-	multiplexer.ConnMgr.Secure = secure
-	multiplexer.ConnMgr.HTTPClient = httpClient
 	datasource.multiplexer = multiplexer
 
 	router := mux.NewRouter()
@@ -197,19 +182,12 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}, nil
 	}
 
+	backend.Logger.Debug("secure configuration", "secure", secure)
+
 	testMux := source.NewMultiplexer(config)
 	testMux.Secure = secure
 
-	// Use an SDK HTTP client for the health check as well
-	httpClientOpts, err := settings.HTTPClientOptions(ctx)
-	if err == nil {
-		testClient, clientErr := httpclient.New(httpClientOpts)
-		if clientErr == nil {
-			testMux.ConnMgr.HTTPClient = testClient
-		}
-	}
-
-	statusDetails := make(map[string]interface{})
+	statusDetails := make(map[string]any)
 	hostStatuses := make(map[string]string)
 	endpointStatuses := make(map[string]string)
 	hasErrors := false
@@ -236,13 +214,12 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	}
 
 	// Test all endpoints - verify they can connect to their respective hosts and retrieve instance/processor info
-	backend.Logger.Debug("Testing Endpoint Connectivity")
+	backend.Logger.Debug("Testing BOPPA Endpoint Connectivity")
 	for endpointID, endpointConfig := range config.Endpoints {
-		endpointName := endpointConfig.Name
-		if endpointName == "" {
-			endpointName = endpointID
+		displayName := endpointConfig.Name
+		if displayName == "" {
+			displayName = endpointID
 		}
-		displayName := endpointName
 
 		// Verify the endpoint's host was successfully set up
 		hostConfig := config.Hosts[endpointConfig.Host]
@@ -290,7 +267,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	}
 
 	// Clean up test connections
-	testMux.Dispose()
+	//testMux.Dispose()
 
 	if hasErrors {
 		return &backend.CheckHealthResult{

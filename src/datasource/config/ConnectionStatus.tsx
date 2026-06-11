@@ -99,7 +99,7 @@ function StatusItem({ name, status, isHost }: StatusItemProps) {
                 />
                 <div className={styles.statusText}>
                     <Text weight="medium">
-                        {isHost ? '🖥️' : '📡'} {name}
+                        {name}
                     </Text>
                     {!isSuccess && (
                         <div className={styles.errorMessage}>
@@ -191,7 +191,7 @@ export default function ConnectionStatus({ datasourceUid, configVersion }: Conne
     // Auto-test connection on component mount and when config changes
     useEffect(() => {
         testConnection();
-    }, [testConnection, configVersion]);
+    }, [testConnection]);
 
     // Calculate success/error counts
     const getStatusCounts = () => {
