@@ -68,12 +68,13 @@ export interface Configuration extends DataSourceJsonData {
     hosts: Record<
         string,
         {
-            name?: string;
+            name: string;
+            description: string;
             path: string;
             tlsEnabled: boolean;
             tlsInsecure?: boolean;
             authEnabled: boolean;
-            username: string;
+            username?: string;
         }
     >;
 
@@ -112,6 +113,11 @@ export const DefaultSecureConfiguration = {} satisfies SecureConfiguration;
  * Utility type to allow optional values (null or undefined).
  */
 export type Optional<T> = T | null | undefined;
+
+export interface ItemStatus {
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+}
 
 /**
  * Source fetching types

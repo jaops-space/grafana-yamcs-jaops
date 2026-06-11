@@ -1,317 +1,219 @@
-import { getBackendSrv } from '@grafana/runtime';
-import { firstValueFrom } from 'rxjs';
-import { Alert, Box, Collapse, Icon, Spinner, Stack, Text, useStyles2 } from '@grafana/ui';
-import React, { useCallback, useEffect, useState } from 'react';
 import { css } from '@emotion/css';
 import { GrafanaTheme2 } from '@grafana/data';
+import { getBackendSrv } from '@grafana/runtime';
+import { Alert, Box, Spinner, Stack, Text, useStyles2 } from '@grafana/ui';
+import { ItemStatus } from 'datasource/types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { firstValueFrom } from 'rxjs';
+
+export interface ConnectionDetails {
+    hosts?: Record<string, ItemStatus>;
+    endpoints?: Record<string, ItemStatus>;
+    totalHosts?: number;
+    totalEndpoints?: number;
+}
 
 interface ConnectionStatusProps {
     datasourceUid: string;
     configVersion?: number;
+    onStatusChange?: (details: ConnectionDetails) => void;
 }
 
 interface HealthCheckResult {
     status: 'ok' | 'error';
     message: string;
-    details?: {
-        hosts?: Record<string, string>;
-        endpoints?: Record<string, string>;
-        totalHosts?: number;
-        totalEndpoints?: number;
-    };
-}
-
-interface StatusItemProps {
-    name: string;
-    status: string;
-    isHost?: boolean;
+    details?: ConnectionDetails;
 }
 
 const getStyles = (theme: GrafanaTheme2) => ({
     container: css`
         margin-top: ${theme.spacing(2)};
-        margin-bottom: ${theme.spacing(2)};
-    `,
-    statusCard: css`
-        padding: ${theme.spacing(1.5)};
-        border-radius: ${theme.shape.radius.default};
-        margin-bottom: ${theme.spacing(0.5)};
-    `,
-    successCard: css`
-        background-color: ${theme.colors.success.transparent};
-        border: 1px solid ${theme.colors.success.border};
-    `,
-    errorCard: css`
-        background-color: ${theme.colors.error.transparent};
-        border: 1px solid ${theme.colors.error.border};
-    `,
-    statusIcon: css`
-        margin-right: ${theme.spacing(1)};
-    `,
-    statusText: css`
-        flex: 1;
-    `,
-    errorMessage: css`
-        font-size: ${theme.typography.bodySmall.fontSize};
-        color: ${theme.colors.text.secondary};
-        margin-top: ${theme.spacing(0.5)};
-        padding-left: ${theme.spacing(3)};
-    `,
-    sectionTitle: css`
-        font-weight: ${theme.typography.fontWeightMedium};
-        margin-bottom: ${theme.spacing(1)};
-        color: ${theme.colors.text.secondary};
     `,
     summary: css`
-        display: flex;
-        gap: ${theme.spacing(2)};
-        margin-bottom: ${theme.spacing(2)};
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: ${theme.spacing(1)};
+
+        @media (max-width: 900px) {
+            grid-template-columns: 1fr;
+        }
     `,
     summaryItem: css`
-        padding: ${theme.spacing(1)} ${theme.spacing(2)};
+        padding: ${theme.spacing(1.25)} ${theme.spacing(1.5)};
+        border: 1px solid ${theme.colors.border.weak};
         border-radius: ${theme.shape.radius.default};
-        background-color: ${theme.colors.background.secondary};
+        background: ${theme.colors.background.secondary};
     `,
-    successCount: css`
+    countLine: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${theme.spacing(0.75)};
+        align-items: baseline;
+        margin-top: ${theme.spacing(0.5)};
+    `,
+    ok: css`
         color: ${theme.colors.success.text};
         font-weight: ${theme.typography.fontWeightBold};
     `,
-    errorCount: css`
+    warning: css`
+        color: ${theme.colors.warning.text};
+        font-weight: ${theme.typography.fontWeightBold};
+    `,
+    failed: css`
         color: ${theme.colors.error.text};
         font-weight: ${theme.typography.fontWeightBold};
     `,
 });
 
-/**
- * StatusItem displays the connection status of a single host or endpoint
- */
-function StatusItem({ name, status, isHost }: StatusItemProps) {
-    const styles = useStyles2(getStyles);
-    const isSuccess = status === 'OK';
-    
-    return (
-        <div className={`${styles.statusCard} ${isSuccess ? styles.successCard : styles.errorCard}`}>
-            <Stack direction="row" alignItems="center">
-                <Icon 
-                    name={isSuccess ? 'check-circle' : 'exclamation-circle'} 
-                    size="lg"
-                    className={styles.statusIcon}
-                />
-                <div className={styles.statusText}>
-                    <Text weight="medium">
-                        {name}
-                    </Text>
-                    {!isSuccess && (
-                        <div className={styles.errorMessage}>
-                            {status}
-                        </div>
-                    )}
-                </div>
-                <Text color={isSuccess ? 'success' : 'error'} weight="bold">
-                    {isSuccess ? 'Connected' : 'Failed'}
-                </Text>
-            </Stack>
-        </div>
-    );
+function parseDetails(data: any): ConnectionDetails {
+    const rawDetails = data?.details ?? data?.jsonDetails ?? data?.JSONDetails;
+
+    if (!rawDetails) {
+        return {};
+    }
+
+    try {
+        return typeof rawDetails === 'string' ? JSON.parse(rawDetails) : rawDetails;
+    } catch {
+        return {};
+    }
+}
+
+function isOk(status?: ItemStatus) {
+    return status?.status === 'ok';
+}
+function isWarning(status?: ItemStatus) {
+    return status?.status === 'warning';
+}
+function isError(status?: ItemStatus) {
+    return status?.status === 'error';
+}
+
+function getStatusCounts(details?: ConnectionDetails) {
+    const hosts = details?.hosts || {};
+    const endpoints = details?.endpoints || {};
+
+    const hostStatuses = Object.values(hosts);
+    const endpointStatuses = Object.values(endpoints);
+
+    const hostsOk = hostStatuses.filter(isOk).length;
+    const endpointsOk = endpointStatuses.filter(isOk).length;
+
+    const hostsWarning = hostStatuses.filter(isWarning).length;
+    const endpointsWarning = endpointStatuses.filter(isWarning).length;
+
+    const hostsFailed = hostStatuses.filter(isError).length;;
+    const endpointsFailed = endpointStatuses.filter(isError).length;
+
+    return {
+        hostsOk,
+        endpointsOk,
+        hostsWarning,
+        endpointsWarning,
+        hostsFailed,
+        endpointsFailed,
+    };
 }
 
 /**
- * ConnectionStatus component displays the YAMCS connectivity status for all configured hosts and endpoints.
- * It automatically tests connections on mount and shows clear visual feedback for successful and failed connections.
- * Use the Grafana "Save & Test" button to re-test after making configuration changes.
+ * Displays the global connection summary.
+ * Per-host and per-endpoint statuses are passed back to ConfigEditor so each card can render its own status.
  */
-export default function ConnectionStatus({ datasourceUid, configVersion }: ConnectionStatusProps) {
+export default function ConnectionStatus({ datasourceUid, configVersion, onStatusChange }: ConnectionStatusProps) {
     const styles = useStyles2(getStyles);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<HealthCheckResult | null>(null);
-    const [isOpen, setIsOpen] = useState(true);
 
-    /**
-     * Tests the connection to all configured YAMCS hosts and endpoints
-     */
     const testConnection = useCallback(async () => {
         if (!datasourceUid) {
             return;
         }
-        
+
         setLoading(true);
-        setResult(null);
-        
+
         try {
-            const response = await firstValueFrom(getBackendSrv().fetch({
-                url: `/api/datasources/uid/${datasourceUid}/health`,
-                method: 'GET',
-            }));
+            const response = await firstValueFrom(
+                getBackendSrv().fetch({
+                    url: `/api/datasources/uid/${datasourceUid}/health`,
+                    method: 'GET',
+                })
+            );
 
             const data = response?.data as any;
-            
-            // Parse the JSON details from the response
-            let details = {};
-            if (data?.details) {
-                try {
-                    details = typeof data.details === 'string' ? JSON.parse(data.details) : data.details;
-                } catch {
-                    details = {};
-                }
-            }
+            const details = parseDetails(data);
 
             setResult({
-                status: data?.status === 'OK' ? 'ok' : 'error',
+                status: data?.status === 'ok' ? 'ok' : 'error',
                 message: data?.message || 'Connection test completed',
-                details: details as HealthCheckResult['details'],
+                details,
             });
+            onStatusChange?.(details);
         } catch (error: any) {
-            // Try to parse error response for details
-            let details = {};
-            let message = 'Failed to test connection';
-            
-            if (error?.data) {
-                message = error.data.message || message;
-                if (error.data.details) {
-                    try {
-                        details = typeof error.data.details === 'string' 
-                            ? JSON.parse(error.data.details) 
-                            : error.data.details;
-                    } catch {
-                        details = {};
-                    }
-                }
-            }
-            
+            const details = parseDetails(error?.data);
+
             setResult({
                 status: 'error',
-                message,
-                details: details as HealthCheckResult['details'],
+                message: error?.data?.message || 'Failed to test connection',
+                details,
             });
+            onStatusChange?.(details);
         } finally {
             setLoading(false);
         }
-    }, [datasourceUid]);
+    }, [datasourceUid, onStatusChange]);
 
-    // Auto-test connection on component mount and when config changes
     useEffect(() => {
         testConnection();
-    }, [testConnection]);
+    }, [testConnection, configVersion]);
 
-    // Calculate success/error counts
-    const getStatusCounts = () => {
-        if (!result?.details) {
-            return { hostsOk: 0, hostsFailed: 0, endpointsOk: 0, endpointsFailed: 0 };
-        }
-
-        const hosts = result.details.hosts || {};
-        const endpoints = result.details.endpoints || {};
-
-        const hostsOk = Object.values(hosts).filter(s => s === 'OK').length;
-        const hostsFailed = Object.values(hosts).filter(s => s !== 'OK').length;
-        const endpointsOk = Object.values(endpoints).filter(s => s === 'OK').length;
-        const endpointsFailed = Object.values(endpoints).filter(s => s !== 'OK').length;
-
-        return { hostsOk, hostsFailed, endpointsOk, endpointsFailed };
-    };
-
-    const counts = result ? getStatusCounts() : null;
+    const counts = useMemo(() => getStatusCounts(result?.details), [result]);
 
     return (
         <div className={styles.container}>
-            <Collapse 
-                label={
-                    <Stack direction="row" alignItems="center" gap={1}>
-                        <span>Connection Status</span>
-                        {loading && <Spinner inline size="sm" />}
-                    </Stack>
-                }
-                isOpen={isOpen} 
-                onToggle={() => setIsOpen(!isOpen)}
-            >
-                {loading && !result && (
-                    <Box marginBottom={2}>
-                        <Alert severity="info" title="Testing connection...">
-                            Checking connectivity to all configured YAMCS hosts and endpoints.
-                        </Alert>
-                    </Box>
-                )}
+            <Box marginBottom={1}>
+                <Stack direction="row" alignItems="center" gap={1}>
+                    <Text weight="medium">Connection status</Text>
+                    {loading && <Spinner inline size="sm" />}
+                </Stack>
+            </Box>
 
-                {result && (
-                    <>
-                        {/* Overall Status Alert - only show for success or when there are no details */}
-                        {result.status === 'ok' && (
-                            <Box marginBottom={2}>
-                                <Alert 
-                                    severity="success"
-                                    title="All connections successful"
-                                >
-                                    {result.message}
-                                </Alert>
-                            </Box>
-                        )}
+            {result || loading ? (
+                <div className={styles.summary}>
+                    <div className={styles.summaryItem}>
+                        <Text color="secondary">OK</Text>
+                        <div className={styles.countLine}>
+                            <span className={styles.ok}>{counts.hostsOk}</span>
+                            <Text color="secondary">hosts</Text>
+                            <span className={styles.ok}>{counts.endpointsOk}</span>
+                            <Text color="secondary">endpoints</Text>
+                        </div>
+                    </div>
 
-                        {/* Summary Counts */}
-                        {counts && (
-                            <div className={styles.summary}>
-                                <div className={styles.summaryItem}>
-                                    <Text color="secondary">Hosts: </Text>
-                                    <span className={styles.successCount}>{counts.hostsOk} OK</span>
-                                    {counts.hostsFailed > 0 && (
-                                        <span className={styles.errorCount}> / {counts.hostsFailed} Failed</span>
-                                    )}
-                                </div>
-                                <div className={styles.summaryItem}>
-                                    <Text color="secondary">Endpoints: </Text>
-                                    <span className={styles.successCount}>{counts.endpointsOk} OK</span>
-                                    {counts.endpointsFailed > 0 && (
-                                        <span className={styles.errorCount}> / {counts.endpointsFailed} Failed</span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                    <div className={styles.summaryItem}>
+                        <Text color="secondary">Warnings</Text>
+                        <div className={styles.countLine}>
+                            <span className={styles.warning}>{counts.hostsWarning}</span>
+                            <Text color="secondary">hosts</Text>
+                            <span className={styles.warning}>{counts.endpointsWarning}</span>
+                            <Text color="secondary">endpoints</Text>
+                        </div>
+                    </div>
 
-                        {/* Host Status Details */}
-                        {result.details?.hosts && Object.keys(result.details.hosts).length > 0 && (
-                            <Box marginBottom={2}>
-                                <div className={styles.sectionTitle}>Hosts</div>
-                                {Object.entries(result.details.hosts).map(([name, status]) => (
-                                    <StatusItem 
-                                        key={name} 
-                                        name={name} 
-                                        status={status} 
-                                        isHost={true}
-                                    />
-                                ))}
-                            </Box>
-                        )}
-
-                        {/* Endpoint Status Details */}
-                        {result.details?.endpoints && Object.keys(result.details.endpoints).length > 0 && (
-                            <Box marginBottom={2}>
-                                <div className={styles.sectionTitle}>Endpoints</div>
-                                {Object.entries(result.details.endpoints).map(([name, status]) => (
-                                    <StatusItem 
-                                        key={name} 
-                                        name={name} 
-                                        status={status} 
-                                        isHost={false}
-                                    />
-                                ))}
-                            </Box>
-                        )}
-
-                        {/* No configuration message */}
-                        {(!result.details?.hosts || Object.keys(result.details.hosts).length === 0) &&
-                         (!result.details?.endpoints || Object.keys(result.details.endpoints).length === 0) && (
-                            <Alert severity="info" title="No hosts or endpoints configured">
-                                Please configure at least one host and endpoint, then use &quot;Save &amp; Test&quot; to verify the connection.
-                            </Alert>
-                        )}
-                    </>
-                )}
-
-                {!result && !loading && (
-                    <Alert severity="info" title="Connection not tested">
-                        Use the &quot;Save &amp; Test&quot; button to verify connectivity to your YAMCS hosts and endpoints.
-                    </Alert>
-                )}
-            </Collapse>
+                    <div className={styles.summaryItem}>
+                        <Text color="secondary">Failed</Text>
+                        <div className={styles.countLine}>
+                            <span className={styles.failed}>{counts.hostsFailed}</span>
+                            <Text color="secondary">hosts</Text>
+                            <span className={styles.failed}>{counts.endpointsFailed}</span>
+                            <Text color="secondary">endpoints</Text>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <Alert severity="info" title="Connection not tested">
+                    Use the &quot;Save &amp; Test&quot; button to verify connectivity.
+                </Alert>
+            )}
         </div>
     );
 }

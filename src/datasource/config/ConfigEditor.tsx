@@ -1,14 +1,15 @@
-import { AppEvents, DataSourcePluginOptionsEditorProps } from '@grafana/data';
+import { AppEvents, DataSourcePluginOptionsEditorProps, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
-import { Button, Checkbox, Collapse, Field, FileDropzone, InlineField, Input, Modal, Stack } from '@grafana/ui';
+import { Button, Checkbox, Field, FileDropzone, InlineField, Input, Modal, Stack, Text, useStyles2 } from '@grafana/ui';
+import { css } from '@emotion/css';
 import React, { useEffect, useState } from 'react';
 import { Configuration, DefaultConfiguration, DefaultSecureConfiguration, Endpoints, IndexedEndpoint, SecureConfiguration } from '../types';
 import ConfigEndpoint from './ConfigEndpoint';
 import ConfigHost from './ConfigHost';
-import ConnectionStatus from './ConnectionStatus';
+import ConnectionStatus, { ConnectionDetails } from './ConnectionStatus';
 
 function toHexString(bytes: Uint8Array) {
-    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function randomBytesBitwise(size: number) {
@@ -21,266 +22,348 @@ function randomBytesBitwise(size: number) {
 
 interface ConfigProps extends DataSourcePluginOptionsEditorProps<Configuration, SecureConfiguration> {}
 
+const getStyles = (theme: GrafanaTheme2) => ({
+    toolbar: css`
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: ${theme.spacing(2)};
+    `,
+    grid: css`
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: ${theme.spacing(2)};
+
+        @media (max-width: 900px) {
+            grid-template-columns: 1fr;
+        }
+    `,
+    section: css`
+        min-width: 0;
+    `,
+    fullWidthSection: css`
+        grid-column: 1 / -1;
+    `,
+    sectionHeader: css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: ${theme.spacing(1)};
+        margin-bottom: ${theme.spacing(1)};
+    `,
+    pluginCard: css`
+        padding: ${theme.spacing(1.5)};
+        border: 1px solid ${theme.colors.border.weak};
+        border-radius: ${theme.shape.radius.default};
+        background: ${theme.colors.background.primary};
+    `,
+    pluginGrid: css`
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, max-content));
+        gap: ${theme.spacing(2)};
+        align-items: center;
+
+        @media (max-width: 700px) {
+            grid-template-columns: 1fr;
+        }
+    `,
+    emptyCard: css`
+        padding: ${theme.spacing(1.5)};
+        border: 1px dashed ${theme.colors.border.weak};
+        border-radius: ${theme.shape.radius.default};
+        color: ${theme.colors.text.secondary};
+        background: ${theme.colors.background.secondary};
+    `,
+});
+
+function endpointsToArray(endpoints: Endpoints = {}) {
+    return Object.keys(endpoints).map((key) => ({ ...endpoints[key], index: key }));
+}
+
 /**
  * ConfigEditor component allows users to configure hosts, endpoints, and plugin settings.
- * It manages state and handles updates to the Grafana plugin settings.
  */
 export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) {
+    const styles = useStyles2(getStyles);
+    const appEvents = getAppEvents();
+
+    
 
     const [secureConfig, setSecureConfig] = useState<SecureConfiguration>(options.secureJsonData ?? DefaultSecureConfiguration);
     const [config, setConfig] = useState<Configuration>(options.jsonData ?? DefaultConfiguration);
     const [hosts, setHosts] = useState(config.hosts || {});
-    const _endp = config.endpoints || {};
-    const [endpoints, setEndpoints] = useState<IndexedEndpoint[]>(Object.keys(_endp).map(key => ({..._endp[key], index: key})));
+    const [endpoints, setEndpoints] = useState<IndexedEndpoint[]>(endpointsToArray(config.endpoints || {}));
+    const [isExportOpen, setExportOpen] = useState(false);
+    const [configVersion, setConfigVersion] = useState(0);
+    const [connectionDetails, setConnectionDetails] = useState<ConnectionDetails>({});
 
-    /**
-     * Updates the main configuration object.
-     * @param key - The key to update in the config.
-     * @param value - The new value for the key.
-     */
-    const updateConfig = (key: keyof Configuration, value: any) => {
-        setConfig((prev) => ({ ...prev, [key]: value }));
+    const updateOptionsJson = (nextConfig: Configuration) => {
+        setConfig(nextConfig);
         onOptionsChange({
             ...options,
-            jsonData: { ...config, [key]: value },
+            jsonData: nextConfig,
         });
     };
 
-    /**
-     * Updates the endpoints by replacing the indices.
-     * @param value - The new value for the key.
-     */
-    const updateConfigIndexEndpoints = (endpoints: IndexedEndpoint[]) => {
-        const newEndpointObject: Endpoints = {};
-        endpoints.forEach((endpoint) => {
-            if (newEndpointObject[endpoint.index]) {
+    const updateConfig = (key: keyof Configuration, value: any) => {
+        updateOptionsJson({ ...config, [key]: value });
+    };
+
+    const endpointsToObject = (nextEndpoints: IndexedEndpoint[]) => {
+        const nextEndpointObject: Endpoints = {};
+
+        nextEndpoints.forEach((endpoint) => {
+            if (nextEndpointObject[endpoint.index]) {
                 throw new Error(`Endpoint indices must be unique. Duplicate found: ${endpoint.index}`);
             }
 
-            // Exclude 'index' field since it's just the key in the Record, not part of the config
             const { index, ...endpointData } = endpoint;
-            newEndpointObject[index] = endpointData;
-        })
-        onOptionsChange({
-            ...options,
-            jsonData: { ...config, endpoints: newEndpointObject },
+            nextEndpointObject[index] = endpointData;
         });
+
+        return nextEndpointObject;
     };
 
-    /**
-     * Updates a specific host's configuration.
-     * @param index - The index of the host.
-     * @param key - The property of the host to update.
-     * @param value - The new value.
-     */
+    const updateConfigIndexEndpoints = (nextEndpoints: IndexedEndpoint[]) => {
+        updateOptionsJson({ ...config, endpoints: endpointsToObject(nextEndpoints) });
+    };
+
     const updateHost = (index: string, key: string, value: any) => {
-        setHosts((prev) => {
-            const updatedHosts = { ...prev, [index]: { ...prev[index], [key]: value } };
-            updateConfig('hosts', updatedHosts);
-            return updatedHosts;
-        });
+        const updatedHosts = { ...hosts, [index]: { ...hosts[index], [key]: value } };
+        setHosts(updatedHosts);
+        updateConfig('hosts', updatedHosts);
     };
 
     const setSecureProperty = (index: string, key: string, value: any) => {
-        const updatedSecure = {...secureConfig, [`${index}-${key}`]: value};
-        console.log(updatedSecure);
+        const updatedSecure = { ...secureConfig, [`${index}-${key}`]: value };
         onOptionsChange({
             ...options,
-            secureJsonData: updatedSecure
+            secureJsonData: updatedSecure,
         });
         setSecureConfig(updatedSecure);
-    }
+    };
 
     const getSecureProperty = (index: string, key: string) => {
         return secureConfig[`${index}-${key}`];
-    }
+    };
 
-    /**
-     * Adds a new host entry with default values.
-     */
     const addHost = () => {
         const id = randomBytesBitwise(16);
-        setHosts((prev: any) => {
-            const newHosts = { ...prev, [id]: { path: '', tlsEnabled: false, authEnabled: false } };
-            updateConfig('hosts', newHosts);
-            return newHosts;
-        });
+        const newHosts = {
+            ...hosts,
+            [id]: { name: '', description: '', path: '', tlsEnabled: false, authEnabled: false },
+        };
+        setHosts(newHosts);
+        updateConfig('hosts', newHosts);
     };
 
-    /**
-     * Removes a host from the configuration.
-     * @param index - The index of the host to remove.
-     */
     const removeHost = (index: string) => {
-        setHosts((prev) => {
-            const updatedHosts = { ...prev };
-            delete updatedHosts[index];
-            updateConfig('hosts', updatedHosts);
-            return updatedHosts;
-        });
+        const updatedHosts = { ...hosts };
+        delete updatedHosts[index];
+        setHosts(updatedHosts);
+        updateConfig('hosts', updatedHosts);
     };
 
-    /**
-     * Updates a specific endpoint configuration.
-     * @param index - The index of the endpoint.
-     * @param key - The property to update.
-     * @param value - The new value.
-     */
     const updateEndpoint = (index: number, key: keyof IndexedEndpoint, value: any) => {
-        const newEndpoints = [...endpoints];
-        newEndpoints[index][key] = value;
+        const newEndpoints = endpoints.map((endpoint, endpointIndex) => (
+            endpointIndex === index ? { ...endpoint, [key]: value } : endpoint
+        ));
+
+        updateConfigIndexEndpoints(newEndpoints);
+        setEndpoints(newEndpoints);
+    };
+
+    const addEndpoint = () => {
+        let nextIndex = `new-endpoint-${endpoints.length}`;
+        const usedIndices = new Set(endpoints.map((endpoint) => endpoint.index));
+        let suffix = endpoints.length;
+
+        while (usedIndices.has(nextIndex)) {
+            suffix += 1;
+            nextIndex = `new-endpoint-${suffix}`;
+        }
+
+        const newEndpoints = [
+            ...endpoints,
+            { index: nextIndex, name: '', description: '', host: '', instance: '', processor: '' },
+        ];
         setEndpoints(newEndpoints);
         updateConfigIndexEndpoints(newEndpoints);
     };
 
-    /**
-     * Adds a new endpoint entry with default values.
-     */
-    const addEndpoint = () => {
-        const index = `new-endpoint-${endpoints.length}`;
-        setEndpoints((prev) => {
-            const newEndpoints = [
-                ...prev,
-                { index, name: '', description: '', host: '', instance: '', processor: '' }
-            ]
-            updateConfigIndexEndpoints(endpoints);
-            return newEndpoints;
-        });
-    };
-
-    /**
-     * Removes an endpoint from the configuration.
-     * @param index - The index of the endpoint to remove.
-     */
     const removeEndpoint = (index: number) => {
-        const newEndpoints = [...endpoints];
-        newEndpoints.splice(index, 1);
+        const newEndpoints = endpoints.filter((_, endpointIndex) => endpointIndex !== index);
         setEndpoints(newEndpoints);
-        updateConfigIndexEndpoints(endpoints);
+        updateConfigIndexEndpoints(newEndpoints);
     };
 
-    /**
-     * Exports the current configuration to a JSON file.
-     */
     const exportConfig = () => {
-        const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-    
-        const downloadAnchorNode = document.createElement("a");
+
+        const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.href = url;
-        downloadAnchorNode.download = "YamcsGrafanaConfiguration.json";
-        downloadAnchorNode.target = "_blank";
+        downloadAnchorNode.download = 'YamcsGrafanaConfiguration.json';
+        downloadAnchorNode.target = '_blank';
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
-        
+
         document.body.removeChild(downloadAnchorNode);
-        URL.revokeObjectURL(url); // Clean up the object URL
+        URL.revokeObjectURL(url);
     };
 
-    const appEvents = getAppEvents();
+    const importConfig = (e: string | ArrayBuffer | null) => {
+        if (e == null) {
+            return;
+        }
 
-    /**
-     * Imports a configuration from a JSON file.
-     * @param event - The file input change event.
-     */
-    const importConfig = ((e: string | ArrayBuffer | null) => {
-        if (e == null) { return; }
-        const content = e;
-        const importedConfig = JSON.parse(content.toString());
+        const importedConfig = JSON.parse(e.toString());
+        const importedEndpoints = importedConfig.endpoints || {};
+
         setConfig(importedConfig);
-        const _endp = importedConfig['endpoints'] || {};
-        setEndpoints(Object.keys(_endp).map(key => ({..._endp[key], index: key})));
-        setHosts(importedConfig['hosts'] || {})
+        setEndpoints(endpointsToArray(importedEndpoints));
+        setHosts(importedConfig.hosts || {});
+        setConnectionDetails({});
+
         appEvents.publish({
             type: AppEvents.alertSuccess.name,
             payload: ['Configuration loaded successfully.'],
         });
+
         onOptionsChange({
             ...options,
             jsonData: importedConfig,
         });
-    });
+        setExportOpen(false);
+    };
 
-    const [isHostOpen, setHostOpen] = useState(false);
-    const [isEPOpen, setEPOpen] = useState(false);
-    const [isPluginOpen, setPluginOpen] = useState(false);
-    const [isExportOpen, setExportOpen] = useState(false);
-    
-    // Config version to trigger connection status refresh when config changes
-    const [configVersion, setConfigVersion] = useState(0);
+    const getHostStatus = (hostID: string) => {
+        const host = hosts[hostID];
 
-    // Get the datasource UID for health checks
-    const datasourceUid = options.uid;
-    
-    // Listen for the Save & Test result to refresh connection status
+        return (
+            connectionDetails.hosts?.[hostID] ??
+            connectionDetails.hosts?.[host?.name] ??
+            connectionDetails.hosts?.[host?.path]
+        );
+    };
+
+    const getEndpointStatus = (endpoint: IndexedEndpoint) => {
+        return connectionDetails.endpoints?.[endpoint.index] ?? connectionDetails.endpoints?.[endpoint.name];
+    };
+
     useEffect(() => {
-        // Increment config version when options change to trigger re-test
-        setConfigVersion(v => v + 1);
+        setConfigVersion((version) => version + 1);
     }, [options.jsonData]);
 
-    return (<>
-        <Stack direction="column">
-            <Stack direction='row' justifyContent='flex-end'>
-                <Button onClick={() => setExportOpen(true)} size='sm' variant='secondary'>Import / Export</Button>
-            </Stack>
-            <Collapse label="Hosts Configuration" isOpen={isHostOpen} onToggle={() => setHostOpen(!isHostOpen)}>
-                {Object.keys(hosts).map((index) => (
-                    <ConfigHost key={index} data={config} onChange={updateHost} index={index} removeHost={removeHost} setSecure={setSecureProperty} getSecure={getSecureProperty} />
-                ))}
-                <Button variant="secondary" onClick={addHost} icon="plus" fullWidth style={{ width: '100%' }} />
-            </Collapse>
-
-            <Collapse label="Endpoints Configuration" isOpen={isEPOpen} onToggle={() => setEPOpen(!isEPOpen)}>
-                {endpoints.map((endpoint, index) => (
-                    <ConfigEndpoint
-                        key={index}
-                        hosts={hosts}
-                        endpoint={endpoint}
-                        onChange={updateEndpoint}
-                        index={index}
-                        removeEndpoint={removeEndpoint}
-                        setSecure={setSecureProperty}
-                        getSecure={getSecureProperty}
-                    />
-                ))}
-                <Button variant="secondary" onClick={addEndpoint} icon="plus" fullWidth style={{ width: '100%' }} />
-            </Collapse>
-
-            <Collapse label="Plugin Configuration" isOpen={isPluginOpen} onToggle={() => setPluginOpen(!isPluginOpen)}>
-                <InlineField label="Buffer Max Length">
-                    <Input
-                        value={config.bufferMaxLength}
-                        type="number"
-                        onChange={(e) => updateConfig('bufferMaxLength', e.currentTarget.value)}
-                    />
-                </InlineField>
-                <InlineField label="Debug Mode" tooltip="Enable additional query types for debugging purposes.">
-                    <Checkbox
-                        value={config.debugMode}
-                        onChange={(e) => updateConfig('debugMode', e.currentTarget.checked)}
-                    />
-                </InlineField>
-            </Collapse>
-
-            {/* Connection Status - displays health check results for hosts and endpoints */}
-            <ConnectionStatus datasourceUid={datasourceUid} configVersion={configVersion} />
-        </Stack>
-        <Modal title='Import / Export configuration' isOpen={isExportOpen} onDismiss={() => setExportOpen(false)}>
-            <Stack direction='column' gap={5}>
-                <Field label="Import Configuration">
-                    <FileDropzone onLoad={importConfig} options={
-                        {
-                            accept: {
-                                "application/json": [".json", '.txt']
-                            }
-                        }
-                    }/>
-                </Field>
-                <Button variant="primary" onClick={exportConfig} fullWidth>
-                    Export Config
+    return (
+        <>
+            <div className={styles.toolbar}>
+                <Button onClick={() => setExportOpen(true)} size="sm" variant="secondary">
+                    Import / Export
                 </Button>
-            </Stack>
-        </Modal>
+            </div>
+
+            <div className={styles.grid}>
+                <section className={styles.section}>
+                    <div className={styles.sectionHeader}>
+                        <Text weight="medium">Hosts</Text>
+                        <Button variant="secondary" icon="plus" size="sm" onClick={addHost}>Add host</Button>
+                    </div>
+
+                    {Object.keys(hosts).length > 0 ? (
+                        Object.keys(hosts).map((index) => (
+                            <ConfigHost
+                                key={index}
+                                data={{ ...config, hosts }}
+                                onChange={updateHost}
+                                index={index}
+                                removeHost={removeHost}
+                                setSecure={setSecureProperty}
+                                getSecure={getSecureProperty}
+                                status={getHostStatus(index)}
+                            />
+                        ))
+                    ) : (
+                        <div className={styles.emptyCard}>No hosts configured.</div>
+                    )}
+                </section>
+
+                <section className={styles.section}>
+                    <div className={styles.sectionHeader}>
+                        <Text weight="medium">Endpoints</Text>
+                        <Button variant="secondary" icon="plus" size="sm" onClick={addEndpoint}>Add endpoint</Button>
+                    </div>
+
+                    {endpoints.length > 0 ? (
+                        endpoints.map((endpoint, index) => (
+                            <ConfigEndpoint
+                                key={endpoint.index}
+                                hosts={hosts}
+                                endpoint={endpoint}
+                                onChange={updateEndpoint}
+                                index={index}
+                                removeEndpoint={removeEndpoint}
+                                setSecure={setSecureProperty}
+                                getSecure={getSecureProperty}
+                                status={getEndpointStatus(endpoint)}
+                            />
+                        ))
+                    ) : (
+                        <div className={styles.emptyCard}>No endpoints configured.</div>
+                    )}
+                </section>
+
+                
+
+                <section className={styles.fullWidthSection}>
+                    <div className={styles.sectionHeader}>
+                        <Text weight="medium">Plugin configuration</Text>
+                    </div>
+
+                    <div className={styles.pluginCard}>
+                        <div className={styles.pluginGrid}>
+                            <InlineField label="Buffer Max Length">
+                                <Input
+                                    value={config.bufferMaxLength}
+                                    type="number"
+                                    width={18}
+                                    onChange={(e) => updateConfig('bufferMaxLength', e.currentTarget.value)}
+                                />
+                            </InlineField>
+
+                            <InlineField label="Debug Mode" tooltip="Enable additional query types for debugging purposes.">
+                                <Checkbox
+                                    value={config.debugMode}
+                                    onChange={(e) => updateConfig('debugMode', e.currentTarget.checked)}
+                                />
+                            </InlineField>
+                        </div>
+                    </div>
+
+                    <ConnectionStatus
+                        datasourceUid={options.uid}
+                        configVersion={configVersion}
+                        onStatusChange={setConnectionDetails}
+                    />
+                </section>
+            </div>
+
+            <Modal title="Import / Export configuration" isOpen={isExportOpen} onDismiss={() => setExportOpen(false)}>
+                <Stack direction="column" gap={5}>
+                    <Field label="Import Configuration">
+                        <FileDropzone
+                            onLoad={importConfig}
+                            options={{
+                                accept: {
+                                    'application/json': ['.json', '.txt'],
+                                },
+                            }}
+                        />
+                    </Field>
+                    <Button variant="primary" onClick={exportConfig} fullWidth>
+                        Export Config
+                    </Button>
+                </Stack>
+            </Modal>
         </>
     );
 }
