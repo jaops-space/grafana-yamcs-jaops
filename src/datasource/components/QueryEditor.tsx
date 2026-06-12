@@ -1,9 +1,9 @@
 import { SelectableValue } from '@grafana/data';
+import { getTemplateSrv } from '@grafana/runtime';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
-import { getTemplateSrv } from '@grafana/runtime';
 
 export function QueryEditor(props: QueryProps) {
     const { query, onChange, datasource, onRunQuery } = props;
@@ -38,7 +38,7 @@ export function QueryEditor(props: QueryProps) {
                 endpointVariable,
             });
         },
-        [onChange]
+        [onChange, query]
     );
 
     const setCustomVariableString = useCallback(
@@ -48,9 +48,8 @@ export function QueryEditor(props: QueryProps) {
                 customVariableString,
             });
         },
-        [onChange]
+        [onChange, query]
     );
-
 
     const fetchEndpoints = useCallback(async () => {
         setLoading(true);
@@ -69,18 +68,6 @@ export function QueryEditor(props: QueryProps) {
     useEffect(() => {
         fetchEndpoints();
     }, [fetchEndpoints]);
-
-    // Run the query only when the serialized query content actually changes,
-    // not on every object reference change (which would cause an infinite refresh loop).
-    const prevQueryJson = useRef<string>('');
-    useEffect(() => {
-        const json = JSON.stringify(query);
-        if (json !== prevQueryJson.current) {
-            prevQueryJson.current = json;
-            onRunQuery();
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [query]);
 
     const variableOptions = getTemplateSrv().getVariables().map((variable) => ({
         label: variable.label || variable.name,
@@ -188,6 +175,9 @@ export function QueryEditor(props: QueryProps) {
                 </InlineField>
                 <Button onClick={fetchEndpoints} disabled={loading} size="sm" data-testid="fetch-endpoints-button">
                     Fetch endpoints
+                </Button>
+                <Button onClick={onRunQuery} disabled={loading} size="sm" variant='success' data-testid="fetch-endpoints-button">
+                    Query
                 </Button>
             </Stack>
             <QueryTypeEditor {...props} />

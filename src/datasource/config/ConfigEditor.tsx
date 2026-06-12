@@ -296,7 +296,7 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                     {endpoints.length > 0 ? (
                         endpoints.map((endpoint, index) => (
                             <ConfigEndpoint
-                                key={endpoint.index}
+                                key={index}
                                 hosts={hosts}
                                 endpoint={endpoint}
                                 onChange={updateEndpoint}
