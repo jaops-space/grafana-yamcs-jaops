@@ -16,8 +16,9 @@ export function VariableEditor(props: {
   loading: boolean;
   dualButtonStates: DualButtonStates;
   onOptionChange: UpdateFormOption;
+  showPreview?: boolean;
 }) {
-  const { commandInfo, index, commandState, scopedVars, loading, dualButtonStates, onOptionChange } = props;
+  const { commandInfo, index, commandState, scopedVars, loading, dualButtonStates, onOptionChange, showPreview = true } = props;
   const command = commandInfo.command;
   const set = (option: string, value: any) => onOptionChange(command.name, option, value, index);
 
@@ -68,15 +69,17 @@ export function VariableEditor(props: {
         </FormSection>
       )}
 
-      <FormSection title="Preview">
-        <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '44px', width: '100%', objectFit: 'contain' }}>
-          {commandState?.changeMode === 'input' ? (
-            <InputModeField variableToSet={commandState?.variableToSet} scopedVars={scopedVars} loading={false} unit={commandState?.unit} showVariableLabel={commandState?.showVariableLabel} color={commandState?.color} textColor={commandState?.textColor} size={commandState?.size} />
-          ) : (
-            <CommandButton commandInfo={commandInfo} index={index} commandState={commandState} scopedVars={scopedVars} loading={loading} dualButtonStates={dualButtonStates} />
-          )}
-        </div>
-      </FormSection>
+      {showPreview && (
+        <FormSection title="Preview">
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '44px', width: '100%', objectFit: 'contain' }}>
+            {commandState?.changeMode === 'input' ? (
+              <InputModeField variableToSet={commandState?.variableToSet} scopedVars={scopedVars} loading={false} unit={commandState?.unit} showVariableLabel={commandState?.showVariableLabel} color={commandState?.color} textColor={commandState?.textColor} size={commandState?.size} />
+            ) : (
+              <CommandButton commandInfo={commandInfo} index={index} commandState={commandState} scopedVars={scopedVars} loading={loading} dualButtonStates={dualButtonStates} />
+            )}
+          </div>
+        </FormSection>
+      )}
     </div>
   );
 }

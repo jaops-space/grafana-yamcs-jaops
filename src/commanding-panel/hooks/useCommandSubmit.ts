@@ -58,10 +58,7 @@ export function useCommandSubmit(params: {
 
       let argumentsToUse = commandData?.arguments;
       let commentToUse = commandData?.comment;
-      let commandNameToUse: string = getTemplateSrv().replace(
-        commandData?.commandName || command.qualifiedName || command.name || '',
-        scopedVars
-      );
+      let commandNameToUse: string = command.qualifiedName;
 
       if (isOffCommand) {
         if (commandData?.offCommand?.commandName) {
@@ -82,15 +79,6 @@ export function useCommandSubmit(params: {
         : commandData?.isDualButton
           ? dualCommandInfos[getDualInfoKey(commandKey, 'on')] ?? commandInfo.command
           : commandInfo.command;
-
-      if (!commandNameToUse) {
-        setLoading(false);
-        appEvents.publish({
-          type: AppEvents.alertError.name,
-          payload: ['No command selected'],
-        });
-        return;
-      }
 
       datasource
         .postResource(`endpoint/${endpoint}/command/issue`, {

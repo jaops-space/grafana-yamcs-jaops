@@ -21,8 +21,9 @@ export function CommandCard(props: {
   onValidate: ValidateArgument;
   fetchDualCommandInfo: (commandKey: string, side: 'on' | 'off', commandName: string, endpoint: string) => void;
   clearDualCommandInfo: (commandKey: string, side: 'on' | 'off') => void;
+  showPreview?: boolean;
 }) {
-  const { commandInfo, index, commandState, variableMode, scopedVars, loading, datasource, errors, dualCommandInfos, dualButtonStates, onSubmit, onArgumentChange, onOptionChange, onValidate, fetchDualCommandInfo, clearDualCommandInfo } = props;
+  const { commandInfo, index, commandState, variableMode, scopedVars, loading, datasource, errors, dualCommandInfos, dualButtonStates, onSubmit, onArgumentChange, onOptionChange, onValidate, fetchDualCommandInfo, clearDualCommandInfo, showPreview = true } = props;
   const command = commandInfo.command;
 
   return (
@@ -37,13 +38,11 @@ export function CommandCard(props: {
           )}
         </div>
       </Card.Heading>
-      <Card.Meta>
-        {variableMode ? 'Configure Grafana variables through buttons' : 'Configure a command button'}
-      </Card.Meta>
+      <Card.Meta>{variableMode ? 'Configure Grafana variables through buttons' : 'Configure a runtime command button'}</Card.Meta>
       <Card.Description>
         <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '0', width: '100%' }}>
           {variableMode ? (
-            <VariableEditor commandInfo={commandInfo} index={index} commandState={commandState} scopedVars={scopedVars} loading={loading} dualButtonStates={dualButtonStates} onOptionChange={onOptionChange} />
+            <VariableEditor commandInfo={commandInfo} index={index} commandState={commandState} scopedVars={scopedVars} loading={loading} dualButtonStates={dualButtonStates} onOptionChange={onOptionChange} showPreview={showPreview} />
           ) : (
             <CommandEditor
               commandInfo={commandInfo}
@@ -60,6 +59,7 @@ export function CommandCard(props: {
               onValidate={onValidate}
               fetchDualCommandInfo={fetchDualCommandInfo}
               clearDualCommandInfo={clearDualCommandInfo}
+              showPreview={showPreview}
             />
           )}
         </FieldSet>

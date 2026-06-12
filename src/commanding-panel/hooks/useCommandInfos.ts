@@ -26,34 +26,22 @@ export function useCommandInfos(params: {
     }
 
     Promise.all(
-      targets.map(async (target: any, index: any) => {
-        // inside targets.map
-        const commandKey = getCommandKey('', index);
-        const savedState = (options.commandForms ?? {})[commandKey];
-
+      targets.map(async (target: any) => {
         const endpoint: string = target.asVariable
           ? getTemplateSrv().replace(target.endpointVariable, scopedVars)
           : target.endpoint;
+        const command: string = getTemplateSrv().replace(target.command, scopedVars);
 
-        const selectedCommand = getTemplateSrv().replace(savedState?.commandName ?? '', scopedVars);
-
-        if (!endpoint) {
+        if (!endpoint || !command) {
           return null;
         }
 
-        if (!selectedCommand) {
-          return { command: {}, endpoint };
-        }
-
         try {
-          const info = await datasource.getResource(`endpoint/${endpoint}/command/info`, {
-            name: selectedCommand,
-          });
-
+          const info = await datasource.getResource(`endpoint/${endpoint}/command/info`, { name: command });
           return { command: info, endpoint };
         } catch (err) {
-          console.error('Failed to fetch selected command info', err);
-          return { command: {}, endpoint };
+          console.error('Failed to fetch command info', err);
+          return null;
         }
       })
     ).then((results) => {

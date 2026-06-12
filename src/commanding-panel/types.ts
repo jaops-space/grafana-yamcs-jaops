@@ -34,6 +34,20 @@ export type SharedPanelContext = {
   dualButtonStates: DualButtonStates;
 };
 
+// These are stored on the existing PanelOptions object. If your canonical
+// `commanding-panel/types` PanelOptions lives elsewhere, copy these fields there too.
+export type RuntimeButtonLayoutFields = {
+  layoutDirection?: 'column' | 'row';
+  layoutWrap?: boolean;
+  layoutGap?: number;
+  layoutJustify?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly';
+  layoutAlign?: 'stretch' | 'flex-start' | 'center' | 'flex-end';
+  buttonWidthMode?: 'auto' | 'equal' | 'fixed' | 'fill';
+  buttonMinWidth?: number;
+  buttonWidth?: number;
+  buttonMinHeight?: number;
+  buttonHeight?: number;
+};
 
 export interface CommandForms {
     [command: string]: {
@@ -82,6 +96,7 @@ export interface CommandForms {
         };
     }
 };
+
 
 export interface PanelOptions {
     

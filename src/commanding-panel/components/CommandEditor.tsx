@@ -7,7 +7,6 @@ import { ButtonStyleFields } from './ButtonStyleFields';
 import { DualButtonConfig } from './DualButtonConfig';
 import { FormSection } from './FormSection';
 import { CommandErrors, CommandInfo, DualButtonStates, DualCommandInfos, UpdateArgument, UpdateFormOption, ValidateArgument } from '../types';
-import { CommandSelector } from './CommandSelector';
 
 export function CommandEditor(props: {
   commandInfo: CommandInfo;
@@ -24,29 +23,15 @@ export function CommandEditor(props: {
   onValidate: ValidateArgument;
   fetchDualCommandInfo: (commandKey: string, side: 'on' | 'off', commandName: string, endpoint: string) => void;
   clearDualCommandInfo: (commandKey: string, side: 'on' | 'off') => void;
+  showPreview?: boolean;
 }) {
-  const { commandInfo, index, commandState, scopedVars, loading, datasource, errors, dualCommandInfos, dualButtonStates, onArgumentChange, onOptionChange, onValidate, fetchDualCommandInfo, clearDualCommandInfo } = props;
+  const { commandInfo, index, commandState, scopedVars, loading, datasource, errors, dualCommandInfos, dualButtonStates, onArgumentChange, onOptionChange, onValidate, fetchDualCommandInfo, clearDualCommandInfo, showPreview = true } = props;
   const command = commandInfo.command;
   const set = (option: string, value: any) => onOptionChange(command.name, option, value, index);
   const isDualButton = commandState?.isDualButton === true;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-      {!isDualButton && !!command.name && !!command.argument?.length && (<FormSection title="Command" separated={false}>
-        <CommandSelector
-          label="Command"
-          description="Command issued by this button"
-          endpoint={commandInfo.endpoint}
-          datasource={datasource}
-          value={commandState?.commandName ?? null}
-          disabled={loading}
-          commandInfo={command}
-          onChange={(name) => {
-            onOptionChange(command.name, 'commandName', name, index);
-            onOptionChange(command.name, 'arguments', {}, index);
-          }}
-        />
-      </FormSection>)}
       <FormSection separated={false}>
         <Field label="Button type" description="Use one command or a left/right split button" style={{ marginBottom: 0 }}>
           <Combobox
@@ -108,11 +93,13 @@ export function CommandEditor(props: {
         />
       )}
 
-      <FormSection title="Preview">
-        <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '44px', width: '100%', objectFit: 'contain' }}>
-          <CommandButton commandInfo={commandInfo} index={index} commandState={commandState} scopedVars={scopedVars} loading={loading} dualButtonStates={dualButtonStates} />
-        </div>
-      </FormSection>
+      {showPreview && (
+        <FormSection title="Preview">
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '44px', width: '100%', objectFit: 'contain' }}>
+            <CommandButton commandInfo={commandInfo} index={index} commandState={commandState} scopedVars={scopedVars} loading={loading} dualButtonStates={dualButtonStates} />
+          </div>
+        </FormSection>
+      )}
     </div>
   );
 }
