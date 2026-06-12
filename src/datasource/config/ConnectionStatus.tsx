@@ -1,6 +1,6 @@
 import { css } from '@emotion/css';
-import { GrafanaTheme2 } from '@grafana/data';
-import { getBackendSrv } from '@grafana/runtime';
+import { DataSourceTestFailed, DataSourceTestSucceeded, GrafanaTheme2 } from '@grafana/data';
+import { getAppEvents, getBackendSrv } from '@grafana/runtime';
 import { Alert, Box, Spinner, Stack, Text, useStyles2 } from '@grafana/ui';
 import { ItemStatus } from 'datasource/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -65,20 +65,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
     `,
 });
 
-function parseDetails(data: any): ConnectionDetails {
-    const rawDetails = data?.details ?? data?.jsonDetails ?? data?.JSONDetails;
-
-    if (!rawDetails) {
-        return {};
-    }
-
-    try {
-        return typeof rawDetails === 'string' ? JSON.parse(rawDetails) : rawDetails;
-    } catch {
-        return {};
-    }
-}
-
 function isOk(status?: ItemStatus) {
     return status?.status === 'ok';
 }
@@ -119,11 +105,12 @@ function getStatusCounts(details?: ConnectionDetails) {
  * Displays the global connection summary.
  * Per-host and per-endpoint statuses are passed back to ConfigEditor so each card can render its own status.
  */
-export default function ConnectionStatus({ datasourceUid, configVersion, onStatusChange }: ConnectionStatusProps) {
+export default function ConnectionStatus({ datasourceUid, onStatusChange }: ConnectionStatusProps) {
     const styles = useStyles2(getStyles);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<HealthCheckResult | null>(null);
 
+    // test connection gets data from /fetch/health, and applies if it's available, and it only happens on appEvents.subscribe DataSourceTestFailed
     const testConnection = useCallback(async () => {
         if (!datasourceUid) {
             return;
@@ -133,38 +120,52 @@ export default function ConnectionStatus({ datasourceUid, configVersion, onStatu
 
         try {
             const response = await firstValueFrom(
-                getBackendSrv().fetch({
-                    url: `/api/datasources/uid/${datasourceUid}/health`,
-                    method: 'GET',
-                })
+            getBackendSrv().fetch({
+                url: `/api/datasources/uid/${datasourceUid}/resources/fetch/health-details`,
+                method: 'GET',
+            })
             );
 
-            const data = response?.data as any;
-            const details = parseDetails(data);
+            const details = response.data as ConnectionDetails;
 
             setResult({
-                status: data?.status === 'ok' ? 'ok' : 'error',
-                message: data?.message || 'Connection test completed',
+                status: 'ok',
+                message: 'Loaded cached health details',
                 details,
             });
+
             onStatusChange?.(details);
-        } catch (error: any) {
-            const details = parseDetails(error?.data);
+        } catch (error) {
+            console.error('Failed to retrieve health details', error);
 
             setResult({
                 status: 'error',
-                message: error?.data?.message || 'Failed to test connection',
-                details,
+                message: 'Failed to retrieve health details',
+                details: {},
             });
-            onStatusChange?.(details);
+
+            onStatusChange?.({});
         } finally {
             setLoading(false);
         }
     }, [datasourceUid, onStatusChange]);
 
     useEffect(() => {
-        testConnection();
-    }, [testConnection, configVersion]);
+        const appEvents = getAppEvents();
+
+        const successSub = appEvents.subscribe(DataSourceTestSucceeded, () => {
+            testConnection();
+        });
+
+        const failedSub = appEvents.subscribe(DataSourceTestFailed, () => {
+            testConnection();
+        });
+
+        return () => {
+            successSub.unsubscribe();
+            failedSub.unsubscribe();
+        };
+    }, [testConnection]);
 
     const counts = useMemo(() => getStatusCounts(result?.details), [result]);
 

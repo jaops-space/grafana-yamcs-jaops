@@ -118,6 +118,9 @@ func (d *Datasource) handleSearchCommands(w http.ResponseWriter, req *http.Reque
 // registerRoutes takes a *http.ServeMux and registers some HTTP handlers.
 func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/fetch/endpoints", d.handleFetchSources)
+
+	mux.HandleFunc("/fetch/health-details", d.handleGetLastHealthDetails)
+
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
@@ -134,6 +137,19 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/disable", d.handleDisableLink)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/reset", d.handleResetLinkCounters)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", d.handleRunLinkAction)
+}
+
+// endpoint to get latest health details and whether they are available (non-nil)
+func (d *Datasource) handleGetLastHealthDetails(w http.ResponseWriter, req *http.Request) {
+	d.healthMutex.RLock()
+	defer d.healthMutex.RUnlock()
+
+	if d.lastHealthDetails != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(d.lastHealthDetails)
+	} else {
+		http.Error(w, "No health details available", http.StatusNotFound)
+	}
 }
 
 type CommandIssueBody struct {
@@ -368,7 +384,6 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "unshelved"})
 }
-
 
 // LinkInfoResult is a JSON-friendly representation of a link.
 type LinkInfoResult struct {

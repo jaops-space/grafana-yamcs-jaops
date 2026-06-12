@@ -163,6 +163,8 @@ func (d *Datasource) applyConnectivityChecks(
 			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpointConfig))
 		}
 	}
+
+	testMux.Dispose()
 }
 
 func (d *Datasource) evaluateHealth(
@@ -206,10 +208,14 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return nil, err
 	}
 
+	d.healthMutex.Lock()
+	d.lastHealthDetails = jsonDetails
+	d.healthMutex.Unlock()
+
+	// save details and return only status and message
 	return &backend.CheckHealthResult{
-		Status:      status,
-		Message:     message,
-		JSONDetails: jsonDetails,
+		Status:  status,
+		Message: message,
 	}, nil
 }
 
@@ -263,4 +269,11 @@ func endpointDisplayName(endpointID string, endpoint *config.YamcsEndpointConfig
 	}
 
 	return endpointID
+}
+
+func (d *Datasource) GetLastHealthDetails() (json.RawMessage, bool) {
+	d.healthMutex.RLock()
+	defer d.healthMutex.RUnlock()
+
+	return d.lastHealthDetails, d.lastHealthDetails != nil
 }
