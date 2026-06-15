@@ -6,6 +6,7 @@ import { ArgumentField } from './ArgumentField';
 import { ButtonStyleFields } from './ButtonStyleFields';
 import { DualButtonConfig } from './DualButtonConfig';
 import { FormSection } from './FormSection';
+import { CommandSelector } from './CommandSelector';
 import { CommandErrors, CommandInfo, DualButtonStates, DualCommandInfos, UpdateArgument, UpdateFormOption, ValidateArgument } from '../types';
 
 export function CommandEditor(props: {
@@ -32,6 +33,19 @@ export function CommandEditor(props: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+      <FormSection separated={false}>
+        <CommandSelector
+          label={isDualButton ? 'Default command' : 'Command'}
+          description={isDualButton ? 'Used when a side command is left empty' : 'Select the command issued by this button'}
+          endpoint={commandInfo.endpoint}
+          datasource={datasource}
+          value={commandState?.commandName ?? null}
+          disabled={loading}
+          commandInfo={command}
+          onChange={(name) => set('commandName', name)}
+        />
+      </FormSection>
+
       <FormSection separated={false}>
         <Field label="Button type" description="Use one command or a left/right split button" style={{ marginBottom: 0 }}>
           <Combobox

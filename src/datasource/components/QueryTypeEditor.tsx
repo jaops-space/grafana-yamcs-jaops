@@ -4,7 +4,6 @@ import { QueryType } from '../types';
 import React, { useEffect } from 'react';
 import { QueryCategory, QueryOptions, QueryProps } from './constants';
 import { ParameterQuery } from './ParameterQuery';
-import { CommandQuery } from './CommandQuery';
 
 export function QueryTypeEditor(props: QueryProps) {
 
@@ -71,7 +70,6 @@ export function QueryTypeEditor(props: QueryProps) {
                 queryTypeInfo?.category === QueryCategory.IMAGE) &&
                 <ParameterQuery {...props} />
             }
-            {queryTypeInfo?.value === QueryType.COMMANDING && <CommandQuery {...props} />}
         </>
     );
 }

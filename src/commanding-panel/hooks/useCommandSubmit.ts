@@ -58,7 +58,7 @@ export function useCommandSubmit(params: {
 
       let argumentsToUse = commandData?.arguments;
       let commentToUse = commandData?.comment;
-      let commandNameToUse: string = command.qualifiedName;
+      let commandNameToUse: string = getTemplateSrv().replace(commandData?.commandName || command.qualifiedName || command.name || '', scopedVars);
 
       if (isOffCommand) {
         if (commandData?.offCommand?.commandName) {
@@ -72,6 +72,12 @@ export function useCommandSubmit(params: {
         }
         argumentsToUse = commandData?.onCommand?.arguments ?? argumentsToUse;
         commentToUse = commandData?.onCommand?.comment ?? commentToUse;
+      }
+
+      if (!commandNameToUse) {
+        setLoading(false);
+        appEvents.publish({ type: AppEvents.alertError.name, payload: ['Select a command before issuing'] });
+        return;
       }
 
       const activeCommandInfo = isOffCommand
@@ -91,7 +97,7 @@ export function useCommandSubmit(params: {
           if (commandData?.isDualButton) {
             updateDualButtonStates({ ...dualButtonStates, [commandKey]: isOffCommand ? 'off' : 'on' });
           }
-          appEvents.publish({ type: AppEvents.alertSuccess.name, payload: [`Command ${command.name} issued successfully`] });
+          appEvents.publish({ type: AppEvents.alertSuccess.name, payload: [`Command ${commandNameToUse} issued successfully`] });
         })
         .catch(() => setLoading(false));
     },

@@ -83,6 +83,7 @@ export function getEditorCardsStyle(): React.CSSProperties {
   return {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
+    alignItems: 'start',
     gap: '8px',
     padding: '8px',
     width: '100%',
