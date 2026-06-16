@@ -10,6 +10,26 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 )
 
+func getStreamTickerInterval(q PluginQuery, fallback time.Duration) time.Duration {
+	if q.MaxPoints <= 0 || q.To <= q.From {
+		return fallback
+	}
+
+	timeWindow := time.Duration(q.To-q.From) * time.Second
+	if timeWindow <= 0 {
+		return fallback
+	}
+
+	interval := timeWindow / time.Duration(q.MaxPoints)
+	if interval < 200*time.Millisecond {
+		return 200 * time.Millisecond
+	}
+	if interval > 30*time.Second {
+		return 30 * time.Second
+	}
+	return interval
+}
+
 func RunParameterStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
@@ -223,36 +243,33 @@ func RunCommandHistoryStream(
 
 	// Start listening for command history entries for this path
 	endpoint.RequestCommandHistoryStream(req.Path)
-
-	// Calculate ticker interval
-	tickerInterval := time.Second * 1
-	ticker := time.NewTicker(tickerInterval)
-
-	defer ticker.Stop()
+	signal := endpoint.GetCommandHistorySignal(req.Path)
 	defer endpoint.WithdrawCommandHistoryStreamRequest(req.Path)
+
+	flush := func() {
+		buffer := endpoint.GetCommandHistoryStream(req.Path)
+		if len(buffer) == 0 {
+			return
+		}
+
+		frame := tools.ConvertCommandListToFrame(buffer)
+		sender.SendFrame(
+			frame,
+			data.IncludeDataOnly,
+		)
+
+		endpoint.ClearCommandHistoryStream(req.Path)
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-
+		case <-signal:
 			if !yamcs.WebSocket.IsConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
-
-			buffer := endpoint.GetCommandHistoryStream(req.Path)
-			if len(buffer) == 0 {
-				continue
-			}
-
-			frame := tools.ConvertCommandListToFrame(buffer)
-			sender.SendFrame(
-				frame,
-				data.IncludeDataOnly,
-			)
-
-			endpoint.ClearCommandHistoryStream(req.Path)
+			flush()
 		}
 	}
 }
@@ -306,33 +323,22 @@ func RunAlarmsStream(
 
 	// Start listening for alarm events for this path
 	endpoint.RequestAlarmsStream(req.Path)
-
-	// Calculate ticker interval
-	tickerInterval := time.Second * 1
-	ticker := time.NewTicker(tickerInterval)
-
-	defer ticker.Stop()
+	signal := endpoint.GetAlarmsSignal(req.Path)
 	defer endpoint.WithdrawAlarmsStreamRequest(req.Path)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-
+		case <-signal:
 			if !yamcs.WebSocket.IsConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
 			buffer := endpoint.GetAlarmsStream(req.Path)
-
-			// Always create a frame, even if buffer is empty (to send GlobalAlarmStatus)
 			frame := tools.ConvertAlarmListToFrame(buffer)
 
-			// Take a consistent snapshot of GlobalAlarmStatus under the read lock
 			globalAlarmStatus := endpoint.GetGlobalAlarmStatus()
-
-			// Add GlobalAlarmStatus to frame metadata
 			if globalAlarmStatus != nil {
 				globalStatus := map[string]interface{}{
 					"unacknowledgedCount":    globalAlarmStatus.GetUnacknowledgedCount(),
@@ -359,6 +365,52 @@ func RunAlarmsStream(
 			)
 
 			endpoint.ClearAlarmsStream(req.Path)
+		}
+	}
+}
+
+func RunLinksStream(
+	ctx context.Context,
+	req *backend.RunStreamRequest,
+	sender *backend.StreamSender,
+	endpoint *source.YamcsEndpoint,
+	q PluginQuery,
+) error {
+	yamcs := endpoint.GetClient()
+
+	endpoint.RequestLinksStream(req.Path)
+
+	tickerInterval := getStreamTickerInterval(q, time.Second)
+	ticker := time.NewTicker(tickerInterval)
+
+	defer ticker.Stop()
+	defer endpoint.WithdrawLinksStreamRequest(req.Path)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if !yamcs.WebSocket.IsConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
+
+			buffer := endpoint.GetLinksStream(req.Path)
+			if len(buffer) == 0 {
+				continue
+			}
+
+			frame, err := buildLinksFrame(buffer)
+			if err != nil {
+				return err
+			}
+
+			sender.SendFrame(
+				frame,
+				data.IncludeDataOnly,
+			)
+
+			endpoint.ClearLinksStream(req.Path)
 		}
 	}
 }

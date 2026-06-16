@@ -8,6 +8,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
@@ -80,7 +81,10 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		Parameters:     make(map[string]*ParameterDemand),
 		Events:         make(map[string][]*events.Event),
 		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
+		CommandSignals: make(map[string]chan struct{}),
 		Alarms:         make(map[string][]*alarms.AlarmData),
+		AlarmSignals:   make(map[string]chan struct{}),
+		Links:          make(map[string][]*links.LinkInfo),
 		AlarmCache:     make(map[string]*alarms.AlarmData),
 		ID:             endpointID,
 		Instance:       instance,
@@ -129,6 +133,7 @@ func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func
 			if dataSource.Instance.GetName() == instance.GetName() {
 				for path := range dataSource.CommandHistory {
 					dataSource.CommandHistory[path] = append(dataSource.CommandHistory[path], entry)
+					dataSource.NotifyCommandHistoryStream(path)
 				}
 			}
 		}
@@ -140,6 +145,7 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 	return func(alarm *alarms.AlarmData) {
 		for _, dataSource := range mux.Endpoints {
 			if dataSource.Instance.GetName() == instance.GetName() {
+				hasUpdate := false
 				// Generate unique alarm ID (namespace/name/seqNum)
 				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
 				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
@@ -148,28 +154,51 @@ func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *
 				// If the alarm has been cleared, remove it from the cache
 				if alarm.GetClearInfo() != nil {
 					delete(dataSource.AlarmCache, alarmID)
+					hasUpdate = true
 					dataSource.mu.Unlock()
 					// Skip adding cleared alarms to streaming buffer
-					continue
+				} else {
+
+					// Update the cache: merge incoming alarm data onto the existing cached entry
+					// so that fields only sent in TRIGGERED/SEVERITY_INCREASED (e.g. mostSevereValue)
+					// are not lost when VALUE_UPDATED notifications arrive with partial data.
+					if existing, ok := dataSource.AlarmCache[alarmID]; ok {
+						merged := proto.Clone(existing).(*alarms.AlarmData)
+						proto.Merge(merged, alarm)
+						// When an alarm is unshelved, Yamcs sends a notification with no shelveInfo.
+						// proto.Merge does not clear existing fields, so we must explicitly clear
+						// ShelveInfo when the notification type is UNSHELVED.
+						if alarm.GetNotificationType() == alarms.AlarmNotificationType_UNSHELVED {
+							merged.ShelveInfo = nil
+						}
+						dataSource.AlarmCache[alarmID] = merged
+					} else {
+						dataSource.AlarmCache[alarmID] = alarm
+					}
+					hasUpdate = true
+					dataSource.mu.Unlock()
 				}
 
-				// Update the cache: merge incoming alarm data onto the existing cached entry
-				// so that fields only sent in TRIGGERED/SEVERITY_INCREASED (e.g. mostSevereValue)
-				// are not lost when VALUE_UPDATED notifications arrive with partial data.
-				if existing, ok := dataSource.AlarmCache[alarmID]; ok {
-					merged := proto.Clone(existing).(*alarms.AlarmData)
-					proto.Merge(merged, alarm)
-					// When an alarm is unshelved, Yamcs sends a notification with no shelveInfo.
-					// proto.Merge does not clear existing fields, so we must explicitly clear
-					// ShelveInfo when the notification type is UNSHELVED.
-					if alarm.GetNotificationType() == alarms.AlarmNotificationType_UNSHELVED {
-						merged.ShelveInfo = nil
+				if hasUpdate {
+					for path := range dataSource.Alarms {
+						dataSource.NotifyAlarmsStream(path)
 					}
-					dataSource.AlarmCache[alarmID] = merged
-				} else {
-					dataSource.AlarmCache[alarmID] = alarm
 				}
-				dataSource.mu.Unlock()
+			}
+		}
+	}
+}
+
+// GetLinksListener returns a function that listens for links updates from a specific Yamcs instance.
+func (mux *Multiplexer) GetLinksListener(instance client.Instance) func(event *links.LinkEvent) {
+	return func(event *links.LinkEvent) {
+		for _, dataSource := range mux.Endpoints {
+			if dataSource.Instance.GetName() == instance.GetName() {
+				for path := range dataSource.Links {
+					buffer := make([]*links.LinkInfo, 0, len(event.GetLinks()))
+					buffer = append(buffer, event.GetLinks()...)
+					dataSource.Links[path] = buffer
+				}
 			}
 		}
 	}

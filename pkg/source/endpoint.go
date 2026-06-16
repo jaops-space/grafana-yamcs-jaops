@@ -11,6 +11,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
@@ -29,7 +30,10 @@ type YamcsEndpoint struct {
 	Parameters        map[string]*ParameterDemand
 	Events            map[string][]*events.Event
 	CommandHistory    map[string][]*commanding.CommandHistoryEntry
+	CommandSignals    map[string]chan struct{}
 	Alarms            map[string][]*alarms.AlarmData
+	AlarmSignals      map[string]chan struct{}
+	Links             map[string][]*links.LinkInfo
 	AlarmCache        map[string]*alarms.AlarmData // Cache of all active alarms by ID
 	GlobalAlarmStatus *alarms.GlobalAlarmStatus
 
@@ -276,6 +280,7 @@ COMMAND HISTORY
 func (ep *YamcsEndpoint) RequestCommandHistoryStream(path string) {
 	ep.GetCommandHistorySubscription()
 	ep.CommandHistory[path] = make([]*commanding.CommandHistoryEntry, 0)
+	ep.CommandSignals[path] = make(chan struct{}, 1)
 }
 
 func (ep *YamcsEndpoint) GetCommandHistorySubscription() (*client.CommandHistorySubscription, error) {
@@ -301,11 +306,74 @@ func (ep *YamcsEndpoint) ClearCommandHistoryStream(path string) {
 	ep.CommandHistory[path] = make([]*commanding.CommandHistoryEntry, 0)
 }
 
+func (ep *YamcsEndpoint) NotifyCommandHistoryStream(path string) {
+	if signal, ok := ep.CommandSignals[path]; ok {
+		select {
+		case signal <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (ep *YamcsEndpoint) GetCommandHistorySignal(path string) <-chan struct{} {
+	return ep.CommandSignals[path]
+}
+
 func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) {
 	delete(ep.CommandHistory, path)
+	if signal, ok := ep.CommandSignals[path]; ok {
+		close(signal)
+		delete(ep.CommandSignals, path)
+	}
 	if len(ep.CommandHistory) == 0 {
 		client := ep.GetClient()
 		for _, subscription := range client.CommandHistorySubscriptions {
+			if subscription.Instance == ep.Instance.GetName() {
+				subscription.Halt()
+			}
+		}
+	}
+}
+
+/**
+
+LINKS
+
+**/
+
+func (ep *YamcsEndpoint) RequestLinksStream(path string) {
+	ep.GetLinksSubscription()
+	ep.Links[path] = make([]*links.LinkInfo, 0)
+}
+
+func (ep *YamcsEndpoint) GetLinksSubscription() (*client.LinkSubscription, error) {
+	c := ep.GetClient()
+	for _, subscription := range c.LinkSubscriptions {
+		if subscription.Instance == ep.Instance.GetName() {
+			return subscription, nil
+		}
+	}
+	subscription, err := c.CreateLinkSubscription(ep.Instance)
+	if err != nil {
+		return nil, err
+	}
+	subscription.SetListener(ep.Multiplexer.GetLinksListener(ep.Instance))
+	return subscription, nil
+}
+
+func (ep *YamcsEndpoint) GetLinksStream(path string) []*links.LinkInfo {
+	return ep.Links[path]
+}
+
+func (ep *YamcsEndpoint) ClearLinksStream(path string) {
+	ep.Links[path] = make([]*links.LinkInfo, 0)
+}
+
+func (ep *YamcsEndpoint) WithdrawLinksStreamRequest(path string) {
+	delete(ep.Links, path)
+	if len(ep.Links) == 0 {
+		c := ep.GetClient()
+		for _, subscription := range c.LinkSubscriptions {
 			if subscription.Instance == ep.Instance.GetName() {
 				subscription.Halt()
 			}
@@ -323,6 +391,7 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
 	ep.GetAlarmsSubscription()
 	ep.GetGlobalAlarmStatusSubscription()
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
+	ep.AlarmSignals[path] = make(chan struct{}, 1)
 
 	// Load initial alarms into cache if cache is empty
 	ep.mu.Lock()
@@ -377,6 +446,10 @@ func (ep *YamcsEndpoint) GetGlobalAlarmStatusSubscription() (*client.GlobalStatu
 		ep.mu.Lock()
 		ep.GlobalAlarmStatus = status
 		ep.mu.Unlock()
+
+		for path := range ep.Alarms {
+			ep.NotifyAlarmsStream(path)
+		}
 	})
 	return subscription, nil
 }
@@ -427,8 +500,25 @@ func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 }
 
+func (ep *YamcsEndpoint) NotifyAlarmsStream(path string) {
+	if signal, ok := ep.AlarmSignals[path]; ok {
+		select {
+		case signal <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (ep *YamcsEndpoint) GetAlarmsSignal(path string) <-chan struct{} {
+	return ep.AlarmSignals[path]
+}
+
 func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) {
 	delete(ep.Alarms, path)
+	if signal, ok := ep.AlarmSignals[path]; ok {
+		close(signal)
+		delete(ep.AlarmSignals, path)
+	}
 	if len(ep.Alarms) == 0 {
 		c := ep.GetClient()
 		for _, subscription := range c.AlarmSubscriptions {

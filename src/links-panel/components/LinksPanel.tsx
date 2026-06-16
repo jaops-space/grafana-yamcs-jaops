@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { PanelProps, GrafanaTheme2 } from '@grafana/data';
-import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
-import { Button, Badge, Alert, Spinner, IconButton, useStyles2, Tooltip } from '@grafana/ui';
+import React, { useState, useEffect, useRef } from 'react';
+import { AppEvents, LoadingState, PanelProps, GrafanaTheme2 } from '@grafana/data';
+import { getAppEvents, getBackendSrv, getTemplateSrv } from '@grafana/runtime';
+import { Button, Badge, Alert, Spinner, useStyles2, Tooltip } from '@grafana/ui';
 import { css } from '@emotion/css';
 import { PanelOptions, LinkInfo } from '../types';
 
@@ -41,7 +41,8 @@ const getStyles = (theme: GrafanaTheme2) => ({
   `,
   buttonGroup: css`
     display: flex;
-    gap: ${theme.spacing(0.5)};
+    gap: ${theme.spacing(0.75)};
+    align-items: center;
   `,
   center: css`
     display: flex;
@@ -55,11 +56,10 @@ const getStyles = (theme: GrafanaTheme2) => ({
 
 export const LinksPanel: React.FC<Props> = ({ options, data }) => {
   const styles = useStyles2(getStyles);
+  const appEvents = getAppEvents();
   const [links, setLinks] = useState<LinkInfo[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [dsUid, setDsUid] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [activeLinks, setActiveLinks] = useState<Set<string>>(new Set());
@@ -90,33 +90,43 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
     }
   }, [data.request?.targets]);
 
-  // Fetch links from the backend
-  const fetchLinks = useCallback(async () => {
-    if (!dsUid || !endpoint) {
-      setLoading(false);
+  const loading = data.state === LoadingState.Loading && links.length === 0;
+
+  // Consume links stream data emitted by backend stream frames.
+  useEffect(() => {
+    const firstSeries = data.series?.[0];
+    if (!firstSeries) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const linksField = firstSeries.fields.find((f) => f.name === 'linksJson');
+    if (!linksField || linksField.values.length === 0) {
+      return;
+    }
+
+    const latest = typeof linksField.values.get === 'function'
+      ? linksField.values.get(linksField.values.length - 1)
+      : linksField.values[linksField.values.length - 1];
+
+    if (typeof latest !== 'string' || latest.length === 0) {
+      return;
+    }
 
     try {
-      const url = `/api/datasources/uid/${dsUid}/resources/endpoint/${encodeURIComponent(endpoint)}/links`;
-      const result = await getBackendSrv().get(url);
-      
-      let linksList: LinkInfo[] = Array.isArray(result) ? result : [];
-      
-      // Apply name filter if configured
+      let linksList: LinkInfo[] = JSON.parse(latest);
+      if (!Array.isArray(linksList)) {
+        linksList = [];
+      }
+
       if (options.nameFilter) {
         try {
           const regex = new RegExp(options.nameFilter, 'i');
           linksList = linksList.filter((link) => regex.test(link.name));
-        } catch (e) {
-          // Invalid regex, ignore filter
+        } catch {
+          // Ignore invalid regex filter in runtime stream processing.
         }
       }
-      
-      // Detect activity by comparing counters with previous poll
+
       const nowActive = new Set<string>();
       const newCounters: Record<string, { dataIn: string; dataOut: string }> = {};
       for (const link of linksList) {
@@ -129,47 +139,25 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
           nowActive.add(key);
         }
       }
+
       prevCounters.current = newCounters;
       setActiveLinks(nowActive);
+      setLinks(linksList);
+      setError(null);
 
-      // Clear activity highlight after a short duration
       if (nowActive.size > 0) {
         setTimeout(() => setActiveLinks(new Set()), 1500);
       }
-
-      setLinks(linksList);
     } catch (e: any) {
-      setError(e.message || 'Failed to load links');
-    } finally {
-      setLoading(false);
+      setError(e.message || 'Failed to decode streamed links');
     }
-  }, [dsUid, endpoint, options.nameFilter]);
+  }, [data.series, options.nameFilter]);
 
-  // Initial fetch
   useEffect(() => {
-    if (dsUid && endpoint) {
-      fetchLinks();
+    if (data.state === LoadingState.Error) {
+      setError(data.error?.message || 'Failed to stream links');
     }
-    return undefined;
-  }, [dsUid, endpoint, fetchLinks]);
-
-  // Auto-refresh
-  useEffect(() => {
-    if (options.refreshInterval > 0 && dsUid && endpoint) {
-      const intervalId = setInterval(fetchLinks, options.refreshInterval * 1000);
-      return () => clearInterval(intervalId);
-    }
-    return undefined;
-  }, [fetchLinks, options.refreshInterval, dsUid, endpoint]);
-
-  // Clear success message after 3 seconds
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => setSuccess(null), 3000);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [success]);
+  }, [data.error?.message, data.state]);
 
   // Enable/disable a link
   const toggleLink = async (link: LinkInfo) => {
@@ -184,10 +172,11 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
       await getBackendSrv().post(
         `/api/datasources/uid/${dsUid}/resources/endpoint/${encodeURIComponent(endpoint)}/links/${encodeURIComponent(link.name)}/${action}`
       );
-      setSuccess(`${link.name} ${action}d successfully`);
-      fetchLinks();
+      appEvents.publish({ type: AppEvents.alertSuccess.name, payload: [`Link ${link.name} ${action}d`] });
     } catch (e: any) {
-      setError(e.message || `Failed to ${action} link`);
+      const message = e.message || `Failed to ${action} link`;
+      setError(message);
+      appEvents.publish({ type: AppEvents.alertError.name, payload: [message] });
     } finally {
       setBusy(null);
     }
@@ -205,10 +194,11 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
       await getBackendSrv().post(
         `/api/datasources/uid/${dsUid}/resources/endpoint/${encodeURIComponent(endpoint)}/links/${encodeURIComponent(linkName)}/reset`
       );
-      setSuccess(`${linkName} counters reset`);
-      fetchLinks();
+      appEvents.publish({ type: AppEvents.alertSuccess.name, payload: [`Link ${linkName} counters reset`] });
     } catch (e: any) {
-      setError(e.message || 'Failed to reset counters');
+      const message = e.message || 'Failed to reset counters';
+      setError(message);
+      appEvents.publish({ type: AppEvents.alertError.name, payload: [message] });
     } finally {
       setBusy(null);
     }
@@ -239,12 +229,6 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
           {error}
         </Alert>
       )}
-      {success && (
-        <Alert severity="success" title="Success">
-          {success}
-        </Alert>
-      )}
-
       {/* Loading */}
       {loading && links.length === 0 && (
         <div className={styles.center}>
@@ -256,7 +240,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
       {/* Empty state */}
       {!loading && links.length === 0 && (
         <Alert severity="info" title="No Links">
-          No links found for endpoint &quot;{endpoint}&quot;.
+          Waiting for link updates for endpoint &quot;{endpoint}&quot;.
         </Alert>
       )}
 
@@ -279,19 +263,22 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             <Button
               size="sm"
               variant={link.disabled ? 'success' : 'destructive'}
+              icon={link.disabled ? 'unlock' : 'lock'}
               onClick={() => toggleLink(link)}
               disabled={busy === link.name}
             >
               {link.disabled ? 'Enable' : 'Disable'}
             </Button>
             <Tooltip content="Reset counters">
-              <IconButton
-                name="history-alt"
+              <Button
                 size="sm"
+                variant="secondary"
+                icon="history-alt"
                 onClick={() => resetCounters(link.name)}
                 disabled={busy === link.name}
-                aria-label="Reset counters"
-              />
+              >
+                Reset
+              </Button>
             </Tooltip>
           </div>
         </div>

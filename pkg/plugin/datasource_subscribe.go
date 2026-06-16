@@ -12,6 +12,7 @@ import (
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
@@ -274,4 +275,34 @@ func DatasourceAlarmsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data
 	frame.Meta.PreferredVisualization = data.VisTypeTable
 	return frame, nil
 
+}
+
+func DatasourceLinksFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+	yamcs := endpoint.GetClient()
+	list, err := yamcs.ListLinks(endpoint.Instance)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildLinksFrame(list)
+}
+
+func buildLinksFrame(items []*links.LinkInfo) (*data.Frame, error) {
+	results := make([]LinkInfoResult, 0, len(items))
+	for _, link := range items {
+		results = append(results, convertLinkInfo(link))
+	}
+
+	payload, err := json.Marshal(results)
+	if err != nil {
+		return nil, err
+	}
+
+	frame := data.NewFrame(
+		"links",
+		data.NewField("linksJson", nil, []string{string(payload)}),
+	)
+	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisTypeTable}
+
+	return frame, nil
 }

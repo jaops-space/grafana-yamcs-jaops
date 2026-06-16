@@ -1,5 +1,5 @@
 import { dateTime, PanelProps } from '@grafana/data';
-import { DataSourceWithBackend, getDataSourceSrv } from '@grafana/runtime';
+import { DataSourceWithBackend, getDataSourceSrv, getTemplateSrv } from '@grafana/runtime';
 import { Button, Icon, InteractiveTable, Modal, Combobox, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
 import { AlarmsOptions } from 'alarms-panel/module';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -152,6 +152,9 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
         const request = data.request;
         if (request?.targets?.[0]) {
             const target = request.targets[0] as any;
+            if (target.asVariable && target.endpointVariable) {
+                return getTemplateSrv().replace(target.endpointVariable, data.request?.scopedVars);
+            }
             return target.endpoint;
         }
         return null;
