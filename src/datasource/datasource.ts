@@ -89,6 +89,9 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     query.endpoint = templateSrv.replace(query.endpointVariable, request.scopedVars);
                 }
 
+                const fromUnix = request.range.from.unix();
+                const toUnix = request.range.to.unix();
+
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
                         maxLength: this.bufferMaxLength,
@@ -97,13 +100,14 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     addr: {
                         scope: LiveChannelScope.DataSource,
                         namespace: this.uid,
-                        path: 
-                        `req/${query.endpoint}-${pathName}-${request.range.from.unix()}-${request.range.to.unix()}-${request.maxDataPoints ?? 1000}`,
+                        path:
+                            `req/${query.endpoint}-${pathName}-${fromUnix}-${toUnix}-${request.maxDataPoints ?? 1000}`,
                         data: {
                             ...query,
-                            from: request.range.from.unix(),
-                            to: request.range.to.unix(),
+                            from: fromUnix,
+                            to: toUnix,
                             realtime: request.range.raw.to === 'now',
+                            frontendShiftedTime: false,
                             points: request.maxDataPoints ?? 1000,
                         },
                     },

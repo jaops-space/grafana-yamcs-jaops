@@ -33,13 +33,6 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 
 	start := time.Unix(int64(q.From), 0)
 	end := time.Unix(int64(q.To), 0)
-	offset := time.Since(endpoint.CurrentTime)
-
-	if q.Realtime {
-		end = time.Now()
-		start = start.Add(-offset)
-		end = end.Add(-offset)
-	}
 
 	aggregatePath := ""
 
@@ -77,13 +70,7 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		getMax = getMax || (getField == "max")
 	}
 
-	var frame *data.Frame
-
-	if q.Realtime {
-		frame = tools.ConvertSampleBufferToFrameWithOffset(samples, q.Parameter+aggregatePath, getMin, getMax, offset)
-	} else {
-		frame = tools.ConvertSampleBufferToFrame(samples, q.Parameter+aggregatePath, getMin, getMax)
-	}
+	frame := tools.ConvertSampleBufferToFrame(samples, q.Parameter+aggregatePath, getMin, getMax)
 
 	SetUnitAndThresholds(endpoint, q.Parameter, frame)
 	return frame, nil
@@ -106,7 +93,7 @@ func DatasourceSingleValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (
 
 	buffer := []client.ParameterValue{lastValue}
 
-	frame := tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, false, false, aggregatePath, q.Realtime)
+	frame := tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, false, false, aggregatePath, false)
 	SetUnitAndThresholds(endpoint, q.Parameter, frame)
 	return frame, nil
 
@@ -117,12 +104,6 @@ func DatasourceDiscreteValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery)
 	yamcs := endpoint.GetClient()
 
 	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
-	if q.Realtime {
-		end = time.Now()
-		offset := time.Since(endpoint.CurrentTime)
-		start = start.Add(-offset)
-		end = end.Add(-offset)
-	}
 	aggregatePath := ""
 	if len(q.AggregatePath) > 0 {
 		aggregatePath = "." + q.AggregatePath
@@ -155,12 +136,6 @@ func DatasourceEventsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data
 
 	yamcs := endpoint.GetClient()
 	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
-	if q.Realtime {
-		end = time.Now()
-		offset := time.Since(endpoint.CurrentTime)
-		start = start.Add(-offset)
-		end = end.Add(-offset)
-	}
 
 	iterator := yamcs.ListEventsWithinTimeRange(endpoint.Instance, start, end)
 	events := []*events.Event{}

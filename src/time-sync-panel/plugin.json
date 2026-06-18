@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "panel",
+  "name": "JAOPS Yamcs Time Sync",
+  "id": "jaops-yamcs-time-sync-panel",
+  "info": {
+    "keywords": ["yamcs", "time", "sync", "panel", "jaops"],
+    "description": "Synchronize dashboard time range with Yamcs processor time for all panels",
+    "author": {
+      "name": "JAOPS"
+    },
+    "logos": {
+      "small": "img/logo.png",
+      "large": "img/logo.png"
+    },
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": []
+  }
+}
