@@ -1,7 +1,6 @@
 import { useLocationService, getTemplateSrv, locationService } from "@grafana/runtime";
 import { Input } from "@grafana/ui";
-import React from "react";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 export default function InputModeField({ variableToSet, scopedVars, loading, unit, showVariableLabel, color, textColor, size }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string, showVariableLabel?: boolean, color?: string, textColor?: string, size?: string }) {
     // Subscribe reactively to location changes to get notified on every variable update

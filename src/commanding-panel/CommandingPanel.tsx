@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { CommandForms } from './types';
 import { useLocationService } from '@grafana/runtime';
 import { ButtonGroupPreview } from './components/ButtonGroupPreview';
 import { CommandButton } from './components/CommandButton';
@@ -11,7 +10,7 @@ import { useCommandSubmit } from './hooks/useCommandSubmit';
 import { useDatasource } from './hooks/useDatasource';
 import { useDualButtonStates } from './hooks/useDualButtonStates';
 import { useDualCommandInfos } from './hooks/useDualCommandInfos';
-import { CommandErrors, CommandingPanelProps } from './types';
+import { CommandErrors, CommandingPanelProps, CommandForms } from './types';
 import { getCommandKey } from './utils/commandKeys';
 import { getEditorCardsStyle, getRuntimeButtonWrapperStyle, getRuntimeLayoutStyle } from './utils/layout';
 import { setArgumentError, validateCommandArgument } from './utils/validation';
