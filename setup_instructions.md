@@ -1,14 +1,16 @@
 ## Try out the plugin for yourself
-Local installation: 
+
+Local installation:
+
 - use to contribute to the development of the plugin
 - use while it is not officially available from the Grafana marketplace (in progress)
-
 
 ### Pre-requisites
 
 To try out the plugin on a local machine, you will need the following tools:
 
 - Go 1.23+
+
 ```bash
 # Remove any old version, download and install latest
 # Note: if you are on arm/mac silicon then adjust the architecture accordingly
@@ -22,7 +24,8 @@ export PATH=$PATH:/usr/local/go/bin
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 ```
 
-- [Mage](https://magefile.org/) 
+- [Mage](https://magefile.org/)
+
 ```bash
 # Install using Go
 go install github.com/magefile/mage@latest
@@ -33,6 +36,7 @@ source ~/.bashrc
 ```
 
 - Node.js (with NPM or PNPM)
+
 ```bash
 # Install Node.js via nvm (recommended)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
@@ -45,6 +49,7 @@ corepack prepare pnpm@latest --activate
 ```
 
 - Docker
+
 ```bash
 # Install Docker using the official convenience script
 curl -fsSL https://get.docker.com | sudo sh
@@ -55,7 +60,7 @@ newgrp docker
 ```
 
 > [!IMPORTANT]  
-> If you want to set-up the plugin in a Windows environment, you will need to run the plugin inside WSL2, so you will need WSL2 installed, and have the tools above all installed in the WSL2 environment 
+> If you want to set-up the plugin in a Windows environment, you will need to run the plugin inside WSL2, so you will need WSL2 installed, and have the tools above all installed in the WSL2 environment
 
 ### Set up the plugin
 
@@ -71,7 +76,6 @@ newgrp docker
     ```bash
     mage build:backend
     ```
-
 
 3. Build the front-end:
 

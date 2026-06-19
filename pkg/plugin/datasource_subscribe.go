@@ -213,8 +213,13 @@ func DatasourceCommandHistoryFrame(endpoint *source.YamcsEndpoint, q PluginQuery
 }
 
 func DatasourceTimeFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+	currentTime, ok := endpoint.GetCurrentTimeIfFresh(15 * time.Second)
+	if !ok {
+		return data.NewFrame("response", data.NewField("current_time", nil, []time.Time{})), nil
+	}
+
 	return data.NewFrame("response",
-		data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}),
+		data.NewField("current_time", nil, []time.Time{currentTime}),
 	), nil
 }
 

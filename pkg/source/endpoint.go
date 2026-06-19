@@ -96,10 +96,41 @@ func (ep *YamcsEndpoint) RequestTime() {
 
 func (ep *YamcsEndpoint) GetTimeHandler() func(t time.Time) {
 	return func(currentTime time.Time) {
-		ep.CurrentTime = currentTime
-		ep.CurrentTimeUpdatedAt = time.Now()
+		ep.SetCurrentTime(currentTime)
 		backend.Logger.Debug("Updating time", "time", currentTime)
 	}
+}
+
+func (ep *YamcsEndpoint) SetCurrentTime(currentTime time.Time) {
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+
+	ep.CurrentTime = currentTime
+	ep.CurrentTimeUpdatedAt = time.Now()
+}
+
+func (ep *YamcsEndpoint) GetCurrentTime() (time.Time, time.Time, bool) {
+	ep.mu.RLock()
+	defer ep.mu.RUnlock()
+
+	if ep.CurrentTime.IsZero() || ep.CurrentTimeUpdatedAt.IsZero() {
+		return time.Time{}, time.Time{}, false
+	}
+
+	return ep.CurrentTime, ep.CurrentTimeUpdatedAt, true
+}
+
+func (ep *YamcsEndpoint) GetCurrentTimeIfFresh(maxAge time.Duration) (time.Time, bool) {
+	currentTime, updatedAt, ok := ep.GetCurrentTime()
+	if !ok {
+		return time.Time{}, false
+	}
+
+	if maxAge > 0 && time.Since(updatedAt) > maxAge {
+		return time.Time{}, false
+	}
+
+	return currentTime, true
 }
 
 // GetHostConfiguration retrieves the host configuration for the endpoint.

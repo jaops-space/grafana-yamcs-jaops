@@ -14,8 +14,8 @@ To complete the plugin signing workflow, you need to add secrets to your GitHub 
 2. Navigate to: **My Account** > **Security** > **Access Policies**
 3. Click **"Create access policy"**
 4. Configure:
-   - **Realm**: `your-org-name (all-stacks)`
-   - **Scope**: `plugins:write`
+    - **Realm**: `your-org-name (all-stacks)`
+    - **Scope**: `plugins:write`
 5. Click **"Create token"**
 6. **Save the token** - you'll need it in the next step
 
@@ -25,13 +25,14 @@ To complete the plugin signing workflow, you need to add secrets to your GitHub 
 2. Navigate to: **Settings** > **Secrets and variables** > **Actions**
 3. Click **"New repository secret"**
 4. Set:
-   - **Name**: `GRAFANA_ACCESS_POLICY_TOKEN`
-   - **Secret**: Paste your Grafana Cloud access policy token
+    - **Name**: `GRAFANA_ACCESS_POLICY_TOKEN`
+    - **Secret**: Paste your Grafana Cloud access policy token
 5. Click **"Add secret"**
 
 ### 3. Test the Workflow
 
 Once the secret is added:
+
 1. Create a version tag: `npm version patch`
 2. Push the tag: `git push origin main --follow-tags`
 3. Check the GitHub Actions workflow runs successfully
@@ -47,6 +48,7 @@ Once the secret is added:
 ## Troubleshooting
 
 If the workflow fails:
+
 - Check the secret name matches exactly: `GRAFANA_ACCESS_POLICY_TOKEN`
 - Verify the token has `plugins:write` scope
 - Ensure your Grafana Cloud account has the necessary permissions

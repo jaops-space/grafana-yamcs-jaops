@@ -302,7 +302,12 @@ func RunTimeStream(
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
-			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
+			currentTime, ok := endpoint.GetCurrentTimeIfFresh(15 * time.Second)
+			if !ok {
+				continue
+			}
+
+			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{currentTime}))
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,

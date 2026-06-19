@@ -15,7 +15,7 @@ function App(props: AppRootProps) {
             <Route path={ROUTES.Commanding} element={<CommandingPanelSetup />} />
             <Route path={ROUTES.Image} element={<ImagePanelSetup />} />
             <Route path={ROUTES.VariableSetup} element={<VariablePanelSetup />} />
-            
+
             {/* Catch-all route for any unmatched paths */}
 
             {/* Default page */}

@@ -6,14 +6,18 @@ import { prefixRoute } from 'utils/utils.routing';
 function Overview() {
     return (
         <PluginPage>
-            <p>Welcome! This section will guide you through the setup and usage of the Yamcs Datasource and Panels in Grafana.</p>
+            <p>
+                Welcome! This section will guide you through the setup and usage of the Yamcs Datasource and Panels in
+                Grafana.
+            </p>
 
             <Card>
                 <Card.Heading>How to Use the Yamcs Plugin</Card.Heading>
                 <Card.Description>
                     <p>
-                        This guide will help you set up and use the Yamcs Datasource and Panels in Grafana. 
-                        Learn about adding the data source, configuring panels, and using various features like the Commanding Panel and Image Panel.
+                        This guide will help you set up and use the Yamcs Datasource and Panels in Grafana. Learn about
+                        adding the data source, configuring panels, and using various features like the Commanding Panel
+                        and Image Panel.
                     </p>
                     <Link href={prefixRoute('how-to-use')} color="primary">
                         Go to How to Use the Yamcs Plugin
@@ -25,7 +29,8 @@ function Overview() {
                 <Card.Heading>Commanding Panel Setup</Card.Heading>
                 <Card.Description>
                     <p>
-                        Learn how to set up and configure the Commanding Panel to control and manage commands from your Yamcs server.
+                        Learn how to set up and configure the Commanding Panel to control and manage commands from your
+                        Yamcs server.
                     </p>
                     <Link href={prefixRoute('commanding-setup')} color="primary">
                         Go to Commanding Panel Setup
@@ -37,7 +42,8 @@ function Overview() {
                 <Card.Heading>Image Panel Setup</Card.Heading>
                 <Card.Description>
                     <p>
-                        Learn how to set up the Static and Telemetric Image Panels to display images based on telemetry or manual input.
+                        Learn how to set up the Static and Telemetric Image Panels to display images based on telemetry
+                        or manual input.
                     </p>
                     <Link href={prefixRoute('image-panel-setup')} color="primary">
                         Go to Image Panel Setup
@@ -49,14 +55,14 @@ function Overview() {
                 <Card.Heading>Variables</Card.Heading>
                 <Card.Description>
                     <p>
-                        Learn how to set up variables in your panel to make dashboards dynamic and ease the setup of multiple panels or rows.
+                        Learn how to set up variables in your panel to make dashboards dynamic and ease the setup of
+                        multiple panels or rows.
                     </p>
                     <Link href={prefixRoute('variable-setup')} color="primary">
                         Go to Variables Setup
                     </Link>
                 </Card.Description>
             </Card>
-
         </PluginPage>
     );
 }

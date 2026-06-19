@@ -58,23 +58,28 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
 
                 let pathName = 'query';
                 if (query.parameter) {
-                    pathName = `${query.endpoint}-${query.parameter.replaceAll("/", "")}${query.aggregatePath}`;
-                } else if (query.type === QueryType.EVENTS){
-                    pathName = 'events'
+                    pathName = `${query.endpoint}-${query.parameter.replaceAll('/', '')}${query.aggregatePath}`;
+                } else if (query.type === QueryType.EVENTS) {
+                    pathName = 'events';
                 } else if (query.type === QueryType.DEMANDS) {
-                    pathName = 'demands'
+                    pathName = 'demands';
                 } else if (query.type === QueryType.SUBSCRIPTIONS) {
-                    pathName = 'subscriptions'
+                    pathName = 'subscriptions';
                 } else if (query.type === QueryType.COMMAND_HISTORY) {
-                    pathName = 'commands'
+                    pathName = 'commands';
                 } else if (query.type === QueryType.ALARMS) {
-                    pathName = 'alarms'
+                    pathName = 'alarms';
                 } else if (query.type === QueryType.LINKS) {
-                    pathName = 'links'
-                }   
+                    pathName = 'links';
+                }
 
                 let action = StreamingFrameAction.Append;
-                if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.ALARMS || query.type === QueryType.LINKS) {
+                if (
+                    query.type === QueryType.DEMANDS ||
+                    query.type === QueryType.SUBSCRIPTIONS ||
+                    query.type === QueryType.ALARMS ||
+                    query.type === QueryType.LINKS
+                ) {
                     action = StreamingFrameAction.Replace;
                 }
 
@@ -99,9 +104,8 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     },
                     addr: {
                         scope: LiveChannelScope.DataSource,
-                        namespace: this.uid,
-                        path:
-                            `req/${query.endpoint}-${pathName}-${fromUnix}-${toUnix}-${request.maxDataPoints ?? 1000}`,
+                        stream: this.uid,
+                        path: `req/${query.endpoint}-${pathName}-${fromUnix}-${toUnix}-${request.maxDataPoints ?? 1000}`,
                         data: {
                             ...query,
                             from: fromUnix,

@@ -5,11 +5,10 @@ This guide provides instructions for testing the Yamcs Grafana plugin functional
 ## Prerequisites
 
 1. **Yamcs Server**: You need a running Yamcs server instance
-   - clone the quickstart from: https://github.com/jaops-space/yamcs-quickstart
-   - start Yamcs server: `./mvnw yamcs:run`
-   - run the simulator for basic spacecraft data: `./simulator.py`
-   - run the simulator for example image generation `python3 simulator/images/generate_images.py`
-   
+    - clone the quickstart from: https://github.com/jaops-space/yamcs-quickstart
+    - start Yamcs server: `./mvnw yamcs:run`
+    - run the simulator for basic spacecraft data: `./simulator.py`
+    - run the simulator for example image generation `python3 simulator/images/generate_images.py`
 2. **Grafana Instance**: Grafana 10.4.0 or later
 
 ## Quick Setup for Testing
@@ -26,22 +25,25 @@ This guide provides instructions for testing the Yamcs Grafana plugin functional
 1. Go to Configuration > Data Sources
 2. Add new Yamcs data source
 3. Configure connection settings:
-   - **URL**: Your Yamcs server URL (e.g., `http://localhost:8090`)
-   - **Instance**: Yamcs instance name
-   - **Credentials**: If authentication is required
+    - **URL**: Your Yamcs server URL (e.g., `http://localhost:8090`)
+    - **Instance**: Yamcs instance name
+    - **Credentials**: If authentication is required
 
 ### 3. Test Basic Functionality
 
 ## Sample Data
 
 The yamcs-quickstart repository includes:
+
 - Sample Yamcs configuration
 - Test telemetry data and simulators (for telemetry, images, etc)
 
 This grafana-yamcs-jaops repository includes:
+
 - Example dashboards in `provisioning/`
 
 #### Telemetry Display
+
 1. Create a new dashboard
 2. Add a graph panel
 3. Select Yamcs as data source
@@ -49,12 +51,14 @@ This grafana-yamcs-jaops repository includes:
 5. Verify data display
 
 #### Commanding
+
 1. Navigate to the Commanding page in the plugin
 2. Configure command buttons
 3. Test command execution
 4. Verify command history
 
 #### Image Panels
+
 1. Add an Image Panel
 2. Configure with static image
 3. Overlay telemetry data
@@ -63,11 +67,13 @@ This grafana-yamcs-jaops repository includes:
 ## Troubleshooting
 
 ### Common Issues
+
 1. **Connection Failed**: Check Yamcs server is running and accessible
 2. **No Data**: Verify Yamcs instance name and parameter names
 3. **Commands Not Working**: Check command definitions and permissions
 
 ### Logs
+
 - Check Grafana logs for plugin errors
 - Yamcs server logs for connection issues
 - Browser console for frontend errors
