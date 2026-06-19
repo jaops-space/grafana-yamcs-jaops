@@ -3,6 +3,8 @@
     "type": "app",
     "name": "Grafana Yamcs JAOPS",
     "id": "jaops-yamcs-app",
+    "backend": true,
+    "executable": "gpx_grafana_yamcs_jaops",
     "info": {
         "keywords": [
             "yamcs",

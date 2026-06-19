@@ -1,8 +1,8 @@
 import React from 'react';
-import { SelectableValue } from '@grafana/data';
-import { ColorPickerInput, Combobox, Field, FileUpload, getAvailableIcons, Input } from '@grafana/ui';
+import { ColorPickerInput, Combobox, ComboboxOption, Field, FileUpload, getAvailableIcons, Input } from '@grafana/ui';
 import Shapes from '../shapes';
 import { UpdateFormOption } from '../types';
+import { SelectableValue } from '@grafana/data';
 
 export function ButtonStyleFields(props: {
     commandName: string;
@@ -39,12 +39,13 @@ export function ButtonStyleFields(props: {
                 <Field label="Icon" description="Icon name" style={{ marginBottom: 0 }}>
                     <Combobox
                         disabled={loading}
+                        createCustomValue
                         options={[
                             { label: 'None', value: '' },
                             ...getAvailableIcons().map((icon) => ({ label: icon, value: icon })),
                         ]}
                         value={commandState?.icon || ''}
-                        onChange={(e: SelectableValue<string>) => set('icon', e.value)}
+                        onChange={(e: ComboboxOption<string>) => set('icon', e.value)}
                     />
                 </Field>
             )}
@@ -126,7 +127,7 @@ export function ButtonStyleFields(props: {
                             ]}
                             value={commandState?.bgSize || 'contain'}
                             createCustomValue
-                            onChange={(v: SelectableValue<string>) => set('bgSize', v.value)}
+                            onChange={(v: ComboboxOption<string>) => set('bgSize', v.value)}
                         />
                     </Field>
                     <Field
@@ -144,7 +145,7 @@ export function ButtonStyleFields(props: {
                             ]}
                             createCustomValue
                             value={commandState?.bgPosition || 'center'}
-                            onChange={(v: SelectableValue<string>) => set('bgPosition', v.value)}
+                            onChange={(v: ComboboxOption<string>) => set('bgPosition', v.value)}
                         />
                     </Field>
                 </>

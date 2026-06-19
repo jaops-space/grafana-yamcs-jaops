@@ -1,6 +1,6 @@
 import React from 'react';
-import { SelectableValue, VariableWithMultiSupport } from '@grafana/data';
-import { Checkbox, Combobox, Field, Input } from '@grafana/ui';
+import { ComboboxOption, Checkbox, Combobox, Field, Input } from '@grafana/ui';
+import { VariableWithMultiSupport } from '@grafana/data';
 import { getTemplateSrv } from '@grafana/runtime';
 import InputModeField from './InputModeField';
 import { CommandButton } from './CommandButton';
@@ -41,7 +41,7 @@ export function VariableEditor(props: {
                             .getVariables()
                             .map((vr) => ({ label: vr.label || vr.name, value: vr.name }))}
                         value={commandState?.variableToSet || ''}
-                        onChange={(e: SelectableValue<string>) => set('variableToSet', e.value)}
+                        onChange={(e: ComboboxOption<string>) => set('variableToSet', e.value)}
                     />
                 </Field>
                 <Field label="Change Mode" description="How to change the value" style={{ marginBottom: 0 }}>
@@ -58,7 +58,7 @@ export function VariableEditor(props: {
                             },
                         ]}
                         value={commandState?.changeMode || ''}
-                        onChange={(e: SelectableValue<string>) => set('changeMode', e.value)}
+                        onChange={(e: ComboboxOption<string>) => set('changeMode', e.value)}
                     />
                 </Field>
                 {commandState?.changeMode !== 'input' && (
@@ -80,7 +80,7 @@ export function VariableEditor(props: {
                             ).map((option) => ({ label: option.text as string, value: option.value as string }))}
                             value={commandState?.valueToSet || ''}
                             createCustomValue
-                            onChange={(e: SelectableValue<string>) => set('valueToSet', e.value)}
+                            onChange={(e: ComboboxOption<string>) => set('valueToSet', e.value)}
                         />
                     </Field>
                 )}
