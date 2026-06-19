@@ -45,8 +45,8 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
         }
 
         const baseNow = Date.now();
-        const parsedFrom = dateMath.toDateTime(props.timeRange.from, { roundUp: false, now: baseNow });
-        const parsedTo = dateMath.toDateTime(props.timeRange.to, { roundUp: true, now: baseNow });
+        const parsedFrom = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: baseNow });
+        const parsedTo = dateMath.toDateTime(rawToExpr, { roundUp: true, now: baseNow });
         if (!parsedFrom || !parsedTo) {
             return;
         }

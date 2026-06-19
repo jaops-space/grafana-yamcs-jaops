@@ -1,6 +1,6 @@
 import React from 'react';
-import { ComboboxOption, Checkbox, Combobox, Field, Input } from '@grafana/ui';
 import { VariableWithMultiSupport } from '@grafana/data';
+import { ComboboxOption, Checkbox, Combobox, Field, Input } from '@grafana/ui';
 import { getTemplateSrv } from '@grafana/runtime';
 import InputModeField from './InputModeField';
 import { CommandButton } from './CommandButton';

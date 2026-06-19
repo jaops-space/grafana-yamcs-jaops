@@ -4,6 +4,31 @@ import { PanelOptions } from 'commanding-panel/types';
 import { CommandInfos } from '../types';
 import { getCommandKey } from '../utils/commandKeys';
 
+function areCommandInfosEqual(a: CommandInfos, b: CommandInfos): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    for (let i = 0; i < a.length; i++) {
+        const left = a[i];
+        const right = b[i];
+
+        if (!left || !right) {
+            return false;
+        }
+
+        if (left.endpoint !== right.endpoint) {
+            return false;
+        }
+
+        if ((left.command?.name ?? '') !== (right.command?.name ?? '')) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export function useCommandInfos(params: {
     datasource: DataSourceWithBackend | null;
     targets: any[];
@@ -18,7 +43,10 @@ export function useCommandInfos(params: {
 
     useEffect(() => {
         if (variableMode) {
-            setCommandInfos([{ command: {}, endpoint: '' }]);
+            setCommandInfos((prev) => {
+                const next = [{ command: {}, endpoint: '' }];
+                return areCommandInfosEqual(prev, next) ? prev : next;
+            });
             return;
         }
 
@@ -65,7 +93,7 @@ export function useCommandInfos(params: {
             })
         ).then((results) => {
             const infos = results.filter(Boolean) as CommandInfos;
-            setCommandInfos(infos);
+            setCommandInfos((prev) => (areCommandInfosEqual(prev, infos) ? prev : infos));
 
             infos.forEach((info, index) => {
                 const commandKey = getCommandKey(info.command.name ?? '', index);
