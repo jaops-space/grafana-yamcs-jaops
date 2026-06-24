@@ -1,7 +1,7 @@
+import { css } from '@emotion/css';
 import { AppEvents, DataSourcePluginOptionsEditorProps, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
 import { Button, Checkbox, Field, FileDropzone, InlineField, Input, Modal, Stack, Text, useStyles2 } from '@grafana/ui';
-import { css } from '@emotion/css';
 import React, { useEffect, useState } from 'react';
 import {
     Configuration,

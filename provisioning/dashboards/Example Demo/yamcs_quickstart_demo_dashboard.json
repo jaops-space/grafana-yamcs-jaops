@@ -36,7 +36,7 @@
             "id": 24,
             "options": {
                 "commandForms": {
-                    "NaN": {
+                    "command-0": {
                         "changeMode": "input",
                         "label": "Add + 1",
                         "valueToSet": "1",
@@ -63,7 +63,7 @@
             "id": 4,
             "options": {
                 "commandForms": {
-                    "NaN": {
+                    "command-0": {
                         "changeMode": "add",
                         "label": "Add + 1",
                         "valueToSet": "1",
@@ -89,7 +89,7 @@
             "id": 5,
             "options": {
                 "commandForms": {
-                    "NaN": {
+                    "command-0": {
                         "changeMode": "change",
                         "comment": "reset value to 0",
                         "label": "Reset",
@@ -723,7 +723,7 @@
             "id": 23,
             "options": {
                 "commandForms": {
-                    "SwitchVoltageOn0": {
+                    "command-0": {
                         "arguments": {
                             "Battery": "${TestVariable}"
                         },
@@ -748,11 +748,12 @@
                             "comment": "uses variable to set the command argument and button title",
                             "label": "ON"
                         },
-                        "tooltip": ""
+                        "tooltip": "",
+                        "commandName": "/myproject/SwitchVoltageOn"
                     }
                 },
                 "dualButtonStates": {
-                    "SwitchVoltageOn0": "on"
+                    "command-0": "on"
                 }
             },
             "pluginVersion": "1.0.0",
@@ -787,14 +788,15 @@
             "id": 9,
             "options": {
                 "commandForms": {
-                    "DeploySolarPanel0": {
+                    "command-0": {
                         "arguments": {
                             "Solar_Panel_Id": 1
                         },
                         "color": "rgba(255, 222, 0, 1)",
                         "label": "Deploy Solar Panel #1",
                         "shape": "bean",
-                        "textColor": "rgba(0, 0, 0, 1)"
+                        "textColor": "rgba(0, 0, 0, 1)",
+                        "commandName": "/myproject/DeploySolarPanel"
                     }
                 }
             },
@@ -831,11 +833,12 @@
             "id": 10,
             "options": {
                 "commandForms": {
-                    "Reboot0": {
+                    "command-0": {
                         "color": "rgba(255, 0, 0, 1)",
                         "label": "Reboot",
                         "shape": "diamond",
-                        "tooltip": "WARNING: critical command"
+                        "tooltip": "WARNING: critical command",
+                        "commandName": "/myproject/Reboot"
                     }
                 }
             },
@@ -874,7 +877,16 @@
                 "pageSize": 10,
                 "pagination": false,
                 "showArguments": true,
-                "visibleFields": ["time", "command", "comment", "queued", "released", "sent", "extraAcks", "completion"]
+                "visibleFields": [
+                    "time",
+                    "command",
+                    "comment",
+                    "queued",
+                    "released",
+                    "sent",
+                    "extraAcks",
+                    "completion"
+                ]
             },
             "pluginVersion": "1.0.0",
             "targets": [
@@ -1010,7 +1022,7 @@
             "id": 19,
             "options": {
                 "commandForms": {
-                    "NaN": {
+                    "command-0": {
                         "changeMode": "add",
                         "color": "rgba(110, 108, 108, 1)",
                         "icon": "",
@@ -1041,7 +1053,7 @@
             "id": 18,
             "options": {
                 "commandForms": {
-                    "NaN": {
+                    "command-0": {
                         "changeMode": "add",
                         "color": "rgba(110, 108, 108, 1)",
                         "icon": "",

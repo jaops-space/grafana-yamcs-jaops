@@ -10,9 +10,11 @@ import { readLatestYamcsTime } from './utils/yamcsTime';
 type LastWrite = {
     atMs: number;
     skewMs: number;
+    durationMs: number;
     fromExpr: string;
     toExpr: string;
-    durationMs: number;
+    sourceFromExpr: string;
+    sourceToExpr: string;
 };
 
 export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
@@ -25,64 +27,111 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const rawTo = props.timeRange.raw.to;
     const rawFromExpr = typeof rawFrom === 'string' ? rawFrom : String(rawFrom.valueOf());
     const rawToExpr = typeof rawTo === 'string' ? rawTo : String(rawTo.valueOf());
+    const rangeIsRelative = isRelativeExpr(rawFromExpr) && isRelativeExpr(rawToExpr);
+    const debugEnabled = (globalThis as any)?.localStorage?.getItem('jaopsTimeSyncDebug') === '1';
 
     useEffect(() => {
-        const subscription = props.eventBus.getStream(TimeRangeUpdatedEvent).subscribe(() => {
+        const sub = props.eventBus.getStream(TimeRangeUpdatedEvent).subscribe(() => {
             setTimeRangeRev((rev) => rev + 1);
         });
 
-        return () => subscription.unsubscribe();
+        return () => sub.unsubscribe();
     }, [props.eventBus]);
 
     useEffect(() => {
+        const sub = locationService.getLocationObservable().subscribe((location) => {
+            const search = new URLSearchParams(location.search);
+            if (search.has('from') || search.has('to')) {
+                setTimeRangeRev((rev) => rev + 1);
+            }
+        });
+
+        return () => sub.unsubscribe();
+    }, []);
+
+    useEffect(() => {
         if (!options.enabled || yamcsNowMs == null) {
+            if (debugEnabled) {
+                console.debug('[jaops-time-sync] skip: disabled or missing yamcs time', {
+                    enabled: options.enabled,
+                    yamcsNowMs,
+                });
+            }
             return;
         }
 
-        const rangeIsRelative = isRelativeExpr(rawFromExpr) && isRelativeExpr(rawToExpr);
         if (options.onlyWhenRelativeRange && !rangeIsRelative) {
+            if (debugEnabled) {
+                console.debug('[jaops-time-sync] skip: non-relative range', { rawFromExpr, rawToExpr });
+            }
             return;
         }
 
-        const baseNow = Date.now();
+        const nowMs = Date.now();
+        const minWriteIntervalMs = Math.max(500, options.minWriteIntervalMs);
+        const offsetStepMs = Math.max(1000, options.offsetStepMs);
+
+        const baseNow = nowMs;
         const parsedFrom = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: baseNow });
         const parsedTo = dateMath.toDateTime(rawToExpr, { roundUp: true, now: baseNow });
         if (!parsedFrom || !parsedTo) {
+            if (debugEnabled) {
+                console.debug('[jaops-time-sync] skip: could not parse range', { rawFromExpr, rawToExpr });
+            }
             return;
         }
 
         const durationMs = Math.max(1000, Math.round((parsedTo.valueOf() - parsedFrom.valueOf()) / 1000) * 1000);
-        const browserNowMs = Date.now();
+        const browserNowMs = nowMs;
         const rawSkewMs = browserNowMs - yamcsNowMs;
         const maxSkew = Math.max(1000, options.maxAcceptedSkewMs);
         if (Math.abs(rawSkewMs) > maxSkew) {
+            if (debugEnabled) {
+                console.debug('[jaops-time-sync] skip: skew exceeds max', { rawSkewMs, maxSkew });
+            }
             return;
         }
 
         const normalizeThresholdMs = Math.max(100, options.normalizeToNowThresholdMs);
-        const skewMs =
-            Math.abs(rawSkewMs) <= normalizeThresholdMs ? 0 : quantize(rawSkewMs, Math.max(1000, options.offsetStepMs));
+        const skewMs = Math.abs(rawSkewMs) <= normalizeThresholdMs ? 0 : quantize(rawSkewMs, offsetStepMs);
 
         const toExpr = nowExprForOffsetMs(skewMs);
         const fromExpr = nowExprForOffsetMs(skewMs + durationMs);
 
         if (rawFromExpr === fromExpr && rawToExpr === toExpr) {
+            if (debugEnabled) {
+                console.debug('[jaops-time-sync] skip: range already aligned', { rawFromExpr, rawToExpr });
+            }
             return;
         }
 
-        const nowMs = Date.now();
         const lastWrite = lastWriteRef.current;
-        const minWriteIntervalMs = Math.max(500, options.minWriteIntervalMs);
-        const offsetThresholdMs = Math.max(1000, options.offsetStepMs);
-
         if (lastWrite) {
+            const offsetThresholdMs = offsetStepMs;
             const tooSoon = nowMs - lastWrite.atMs < minWriteIntervalMs;
             const skewNotMovedEnough = Math.abs(skewMs - lastWrite.skewMs) < offsetThresholdMs;
             const durationUnchanged = Math.abs(durationMs - lastWrite.durationMs) < 1000;
+            const userChangedRangeExpr =
+                rawFromExpr !== lastWrite.sourceFromExpr || rawToExpr !== lastWrite.sourceToExpr;
 
-            // Always allow immediate re-anchor when user changes dashboard range duration
-            // (for example clicking "Last 5 minutes"), even if skew is unchanged.
-            if (durationUnchanged && (tooSoon || skewNotMovedEnough)) {
+            // Never throttle explicit picker/user range changes.
+            if (!userChangedRangeExpr && durationUnchanged && (tooSoon || skewNotMovedEnough)) {
+                if (debugEnabled) {
+                    console.debug('[jaops-time-sync] skip: throttled', {
+                        tooSoon,
+                        skewNotMovedEnough,
+                        durationUnchanged,
+                        userChangedRangeExpr,
+                    });
+                }
+                return;
+            }
+
+            // Skip duplicate write attempts generated by location updates.
+            if (lastWrite.fromExpr === fromExpr && lastWrite.toExpr === toExpr) {
+                if (debugEnabled) {
+                    console.debug('[jaops-time-sync] skip: duplicate write');
+                }
                 return;
             }
         }
@@ -90,14 +139,28 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
         const nextWrite: LastWrite = {
             atMs: nowMs,
             skewMs,
+            durationMs,
             fromExpr,
             toExpr,
-            durationMs,
+            sourceFromExpr: rawFromExpr,
+            sourceToExpr: rawToExpr,
         };
         lastWriteRef.current = nextWrite;
 
-        locationService.partial({ from: fromExpr, to: toExpr }, true);
+        if (debugEnabled) {
+            console.debug('[jaops-time-sync] applying range', {
+                rawFromExpr,
+                rawToExpr,
+                fromExpr,
+                toExpr,
+                durationMs,
+                skewMs,
+            });
+        }
+
+        locationService.partial({ from: fromExpr, to: toExpr });
     }, [
+        debugEnabled,
         options.enabled,
         options.onlyWhenRelativeRange,
         options.offsetStepMs,
@@ -109,6 +172,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
         rawFromExpr,
         rawToExpr,
         timeRangeRev,
+        rangeIsRelative,
         yamcsNowMs,
     ]);
 
@@ -119,10 +183,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     let status: TimeSyncStatus = 'functional';
     if (!options.enabled) {
         status = 'disabled';
-    } else if (
-        !yamcsNowMs ||
-        (options.onlyWhenRelativeRange && (!isRelativeExpr(rawFromExpr) || !isRelativeExpr(rawToExpr)))
-    ) {
+    } else if (!yamcsNowMs || (options.onlyWhenRelativeRange && !rangeIsRelative)) {
         status = 'not-functional';
     }
 

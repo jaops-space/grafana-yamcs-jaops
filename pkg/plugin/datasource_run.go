@@ -307,7 +307,7 @@ func RunTimeStream(
 				continue
 			}
 
-			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{currentTime}))
+			frame := data.NewFrame("response", data.NewField("time", nil, []time.Time{currentTime}))
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,

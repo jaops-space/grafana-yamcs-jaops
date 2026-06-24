@@ -7,7 +7,7 @@ datasources:
       type: jaops-yamcs-datasource
       access: proxy
       orgId: 1
-      isDefault: false
+      isDefault: true
       editable: true
       version: 1
       jsonData:
