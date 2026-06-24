@@ -877,16 +877,7 @@
                 "pageSize": 10,
                 "pagination": false,
                 "showArguments": true,
-                "visibleFields": [
-                    "time",
-                    "command",
-                    "comment",
-                    "queued",
-                    "released",
-                    "sent",
-                    "extraAcks",
-                    "completion"
-                ]
+                "visibleFields": ["time", "command", "comment", "queued", "released", "sent", "extraAcks", "completion"]
             },
             "pluginVersion": "1.0.0",
             "targets": [

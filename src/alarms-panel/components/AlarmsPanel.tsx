@@ -1199,7 +1199,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                                         disabled={currentPage <= 1}
                                         icon="angle-left"
-                                        aria-label=''
+                                        aria-label=""
                                     />
 
                                     {/* Render page buttons (limit to reasonable number) */}
@@ -1237,7 +1237,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                                         disabled={currentPage >= totalPages}
                                         icon="angle-right"
-                                        aria-label=''
+                                        aria-label=""
                                     />
                                 </Stack>
                             </div>

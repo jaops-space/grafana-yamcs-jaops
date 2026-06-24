@@ -120,7 +120,7 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     mage -l
     ```
 
-5. Spin up a Grafana instance and run the plugin back-end inside it in dev mode
+4. Spin up a Grafana instance and run the plugin back-end inside it in dev mode
 
     ```bash
     pnpm run server:dev
@@ -158,8 +158,7 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     pnpm run test:ci
     ```
 
-
-6. Run the E2E tests (using Cypress)
+5. Run the E2E tests (using Cypress)
 
     ```bash
     # Spins up a Grafana instance first that we tests against
@@ -169,7 +168,7 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     pnpm run e2e
     ```
 
-7. Run the linter
+6. Run the linter
 
     ```bash
     pnpm run lint

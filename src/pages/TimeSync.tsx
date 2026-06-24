@@ -60,8 +60,8 @@ function TimeSyncSetup() {
                             (functional / not functional / disabled).
                         </li>
                         <li>
-                            <Text color="primary">Only apply when range is relative (contains now):</Text> Safety
-                            option to avoid changing absolute time ranges.
+                            <Text color="primary">Only apply when range is relative (contains now):</Text> Safety option
+                            to avoid changing absolute time ranges.
                         </li>
                         <li>
                             <Text color="primary">Offset step (ms):</Text> The step size used to round the computed
@@ -79,7 +79,6 @@ function TimeSyncSetup() {
                     </ul>
                 </Card.Description>
             </Card>
-
         </PluginPage>
     );
 }
