@@ -106,7 +106,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -204,7 +204,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -297,7 +297,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -311,7 +311,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -327,7 +327,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -421,7 +421,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -435,7 +435,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -451,7 +451,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -537,7 +537,7 @@
           "customVariableString": false,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -551,7 +551,7 @@
           "customVariableString": false,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -567,7 +567,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "description": "two queries (one for each Yamcs parameter aggregate) + grafana transformation (merge series)",
       "fieldConfig": {
@@ -673,7 +673,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -708,7 +708,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -772,7 +772,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -816,7 +816,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -856,7 +856,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -935,7 +935,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -971,7 +971,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -1082,7 +1082,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -1154,7 +1154,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -1168,7 +1168,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -1182,7 +1182,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -1196,7 +1196,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -1210,7 +1210,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "fffv3nqlxm9s0c"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "myproject_realtime",
           "endpointVariable": "$endpoint",
@@ -1226,7 +1226,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -1271,7 +1271,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "fffv3nqlxm9s0c"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},

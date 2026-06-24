@@ -1,15 +1,24 @@
-import { SelectableValue } from '@grafana/data';
+import { getTemplateSrv } from '@grafana/runtime';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
-import { getTemplateSrv } from '@grafana/runtime';
 
 export function QueryEditor(props: QueryProps) {
     const { query, onChange, datasource, onRunQuery } = props;
+    const queryRef = useRef(query);
+    const onChangeRef = useRef(onChange);
 
     const [endpoints, setEndpoints] = useState<Record<string, any>>({});
     const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        queryRef.current = query;
+    }, [query]);
+
+    useEffect(() => {
+        onChangeRef.current = onChange;
+    }, [onChange]);
 
     const setEndpoint = useCallback(
         (endpoint: string) => {
@@ -38,7 +47,7 @@ export function QueryEditor(props: QueryProps) {
                 endpointVariable,
             });
         },
-        [onChange]
+        [onChange, query]
     );
 
     const setCustomVariableString = useCallback(
@@ -48,9 +57,8 @@ export function QueryEditor(props: QueryProps) {
                 customVariableString,
             });
         },
-        [onChange]
+        [onChange, query]
     );
-
 
     const fetchEndpoints = useCallback(async () => {
         setLoading(true);
@@ -58,7 +66,10 @@ export function QueryEditor(props: QueryProps) {
             const data = await datasource.getResource('fetch/endpoints');
             setEndpoints(data);
             const keys = Object.keys(data);
-            setEndpoint(keys.length === 1 ? keys[0] : query.endpoint ?? '');
+            onChangeRef.current({
+                ...queryRef.current,
+                endpoint: keys.length === 1 ? keys[0] : queryRef.current.endpoint ?? '',
+            });
         } catch (error) {
             console.error('Failed to fetch endpoints', error);
         } finally {
@@ -69,18 +80,6 @@ export function QueryEditor(props: QueryProps) {
     useEffect(() => {
         fetchEndpoints();
     }, [fetchEndpoints]);
-
-    // Run the query only when the serialized query content actually changes,
-    // not on every object reference change (which would cause an infinite refresh loop).
-    const prevQueryJson = useRef<string>('');
-    useEffect(() => {
-        const json = JSON.stringify(query);
-        if (json !== prevQueryJson.current) {
-            prevQueryJson.current = json;
-            onRunQuery();
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [query]);
 
     const variableOptions = getTemplateSrv().getVariables().map((variable) => ({
         label: variable.label || variable.name,
@@ -149,8 +148,8 @@ export function QueryEditor(props: QueryProps) {
         if (query.customVariableString) {
             return (
                 <Input
-                    value={query.endpointVariable}
-                    onChange={(e: SelectableValue) => setEndpointVariable(e.value)}
+                    value={query.endpointVariable || ''}
+                    onChange={(e) => setEndpointVariable(e.currentTarget.value)}
                 />
             );
         }
@@ -169,25 +168,33 @@ export function QueryEditor(props: QueryProps) {
     return (
         <Box backgroundColor="primary" borderColor="weak" data-testid="query-type-editor">
             <Stack direction="row" alignItems="center">
-                <InlineField label={query.asVariable ? "Endpoint Variable" : "Endpoint"} disabled={Object.keys(endpoints).length <= 1} loading={loading} grow>
+                <InlineField
+                    label={query.asVariable ? "Endpoint Variable" : "Endpoint"}
+                    disabled={!query.asVariable && Object.keys(endpoints).length <= 1}
+                    loading={loading}
+                    grow
+                >
                     {renderSelect()}
                 </InlineField>
                 {query.asVariable && <InlineField>
                     <Checkbox
                         label="Custom string"
-                        value={query.customVariableString}
+                        checked={Boolean(query.customVariableString)}
                         onChange={(e) => setCustomVariableString(e.currentTarget.checked)}
                     />
                 </InlineField>}
                 <InlineField>
                     <Checkbox
                         label="As variable"
-                        value={query.asVariable}
+                        checked={Boolean(query.asVariable)}
                         onChange={(e) => setAsVariable(e.currentTarget.checked)}
                     />
                 </InlineField>
                 <Button onClick={fetchEndpoints} disabled={loading} size="sm" data-testid="fetch-endpoints-button">
                     Fetch endpoints
+                </Button>
+                <Button onClick={onRunQuery} disabled={loading} size="sm" variant='success' data-testid="fetch-endpoints-button">
+                    Query
                 </Button>
             </Stack>
             <QueryTypeEditor {...props} />

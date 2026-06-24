@@ -1,6 +1,4 @@
 export interface PanelOptions {
-  /** Refresh interval in seconds (0 = manual only) */
-  refreshInterval: number;
   /** Show detailed link information */
   showDetails: boolean;
   /** Filter by link name (regex pattern) */
@@ -13,8 +11,8 @@ export interface LinkInfo {
   class?: string;
   disabled?: boolean;
   status?: string;
-  dataInCount?: string;
-  dataOutCount?: string;
+  dataInCount?: number | string;
+  dataOutCount?: number | string;
   detailedStatus?: string;
   parentName?: string;
   actions?: LinkAction[];

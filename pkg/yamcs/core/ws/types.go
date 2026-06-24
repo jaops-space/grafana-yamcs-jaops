@@ -9,4 +9,5 @@ const (
 	GlobalStatusListenerID   ListenerID = "GLOBAL_STATUS_LISTENER"
 	CommandHistoryLisernerID ListenerID = "COMMAND_HISTORY_LISTENER"
 	TimeListenerID           ListenerID = "TIME_LISTENER"
+	LinksListenerID          ListenerID = "LINKS_LISTENER"
 )

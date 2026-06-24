@@ -5,17 +5,6 @@ import { PanelOptions } from './types';
 export const plugin = new PanelPlugin<PanelOptions>(LinksPanel)
   .setPanelOptions((builder) => {
     return builder
-      .addNumberInput({
-        path: 'refreshInterval',
-        name: 'Auto-refresh interval (seconds)',
-        description: 'Automatically refresh link status (0 = manual only)',
-        defaultValue: 5,
-        settings: {
-          min: 0,
-          max: 300,
-          integer: true,
-        },
-      })
       .addBooleanSwitch({
         path: 'showDetails',
         name: 'Show details',

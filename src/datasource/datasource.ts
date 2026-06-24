@@ -47,10 +47,9 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     return undefined; // Skip invalid queries
                 }
 
-                // Links and Commanding query types don't need streaming.
-                // Links panel handles API calls directly.
+                // Commanding query type doesn't need streaming.
                 // Commanding panel fetches command info via a resource call and sends commands via postResource.
-                if (query.type === QueryType.LINKS || query.type === QueryType.COMMANDING) {
+                if (query.type === QueryType.COMMANDING) {
                     return new Observable<DataQueryResponse>((subscriber) => {
                         subscriber.next({ data: [], state: LoadingState.Done });
                         subscriber.complete();
@@ -70,10 +69,12 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     pathName = 'commands'
                 } else if (query.type === QueryType.ALARMS) {
                     pathName = 'alarms'
+                } else if (query.type === QueryType.LINKS) {
+                    pathName = 'links'
                 }   
 
                 let action = StreamingFrameAction.Append;
-                if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.ALARMS) {
+                if (query.type === QueryType.DEMANDS || query.type === QueryType.SUBSCRIPTIONS || query.type === QueryType.ALARMS || query.type === QueryType.LINKS) {
                     action = StreamingFrameAction.Replace;
                 }
 
@@ -97,7 +98,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                         scope: LiveChannelScope.DataSource,
                         namespace: this.uid,
                         path: 
-                        `req/${pathName}-${request.range.from.unix()}-${request.range.to.unix()}-${request.maxDataPoints ?? 1000}-${Math.round(Math.random() * 9999)}`,
+                        `req/${query.endpoint}-${pathName}-${request.range.from.unix()}-${request.range.to.unix()}-${request.maxDataPoints ?? 1000}`,
                         data: {
                             ...query,
                             from: request.range.from.unix(),

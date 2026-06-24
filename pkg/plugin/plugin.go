@@ -1,6 +1,9 @@
 package plugin
 
 import (
+	"encoding/json"
+	"sync"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
@@ -23,4 +26,7 @@ type Datasource struct {
 	instancemgmt.InstanceDisposer
 	multiplexer *source.Multiplexer
 	querier     *source.Querier
+
+	lastHealthDetails json.RawMessage
+	healthMutex       sync.RWMutex
 }

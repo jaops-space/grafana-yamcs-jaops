@@ -3,13 +3,10 @@ package plugin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"github.com/gorilla/mux"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
@@ -29,24 +26,10 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
 
-	// Create a shared HTTP client via the Grafana plugin SDK.
-	// This applies recommended timeouts, keep-alive, and middlewares.
-	httpClientOpts, err := settings.HTTPClientOptions(ctx)
-	if err != nil {
-		return nil, exception.Wrap("Error reading HTTP client options", "HTTP_CLIENT_OPTIONS_ERROR", err)
-	}
-	httpClient, err := httpclient.New(httpClientOpts)
-	if err != nil {
-		return nil, exception.Wrap("Error creating HTTP client", "HTTP_CLIENT_CREATE_ERROR", err)
-	}
-
 	// Create a per-instance multiplexer so different datasource instances
 	// do not share state or collide with each other.
 	multiplexer := source.NewMultiplexer(cfg)
 	multiplexer.Secure = secure
-	multiplexer.ConnMgr.Configuration = cfg
-	multiplexer.ConnMgr.Secure = secure
-	multiplexer.ConnMgr.HTTPClient = httpClient
 	datasource.multiplexer = multiplexer
 
 	router := mux.NewRouter()
@@ -93,6 +76,8 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 		frame, err = DatasourceCommandHistoryFrame(endpoint, q)
 	case Alarms:
 		frame, err = DatasourceAlarmsFrame(endpoint, q)
+	case Links:
+		frame, err = DatasourceLinksFrame(endpoint, q)
 	case Demands, Subscriptions:
 		return &backend.SubscribeStreamResponse{
 			Status: backend.SubscribeStreamStatusOK,
@@ -167,6 +152,8 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 		return RunCommandHistoryStream(ctx, req, sender, endpoint, q)
 	case Alarms:
 		return RunAlarmsStream(ctx, req, sender, endpoint, q)
+	case Links:
+		return RunLinksStream(ctx, req, sender, endpoint, q)
 	case Time:
 		return RunTimeStream(ctx, req, sender, endpoint, q)
 	default:
@@ -177,132 +164,4 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance is created.
 func (d *Datasource) Dispose() {
 	d.multiplexer.Dispose()
-}
-
-// CheckHealth implements backend.CheckHealthHandler.
-func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-
-	settings := req.PluginContext.DataSourceInstanceSettings
-
-	config, secure, err := config.ExtractConfig(*settings)
-	if err != nil {
-		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
-	}
-
-	// Verify configuration
-	if err := config.Validate(); err != nil {
-		return &backend.CheckHealthResult{
-			Status:  backend.HealthStatusError,
-			Message: "Invalid configuration: " + err.Error(),
-		}, nil
-	}
-
-	testMux := source.NewMultiplexer(config)
-	testMux.Secure = secure
-
-	// Use an SDK HTTP client for the health check as well
-	httpClientOpts, err := settings.HTTPClientOptions(ctx)
-	if err == nil {
-		testClient, clientErr := httpclient.New(httpClientOpts)
-		if clientErr == nil {
-			testMux.ConnMgr.HTTPClient = testClient
-		}
-	}
-
-	statusDetails := make(map[string]interface{})
-	hostStatuses := make(map[string]string)
-	endpointStatuses := make(map[string]string)
-	hasErrors := false
-	var errorMessages []string
-
-	// Test all hosts
-	backend.Logger.Debug("Testing Host Connectivity")
-	for hostID := range config.Hosts {
-		err := testMux.SetupHost(hostID)
-		hostName := config.Hosts[hostID].Name
-		displayName := hostName
-		if displayName == "" {
-			displayName = "Unknown Host"
-		}
-
-		status := "OK"
-		if err != nil {
-			status = err.Error()
-			hasErrors = true
-			errorMessages = append(errorMessages, fmt.Sprintf("Host '%s': %s", displayName, err.Error()))
-		}
-
-		hostStatuses[displayName] = status
-	}
-
-	// Test all endpoints - verify they can connect to their respective hosts and retrieve instance/processor info
-	backend.Logger.Debug("Testing Endpoint Connectivity")
-	for endpointID, endpointConfig := range config.Endpoints {
-		endpointName := endpointConfig.Name
-		if endpointName == "" {
-			endpointName = endpointID
-		}
-		displayName := endpointName
-
-		// Verify the endpoint's host was successfully set up
-		hostConfig := config.Hosts[endpointConfig.Host]
-		hostDisplayName := hostConfig.Name
-		if hostDisplayName == "" {
-			hostDisplayName = "Unknown Host"
-		}
-
-		hostStatus, hostExists := hostStatuses[hostDisplayName]
-		if !hostExists {
-			endpointStatuses[displayName] = "Host configuration not found"
-			hasErrors = true
-			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': Host configuration not found", displayName))
-			continue
-		}
-
-		if hostStatus != "OK" {
-			endpointStatuses[displayName] = "Host connection failed: " + hostStatus
-			hasErrors = true
-			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': Host connection failed: %s", displayName, hostStatus))
-			continue
-		}
-
-		// Try to retrieve the endpoint to verify instance and processor exist
-		_, err := testMux.GetEndpoint(endpointID)
-		status := "OK"
-		if err != nil {
-			status = err.Error()
-			hasErrors = true
-			errorMessages = append(errorMessages, fmt.Sprintf("Endpoint '%s': %s", displayName, err.Error()))
-		}
-
-		endpointStatuses[displayName] = status
-	}
-
-	// Build detailed status response
-	statusDetails["hosts"] = hostStatuses
-	statusDetails["endpoints"] = endpointStatuses
-	statusDetails["totalHosts"] = len(config.Hosts)
-	statusDetails["totalEndpoints"] = len(config.Endpoints)
-
-	jsonBytes, err := json.Marshal(statusDetails)
-	if err != nil {
-		return nil, err
-	}
-
-	// Clean up test connections
-	testMux.Dispose()
-
-	if hasErrors {
-		return &backend.CheckHealthResult{
-			Status:      backend.HealthStatusError,
-			Message:     "Configuration has errors:\n" + strings.Join(errorMessages, "\n"),
-			JSONDetails: jsonBytes,
-		}, nil
-	}
-
-	return &backend.CheckHealthResult{
-		Status:      backend.HealthStatusOk,
-		Message:     "Successfully connected to all Yamcs hosts and endpoints. Plugin is ready to use.",
-		JSONDetails: jsonBytes,
-	}, nil
 }

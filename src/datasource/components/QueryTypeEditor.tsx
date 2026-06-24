@@ -4,7 +4,6 @@ import { QueryType } from '../types';
 import React, { useEffect } from 'react';
 import { QueryCategory, QueryOptions, QueryProps } from './constants';
 import { ParameterQuery } from './ParameterQuery';
-import { CommandQuery } from './CommandQuery';
 
 export function QueryTypeEditor(props: QueryProps) {
 
@@ -24,6 +23,7 @@ export function QueryTypeEditor(props: QueryProps) {
 
     const queryTypeInfo = QueryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
     const queryOptions = datasource.debugMode ? QueryOptions : QueryOptions.filter((o) => o.category !== QueryCategory.DEBUG);
+    const selectedQueryTypeOption = queryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
 
     function getBadgeCategory(category: any): React.ReactNode {
         switch (category) {
@@ -52,8 +52,8 @@ export function QueryTypeEditor(props: QueryProps) {
                 <InlineField label="Query Type" grow>
                     {/* eslint-disable-next-line @typescript-eslint/no-deprecated */}
                     <Select
-                        onChange={(s) => setQueryType(s.value ?? QueryType.PLOT)}
-                        value={query.type}
+                        onChange={(s) => setQueryType((s.value as QueryType) ?? QueryType.PLOT)}
+                        value={selectedQueryTypeOption}
                         isClearable={false}
                         options={queryOptions}
                         getOptionLabel={(value: any) => value.label ?? ''}
@@ -71,7 +71,6 @@ export function QueryTypeEditor(props: QueryProps) {
                 queryTypeInfo?.category === QueryCategory.IMAGE) &&
                 <ParameterQuery {...props} />
             }
-            {queryTypeInfo?.value === QueryType.COMMANDING && <CommandQuery {...props} />}
         </>
     );
 }

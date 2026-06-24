@@ -49,6 +49,7 @@ type YamcsClient struct {
 	AlarmSubscriptions             map[int]*AlarmSubscription
 	GlobalAlarmStatusSubscriptions map[int]*GlobalStatusSubscription
 	TimeSubscriptions              map[int]*TimeSubscription
+	LinkSubscriptions              map[int]*LinkSubscription
 
 	// Sample Point Count for Sample endpoints
 	SamplePointCount *types.Optional[int]
@@ -75,6 +76,7 @@ func NewYamcsClient(
 		AlarmSubscriptions:             make(map[int]*AlarmSubscription),
 		GlobalAlarmStatusSubscriptions: make(map[int]*GlobalStatusSubscription),
 		TimeSubscriptions:              make(map[int]*TimeSubscription),
+		LinkSubscriptions:              make(map[int]*LinkSubscription),
 		SamplePointCount:               types.OptionalOfNil[int](),
 	}
 
@@ -103,6 +105,7 @@ func NewYamcsClient(
 	client.WebSocket.AddListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
 	client.WebSocket.AddListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
 	client.WebSocket.AddListener(ws.TimeListenerID, client.HandleTimeMessage)
+	client.WebSocket.AddListener(ws.LinksListenerID, client.HandleLinkMessage)
 
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {
@@ -174,7 +177,9 @@ func (client *YamcsClient) clearAllSubscriptions() {
 	// Clear subscriptions
 	client.ParameterSubscriptions = make(map[int]*ParameterSubscription)
 	client.EventSubscriptions = make(map[int]*EventSubscription)
+	client.CommandHistorySubscriptions = make(map[int]*CommandHistorySubscription)
 	client.AlarmSubscriptions = make(map[int]*AlarmSubscription)
 	client.GlobalAlarmStatusSubscriptions = make(map[int]*GlobalStatusSubscription)
 	client.TimeSubscriptions = make(map[int]*TimeSubscription)
+	client.LinkSubscriptions = make(map[int]*LinkSubscription)
 }

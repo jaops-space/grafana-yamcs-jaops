@@ -12,11 +12,11 @@ type PluginQuery struct {
 	MaxPoints     int             `json:"points"`
 	AggregatePath string          `json:"aggregatePath"`
 
-    // user-chosen split time from Grafana
-    SplitAt int `json:"splitAt,omitempty"`
+	// user-chosen split time from Grafana
+	SplitAt int `json:"splitAt,omitempty"`
 
-    // YAMCS parameter filter configuration
-    YamcsFilter *YamcsFilterConfig `json:"yamcsFilter,omitempty"`
+	// YAMCS parameter filter configuration
+	YamcsFilter *YamcsFilterConfig `json:"yamcsFilter,omitempty"`
 }
 
 // YamcsFilterConfig defines client-side YAMCS parameter filtering
@@ -39,6 +39,7 @@ const (
 	Commanding     PluginQueryType = "commanding"
 	CommandHistory PluginQueryType = "command-history"
 	Alarms         PluginQueryType = "alarms"
+	Links          PluginQueryType = "links"
 	Demands        PluginQueryType = "demands"
 	Subscriptions  PluginQueryType = "subscriptions"
 )
