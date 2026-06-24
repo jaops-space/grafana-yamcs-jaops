@@ -35,4 +35,10 @@ export const plugin = new AppPlugin<{}>()
         icon: 'cog',
         path: '/variable-setup',
         targets: [PluginExtensionPoints.DashboardPanelMenu],
+    })
+    .addLink({
+        title: 'Time Sync Setup',
+        icon: 'clock-nine',
+        path: '/time-sync-setup',
+        targets: [PluginExtensionPoints.DashboardPanelMenu],
     });

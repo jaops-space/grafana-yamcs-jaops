@@ -120,6 +120,12 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     mage -l
     ```
 
+5. Spin up a Grafana instance and run the plugin back-end inside it in dev mode
+
+    ```bash
+    pnpm run server:dev
+    ```
+
 ### Frontend
 
 1. Install dependencies
@@ -128,7 +134,7 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     pnpm install
     ```
 
-2. Build plugin in development mode and run in watch mode
+2. Build plugin front-end in development mode and run in watch mode
 
     ```bash
     pnpm run dev
@@ -140,6 +146,8 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     pnpm run build
     ```
 
+### Other
+
 4. Run the tests (using Jest)
 
     ```bash
@@ -150,11 +158,6 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     pnpm run test:ci
     ```
 
-5. Spin up a Grafana instance and run the plugin inside it (using Docker)
-
-    ```bash
-    pnpm run server
-    ```
 
 6. Run the E2E tests (using Cypress)
 

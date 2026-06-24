@@ -5,6 +5,7 @@ import { ROUTES } from '../../constants';
 import CommandingPanelSetup from 'pages/Commanding';
 import ImagePanelSetup from 'pages/Image';
 import Overview from 'pages/Overview';
+import TimeSyncSetup from 'pages/TimeSync';
 import VariablePanelSetup from 'pages/VariableSetup';
 const HowToUse = React.lazy(() => import('../../pages/HowToUse'));
 
@@ -15,6 +16,7 @@ function App(props: AppRootProps) {
             <Route path={ROUTES.Commanding} element={<CommandingPanelSetup />} />
             <Route path={ROUTES.Image} element={<ImagePanelSetup />} />
             <Route path={ROUTES.VariableSetup} element={<VariablePanelSetup />} />
+            <Route path={ROUTES.TimeSync} element={<TimeSyncSetup />} />
 
             {/* Catch-all route for any unmatched paths */}
 

@@ -40,11 +40,4 @@ export const plugin = new PanelPlugin<PanelOptions>(TimeSyncPanel).setNoPadding(
             defaultValue: defaultPanelOptions.normalizeToNowThresholdMs,
             settings: { min: 100, max: 10000, step: 100 },
         })
-        .addNumberInput({
-            path: 'maxAcceptedSkewMs',
-            name: 'Max accepted skew (ms)',
-            description: 'Safety guard: disables override when Yamcs/browser time gap exceeds this value.',
-            defaultValue: defaultPanelOptions.maxAcceptedSkewMs,
-            settings: { min: 1000, max: 7 * 24 * 60 * 60 * 1000, step: 1000 },
-        })
 );

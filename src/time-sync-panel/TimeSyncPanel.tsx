@@ -17,6 +17,50 @@ type LastWrite = {
     sourceToExpr: string;
 };
 
+function formatDurationLabel(durationMs: number): string {
+    const absMs = Math.max(1000, Math.round(durationMs));
+    const sec = Math.round(absMs / 1000);
+    const min = Math.round(absMs / (60 * 1000));
+    const hour = Math.round(absMs / (60 * 60 * 1000));
+    const day = Math.round(absMs / (24 * 60 * 60 * 1000));
+    const year = Math.round(absMs / (365 * 24 * 60 * 60 * 1000));
+
+    if (Math.abs(absMs - year * 365 * 24 * 60 * 60 * 1000) < 1000) {
+        return `${year} ${year === 1 ? 'year' : 'years'}`;
+    }
+
+    if (Math.abs(absMs - day * 24 * 60 * 60 * 1000) < 1000) {
+        return `${day} ${day === 1 ? 'day' : 'days'}`;
+    }
+
+    if (Math.abs(absMs - hour * 60 * 60 * 1000) < 1000) {
+        return `${hour} ${hour === 1 ? 'hour' : 'hours'}`;
+    }
+
+    if (Math.abs(absMs - min * 60 * 1000) < 1000) {
+        return `${min} ${min === 1 ? 'minute' : 'minutes'}`;
+    }
+
+    return `${sec} ${sec === 1 ? 'second' : 'seconds'}`;
+}
+
+function getRangeLabel(rawFromExpr: string, rawToExpr: string): string {
+    const nowMs = Date.now();
+    const from = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: nowMs });
+    const to = dateMath.toDateTime(rawToExpr, { roundUp: true, now: nowMs });
+
+    if (!from || !to) {
+        return 'Custom time range';
+    }
+
+    const durationMs = to.valueOf() - from.valueOf();
+    if (durationMs <= 0) {
+        return 'Custom time range';
+    }
+
+    return `Last ${formatDurationLabel(durationMs)}`;
+}
+
 export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const options = { ...defaultPanelOptions, ...props.options };
     const [timeRangeRev, setTimeRangeRev] = useState(0);
@@ -84,13 +128,6 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
         const durationMs = Math.max(1000, Math.round((parsedTo.valueOf() - parsedFrom.valueOf()) / 1000) * 1000);
         const browserNowMs = nowMs;
         const rawSkewMs = browserNowMs - yamcsNowMs;
-        const maxSkew = Math.max(1000, options.maxAcceptedSkewMs);
-        if (Math.abs(rawSkewMs) > maxSkew) {
-            if (debugEnabled) {
-                console.debug('[jaops-time-sync] skip: skew exceeds max', { rawSkewMs, maxSkew });
-            }
-            return;
-        }
 
         const normalizeThresholdMs = Math.max(100, options.normalizeToNowThresholdMs);
         const skewMs = Math.abs(rawSkewMs) <= normalizeThresholdMs ? 0 : quantize(rawSkewMs, offsetStepMs);
@@ -164,7 +201,6 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
         options.enabled,
         options.onlyWhenRelativeRange,
         options.offsetStepMs,
-        options.maxAcceptedSkewMs,
         options.normalizeToNowThresholdMs,
         options.minWriteIntervalMs,
         props.timeRange.from,
@@ -189,7 +225,8 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
 
     const statusInfo = getStatusInfo(status);
     const badgeColor = status === 'functional' ? 'green' : status === 'disabled' ? 'darkgrey' : 'orange';
-    const badgeText = status === 'functional' ? 'ACTIVE' : status === 'disabled' ? 'OFF' : 'CHECK';
+    const badgeText = status === 'functional' ? 'ACTIVE' : 'NOT ACTIVE';
+    const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr);
 
     return (
         <div
@@ -215,7 +252,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
             >
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     <Badge text={badgeText} color={badgeColor} />
-                    <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>{statusInfo.label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>{rangeLabel}</span>
                 </span>
             </div>
         </div>

@@ -63,6 +63,19 @@ function Overview() {
                     </Link>
                 </Card.Description>
             </Card>
+
+            <Card>
+                <Card.Heading>Time Sync Setup</Card.Heading>
+                <Card.Description>
+                    <p>
+                        Learn how to configure the Yamcs Time Sync panel for replay and simulation dashboards, and what
+                        each time-sync option controls.
+                    </p>
+                    <Link href={prefixRoute('time-sync-setup')} color="primary">
+                        Go to Time Sync Setup
+                    </Link>
+                </Card.Description>
+            </Card>
         </PluginPage>
     );
 }

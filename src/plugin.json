@@ -91,6 +91,13 @@
             "addToNav": true
         },
         {
+            "type": "page",
+            "name": "Time Sync",
+            "icon": "clock-nine",
+            "path": "/a/%PLUGIN_ID%/time-sync-setup",
+            "addToNav": true
+        },
+        {
             "type": "datasource",
             "name": "Yamcs Datasource",
             "id": "jaops-yamcs-datasource",
