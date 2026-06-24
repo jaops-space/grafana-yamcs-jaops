@@ -104,10 +104,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             return;
         }
 
-        const latest =
-            typeof linksField.values.get === 'function'
-                ? linksField.values.get(linksField.values.length - 1)
-                : linksField.values[linksField.values.length - 1];
+        const latest = linksField.values[linksField.values.length - 1];
 
         if (typeof latest !== 'string' || latest.length === 0) {
             return;
@@ -156,9 +153,9 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
 
     useEffect(() => {
         if (data.state === LoadingState.Error) {
-            setError(data.error?.message || 'Failed to stream links');
+            setError(data.errors?.[0].message || 'Failed to stream links');
         }
-    }, [data.error?.message, data.state]);
+    }, [data.errors?.[0].message, data.state]);
 
     // Enable/disable a link
     const toggleLink = async (link: LinkInfo) => {
