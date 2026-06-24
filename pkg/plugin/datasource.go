@@ -133,10 +133,10 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 
 	// Retrieve the endpoint associated with the requested stream
 	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
-	endpoint.RequestTime()
 	if err != nil {
 		return err
 	}
+	endpoint.RequestTime()
 
 	// Route the stream to the appropriate handler
 	switch q.Type {

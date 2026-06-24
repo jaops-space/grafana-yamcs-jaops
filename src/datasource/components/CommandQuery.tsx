@@ -5,10 +5,9 @@ import { QueryProps } from './constants';
 type CommandInfo = {
     name: string;
     description: string;
-}
+};
 
 export function CommandQuery({ query, onChange, datasource }: QueryProps) {
-
     const { endpoint } = query;
 
     const [command, setCommand] = useState(query.command);

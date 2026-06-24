@@ -3,6 +3,7 @@ package plugin
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
@@ -122,6 +123,7 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/fetch/health-details", d.handleGetLastHealthDetails)
 
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
+	mux.HandleFunc("/endpoint/{endpointID}/time", d.handleEndpointTime)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
@@ -137,6 +139,39 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/disable", d.handleDisableLink)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/reset", d.handleResetLinkCounters)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", d.handleRunLinkAction)
+}
+
+func (d *Datasource) handleEndpointTime(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure we are subscribed to processor time updates.
+	endpoint.RequestTime()
+
+	currentTime := endpoint.CurrentTime
+	currentTimeUpdatedAt := endpoint.CurrentTimeUpdatedAt
+	maxTimeAge := 10 * time.Second
+
+	if currentTime.IsZero() || currentTimeUpdatedAt.IsZero() || time.Since(currentTimeUpdatedAt) > maxTimeAge {
+		http.Error(w, "processor time unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"currentTime": currentTime.UnixMilli(),
+	})
 }
 
 // endpoint to get latest health details and whether they are available (non-nil)

@@ -4,12 +4,7 @@
     "name": "JAOPS Commanding Panel",
     "id": "jaops-commanding-panel",
     "info": {
-        "keywords": [
-            "yamcs",
-            "commanding",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "commanding", "panel", "jaops"],
         "description": "Commanding Panel for JAOPS Yamcs plugin",
         "author": {
             "name": "JAOPS"

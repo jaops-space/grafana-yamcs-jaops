@@ -20,23 +20,23 @@ jobs:
             - name: Check signing token
               id: check-token
               run: |
-                if [ -z "${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}" ]; then
-                  echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not found"
-                  echo "has_token=false" >> $GITHUB_OUTPUT
-                else
-                  echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN found"
-                  echo "has_token=true" >> $GITHUB_OUTPUT
-                fi
+                  if [ -z "${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}" ]; then
+                    echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not found"
+                    echo "has_token=false" >> $GITHUB_OUTPUT
+                  else
+                    echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN found"
+                    echo "has_token=true" >> $GITHUB_OUTPUT
+                  fi
             - uses: actions/checkout@v4
             - uses: grafana/plugin-actions/build-plugin@main
               with:
-                # Use Go 1.25 to match go.mod requirements
-                go-version: '1.25.7'
-                # Changelog generation disabled - it tries to commit to main branch
-                # which fails when releasing from feature branches
-                # use_changelog_generator: true
-                
-                # Signing controlled by repository variable REPO_VAR_SIGNING_ENABLED
-                # Set to 'true' in repo settings after Grafana approves the plugin
-                policy_token: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' && secrets.GRAFANA_ACCESS_POLICY_TOKEN || '' }}
-                attestation: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' }}
+                  # Use Go 1.25 to match go.mod requirements
+                  go-version: '1.25.7'
+                  # Changelog generation disabled - it tries to commit to main branch
+                  # which fails when releasing from feature branches
+                  # use_changelog_generator: true
+
+                  # Signing controlled by repository variable REPO_VAR_SIGNING_ENABLED
+                  # Set to 'true' in repo settings after Grafana approves the plugin
+                  policy_token: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' && secrets.GRAFANA_ACCESS_POLICY_TOKEN || '' }}
+                  attestation: ${{ vars.REPO_VAR_SIGNING_ENABLED == 'true' }}

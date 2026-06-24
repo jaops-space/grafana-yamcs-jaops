@@ -1,16 +1,17 @@
 package plugin
 
 type PluginQuery struct {
-	Type          PluginQueryType `json:"type"`
-	EndpointID    string          `json:"endpoint"`
-	Parameter     string          `json:"parameter"`
-	Command       string          `json:"command"`
-	From          int             `json:"from"`
-	To            int             `json:"to"`
-	Fields        []string        `json:"fields"`
-	Realtime      bool            `json:"realtime"`
-	MaxPoints     int             `json:"points"`
-	AggregatePath string          `json:"aggregatePath"`
+	Type                PluginQueryType `json:"type"`
+	EndpointID          string          `json:"endpoint"`
+	Parameter           string          `json:"parameter"`
+	Command             string          `json:"command"`
+	From                int             `json:"from"`
+	To                  int             `json:"to"`
+	Fields              []string        `json:"fields"`
+	Realtime            bool            `json:"realtime"`
+	MaxPoints           int             `json:"points"`
+	AggregatePath       string          `json:"aggregatePath"`
+	FrontendShiftedTime bool            `json:"frontendShiftedTime,omitempty"`
 
 	// user-chosen split time from Grafana
 	SplitAt int `json:"splitAt,omitempty"`
