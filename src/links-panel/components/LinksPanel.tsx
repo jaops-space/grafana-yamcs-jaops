@@ -7,6 +7,26 @@ import { PanelOptions, LinkInfo } from '../types';
 
 interface Props extends PanelProps<PanelOptions> {}
 
+const MAX_FILTER_PATTERN_LENGTH = 128;
+const RISKY_REGEX_PATTERN = /(\\\d|\(\?[=!<]|\([^)]*[+*][^)]*\)[+*{]|(?:\.\*){2,})/;
+
+function buildSafeNameFilter(pattern: string): RegExp | null {
+    const trimmed = pattern.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    if (trimmed.length > MAX_FILTER_PATTERN_LENGTH || RISKY_REGEX_PATTERN.test(trimmed)) {
+        return null;
+    }
+
+    try {
+        return new RegExp(trimmed, 'i');
+    } catch {
+        return null;
+    }
+}
+
 const getStyles = (theme: GrafanaTheme2) => ({
     container: css`
         padding: ${theme.spacing(2)};
@@ -117,11 +137,9 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             }
 
             if (options.nameFilter) {
-                try {
-                    const regex = new RegExp(options.nameFilter, 'i');
+                const regex = buildSafeNameFilter(options.nameFilter);
+                if (regex) {
                     linksList = linksList.filter((link) => regex.test(link.name));
-                } catch {
-                    // Ignore invalid regex filter in runtime stream processing.
                 }
             }
 
