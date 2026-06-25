@@ -4,12 +4,7 @@
     "name": "JAOPS Variable Setting Panel",
     "id": "jaops-variable-setting-panel",
     "info": {
-        "keywords": [
-            "yamcs",
-            "commanding",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "commanding", "panel", "jaops"],
         "description": "Variable Setting Panel for JAOPS Yamcs plugin",
         "author": {
             "name": "JAOPS"

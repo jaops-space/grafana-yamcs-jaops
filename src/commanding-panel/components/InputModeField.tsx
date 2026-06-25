@@ -1,15 +1,34 @@
-import { useLocationService, getTemplateSrv, locationService } from "@grafana/runtime";
-import { Input } from "@grafana/ui";
-import React, { useState, useEffect, useRef } from "react";
+import { useLocationService, getTemplateSrv, locationService } from '@grafana/runtime';
+import { Input } from '@grafana/ui';
+import React from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-export default function InputModeField({ variableToSet, scopedVars, loading, unit, showVariableLabel, color, textColor, size }: { variableToSet?: string, scopedVars?: any, loading: boolean, unit?: string, showVariableLabel?: boolean, color?: string, textColor?: string, size?: string }) {
+export default function InputModeField({
+    variableToSet,
+    scopedVars,
+    loading,
+    unit,
+    showVariableLabel,
+    color,
+    textColor,
+    size,
+}: {
+    variableToSet?: string;
+    scopedVars?: any;
+    loading: boolean;
+    unit?: string;
+    showVariableLabel?: boolean;
+    color?: string;
+    textColor?: string;
+    size?: string;
+}) {
     // Subscribe reactively to location changes to get notified on every variable update
     const locService = useLocationService();
     const [locationTick, setLocationTick] = useState(0);
 
     useEffect(() => {
         const subscription = locService.getLocationObservable().subscribe(() => {
-            setLocationTick(n => n + 1);
+            setLocationTick((n) => n + 1);
         });
         return () => subscription.unsubscribe();
     }, [locService]);
@@ -18,22 +37,24 @@ export default function InputModeField({ variableToSet, scopedVars, loading, uni
     // with every locationService.partial() call, so they always reflect the latest value immediately.
     const currentVariableValue = variableToSet
         ? (() => {
-            const search = locService.getSearch();
-            const fromUrl = search.get(`var-${variableToSet}`);
-            if (fromUrl !== null) {
-                return fromUrl;
-            }
-            // Fallback to template service (for initial load before any URL param is set)
-            return getTemplateSrv().replace("$" + variableToSet);
-        })()
+              const search = locService.getSearch();
+              const fromUrl = search.get(`var-${variableToSet}`);
+              if (fromUrl !== null) {
+                  return fromUrl;
+              }
+              // Fallback to template service (for initial load before any URL param is set)
+              return getTemplateSrv().replace('$' + variableToSet);
+          })()
         : '';
 
     // Get the variable's display label from dashboard settings (label takes priority over name)
     const variableDisplayLabel = variableToSet
         ? (() => {
-            const variable = getTemplateSrv().getVariables().find(vr => vr.name === variableToSet);
-            return variable ? (variable.label || variable.name) : variableToSet;
-        })()
+              const variable = getTemplateSrv()
+                  .getVariables()
+                  .find((vr) => vr.name === variableToSet);
+              return variable ? variable.label || variable.name : variableToSet;
+          })()
         : '';
 
     const [inputValue, setInputValue] = useState<string>(currentVariableValue);
@@ -47,7 +68,7 @@ export default function InputModeField({ variableToSet, scopedVars, loading, uni
             setInputValue(currentVariableValue);
             lastSubmitted.current = currentVariableValue;
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [locationTick]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,7 +80,7 @@ export default function InputModeField({ variableToSet, scopedVars, loading, uni
             lastSubmitted.current = value;
             locationService.partial({
                 [`var-${variableToSet}`]: value,
-                replace: true
+                replace: true,
             });
         }
     };
@@ -94,8 +115,17 @@ export default function InputModeField({ variableToSet, scopedVars, loading, uni
             {showVariableLabel !== false && variableDisplayLabel && (
                 <span
                     title={variableDisplayLabel}
-                    style={{ whiteSpace: 'nowrap', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, maxWidth: '40%' }}
-                >{variableDisplayLabel}</span>
+                    style={{
+                        whiteSpace: 'nowrap',
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        flexShrink: 0,
+                        maxWidth: '40%',
+                    }}
+                >
+                    {variableDisplayLabel}
+                </span>
             )}
             <Input
                 type="text"

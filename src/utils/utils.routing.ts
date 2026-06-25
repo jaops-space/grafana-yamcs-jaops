@@ -4,7 +4,7 @@ import { PLUGIN_BASE_URL } from '../constants';
 
 // Prefixes the route with the base URL of the plugin
 export function prefixRoute(route: string): string {
-  return `${PLUGIN_BASE_URL}/${route}`;
+    return `${PLUGIN_BASE_URL}/${route}`;
 }
 
 export async function getDatasourceResource(uid: string, path: string) {
@@ -20,7 +20,7 @@ export async function postDatasourceResource(uid: string, path: string, data: an
     const response = getBackendSrv().fetch({
         url: `/api/datasources/uid/${uid}/resources/${path}`,
         method: 'POST',
-        data
+        data,
     });
 
     return lastValueFrom(response);

@@ -7,4 +7,5 @@ export enum ROUTES {
     Commanding = 'commanding-setup',
     Image = 'image-panel-setup',
     VariableSetup = 'variable-setup',
+    TimeSync = 'time-sync-setup',
 }

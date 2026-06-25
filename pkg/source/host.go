@@ -27,7 +27,7 @@ func (mux *Multiplexer) SetupHost(hostID string) error {
 	var creds corehttp.Credentials
 
 	if hostConfig.Tls {
-		tlsConfig = corehttp.GetTLSConfiguration(false)
+		tlsConfig = corehttp.GetTLSConfiguration(!hostConfig.TlsInsecure)
 	} else {
 		tlsConfig = corehttp.GetNoTLSConfiguration()
 	}

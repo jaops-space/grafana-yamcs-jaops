@@ -5,12 +5,7 @@
     "id": "jaops-telemetricimage-panel",
     "streaming": false,
     "info": {
-        "keywords": [
-            "yamcs",
-            "image",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "image", "panel", "jaops"],
         "description": "Telemetric Image Visualization Panel for JAOPS Yamcs plugin",
         "author": {
             "name": "JAOPS"

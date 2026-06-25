@@ -59,12 +59,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                     updateQuery({ aggregatePath: e.target.value });
                                 }}
-                                placeholder='Path to value (case sensitive)'
+                                placeholder="Path to value (case sensitive)"
                                 value={query.aggregatePath || ''}
                             />
                         </InlineField>
                     )}
-
                 </Stack>
 
                 <InlineField>
@@ -72,12 +71,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                         checked={isAggregate}
                         onChange={(e) => {
                             const newState = e.currentTarget.checked;
-                            updateQuery({ aggregatePath: newState ? (query.aggregatePath || '.') : '' });
+                            updateQuery({ aggregatePath: newState ? query.aggregatePath || '.' : '' });
                         }}
-                        label='Aggregate'
+                        label="Aggregate"
                     />
                 </InlineField>
-
             </Stack>
 
             {additionalFields && (

@@ -4,13 +4,7 @@
     "name": "JAOPS Command History Panel",
     "id": "jaops-commandhistory-panel",
     "info": {
-        "keywords": [
-            "yamcs",
-            "commanding",
-            "command history",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "commanding", "command history", "panel", "jaops"],
         "description": "Command History Panel for JAOPS Yamcs plugin",
         "author": {
             "name": "JAOPS"

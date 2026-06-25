@@ -9,24 +9,24 @@ Reference: [Provision Grafana](https://grafana.com/docs/grafana/latest/administr
 Grafana documents these provisioning folders and responsibilities:
 
 1. `provisioning/datasources`
-Each YAML file contains datasource configuration.
-Grafana expects datasource definitions under the top-level key: datasources.
-Optional top-level keys include `deleteDatasources` and `prune`.
+   Each YAML file contains datasource configuration.
+   Grafana expects datasource definitions under the top-level key: datasources.
+   Optional top-level keys include `deleteDatasources` and `prune`.
 
 2. `provisioning/dashboards`
-Each YAML file contains dashboard providers.
-Grafana expects provider definitions under the top-level key: providers.
-Providers point to dashboard files on disk (for example via options.path).
+   Each YAML file contains dashboard providers.
+   Grafana expects provider definitions under the top-level key: providers.
+   Providers point to dashboard files on disk (for example via options.path).
 
 3. `provisioning/plugins`
-Each YAML file contains plugin application configuration.
-Grafana expects plugin app entries under the top-level key: apps.
-This provisions plugin configuration, not plugin installation.
+   Each YAML file contains plugin application configuration.
+   Grafana expects plugin app entries under the top-level key: apps.
+   This provisions plugin configuration, not plugin installation.
 
 4. `provisioning/alerting`
-Used for Grafana Alerting provisioning resources.
-See:
- [Provision Grafana Alerting resources](https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/)
+   Used for Grafana Alerting provisioning resources.
+   See:
+   [Provision Grafana Alerting resources](https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/)
 
 ### Datasource UIDs
 

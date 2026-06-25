@@ -86,6 +86,34 @@ type APIKeyCredentials struct {
 	Key string
 }
 
+func getTokenString(resp map[string]any, key string) (string, error) {
+	value, exists := resp[key]
+	if !exists {
+		return "", fmt.Errorf("token response missing %s", key)
+	}
+
+	strValue, ok := value.(string)
+	if !ok || strValue == "" {
+		return "", fmt.Errorf("token response field %s is invalid", key)
+	}
+
+	return strValue, nil
+}
+
+func getTokenExpirySeconds(resp map[string]any) (int, error) {
+	value, exists := resp["expires_in"]
+	if !exists {
+		return 0, fmt.Errorf("token response missing expires_in")
+	}
+
+	seconds, ok := value.(float64)
+	if !ok || seconds <= 0 {
+		return 0, fmt.Errorf("token response field expires_in is invalid")
+	}
+
+	return int(seconds), nil
+}
+
 // --- Conversion functions ---
 
 func ConvertUserCredentials(manager *HTTPManager, username, password, refreshToken string) (*BearerCredentials, error) {
@@ -106,10 +134,24 @@ func ConvertUserCredentials(manager *HTTPManager, username, password, refreshTok
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 
-	expiresIn := int(resp["expires_in"].(float64))
+	expiresIn, err := getTokenExpirySeconds(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	accessToken, err := getTokenString(resp, "access_token")
+	if err != nil {
+		return nil, err
+	}
+
+	refreshTokenValue, err := getTokenString(resp, "refresh_token")
+	if err != nil {
+		return nil, err
+	}
+
 	return &BearerCredentials{
-		AccessToken:  resp["access_token"].(string),
-		RefreshToken: resp["refresh_token"].(string),
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenValue,
 		Expiry:       time.Now().Add(time.Duration(expiresIn) * time.Second),
 	}, nil
 }
@@ -131,9 +173,14 @@ func ConvertServiceAccountCredentials(manager *HTTPManager, clientID, clientSecr
 		return nil, fmt.Errorf("service account token request failed: %w", err)
 	}
 
-	expiresIn := 0
-	if val, ok := resp["expires_in"].(float64); ok {
-		expiresIn = int(val)
+	expiresIn, err := getTokenExpirySeconds(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	accessToken, err := getTokenString(resp, "access_token")
+	if err != nil {
+		return nil, err
 	}
 
 	return &ServiceAccountCredentials{
@@ -141,7 +188,7 @@ func ConvertServiceAccountCredentials(manager *HTTPManager, clientID, clientSecr
 		ClientSecret: clientSecret,
 		Become:       become,
 		BearerCredentials: BearerCredentials{
-			AccessToken: resp["access_token"].(string),
+			AccessToken: accessToken,
 			Expiry:      time.Now().Add(time.Duration(expiresIn) * time.Second),
 		},
 	}, nil
@@ -195,9 +242,6 @@ func (b *BearerCredentials) IsExpired() bool {
 }
 
 func (b *BearerCredentials) BeforeRequest(req *http.Request) error {
-	if b.IsExpired() {
-		return b.Refresh(nil) // optionally pass HTTPManager if needed
-	}
 	if b.AccessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+b.AccessToken)
 	}
