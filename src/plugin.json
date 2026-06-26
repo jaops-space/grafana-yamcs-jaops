@@ -112,31 +112,31 @@
         {
             "type": "panel",
             "name": "JAOPS Command History Panel",
-            "id": "jaops-command-history-panel",
+            "id": "jaops-commandhistory-panel",
             "path": "command-history-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Image Panel",
-            "id": "jaops-image-panel",
+            "id": "jaops-telemetricimage-panel",
             "path": "image-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Static Image Panel",
-            "id": "jaops-static-image-panel",
+            "id": "jaops-staticimage-panel",
             "path": "static-image-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Variable Setting Panel",
-            "id": "jaops-variable-setting-panel",
+            "id": "jaops-variables-panel",
             "path": "variable-setting-panel/plugin.json"
         },
         {
             "type": "panel",
             "name": "JAOPS Yamcs Time Sync",
-            "id": "jaops-yamcs-time-sync-panel",
+            "id": "jaops-timesync-panel",
             "path": "time-sync-panel/plugin.json"
         }
     ],

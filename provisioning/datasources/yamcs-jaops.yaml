@@ -15,7 +15,7 @@ datasources:
               main-host:
                   name: Local Yamcs Quickstart
                   description: Provisioned Quickstart Host
-                  path: host.docker.internal:8090
+                  path: ${YAMCS_MAIN_HOST_PATH:-host.docker.internal:8090}
                   tlsEnabled: false
                   tlsInsecure: false
                   authEnabled: false
@@ -23,10 +23,28 @@ datasources:
                   protobuf: true
           endpoints:
               myproject_realtime:
-                  name: Primary
-                  description: Provisioned Quickstart Endpoint
+                  name: Quickstart RT
+                  description: Provisioned Quickstart realtime processor
                   host: main-host
                   instance: myproject
                   processor: realtime
+              myproject_replay:
+                  name: Quickstart Replay
+                  description: Provisioned Quickstart replay processor
+                  host: main-host
+                  instance: myproject
+                  processor: replay
+              simulator_realtime:
+                  name: Simulator RT
+                  description: Provisioned simulator realtime processor
+                  host: main-host
+                  instance: simulator
+                  processor: realtime
+              simulator_replay:
+                  name: Simulator Replay
+                  description: Provisioned simulator replay processor
+                  host: main-host
+                  instance: simulator
+                  processor: replay
       secureJsonData:
           main-host-password: admin
