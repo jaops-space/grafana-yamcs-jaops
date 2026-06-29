@@ -1,8 +1,10 @@
 import { AppEvents, PanelProps, SelectableValue, VariableWithMultiSupport } from '@grafana/data';
 import { DataSourceWithBackend, getAppEvents, getTemplateSrv, locationService, useLocationService } from '@grafana/runtime';
-import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select } from '@grafana/ui';
+import { Alert, Badge, Button, Card, ColorPickerInput, Divider, Field, FieldSet, FileUpload, getAvailableIcons, Input, LoadingPlaceholder, Select, useStyles2 } from '@grafana/ui';
 import { CommandForms, PanelOptions } from 'commanding-panel/types';
 import React, { useState } from 'react';
+import { css } from '@emotion/css';
+import { GrafanaTheme2 } from '@grafana/data';
 import Shapes from './Shapes';
 
 type CommandInfos = Array<{
@@ -14,7 +16,82 @@ export interface CommandingPanelProps extends PanelProps<PanelOptions> {
     variableMode?: boolean;
 }
 
+const getStyles = (theme: GrafanaTheme2) => ({
+    root: css`
+        width: 100%;
+        height: 100%;
+    `,
+    rootEditing: css`
+        overflow: auto;
+    `,
+    rootView: css`
+        overflow: unset;
+    `,
+    layoutEditing: css`
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(18.75rem, 2fr));
+        gap: ${theme.spacing(0.25)};
+        padding: ${theme.spacing(1.25)};
+        width: 100%;
+    `,
+    layoutView: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${theme.spacing(0.25)};
+        padding: ${theme.spacing(1.25)};
+        width: 100%;
+        height: 100%;
+    `,
+    dualWrapper: css`
+        display: flex;
+        width: 100%;
+        height: 100%;
+        gap: 0;
+    `,
+    card: css`
+        width: 100%;
+        padding: ${theme.spacing(2.5)};
+    `,
+    headingRow: css`
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+    `,
+    issueButton: css`
+        margin-left: ${theme.spacing(2.5)};
+    `,
+    fieldSet: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${theme.spacing(0.375)};
+        width: 100%;
+    `,
+    fullWidth: css`
+        width: 100%;
+    `,
+    inputRow: css`
+        display: flex;
+        align-items: center;
+        gap: ${theme.spacing(1.25)};
+        flex-wrap: wrap;
+    `,
+    sectionHeading: css`
+        margin-top: ${theme.spacing(1.25)};
+        margin-bottom: ${theme.spacing(1.25)};
+    `,
+    preview: css`
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: ${theme.spacing(6.25)};
+        width: 100%;
+        object-fit: contain;
+    `,
+});
+
 export default function CommandingPanel({ variableMode = false, ...props }: CommandingPanelProps) {
+    const styles = useStyles2(getStyles);
 
     const { data, options, onOptionsChange } = props;
     const locService = useLocationService();
@@ -211,10 +288,8 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     };
 
     return (
-        <div style={{ width: '100%', height: '100%', overflow: editing ? 'scroll' : 'unset' }}>
-            <div style={
-                editing ? { display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(300px, 2fr))`, gap: '2px', padding: '10px', width: '100%' }
-                    : { display: 'flex', flexDirection: 'column', gap: '2px', padding: '10px', width: '100%', height: '100%' }}>
+        <div className={`${styles.root} ${editing ? styles.rootEditing : styles.rootView}`}>
+            <div className={editing ? styles.layoutEditing : styles.layoutView}>
                 {commandInfos.map((commandInfo, i) => {
                     const command = commandInfo.command;
                     const commandState = formState[command.name + i];
@@ -225,12 +300,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                         if (commandState?.isDualButton && !editing) {
                             const activeState = dualButtonStates[command.name + i];
                             return (
-                                <div style={{ 
-                                    display: 'flex', 
-                                    width: '100%', 
-                                    height: '100%',
-                                    gap: '0px'
-                                }}>
+                                <div className={styles.dualWrapper}>
                                     {/* ON Button (Left) */}
                                     <Button
                                         disabled={loading}
@@ -243,7 +313,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             justifyContent: 'center',
                                             backgroundColor: commandState?.transparent === 'solid' || !commandState?.transparent
                                                 ? commandState?.color as any
-                                                : '#00000000',
+                                                : 'transparent',
                                             color: commandState?.textColor as any,
                                             borderColor: commandState?.transparent === 'outline'
                                                 ? commandState?.color as any
@@ -273,7 +343,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             justifyContent: 'center',
                                             backgroundColor: commandState?.transparent === 'solid' || !commandState?.transparent
                                                 ? (commandState?.offCommand?.color || commandState?.color) as any
-                                                : '#00000000',
+                                                : 'transparent',
                                             color: (commandState?.offCommand?.textColor || commandState?.textColor) as any,
                                             borderColor: commandState?.transparent === 'outline'
                                                 ? (commandState?.offCommand?.color || commandState?.color) as any
@@ -306,7 +376,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                 backgroundColor:
                                     commandState?.transparent === 'solid' || !commandState?.transparent
                                         ? commandState?.color as any
-                                        : '#00000000',
+                                        : 'transparent',
                                 color: commandState?.textColor as any,
                                 borderColor:
                                     commandState?.transparent === 'outline'
@@ -334,20 +404,20 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                         return render(true);
                     }
 
-                    return <Card key={command.name} style={{ width: '100%', padding: '20px' }}>
+                    return <Card key={command.name} className={styles.card}>
                         <Card.Heading>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <div className={styles.headingRow}>
                                 <h4>{variableMode ? 'Variable Panel' : command.name}</h4>
                                 {!variableMode && <Button
                                     disabled={loading}
-                                    onClick={() => handleSubmit(commandInfo, i)} style={{ marginLeft: '20px' }} size='sm'>
+                                    onClick={() => handleSubmit(commandInfo, i)} className={styles.issueButton} size='sm'>
                                     {loading ? <LoadingPlaceholder text="Issuing..." /> : "Issue Command"}
                                 </Button>}
                             </div>
                         </Card.Heading>
                         <Card.Meta>{variableMode ? 'Configure Grafana variables through buttons' : (command.shortDescription || command.longDescription)}</Card.Meta>
                         <Card.Description>
-                            <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
+                            <FieldSet className={styles.fieldSet}>
                                 {variableMode ? <>
                                     <Field label='Variable' description='Variable to change'>
                                         <Select
@@ -358,7 +428,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'variableToSet', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
+                                            className={styles.fullWidth}
                                         />
                                     </Field>
                                     <Field label='Change Mode' description='How to change the value'>
@@ -374,7 +444,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'changeMode', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
+                                            className={styles.fullWidth}
                                         />
                                     </Field>
                                     <Field label='Value' description='Value to use. You may write a custom value.'>
@@ -390,7 +460,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<string>) => {
                                                 handleOptionChange(command.name, 'valueToSet', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
+                                            className={styles.fullWidth}
                                         />
                                     </Field>
                                 </> :
@@ -407,7 +477,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(e: SelectableValue<boolean>) => {
                                                 handleOptionChange(command.name, 'isDualButton', e.value, i);
                                             }}
-                                            style={{ width: '100%' }}
+                                            className={styles.fullWidth}
                                         />
                                     </Field>
                                     <Divider />
@@ -436,7 +506,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Select
                                                         value={inputValue}
                                                         disabled={loading}
-                                                        style={{ width: '100%' }}
+                                                        className={styles.fullWidth}
                                                         onChange={(e: SelectableValue<any>) => {
                                                             handleInputChange(command.name, arg.name, e.value, i);
                                                             validateInput(command.name, arg, e.value);
@@ -467,16 +537,16 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         }}
                                                         min={arg.type.rangeMin}
                                                         max={arg.type.rangeMax}
-                                                        style={{ width: '100%' }}
+                                                        className={styles.fullWidth}
                                                         step={arg.type.engType === 'integer' ? 1 : undefined}
                                                     />
                                                 );
                                             }
 
                                             return (
-                                                <Field key={arg.name} label={arg.name} description={arg.description} style={{ width: '100%' }}>
+                                                <Field key={arg.name} label={arg.name} description={arg.description} className={styles.fullWidth}>
                                                     <>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                        <div className={styles.inputRow}>
                                                             {inputField}
                                                             <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
                                                         </div>
@@ -490,7 +560,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     {/* Dual Button Configuration */}
                                     {commandState?.isDualButton && <>
                                         <Divider />
-                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Left Button Configuration</h5>
+                                        <h5 className={styles.sectionHeading}>Left Button Configuration</h5>
                                         
                                         {/* ON Button Arguments */}
                                         {command.argument?.map((arg: any) => {
@@ -519,7 +589,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Select
                                                         value={inputValue}
                                                         disabled={loading}
-                                                        style={{ width: '100%' }}
+                                                        className={styles.fullWidth}
                                                         onChange={(e: SelectableValue<any>) => {
                                                             handleOptionChange(command.name, 'onCommand', {
                                                                 ...commandState?.onCommand,
@@ -560,15 +630,15 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         }}
                                                         min={arg.type.rangeMin}
                                                         max={arg.type.rangeMax}
-                                                        style={{ width: '100%' }}
+                                                        className={styles.fullWidth}
                                                         step={arg.type.engType === 'integer' ? 1 : undefined}
                                                     />
                                                 );
                                             }
 
                                             return (
-                                                <Field key={`on-${arg.name}`} label={`LEFT - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                <Field key={`on-${arg.name}`} label={`LEFT - ${arg.name}`} description={arg.description} className={styles.fullWidth}>
+                                                    <div className={styles.inputRow}>
                                                         {inputField}
                                                         <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
                                                     </div>
@@ -587,7 +657,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         comment: e.target.value
                                                     }, i);
                                                 }}
-                                                style={{ width: '100%' }}
+                                                className={styles.fullWidth}
                                             />
                                         </Field>
                                         
@@ -602,7 +672,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         label: e.target.value
                                                     }, i);
                                                 }}
-                                                style={{ width: '100%' }}
+                                                className={styles.fullWidth}
                                             />
                                         </Field>
                                         
@@ -636,7 +706,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                     {/* OFF Button Configuration Section */}
                                     {commandState?.isDualButton && <>
                                         <Divider />
-                                        <h5 style={{ marginTop: '10px', marginBottom: '10px' }}>Right Button Configuration</h5>
+                                        <h5 className={styles.sectionHeading}>Right Button Configuration</h5>
                                         
                                         {/* OFF Button Arguments */}
                                         {command.argument?.map((arg: any) => {
@@ -665,7 +735,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                     <Select
                                                         value={inputValue}
                                                         disabled={loading}
-                                                        style={{ width: '100%' }}
+                                                        className={styles.fullWidth}
                                                         onChange={(e: SelectableValue<any>) => {
                                                             handleOptionChange(command.name, 'offCommand', {
                                                                 ...commandState?.offCommand,
@@ -706,15 +776,15 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         }}
                                                         min={arg.type.rangeMin}
                                                         max={arg.type.rangeMax}
-                                                        style={{ width: '100%' }}
+                                                        className={styles.fullWidth}
                                                         step={arg.type.engType === 'integer' ? 1 : undefined}
                                                     />
                                                 );
                                             }
 
                                             return (
-                                                <Field key={`off-${arg.name}`} label={`RIGHT - ${arg.name}`} description={arg.description} style={{ width: '100%' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                                <Field key={`off-${arg.name}`} label={`RIGHT - ${arg.name}`} description={arg.description} className={styles.fullWidth}>
+                                                    <div className={styles.inputRow}>
                                                         {inputField}
                                                         <Badge text={`${arg.type.rangeMin ? `${arg.type.rangeMin} ≤` : ''} ${arg.type.engType} ${arg.type.rangeMax ? `≤ ${arg.type.rangeMax}` : ''}`} color="blue" />
                                                     </div>
@@ -733,7 +803,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         comment: e.target.value
                                                     }, i);
                                                 }}
-                                                style={{ width: '100%' }}
+                                                className={styles.fullWidth}
                                             />
                                         </Field>
                                         
@@ -748,7 +818,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                                         label: e.target.value
                                                     }, i);
                                                 }}
-                                                style={{ width: '100%' }}
+                                                className={styles.fullWidth}
                                             />
                                         </Field>
                                         
@@ -787,7 +857,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                             handleOptionChange(command.name, 'comment', e.target.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 <Divider />
@@ -799,7 +869,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                             handleOptionChange(command.name, 'label', e.target.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 <Field label='Button Tooltip' description='Button tooltip'>
@@ -810,7 +880,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                             handleOptionChange(command.name, 'tooltip', e.target.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 <Field label='Icon' description='Icon name'>
@@ -823,7 +893,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'icon', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 <Field label='Size' description='Button size'>
@@ -839,7 +909,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'size', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 <Field label='Color' description='Button color'>
@@ -872,7 +942,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'transparent', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 <Field label='Shape' description='Button shape'>
@@ -886,7 +956,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                         onChange={(e: SelectableValue<string>) => {
                                             handleOptionChange(command.name, 'shape', e.value, i);
                                         }}
-                                        style={{ width: '100%' }}
+                                        className={styles.fullWidth}
                                     />
                                 </Field>
                                 {commandState?.shape === 'svg' && <>
@@ -921,7 +991,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(v) =>
                                                 handleOptionChange(command.name, 'bgSize', v.value, i)
                                             }
-                                            style={{ width: '100%' }}
+                                            className={styles.fullWidth}
                                         />
                                     </Field>
                                     <Field label="SVG Position" description="Controls the position of the background image. You may write custom CSS backgroundPosition value.">
@@ -938,16 +1008,13 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                                             onChange={(v) =>
                                                 handleOptionChange(command.name, 'bgPosition', v.value, i)
                                             }
-                                            style={{ width: '100%' }}
+                                            className={styles.fullWidth}
                                         />
                                     </Field>
                                 </>}
                                 </>}
                                 <Field label='Preview' description='Preview of the button'>
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        height: '50px', width: '100%', objectFit: 'contain'
-                                    }}>
+                                    <div className={styles.preview}>
                                         {render()}
                                     </div>
                                 </Field>

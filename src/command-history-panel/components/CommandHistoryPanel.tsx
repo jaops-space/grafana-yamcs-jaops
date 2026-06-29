@@ -1,7 +1,8 @@
-import { dateTime, PanelProps } from '@grafana/data';
-import { Icon, InteractiveTable, Stack, Text, Tooltip } from '@grafana/ui';
+import { dateTime, GrafanaTheme2, PanelProps } from '@grafana/data';
+import { Icon, InteractiveTable, Stack, Text, Tooltip, useStyles2 } from '@grafana/ui';
 import { CommandHistoryOptions } from 'command-history-panel/module';
 import React, { useMemo } from 'react';
+import { css } from '@emotion/css';
 
 // ------------------
 // Type Definitions
@@ -94,6 +95,19 @@ const dedupeById = (entries: CommandEntry[]): CommandEntry[] => {
 
     return result;
 };
+
+const getStyles = (theme: GrafanaTheme2) => ({
+    panel: css`
+        overflow-y: auto;
+        overflow-x: clip;
+        width: 100%;
+        height: 100%;
+    `,
+    argsList: css`
+        padding-left: ${theme.spacing(2.5)};
+        margin-top: ${theme.spacing(0.125)};
+    `,
+});
 
 // ------------------
 // Table Column Definitions
@@ -237,6 +251,7 @@ const columns = [
 // ------------------
 
 function renderSubComponent({ row }: { row: any }) {
+    const styles = useStyles2(getStyles);
     const args: CommandArgument[] = row.arguments;
     if (!args.length) {
         return null;
@@ -245,7 +260,7 @@ function renderSubComponent({ row }: { row: any }) {
     return (
         <div>
             <strong>Arguments:</strong>
-            <ul style={{ paddingLeft: 20, marginTop: 1 }}>
+            <ul className={styles.argsList}>
                 {args.map((arg) => (
                     <li key={arg.name}>
                         <strong>{arg.name}</strong>: {arg.value}
@@ -261,6 +276,7 @@ function renderSubComponent({ row }: { row: any }) {
 // ------------------
 
 const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data, options }) => {
+    const styles = useStyles2(getStyles);
     const deduped = useMemo(() => {
         const frame = data.series[0];
         if (!frame || !frame.fields.length) { return []; }
@@ -280,7 +296,7 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
     }
 
     return (
-        <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
+        <div className={styles.panel}>
                 {options.pagination ? (
                     <InteractiveTable
                         key="with-pagination"
