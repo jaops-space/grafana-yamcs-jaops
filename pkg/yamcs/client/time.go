@@ -99,7 +99,8 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 	if message.GetType() == "time" {
 		timestamp := &timestamppb.Timestamp{}
 		if err := message.Data.UnmarshalTo(timestamp); err != nil {
-			panic(exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
+			backend.Logger.Error("Error unmarshalling time subscription message", "error", exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
+			return
 		}
 
 		// Retrieve the subscription by call ID

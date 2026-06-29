@@ -62,8 +62,14 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 // SubscribeStream handles the initial data request when a user subscribes to a stream.
 // It fetches the historical data based on the query and returns it as the initial response.
-func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
+func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
 	var q PluginQuery
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 
 	// Parse the query from the request payload
 	if err := json.Unmarshal(req.Data, &q); err != nil {
@@ -146,10 +152,10 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 
 	// Retrieve the endpoint associated with the requested stream
 	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
-	endpoint.RequestTime()
 	if err != nil {
 		return err
 	}
+	endpoint.RequestTime()
 
 	// Route the stream to the appropriate handler
 	switch q.Type {

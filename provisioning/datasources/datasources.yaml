@@ -1,0 +1,49 @@
+apiVersion: 1
+prune: true
+
+# Note: This file configures plugin datasource types, not actual datasource instances
+# Actual datasource instances are configured in the datasources folder
+datasources:
+    - name: 'JAOPS Yamcs Datasource'
+      type: jaops-yamcs-datasource
+      uid: jaops-yamcs-main
+      access: proxy
+      orgId: 1
+      orgName: 'JAOPS'
+      disabled: false
+      version: 1
+      jsonData:
+        hosts:
+            main-host:
+                name: Local Yamcs
+                description: Provisioned Quickstart Host
+                path: host.docker.internal:8090
+                tlsEnabled: false
+                tlsInsecure: false
+                authEnabled: false
+                username: admin
+                protobuf: true
+            main-host-auth:
+                name: Local Yamcs
+                description: Provisioned Quickstart Host
+                path: host.docker.internal:8090
+                tlsEnabled: false
+                tlsInsecure: false
+                authEnabled: true
+                username: admin
+                protobuf: true
+        endpoints:
+            yamcs_quickstart_realtime:
+                name: Quickstart RT
+                description: Provisioned Quickstart realtime processor
+                host: main-host
+                instance: myproject
+                processor: realtime
+            yamcs_quickstart_authentication:
+                name: Quickstart RT
+                description: Provisioned Quickstart realtime with auth
+                host: main-host
+                instance: myproject
+                processor: replay
+      secureJsonData:
+        main-host-auth-password: admin

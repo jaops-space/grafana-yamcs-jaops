@@ -1,6 +1,7 @@
 package source
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -47,13 +48,17 @@ type ParameterStreamDemand struct {
 }
 
 func (ep *YamcsEndpoint) RequestTime() {
-	client := ep.GetClient()
+	client, err := ep.GetClient()
+	if err != nil {
+		backend.Logger.Error("Error retrieving Yamcs client", "error", err)
+		return
+	}
 	if client.HasTimeSubscriptionFor(ep.Instance, ep.Processor) {
 		return
 	}
 	subscription, err := client.CreateTimeSubscription(ep.Instance, ep.Processor)
 	if err != nil {
-		backend.Logger.Error(err.Error())
+		backend.Logger.Error("Error creating time subscription", "error", err)
 		return
 	}
 	subscription.SetTimeListener(ep.GetTimeHandler())
@@ -80,17 +85,19 @@ func (ep *YamcsEndpoint) GetConfiguration() *config.YamcsEndpointConfiguration {
 func (ep *YamcsEndpoint) GetParameterDemand(parameter string) *ParameterDemand {
 
 	if ep.Parameters[parameter] == nil {
-		client := ep.GetClient()
 		unit := ""
 		thresholds := make([]*data.Threshold, 0)
 
-		paramInfo, err := client.GetParameter(ep.Instance, parameter)
+		client, err := ep.GetClient()
 		if err == nil {
-			paramType := paramInfo.GetType()
-			unitSet := paramType.GetUnitSet()
-			thresholds = tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
-			if len(unitSet) > 0 {
-				unit = unitSet[0].GetUnit()
+			paramInfo, err := client.GetParameter(ep.Instance, parameter)
+			if err == nil {
+				paramType := paramInfo.GetType()
+				unitSet := paramType.GetUnitSet()
+				thresholds = tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
+				if len(unitSet) > 0 {
+					unit = unitSet[0].GetUnit()
+				}
 			}
 		}
 
@@ -146,7 +153,7 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(name string, path string) err
 		backend.Logger.Debug("Adding parameter to subscription", "parameter", name)
 		subscription.Add(name)
 	}
-	backend.Logger.Debug("Current subscriptions", "subscriptions")
+	backend.Logger.Debug("Current subscriptions", "count", len(subscription.ActiveSubscriptions))
 	for name := range subscription.ActiveSubscriptions {
 		backend.Logger.Debug(name)
 	}
@@ -175,10 +182,13 @@ func (ep *YamcsEndpoint) ClearParameterStream(parameter string, path string) {
 func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(name string, path string) error {
 
 	ep.GetParameterDemand(name)
-	client := ep.GetClient()
+	client, err := ep.GetClient()
+	if err != nil {
+		return nil
+	}
 
 	delete(ep.Parameters[name].Streams, path)
-	if len(ep.Parameters[name].Streams) == 0 && client != nil && client.IsWebSocketConnected() {
+	if len(ep.Parameters[name].Streams) == 0 && client.IsWebSocketConnected() {
 		subscription, err := ep.GetParameterSubscription()
 		if err != nil {
 			return err
@@ -189,17 +199,20 @@ func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(name string, path string
 }
 
 // GetClient retrieves the Yamcs client for this endpoint.
-func (ep *YamcsEndpoint) GetClient() *client.YamcsClient {
+func (ep *YamcsEndpoint) GetClient() (*client.YamcsClient, error) {
 	yamcsClient, err := ep.Multiplexer.ConnMgr.GetClient(ep.GetConfiguration().Host)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to get Yamcs client for endpoint '%s': %w", ep.ID, err)
 	}
-	return yamcsClient
+	return yamcsClient, nil
 }
 
 // GetParameterSubscription retrieves or creates a parameter subscription.
 func (ep *YamcsEndpoint) GetParameterSubscription() (*client.ParameterSubscription, error) {
-	client := ep.GetClient()
+	client, err := ep.GetClient()
+	if err != nil {
+		return nil, err
+	}
 	for _, subscription := range client.ParameterSubscriptions {
 		if subscription.Instance == ep.Instance.GetName() && subscription.Processor == ep.Processor.GetName() {
 			return subscription, nil
@@ -221,7 +234,10 @@ func (ep *YamcsEndpoint) RequestEventsStream(path string) {
 
 func (source *YamcsEndpoint) GetEventsSubscription() (*client.EventSubscription, error) {
 
-	client := source.GetClient()
+	client, err := source.GetClient()
+	if err != nil {
+		return nil, err
+	}
 	for _, subscription := range client.EventSubscriptions {
 		if subscription.Instance == source.Instance.GetName() {
 			return subscription, nil
@@ -253,7 +269,11 @@ func (ep *YamcsEndpoint) WithdrawEventsStreamRequest(path string) {
 
 	delete(ep.Events, path)
 	if len(ep.Events) == 0 {
-		client := ep.GetClient()
+		client, err := ep.GetClient()
+		if err != nil {
+			backend.Logger.Error("Error retrieving Yamcs client", "error", err)
+			return
+		}
 		for _, subscription := range client.EventSubscriptions {
 			if subscription.Instance == ep.Instance.GetName() {
 				subscription.Halt()
@@ -274,7 +294,10 @@ func (ep *YamcsEndpoint) RequestCommandHistoryStream(path string) {
 }
 
 func (ep *YamcsEndpoint) GetCommandHistorySubscription() (*client.CommandHistorySubscription, error) {
-	client := ep.GetClient()
+	client, err := ep.GetClient()
+	if err != nil {
+		return nil, err
+	}
 	for _, subscription := range client.CommandHistorySubscriptions {
 		if subscription.Instance == ep.Instance.GetName() {
 			return subscription, nil
@@ -299,7 +322,11 @@ func (ep *YamcsEndpoint) ClearCommandHistoryStream(path string) {
 func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) {
 	delete(ep.CommandHistory, path)
 	if len(ep.CommandHistory) == 0 {
-		client := ep.GetClient()
+		client, err := ep.GetClient()
+		if err != nil {
+			backend.Logger.Error("Error retrieving Yamcs client", "error", err)
+			return
+		}
 		for _, subscription := range client.CommandHistorySubscriptions {
 			if subscription.Instance == ep.Instance.GetName() {
 				subscription.Halt()

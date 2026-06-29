@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
@@ -12,6 +13,12 @@ import (
 // ProtoRequest is a helper function for sending requests with a given HTTP method,
 // marshaling the body, and unmarshaling the response to the provided proto.Message.
 func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Message, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequestWithContext(context.Background(), method, path, body, unmarshalTo)
+}
+
+// ProtoRequestWithContext is a helper function for sending requests with a
+// caller-provided context.
+func (httpManager *HTTPManager) ProtoRequestWithContext(ctx context.Context, method, path string, body proto.Message, unmarshalTo proto.Message) error {
 	// Construct the URL by combining the base API root with the provided path
 	url := fmt.Sprintf("%s%s", httpManager.APIRoot, path)
 
@@ -22,7 +29,7 @@ func (httpManager *HTTPManager) ProtoRequest(method, path string, body proto.Mes
 	}
 
 	// Send the request and capture the response
-	response, err := httpManager.SendRequest(method, url, marshalledBody)
+	response, err := httpManager.SendRequestWithContext(ctx, method, url, marshalledBody)
 	if err != nil && response != nil {
 		exc := &api.ExceptionMessage{}
 		err := unmarshalResponse(response, exc, httpManager.UsingProtobuf)
@@ -76,20 +83,36 @@ func (httpManager *HTTPManager) Login(account *Credentials) error {
 
 // GetProto sends a GET request with the given path and unmarshals the response into the provided proto.Message.
 func (httpManager *HTTPManager) GetProto(path string, unmarshalTo proto.Message) error {
-	return httpManager.ProtoRequest("GET", path, nil, unmarshalTo)
+	return httpManager.GetProtoWithContext(context.Background(), path, unmarshalTo)
+}
+
+func (httpManager *HTTPManager) GetProtoWithContext(ctx context.Context, path string, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequestWithContext(ctx, "GET", path, nil, unmarshalTo)
 }
 
 // PutProto sends a PUT request with the given path, body, and unmarshals the response into the provided proto.Message.
 func (httpManager *HTTPManager) PutProto(path string, body proto.Message, unmarshalTo proto.Message) error {
-	return httpManager.ProtoRequest("PUT", path, body, unmarshalTo)
+	return httpManager.PutProtoWithContext(context.Background(), path, body, unmarshalTo)
+}
+
+func (httpManager *HTTPManager) PutProtoWithContext(ctx context.Context, path string, body proto.Message, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequestWithContext(ctx, "PUT", path, body, unmarshalTo)
 }
 
 // PostProto sends a POST request with the given path, body, and unmarshals the response into the provided proto.Message.
 func (httpManager *HTTPManager) PostProto(path string, body proto.Message, unmarshalTo proto.Message) error {
-	return httpManager.ProtoRequest("POST", path, body, unmarshalTo)
+	return httpManager.PostProtoWithContext(context.Background(), path, body, unmarshalTo)
+}
+
+func (httpManager *HTTPManager) PostProtoWithContext(ctx context.Context, path string, body proto.Message, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequestWithContext(ctx, "POST", path, body, unmarshalTo)
 }
 
 // DeleteProto sends a DELETE request with the given path, body, and unmarshals the response into the provided proto.Message.
 func (httpManager *HTTPManager) DeleteProto(path string, body proto.Message, unmarshalTo proto.Message) error {
-	return httpManager.ProtoRequest("DELETE", path, body, unmarshalTo)
+	return httpManager.DeleteProtoWithContext(context.Background(), path, body, unmarshalTo)
+}
+
+func (httpManager *HTTPManager) DeleteProtoWithContext(ctx context.Context, path string, body proto.Message, unmarshalTo proto.Message) error {
+	return httpManager.ProtoRequestWithContext(ctx, "DELETE", path, body, unmarshalTo)
 }

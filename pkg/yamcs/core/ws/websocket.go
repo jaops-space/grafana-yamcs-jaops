@@ -108,7 +108,7 @@ func (websocketHandler *WebSocketHandler) Listen() {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 				backend.Logger.Debug("WebSocket connection closed normally.")
 			} else {
-				backend.Logger.Error("Websocket: WebSocket closed with error: ", err)
+				backend.Logger.Error("Websocket: WebSocket closed with error", "error", err)
 			}
 			return
 		}
@@ -116,12 +116,12 @@ func (websocketHandler *WebSocketHandler) Listen() {
 		message := &api.ServerMessage{}
 		if websocketHandler.useProtobuf {
 			if err = proto.Unmarshal(data, message); err != nil {
-				backend.Logger.Error("Error unmarshalling message: ", err)
+				backend.Logger.Error("Error unmarshalling message", "error", err)
 				continue
 			}
 		} else {
 			if err = protojson.Unmarshal(data, message); err != nil {
-				backend.Logger.Error("Error unmarshalling message: ", err)
+				backend.Logger.Error("Error unmarshalling message", "error", err)
 				continue
 			}
 		}
@@ -129,7 +129,7 @@ func (websocketHandler *WebSocketHandler) Listen() {
 		if message.GetType() == "reply" {
 			reply := api.Reply{}
 			if err = message.Data.UnmarshalTo(&reply); err != nil {
-				backend.Logger.Error("Error unmarshalling reply: ", err)
+				backend.Logger.Error("Error unmarshalling reply", "error", err)
 				continue
 			}
 			if callback, found := websocketHandler.messageCallbacks[int(reply.GetReplyTo())]; found {

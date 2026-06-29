@@ -78,7 +78,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -158,7 +158,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -251,7 +251,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -265,7 +265,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -281,7 +281,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -375,7 +375,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -389,7 +389,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -405,7 +405,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -521,7 +521,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "description": "two queries (one for each Yamcs parameter aggregate) + grafana transformation (merge series)",
       "fieldConfig": {
@@ -627,7 +627,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -662,7 +662,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -705,7 +705,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -754,7 +754,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -798,7 +798,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -838,7 +838,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -915,7 +915,7 @@
     },
     {
       "datasource": {
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -951,7 +951,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {},
@@ -1060,7 +1060,7 @@
     {
       "datasource": {
         "type": "jaops-yamcs-datasource",
-        "uid": "dexxwlcr9dbeoc"
+        "uid": "jaops-yamcs-main"
       },
       "fieldConfig": {
         "defaults": {
@@ -1132,7 +1132,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -1146,7 +1146,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -1160,7 +1160,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -1174,7 +1174,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",
@@ -1188,7 +1188,7 @@
           "asVariable": true,
           "datasource": {
             "type": "jaops-yamcs-datasource",
-            "uid": "dexxwlcr9dbeoc"
+            "uid": "jaops-yamcs-main"
           },
           "endpoint": "yamcs_quickstart_authentication",
           "endpointVariable": "$datasource_endpoint",

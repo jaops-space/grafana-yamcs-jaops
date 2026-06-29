@@ -27,7 +27,10 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		"realtime", q.Realtime,
 		"querier", querier != nil)
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
+	}
 	yamcs.SetSamplePointCount(q.MaxPoints)
 
 	start := time.Unix(int64(q.From), 0)
@@ -90,7 +93,10 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 
 func DatasourceSingleValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
+	}
 	aggregatePath := ""
 	if len(q.AggregatePath) > 0 {
 		aggregatePath = "." + q.AggregatePath
@@ -113,7 +119,10 @@ func DatasourceSingleValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (
 
 func DatasourceDiscreteValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
+	}
 
 	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
 	if q.Realtime {
@@ -152,7 +161,10 @@ func DatasourceDiscreteValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery)
 
 func DatasourceEventsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
+	}
 	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
 	if q.Realtime {
 		end = time.Now()
@@ -198,7 +210,10 @@ func SetUnitAndThresholds(endpoint *source.YamcsEndpoint, parameter string, fram
 
 func DatasourceCommandFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
+	}
 	command, err := yamcs.GetCommandInfo(endpoint.Instance, q.Command)
 	if err != nil {
 		return nil, err
@@ -218,7 +233,10 @@ func DatasourceCommandFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*dat
 
 func DatasourceCommandHistoryFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
+	}
 	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
 	iterator := yamcs.ListCommandsHistory(endpoint.Instance, start, end)
 	commandList := make([]*commanding.CommandHistoryEntry, 0)

@@ -44,7 +44,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     
     // State to track which button (on/off) was last clicked
     // Use localStorage to persist state across refreshes without saving dashboard
-    const storageKey = `commanding-panel-state-${props.id}`;
+    const storageKey = `jaops-yamcs-app.commanding-panel-state-${props.id}`;
     const [dualButtonStates, setDualButtonStates] = useState<{ [key: string]: 'on' | 'off' }>(() => {
         try {
             const stored = localStorage.getItem(storageKey);

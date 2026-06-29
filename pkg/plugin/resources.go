@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -23,9 +24,17 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 		object["description"] = endpointConfiguration.Description
 		if err != nil {
 			object["online"] = false
-			object["error"] = err.Error()
+			object["error"] = "endpoint unavailable"
+			backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
 		} else {
-			object["online"] = endpoint.GetClient().WebSocket.IsConnected()
+			client, clientErr := endpoint.GetClient()
+			if clientErr != nil {
+				object["online"] = false
+				object["error"] = "endpoint unavailable"
+				backend.Logger.Error("Failed to retrieve Yamcs client", "endpointID", endpointID, "error", clientErr)
+			} else {
+				object["online"] = client.WebSocket.IsConnected()
+			}
 		}
 		response[endpointID] = object
 	}
@@ -48,14 +57,21 @@ func (d *Datasource) handleSearchParameters(w http.ResponseWriter, req *http.Req
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
+		http.Error(w, "endpoint unavailable", http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
+	client, err := endpoint.GetClient()
+	if err != nil {
+		backend.Logger.Error("Failed to retrieve Yamcs client", "endpointID", endpointID, "error", err)
+		http.Error(w, "endpoint unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	reqIterator := client.SearchParameters(endpoint.Instance, query)
 	results, err := reqIterator.Next()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		backend.Logger.Error("Parameter search failed", "endpointID", endpointID, "query", query, "error", err)
+		http.Error(w, "parameter search failed", http.StatusBadRequest)
 		return
 	}
 
@@ -86,14 +102,21 @@ func (d *Datasource) handleSearchCommands(w http.ResponseWriter, req *http.Reque
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
+		http.Error(w, "endpoint unavailable", http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
+	client, err := endpoint.GetClient()
+	if err != nil {
+		backend.Logger.Error("Failed to retrieve Yamcs client", "endpointID", endpointID, "error", err)
+		http.Error(w, "endpoint unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	reqIterator := client.SearchCommandInfo(endpoint.Instance, query)
 	results, err := reqIterator.Next()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		backend.Logger.Error("Command search failed", "endpointID", endpointID, "query", query, "error", err)
+		http.Error(w, "command search failed", http.StatusBadRequest)
 		return
 	}
 
@@ -140,24 +163,33 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 	body := &CommandIssueBody{}
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		backend.Logger.Error("Invalid command request body", "endpointID", endpointID, "error", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
+		http.Error(w, "endpoint unavailable", http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
+	client, err := endpoint.GetClient()
+	if err != nil {
+		backend.Logger.Error("Failed to retrieve Yamcs client", "endpointID", endpointID, "error", err)
+		http.Error(w, "endpoint unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	response, err := client.IssueCommandWithComment(endpoint.Instance, endpoint.Processor, body.Name, body.Arguments, body.Comment)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		backend.Logger.Error("Command issue failed", "endpointID", endpointID, "command", body.Name, "error", err)
+		http.Error(w, "command execution failed", http.StatusBadRequest)
 		return
 	}
 	marshalled, err := protojson.Marshal(response)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		backend.Logger.Error("Failed to marshal command response", "endpointID", endpointID, "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	responseJSON := json.RawMessage(marshalled)

@@ -112,14 +112,20 @@ func NewSDKClient(tlsConfig TLS) (*http.Client, error) {
 	return httpclient.New(opts)
 }
 
-// SendRequest sends an HTTP request and automatically applies credentials
+// SendRequest sends an HTTP request and automatically applies credentials.
+// This wrapper uses context.Background for legacy call sites.
 func (m *HTTPManager) SendRequest(method string, url string, body []byte) ([]byte, error) {
+	return m.SendRequestWithContext(context.Background(), method, url, body)
+}
+
+// SendRequestWithContext sends an HTTP request with a caller-provided context
+// so request cancellation can propagate from Grafana.
+func (m *HTTPManager) SendRequestWithContext(ctx context.Context, method string, url string, body []byte) ([]byte, error) {
 	reader := bytes.NewReader(body)
-	req, err := http.NewRequest(method, url, reader)
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return nil, err
 	}
-	m.Credentials.BeforeRequest(req)
 
 	req.Close = true
 
@@ -161,14 +167,21 @@ func (m *HTTPManager) SendRequest(method string, url string, body []byte) ([]byt
 	return respBody, nil
 }
 
-// SendJSONRequest sends a JSON HTTP request
+// SendJSONRequest sends a JSON HTTP request.
+// This wrapper uses context.Background for legacy call sites.
 func (m *HTTPManager) SendJSONRequest(method string, url string, body any, unmarshalTo any) error {
+	return m.SendJSONRequestWithContext(context.Background(), method, url, body, unmarshalTo)
+}
+
+// SendJSONRequestWithContext sends a JSON HTTP request with request-scoped
+// cancellation support.
+func (m *HTTPManager) SendJSONRequestWithContext(ctx context.Context, method string, url string, body any, unmarshalTo any) error {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-	respBody, err := m.SendRequest(method, url, jsonBody)
+	respBody, err := m.SendRequestWithContext(ctx, method, url, jsonBody)
 	if err != nil {
 		return err
 	}

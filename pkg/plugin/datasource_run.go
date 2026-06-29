@@ -16,10 +16,13 @@ func RunParameterStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return backend.DownstreamErrorf("yamcs client unavailable: %v", err)
+	}
 
 	backend.Logger.Debug("Requesting parameter stream", "parameter", q.Parameter, "path", req.Path)
-	err := endpoint.RequestNewParameterStream(q.Parameter, req.Path)
+	err = endpoint.RequestNewParameterStream(q.Parameter, req.Path)
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter stream", "error", err)
 		return err
@@ -48,7 +51,7 @@ func RunParameterStream(ctx context.Context,
 	for {
 		select {
 		case <-ctx.Done():
-			backend.Logger.Error(ctx.Err().Error())
+			backend.Logger.Error("Parameter stream canceled", "error", ctx.Err())
 			return ctx.Err()
 		case <-ticker.C:
 
@@ -87,7 +90,10 @@ func RunEventStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return backend.DownstreamErrorf("yamcs client unavailable: %v", err)
+	}
 
 	endpoint.RequestEventsStream(req.Path)
 
@@ -186,9 +192,9 @@ func RunSubscriptionStream(ctx context.Context,
 		case <-ticker.C:
 
 			subscriptions := make([]string, 0)
-			yamcs := endpoint.GetClient()
-			if yamcs == nil {
-				return backend.DownstreamErrorf("No client found")
+			yamcs, err := endpoint.GetClient()
+			if err != nil {
+				return backend.DownstreamErrorf("yamcs client unavailable: %v", err)
 			}
 
 			for _, sub := range yamcs.ParameterSubscriptions {
@@ -219,7 +225,10 @@ func RunCommandHistoryStream(
 	q PluginQuery,
 ) error {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return backend.DownstreamErrorf("yamcs client unavailable: %v", err)
+	}
 
 	// Start listening for command history entries for this path
 	endpoint.RequestCommandHistoryStream(req.Path)
@@ -265,7 +274,10 @@ func RunTimeStream(
 	q PluginQuery,
 ) error {
 
-	yamcs := endpoint.GetClient()
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return backend.DownstreamErrorf("yamcs client unavailable: %v", err)
+	}
 
 	endpoint.RequestTime()
 
