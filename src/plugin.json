@@ -107,7 +107,8 @@
             "type": "panel",
             "name": "JAOPS Commanding Panel",
             "id": "jaops-commanding-panel",
-            "path": "commanding-panel/plugin.json"
+            "path": "commanding-panel/plugin.json",
+            "addToNav": true
         },
         {
             "type": "panel",

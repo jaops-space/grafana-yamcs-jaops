@@ -9,13 +9,13 @@ datasources:
       orgId: 1
       isDefault: true
       editable: true
-      version: 1
+      version: 2
       jsonData:
           hosts:
               main-host:
-                  name: Local Yamcs Quickstart
+                  name: Local Yamcs
                   description: Provisioned Quickstart Host
-                  path: ${YAMCS_MAIN_HOST_PATH:-host.docker.internal:8090}
+                  path: docker.gateway:8090
                   tlsEnabled: false
                   tlsInsecure: false
                   authEnabled: false

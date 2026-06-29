@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { dateMath, PanelProps } from '@grafana/data';
-import { locationService, TimeRangeUpdatedEvent } from '@grafana/runtime';
+import { getDataSourceSrv, locationService, TimeRangeUpdatedEvent } from '@grafana/runtime';
 import { Badge } from '@grafana/ui';
 import { defaultPanelOptions, PanelOptions } from './types';
 import { getStatusInfo, TimeSyncStatus } from './utils/status';
@@ -61,12 +61,47 @@ function getRangeLabel(rawFromExpr: string, rawToExpr: string): string {
     return `Last ${formatDurationLabel(durationMs)}`;
 }
 
+function readProcessorNameFromConfig(props: PanelProps<PanelOptions>): string | null {
+    const targets = (props.data.request?.targets as Array<any> | undefined) ?? [];
+    if (targets.length === 0) {
+        return null;
+    }
+
+    const endpointTarget =
+        targets.find((target) => target?.type === 'time' && typeof target?.endpoint === 'string') ??
+        targets.find((target) => typeof target?.endpoint === 'string');
+    if (!endpointTarget) {
+        return null;
+    }
+
+    const endpointId = String(endpointTarget.endpoint).trim();
+    if (!endpointId) {
+        return null;
+    }
+
+    const datasourceUid = endpointTarget?.datasource?.uid;
+    if (!datasourceUid) {
+        return null;
+    }
+
+    const settings = (getDataSourceSrv() as any).getInstanceSettings?.(datasourceUid);
+    const processor = settings?.jsonData?.endpoints?.[endpointId]?.processor;
+
+    if (typeof processor !== 'string') {
+        return null;
+    }
+
+    const trimmed = processor.trim();
+    return trimmed.length > 0 ? trimmed : 'default';
+}
+
 export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const options = { ...defaultPanelOptions, ...props.options };
     const [timeRangeRev, setTimeRangeRev] = useState(0);
     const lastWriteRef = useRef<LastWrite | null>(null);
 
     const yamcsNowMs = useMemo(() => readLatestYamcsTime(props.data.series), [props.data.series]);
+    const processorName = useMemo(() => readProcessorNameFromConfig(props), [props.data.request]);
     const rawFrom = props.timeRange.raw.from;
     const rawTo = props.timeRange.raw.to;
     const rawFromExpr = typeof rawFrom === 'string' ? rawFrom : String(rawFrom.valueOf());
@@ -185,9 +220,14 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     }
 
     const statusInfo = getStatusInfo(status);
-    const badgeColor = status === 'functional' ? 'green' : status === 'disabled' ? 'darkgrey' : 'orange';
-    const badgeText = status === 'functional' ? 'ACTIVE' : 'NOT ACTIVE';
+    const normalizeThresholdMs = Math.max(100, options.normalizeToNowThresholdMs);
+    const isRealtime =
+        status === 'functional' && yamcsNowMs != null && Math.abs(Date.now() - yamcsNowMs) <= normalizeThresholdMs;
+    const badgeColor =
+        status === 'functional' ? (isRealtime ? 'blue' : 'green') : status === 'disabled' ? 'darkgrey' : 'orange';
+    const badgeText = status === 'functional' ? (isRealtime ? 'REALTIME' : 'SYNCHRONIZED') : 'NOT ACTIVE';
     const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr);
+    const processorLabel = processorName ? `Processor: ${processorName}` : 'Processor: default';
 
     return (
         <div
@@ -213,7 +253,9 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
             >
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     <Badge text={badgeText} color={badgeColor} />
-                    <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>{rangeLabel}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>
+                        {processorLabel} | {rangeLabel}
+                    </span>
                 </span>
             </div>
         </div>
