@@ -66,6 +66,10 @@ jaops-yamcs-app/                    # Main app plugin
 pnpm audit
 osv-scanner --recursive .
 
+# static analysis of the Go backend
+# fix all HIGH issues
+gosec ./pkg/...
+
 # version bump: set the new version in package.json (single source of truth,
 # injected into each plugin.json as %VERSION% at build time). the git tag must match.
 # e.g. bump "version" in package.json to 1.0.5
