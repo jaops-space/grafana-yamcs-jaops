@@ -39,5 +39,5 @@ Never capitalize Yamcs as YAMCS (it is not an acronym anymore)
 - Write clear, conventional commit messages (e.g., `feat:`, `fix:`, `ci:`, `docs:`). see CONTRIBUTING.md
 - Do not be overly verbose
 - Current branch workflow uses feature branches and tags for releases
-- append rc for test releases in a branch. keep version tags for main releases in main branch. make sure that package.json and go.mod versions match the tag before committing. 
+- when releasing: make sure that package.json and go.mod versions match the tag before committing. make sure to run pnpm audit and osv-scanner before version bumping and pushing (only address high and critical, ignore others). 
 - Don't push unecessarily, it trigers the CI each time. Push at end of process or when need the CI to trigger a release. 

@@ -24,24 +24,28 @@ Development led by [JAOPS](https://www.jaops.com/): providing Mission Control so
 
 ## Example Grafana Dashboard Connected to Yamcs
 
-Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
-They are made to use data from the [Yamcs quickstart](https://github.com/jaops-space/yamcs-quickstart).
-After cloning the repository, run in three separate terminals:
+Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin connected to the Yamcs quickstart server configuration.
+To get started, clone the `yamcs-quickstart` repository and run in three separate terminals:
 ```bash
+git clone https://github.com/jaops-space/yamcs-quickstart.git
+cd yamcs-quickstart
 ./mvn yamcs:run
-
+```
+```bash
 python simulator.sh
-
+```
+```bash
 pip install -r simulator/images/requirements.txt
 python simulator/images/generate_images.py
 ``` 
 Then launch grafana, configure the datasource for Yamcs and open the Demo Dashboard:
-![Screenshot of Demo Dashboard](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/DemoDashboard.png)
+
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/demo_dash1.png)
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/demo_dash2.png)
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/demo_dash3.png)
 
 The plugin itself includes helpful tutorials for each panel.
 Access them via the main navigation menu (on the left side)
-
-![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/PanelTutorials.png)
 
 ## Documentation and Contributing
 Check out the open-source [GitHub repository](https://github.com/jaops-space/grafana-yamcs-jaops) for the latest features and documentation. 

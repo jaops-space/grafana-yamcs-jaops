@@ -39,12 +39,13 @@ pip install -r simulator/images/requirements.txt
 python simulator/images/generate_images.py
 ``` 
 Then launch grafana, configure the datasource for Yamcs and open the Demo Dashboard:
-![Screenshot of Demo Dashboard](./screenshots/DemoDashboard.png)
+
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/demo_dash1.png)
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/demo_dash2.png)
+![Panel Tutorials](https://github.com/jaops-space/grafana-yamcs-jaops/raw/main/screenshots/demo_dash3.png)
 
 The plugin itself includes helpful tutorials for each panel.
 Access them via the main navigation menu (on the left side)
-
-![Panel Tutorials](./screenshots/PanelTutorials.png)
 
 ## Contributions
 Contributions are very welcome!  
