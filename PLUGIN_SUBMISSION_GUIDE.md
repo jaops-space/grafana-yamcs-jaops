@@ -57,11 +57,16 @@ jaops-yamcs-app/                    # Main app plugin
    - setup_instructions.md
 4. **Test Environment**: Provisioning configuration
 
-5. **Security Audit and sumbission steps**
+5. **Security Audit and submission steps**
 ```bash
 # security audit
+# critical and high vulnerabilities must be fixed before submission (CVSS >=7), low and medium can be ignored.
 pnpm audit
 osv-scanner --recursive .
+
+# version bump: set the new version in package.json (single source of truth,
+# injected into each plugin.json as %VERSION% at build time). the git tag must match.
+# e.g. bump "version" in package.json to 1.0.5
 
 # functional test
 mage build:backend
@@ -74,8 +79,15 @@ mkdir -p dist/screenshots && cp screenshots/*.png dist/screenshots/
 rm -f jaops-yamcs-app.zip && rm -rf /tmp/jaops-yamcs-app && cp -r dist /tmp/jaops-yamcs-app && (cd /tmp && zip -r jaops-yamcs-app.zip jaops-yamcs-app) && mv /tmp/jaops-yamcs-app.zip .
 
 npx @grafana/plugin-validator@latest jaops-yamcs-app.zip
+# ignore sponsorship related warnings 
+# ignore MANIFEST.md warning (the signing is done in the CI)
 
 md5sum jaops-yamcs-app.zip
+
+# commit and tag: tag must match package.json version. pushing the tag triggers the CI release (signing + artifact).
+git commit -am "chore: release v1.0.5"
+git tag v1.0.5
+git push origin <branch> v1.0.5
 ```
 
 
