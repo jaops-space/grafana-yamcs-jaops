@@ -133,6 +133,15 @@ func (ep *YamcsEndpoint) GetCurrentTimeIfFresh(maxAge time.Duration) (time.Time,
 	return currentTime, true
 }
 
+// GetReplaySpeedMultiplier returns the processor replay speed multiplier for this endpoint.
+func (ep *YamcsEndpoint) GetReplaySpeedMultiplier() float64 {
+	if ep == nil || ep.Multiplexer == nil || ep.Instance == nil || ep.Processor == nil {
+		return 1
+	}
+
+	return ep.Multiplexer.GetReplaySpeedMultiplier(ep.Instance.GetName(), ep.Processor.GetName())
+}
+
 // GetHostConfiguration retrieves the host configuration for the endpoint.
 func (ep *YamcsEndpoint) GetHostConfiguration(name string) *config.YamcsHostConfiguration {
 	return ep.Multiplexer.Configuration.Hosts[ep.Multiplexer.Configuration.Endpoints[ep.ID].Host]

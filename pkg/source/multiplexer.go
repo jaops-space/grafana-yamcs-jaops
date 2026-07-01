@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	yamcsprotobuf "github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
@@ -23,6 +24,8 @@ type Multiplexer struct {
 	Endpoints     map[string]*YamcsEndpoint
 	Configuration *config.YamcsPluginConfiguration
 	Secure        *config.YamcsSecureConfiguration
+	// ProcessorSnapshots keeps the latest processor update by instance/processor key.
+	ProcessorSnapshots map[string]client.Processor
 
 	SyncMux sync.Mutex
 }
@@ -30,10 +33,11 @@ type Multiplexer struct {
 // NewMultiplexer creates a fresh multiplexer with a connection manager.
 func NewMultiplexer(cfg *config.YamcsPluginConfiguration) *Multiplexer {
 	return &Multiplexer{
-		Hosts:         make(map[string]*YamcsHost),
-		Endpoints:     make(map[string]*YamcsEndpoint),
-		Configuration: cfg,
-		SyncMux:       sync.Mutex{},
+		Hosts:              make(map[string]*YamcsHost),
+		Endpoints:          make(map[string]*YamcsEndpoint),
+		Configuration:      cfg,
+		ProcessorSnapshots: make(map[string]client.Processor),
+		SyncMux:            sync.Mutex{},
 	}
 }
 
@@ -57,40 +61,44 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		return nil, err
 	}
 
-	if endpoint, exists := mux.Endpoints[endpointID]; exists {
-		return endpoint, nil
-	}
-
-	backend.Logger.Debug("creating new endpoint", "endpointID", endpointID, "instance", endpointConfig.Instance, "processor", endpointConfig.Processor)
-	instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
-	if err != nil {
-		return nil, err
-	}
-
-	backend.Logger.Debug("retrieving processor for instance", "instance", instance.GetName(), "processor", endpointConfig.Processor)
-	processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
-	if err != nil {
-		processor = yamcsClient.GetInstanceDefaultProcessor(instance)
-		if processor == nil {
+	endpoint, exists := mux.Endpoints[endpointID]
+	if !exists {
+		backend.Logger.Debug("creating new endpoint", "endpointID", endpointID, "instance", endpointConfig.Instance, "processor", endpointConfig.Processor)
+		instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
+		if err != nil {
 			return nil, err
 		}
+
+		backend.Logger.Debug("retrieving processor for instance", "instance", instance.GetName(), "processor", endpointConfig.Processor)
+		processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
+		if err != nil {
+			processor = yamcsClient.GetInstanceDefaultProcessor(instance)
+			if processor == nil {
+				return nil, err
+			}
+		}
+
+		endpoint = &YamcsEndpoint{
+			Multiplexer:    mux,
+			Parameters:     make(map[string]*ParameterDemand),
+			Events:         make(map[string][]*events.Event),
+			CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
+			CommandSignals: make(map[string]chan struct{}),
+			Alarms:         make(map[string][]*alarms.AlarmData),
+			AlarmSignals:   make(map[string]chan struct{}),
+			Links:          make(map[string][]*links.LinkInfo),
+			AlarmCache:     make(map[string]*alarms.AlarmData),
+			ID:             endpointID,
+			Instance:       instance,
+			Processor:      processor,
+		}
+		mux.Endpoints[endpointID] = endpoint
 	}
 
-	endpoint := &YamcsEndpoint{
-		Multiplexer:    mux,
-		Parameters:     make(map[string]*ParameterDemand),
-		Events:         make(map[string][]*events.Event),
-		CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
-		CommandSignals: make(map[string]chan struct{}),
-		Alarms:         make(map[string][]*alarms.AlarmData),
-		AlarmSignals:   make(map[string]chan struct{}),
-		Links:          make(map[string][]*links.LinkInfo),
-		AlarmCache:     make(map[string]*alarms.AlarmData),
-		ID:             endpointID,
-		Instance:       instance,
-		Processor:      processor,
+	mux.setProcessorSnapshot(endpoint.Instance.GetName(), endpoint.Processor.GetName(), endpoint.Processor)
+	if err := mux.ensureProcessorUpdatesSubscription(yamcsClient, endpoint); err != nil {
+		return nil, err
 	}
-	mux.Endpoints[endpointID] = endpoint
 
 	// subscribe once per (instance, processor)
 	subscriptionExists := false
@@ -111,6 +119,80 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 	backend.Logger.Debug("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
 
 	return endpoint, nil
+}
+
+func processorSnapshotKey(instanceName string, processorName string) string {
+	return instanceName + "::" + processorName
+}
+
+func (mux *Multiplexer) setProcessorSnapshot(instanceName string, processorName string, processor client.Processor) {
+	mux.ProcessorSnapshots[processorSnapshotKey(instanceName, processorName)] = processor
+}
+
+func (mux *Multiplexer) ensureProcessorUpdatesSubscription(yamcsClient *client.YamcsClient, endpoint *YamcsEndpoint) error {
+	for _, subscription := range yamcsClient.ProcessorSubscriptions {
+		if subscription.Instance == endpoint.Instance.GetName() && subscription.Processor == endpoint.Processor.GetName() {
+			return nil
+		}
+	}
+
+	subscription, err := yamcsClient.CreateProcessorSubscription(endpoint.Instance, endpoint.Processor)
+	if err != nil {
+		return err
+	}
+	subscription.SetListener(mux.GetProcessorListener(endpoint.Instance, endpoint.Processor))
+	return nil
+}
+
+// GetProcessorListener updates processor snapshots and keeps endpoint processor references current.
+func (mux *Multiplexer) GetProcessorListener(instance client.Instance, processor client.Processor) func(update client.Processor) {
+	instanceName := instance.GetName()
+	processorName := processor.GetName()
+
+	return func(update client.Processor) {
+		if update == nil {
+			return
+		}
+
+		mux.SyncMux.Lock()
+		defer mux.SyncMux.Unlock()
+
+		mux.setProcessorSnapshot(instanceName, processorName, update)
+		for _, endpoint := range mux.Endpoints {
+			if endpoint.Instance.GetName() == instanceName && endpoint.Processor.GetName() == processorName {
+				endpoint.Processor = update
+			}
+		}
+	}
+}
+
+// GetReplaySpeedMultiplier returns a multiplier for ticker speed based on current replay speed.
+// A multiplier <= 1 means no speedup should be applied.
+func (mux *Multiplexer) GetReplaySpeedMultiplier(instanceName string, processorName string) float64 {
+	mux.SyncMux.Lock()
+	processor := mux.ProcessorSnapshots[processorSnapshotKey(instanceName, processorName)]
+	mux.SyncMux.Unlock()
+
+	if processor == nil || !processor.GetReplay() {
+		return 1
+	}
+
+	replayRequest := processor.GetReplayRequest()
+	if replayRequest == nil || replayRequest.GetSpeed() == nil {
+		return 1
+	}
+
+	speed := replayRequest.GetSpeed()
+	if speed.GetType() != yamcsprotobuf.ReplaySpeed_REALTIME {
+		return 1
+	}
+
+	multiplier := float64(speed.GetParam())
+	if multiplier <= 1 {
+		return 1
+	}
+
+	return multiplier
 }
 
 // GetEventListener returns a function that listens for events from a specific Yamcs instance.
@@ -212,6 +294,7 @@ func (mux *Multiplexer) Dispose() {
 	}
 	mux.Hosts = make(map[string]*YamcsHost)
 	mux.Endpoints = make(map[string]*YamcsEndpoint)
+	mux.ProcessorSnapshots = make(map[string]client.Processor)
 }
 
 // GetClient gets or creates a YamcsClient for the given host ID.

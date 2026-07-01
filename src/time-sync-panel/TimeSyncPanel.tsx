@@ -95,12 +95,24 @@ function readProcessorNameFromConfig(props: PanelProps<PanelOptions>): string | 
     return trimmed.length > 0 ? trimmed : 'default';
 }
 
+function readSpeed(series: PanelProps<PanelOptions>['data']['series']): number {
+    const speedField = series?.[0]?.fields?.find((field) => field.name === 'speed');
+    if (!speedField || speedField.values.length === 0) {
+        return 1;
+    }
+
+    const values = speedField.values as unknown as ArrayLike<unknown>;
+    const speed = Number(values[values.length - 1]);
+    return Number.isFinite(speed) && speed > 0 ? speed : 1;
+}
+
 export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const options = { ...defaultPanelOptions, ...props.options };
     const [timeRangeRev, setTimeRangeRev] = useState(0);
     const lastWriteRef = useRef<LastWrite | null>(null);
 
     const yamcsNowMs = useMemo(() => readLatestYamcsTime(props.data.series), [props.data.series]);
+    const speed = useMemo(() => readSpeed(props.data.series), [props.data.series]);
     const processorName = useMemo(() => readProcessorNameFromConfig(props), [props.data.request]);
     const rawFrom = props.timeRange.raw.from;
     const rawTo = props.timeRange.raw.to;
@@ -228,6 +240,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const badgeText = status === 'functional' ? (isRealtime ? 'REALTIME' : 'SYNCHRONIZED') : 'NOT ACTIVE';
     const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr);
     const processorLabel = processorName ? `Processor: ${processorName}` : 'Processor: default';
+    const hasReplaySpeed = Math.abs(speed - 1) > 0.001;
 
     return (
         <div
@@ -253,6 +266,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
             >
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     <Badge text={badgeText} color={badgeColor} />
+                    {hasReplaySpeed && <Badge text={`REPLAY ${speed.toFixed(2)}x`} color="orange" />}
                     <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>
                         {processorLabel} | {rangeLabel}
                     </span>
