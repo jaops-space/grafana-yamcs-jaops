@@ -1,6 +1,7 @@
 package source
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -82,7 +83,7 @@ func (ep *YamcsEndpoint) GetConfiguration() *config.YamcsEndpointConfiguration {
 }
 
 // GetParameterDemand retrieves or initializes a ParameterDemand.
-func (ep *YamcsEndpoint) GetParameterDemand(parameter string) *ParameterDemand {
+func (ep *YamcsEndpoint) GetParameterDemand(ctx context.Context, parameter string) *ParameterDemand {
 
 	if ep.Parameters[parameter] == nil {
 		unit := ""
@@ -90,7 +91,7 @@ func (ep *YamcsEndpoint) GetParameterDemand(parameter string) *ParameterDemand {
 
 		client, err := ep.GetClient()
 		if err == nil {
-			paramInfo, err := client.GetParameter(ep.Instance, parameter)
+			paramInfo, err := client.GetParameter(ctx, ep.Instance, parameter)
 			if err == nil {
 				paramType := paramInfo.GetType()
 				unitSet := paramType.GetUnitSet()
@@ -116,7 +117,7 @@ func (ep *YamcsEndpoint) GetParameterDemand(parameter string) *ParameterDemand {
 func (ep *YamcsEndpoint) GetChannelParameterListener() func(parameter string, value *pvalue.ParameterValue) {
 	return func(parameter string, value *pvalue.ParameterValue) {
 
-		paramDemand := ep.GetParameterDemand(parameter)
+		paramDemand := ep.GetParameterDemand(context.TODO(), parameter)
 		streamDemands := paramDemand.Streams
 		paramDemand.LastReceived = time.Now()
 
@@ -135,7 +136,7 @@ func (ep *YamcsEndpoint) GetChannelParameterListener() func(parameter string, va
 // RequestNewParameterStream adds a new parameter stream to the endpoint.
 func (ep *YamcsEndpoint) RequestNewParameterStream(name string, path string) error {
 
-	ep.GetParameterDemand(name)
+	ep.GetParameterDemand(context.TODO(), name)
 
 	ep.Parameters[name].Streams[path] = &ParameterStreamDemand{
 		parameter: ep.Parameters[name],
@@ -181,7 +182,7 @@ func (ep *YamcsEndpoint) ClearParameterStream(parameter string, path string) {
 // WithdrawParameterStreamRequest removes a parameter stream request.
 func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(name string, path string) error {
 
-	ep.GetParameterDemand(name)
+	ep.GetParameterDemand(context.TODO(), name)
 	client, err := ep.GetClient()
 	if err != nil {
 		return nil

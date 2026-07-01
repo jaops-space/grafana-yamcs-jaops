@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -12,27 +13,27 @@ import (
 )
 
 // IssueCommand sends a command to the specified Yamcs processor with given arguments.
-func (c *YamcsClient) IssueCommand(instance Instance, processor Processor, commandName string, args map[string]any) (*commanding.IssueCommandResponse, error) {
-	return c.issueCommand(instance, processor, commandName, args, "", nil, nil, false, nil, nil, nil, nil, nil)
+func (c *YamcsClient) IssueCommand(ctx context.Context, instance Instance, processor Processor, commandName string, args map[string]any) (*commanding.IssueCommandResponse, error) {
+	return c.issueCommand(ctx, instance, processor, commandName, args, "", nil, nil, false, nil, nil, nil, nil, nil)
 }
 
 // IssueCommandWithComment sends a command with an attached comment.
-func (c *YamcsClient) IssueCommandWithComment(instance Instance, processor Processor, commandName string, args map[string]any, comment string) (*commanding.IssueCommandResponse, error) {
-	return c.issueCommand(instance, processor, commandName, args, comment, nil, nil, false, nil, nil, nil, nil, nil)
+func (c *YamcsClient) IssueCommandWithComment(ctx context.Context, instance Instance, processor Processor, commandName string, args map[string]any, comment string) (*commanding.IssueCommandResponse, error) {
+	return c.issueCommand(ctx, instance, processor, commandName, args, comment, nil, nil, false, nil, nil, nil, nil, nil)
 }
 
 // IssueCommandWithOptions sends a command with additional options but without elevated privileges.
-func (c *YamcsClient) IssueCommandWithOptions(instance Instance, processor Processor, commandName string, args map[string]any, origin string, sequenceNumber int32, dryRun bool, comment string, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
-	return c.issueCommand(instance, processor, commandName, args, comment, &origin, &sequenceNumber, dryRun, nil, nil, nil, nil, extra)
+func (c *YamcsClient) IssueCommandWithOptions(ctx context.Context, instance Instance, processor Processor, commandName string, args map[string]any, origin string, sequenceNumber int32, dryRun bool, comment string, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
+	return c.issueCommand(ctx, instance, processor, commandName, args, comment, &origin, &sequenceNumber, dryRun, nil, nil, nil, nil, extra)
 }
 
 // IssueCommandWithElevatedPrivileges sends a command with all options, including those requiring elevated privileges.
-func (c *YamcsClient) IssueCommandWithElevatedPrivileges(instance Instance, processor Processor, commandName string, args map[string]any, origin string, sequenceNumber int32, dryRun bool, comment string, stream string, disableTransmissionConstraints, disableVerifiers bool, verifierConfig map[string]*commanding.VerifierConfig, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
-	return c.issueCommand(instance, processor, commandName, args, comment, &origin, &sequenceNumber, dryRun, &stream, &disableTransmissionConstraints, &disableVerifiers, verifierConfig, extra)
+func (c *YamcsClient) IssueCommandWithElevatedPrivileges(ctx context.Context, instance Instance, processor Processor, commandName string, args map[string]any, origin string, sequenceNumber int32, dryRun bool, comment string, stream string, disableTransmissionConstraints, disableVerifiers bool, verifierConfig map[string]*commanding.VerifierConfig, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
+	return c.issueCommand(ctx, instance, processor, commandName, args, comment, &origin, &sequenceNumber, dryRun, &stream, &disableTransmissionConstraints, &disableVerifiers, verifierConfig, extra)
 }
 
 // issueCommand handles command execution with optional parameters.
-func (c *YamcsClient) issueCommand(instance Instance, processor Processor, commandName string, args map[string]any, comment string, origin *string, sequenceNumber *int32, dryRun bool, stream *string, disableTransmissionConstraints, disableVerifiers *bool, verifierConfig map[string]*commanding.VerifierConfig, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
+func (c *YamcsClient) issueCommand(ctx context.Context, instance Instance, processor Processor, commandName string, args map[string]any, comment string, origin *string, sequenceNumber *int32, dryRun bool, stream *string, disableTransmissionConstraints, disableVerifiers *bool, verifierConfig map[string]*commanding.VerifierConfig, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
 	url := fmt.Sprintf("/processors/%s/%s/commands/%s", instance.GetName(), processor.GetName(), commandName)
 
 	argsProto, err := convertMap(args)
@@ -54,7 +55,7 @@ func (c *YamcsClient) issueCommand(instance Instance, processor Processor, comma
 	}
 
 	commandResponse := &commanding.IssueCommandResponse{}
-	err = c.HTTP.PostProto(url, commandRequest, commandResponse)
+	err = c.HTTP.PostProtoWithContext(ctx, url, commandRequest, commandResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -63,10 +64,10 @@ func (c *YamcsClient) issueCommand(instance Instance, processor Processor, comma
 }
 
 // GetCommand retrieves command history entry by instance and ID.
-func (c *YamcsClient) GetCommand(instance, id string) (*commanding.CommandHistoryEntry, error) {
+func (c *YamcsClient) GetCommand(ctx context.Context, instance, id string) (*commanding.CommandHistoryEntry, error) {
 	url := fmt.Sprintf("/archive/%s/commands/%s", instance, id)
 	command := &commanding.CommandHistoryEntry{}
-	if err := c.HTTP.GetProto(url, command); err != nil {
+	if err := c.HTTP.GetProtoWithContext(ctx, url, command); err != nil {
 		return nil, err
 	}
 	return command, nil
@@ -78,10 +79,10 @@ func (c *YamcsClient) ListCommandsHistory(instance Instance, start, end time.Tim
 }
 
 func (c *YamcsClient) getCommandsHistoryFetcher(instance string, startTime, endTime time.Time) types.FetchFunction[[]*commanding.CommandHistoryEntry] {
-	return func() ([]*commanding.CommandHistoryEntry, string, error) {
+	return func(ctx context.Context) ([]*commanding.CommandHistoryEntry, string, error) {
 		response := &commanding.ListCommandsResponse{}
 		c.setTime(startTime, endTime)
-		if err := c.HTTP.GetProto(fmt.Sprintf("/archive/%s/commands", instance), response); err != nil {
+		if err := c.HTTP.GetProtoWithContext(ctx, fmt.Sprintf("/archive/%s/commands", instance), response); err != nil {
 			return nil, "", err
 		}
 		return response.Commands, response.GetContinuationToken(), nil
@@ -114,9 +115,9 @@ func (c *YamcsClient) SearchCommandInfo(instance Instance, query string) *types.
 }
 
 func (c *YamcsClient) getCommandInfoFetcher(instance string) types.FetchFunction[[]CommandInfo] {
-	return func() ([]CommandInfo, string, error) {
+	return func(ctx context.Context) ([]CommandInfo, string, error) {
 		response := &mdb.ListCommandsResponse{}
-		if err := c.HTTP.GetProto(fmt.Sprintf("/mdb/%s/commands", instance), response); err != nil {
+		if err := c.HTTP.GetProtoWithContext(ctx, fmt.Sprintf("/mdb/%s/commands", instance), response); err != nil {
 			return nil, "", err
 		}
 		return response.GetCommands(), response.GetContinuationToken(), nil
@@ -124,10 +125,10 @@ func (c *YamcsClient) getCommandInfoFetcher(instance string) types.FetchFunction
 }
 
 // GetCommandInfo retrieves metadata for a specific command.
-func (c *YamcsClient) GetCommandInfo(instance Instance, command string) (CommandInfo, error) {
+func (c *YamcsClient) GetCommandInfo(ctx context.Context, instance Instance, command string) (CommandInfo, error) {
 	url := fmt.Sprintf("/mdb/%s/commands/%s", instance.GetName(), command)
 	info := &mdb.CommandInfo{}
-	if err := c.HTTP.GetProto(url, info); err != nil {
+	if err := c.HTTP.GetProtoWithContext(ctx, url, info); err != nil {
 		return nil, err
 	}
 	return info, nil

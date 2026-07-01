@@ -77,7 +77,7 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	}
 
 	// Retrieve the endpoint associated with the requested stream
-	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
+	endpoint, err := d.multiplexer.GetEndpoint(ctx, q.EndpointID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,23 +86,23 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	var frame *data.Frame
 	switch q.Type {
 	case Graph:
-		frame, err = DatasourceGraphFrame(d.querier, endpoint, q)
+		frame, err = DatasourceGraphFrame(ctx, d.querier, endpoint, q)
 	case SingleValue, Image:
-		frame, err = DatasourceSingleValueFrame(endpoint, q)
+		frame, err = DatasourceSingleValueFrame(ctx, endpoint, q)
 	case DiscreteValue:
-		frame, err = DatasourceDiscreteValueFrame(endpoint, q)
+		frame, err = DatasourceDiscreteValueFrame(ctx, endpoint, q)
 	case Events:
-		frame, err = DatasourceEventsFrame(endpoint, q)
+		frame, err = DatasourceEventsFrame(ctx, endpoint, q)
 	case Commanding:
-		frame, err = DatasourceCommandFrame(endpoint, q)
+		frame, err = DatasourceCommandFrame(ctx, endpoint, q)
 	case CommandHistory:
-		frame, err = DatasourceCommandHistoryFrame(endpoint, q)
+		frame, err = DatasourceCommandHistoryFrame(ctx, endpoint, q)
 	case Demands, Subscriptions:
 		return &backend.SubscribeStreamResponse{
 			Status: backend.SubscribeStreamStatusOK,
 		}, nil
 	case Time:
-		frame, err = DatasourceTimeFrame(endpoint, q)
+		frame, err = DatasourceTimeFrame(ctx, endpoint, q)
 	default:
 		return nil, exception.New("Query type not identified", "QUERY_TYPE_NOT_FOUND")
 	}
@@ -151,7 +151,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	}
 
 	// Retrieve the endpoint associated with the requested stream
-	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
+	endpoint, err := d.multiplexer.GetEndpoint(ctx, q.EndpointID)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		}
 
 		// Try to retrieve the endpoint to verify instance and processor exist
-		_, err := testMux.GetEndpoint(endpointID)
+		_, err := testMux.GetEndpoint(ctx, endpointID)
 		status := "OK"
 		if err != nil {
 			status = err.Error()

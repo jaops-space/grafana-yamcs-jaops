@@ -1,12 +1,14 @@
 package types
 
 import (
+	"context"
+
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // FetchFunction represents a function that fetches data for pagination.
 // It returns a result of type T, a continuation token, and any error encountered.
-type FetchFunction[T any] func() (T, string, error)
+type FetchFunction[T any] func(ctx context.Context) (T, string, error)
 
 // PaginatedRequestIterator handles paginated requests, managing the fetching of results
 // and continuation tokens. It allows iterating through paginated data in a flexible way.
@@ -38,7 +40,7 @@ func (iterator *PaginatedRequestIterator[T]) SetQuery(query map[string]string) {
 
 // Next fetches the next result from the iterator.
 // It applies the query parameters and continuation token, if present.
-func (iterator *PaginatedRequestIterator[T]) Next() (T, error) {
+func (iterator *PaginatedRequestIterator[T]) Next(ctx context.Context) (T, error) {
 	// Set the continuation token if present
 	if iterator.continuation != "" {
 		iterator.apiContext.Query["next"] = iterator.continuation
@@ -50,7 +52,7 @@ func (iterator *PaginatedRequestIterator[T]) Next() (T, error) {
 	}
 
 	// Fetch data and handle the continuation token
-	result, token, err := iterator.fetchData()
+	result, token, err := iterator.fetchData(ctx)
 	iterator.continuation = token
 	iterator.isInitialized = true
 

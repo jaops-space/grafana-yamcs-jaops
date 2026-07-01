@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -17,9 +18,9 @@ func (c *YamcsClient) ListAlarms(instance, name string) *types.PaginatedRequestI
 
 // fetchAlarms fetches a list of alarms from the Yamcs API.
 func (c *YamcsClient) fetchAlarms(instance, name string) types.FetchFunction[[]*alarms.AlarmData] {
-	return func() ([]*alarms.AlarmData, string, error) {
+	return func(ctx context.Context) ([]*alarms.AlarmData, string, error) {
 		response := &alarms.ListAlarmsResponse{}
-		if err := c.HTTP.GetProto(fmt.Sprintf("/archive/%s/alarms/%s", instance, name), response); err != nil {
+		if err := c.HTTP.GetProtoWithContext(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), response); err != nil {
 			return nil, "", err
 		}
 		return response.Alarms, response.GetContinuationToken(), nil

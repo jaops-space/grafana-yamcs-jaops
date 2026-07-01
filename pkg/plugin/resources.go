@@ -18,7 +18,7 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 
 	response := make(map[string]any)
 	for endpointID, endpointConfiguration := range d.multiplexer.Configuration.Endpoints {
-		endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+		endpoint, err := d.multiplexer.GetEndpoint(req.Context(), endpointID)
 		object := map[string]any{}
 		object["name"] = endpointConfiguration.Name
 		object["description"] = endpointConfiguration.Description
@@ -55,7 +55,7 @@ func (d *Datasource) handleSearchParameters(w http.ResponseWriter, req *http.Req
 	endpointID := vars["endpointID"]
 	query := req.URL.Query().Get("q")
 
-	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	endpoint, err := d.multiplexer.GetEndpoint(req.Context(), endpointID)
 	if err != nil {
 		backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
 		http.Error(w, "endpoint unavailable", http.StatusInternalServerError)
@@ -68,7 +68,7 @@ func (d *Datasource) handleSearchParameters(w http.ResponseWriter, req *http.Req
 		return
 	}
 	reqIterator := client.SearchParameters(endpoint.Instance, query)
-	results, err := reqIterator.Next()
+	results, err := reqIterator.Next(req.Context())
 	if err != nil {
 		backend.Logger.Error("Parameter search failed", "endpointID", endpointID, "query", query, "error", err)
 		http.Error(w, "parameter search failed", http.StatusBadRequest)
@@ -100,7 +100,7 @@ func (d *Datasource) handleSearchCommands(w http.ResponseWriter, req *http.Reque
 	endpointID := vars["endpointID"]
 	query := req.URL.Query().Get("q")
 
-	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	endpoint, err := d.multiplexer.GetEndpoint(req.Context(), endpointID)
 	if err != nil {
 		backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
 		http.Error(w, "endpoint unavailable", http.StatusInternalServerError)
@@ -113,7 +113,7 @@ func (d *Datasource) handleSearchCommands(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	reqIterator := client.SearchCommandInfo(endpoint.Instance, query)
-	results, err := reqIterator.Next()
+	results, err := reqIterator.Next(req.Context())
 	if err != nil {
 		backend.Logger.Error("Command search failed", "endpointID", endpointID, "query", query, "error", err)
 		http.Error(w, "command search failed", http.StatusBadRequest)
@@ -168,7 +168,7 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	endpoint, err := d.multiplexer.GetEndpoint(req.Context(), endpointID)
 	if err != nil {
 		backend.Logger.Error("Failed to retrieve endpoint", "endpointID", endpointID, "error", err)
 		http.Error(w, "endpoint unavailable", http.StatusInternalServerError)
@@ -180,7 +180,7 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 		http.Error(w, "endpoint unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	response, err := client.IssueCommandWithComment(endpoint.Instance, endpoint.Processor, body.Name, body.Arguments, body.Comment)
+	response, err := client.IssueCommandWithComment(req.Context(), endpoint.Instance, endpoint.Processor, body.Name, body.Arguments, body.Comment)
 	if err != nil {
 		backend.Logger.Error("Command issue failed", "endpointID", endpointID, "command", body.Name, "error", err)
 		http.Error(w, "command execution failed", http.StatusBadRequest)

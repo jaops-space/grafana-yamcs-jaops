@@ -1,6 +1,7 @@
 package source
 
 import (
+	"context"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -39,7 +40,7 @@ type TelemetryPoint struct {
 
 // Querier orchestrates queries across Yamcs live data.
 type Querier struct {
-	endpoints    map[string]*config.YamcsEndpointConfiguration
+	endpoints map[string]*config.YamcsEndpointConfiguration
 }
 
 // New creates a new Querier instance.
@@ -51,7 +52,7 @@ func New(endpoints map[string]*config.YamcsEndpointConfiguration) *Querier {
 
 // queryYamcsOnly queries data directly from Yamcs.
 // yamcsFilter is an optional parameter filter configuration for server-side filtering.
-func (q *Querier) queryYamcsOnly(yamcsClient *client.YamcsClient, instance client.Instance, processor client.Processor, from, to time.Time, telemetryIDs []string, yamcsFilter *YamcsFilterConfig) (map[string][]TelemetryPoint, error) {
+func (q *Querier) queryYamcsOnly(ctx context.Context, yamcsClient *client.YamcsClient, instance client.Instance, processor client.Processor, from, to time.Time, telemetryIDs []string, yamcsFilter *YamcsFilterConfig) (map[string][]TelemetryPoint, error) {
 	out := make(map[string][]TelemetryPoint, len(telemetryIDs))
 
 	for _, id := range telemetryIDs {
@@ -61,6 +62,7 @@ func (q *Querier) queryYamcsOnly(yamcsClient *client.YamcsClient, instance clien
 		// Use filtered query if yamcsFilter is provided
 		if yamcsFilter != nil && yamcsFilter.Enabled && yamcsFilter.Parameter != "" && yamcsFilter.Value != "" {
 			samples, err = yamcsClient.GetParameterSamplesInProcessorByNamesWithFilter(
+				ctx,
 				instance.GetName(),
 				processor.GetName(),
 				id,
@@ -71,6 +73,7 @@ func (q *Querier) queryYamcsOnly(yamcsClient *client.YamcsClient, instance clien
 			)
 		} else {
 			samples, err = yamcsClient.GetParameterSamplesInProcessorByNames(
+				ctx,
 				instance.GetName(),
 				processor.GetName(),
 				id,

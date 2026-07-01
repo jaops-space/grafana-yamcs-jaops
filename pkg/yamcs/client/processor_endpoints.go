@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/processing"
@@ -21,12 +22,12 @@ func (client *YamcsClient) GetProcessor(instance Instance, name string) (Process
 
 // ListInstanceProcessorsByName retrieves all processors by their name for the specified instance.
 // It performs a GET request to fetch processor data and returns a list of processors.
-func (client *YamcsClient) ListInstanceProcessorsByName(instanceName string) ([]Processor, error) {
+func (client *YamcsClient) ListInstanceProcessorsByName(ctx context.Context, instanceName string) ([]Processor, error) {
 	processorsResponse := &processing.ListProcessorsResponse{}
 
 	// Set the query parameter for the instance
 	client.HTTP.Query["instance"] = instanceName
-	err := client.HTTP.GetProto("/processors", processorsResponse)
+	err := client.HTTP.GetProtoWithContext(ctx, "/processors", processorsResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -36,12 +37,12 @@ func (client *YamcsClient) ListInstanceProcessorsByName(instanceName string) ([]
 
 // ListInstanceProcessors retrieves all processors for a given instance.
 // It performs a GET request to fetch processor data and returns a list of processors.
-func (client *YamcsClient) ListInstanceProcessors(instance Instance) ([]Processor, error) {
+func (client *YamcsClient) ListInstanceProcessors(ctx context.Context, instance Instance) ([]Processor, error) {
 	processorsResponse := &processing.ListProcessorsResponse{}
 
 	// Set the query parameter for the instance
 	client.HTTP.Query["instance"] = instance.GetName()
-	err := client.HTTP.GetProto("/processors", processorsResponse)
+	err := client.HTTP.GetProtoWithContext(ctx, "/processors", processorsResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +65,8 @@ func (client *YamcsClient) GetInstanceDefaultProcessor(instance Instance) Proces
 
 // GetInstanceDefaultProcessorByName retrieves the default processor by its name for a given instance.
 // It fetches the processors for the instance and returns the first one.
-func (client *YamcsClient) GetInstanceDefaultProcessorByName(instanceName string) (Processor, error) {
-	processors, err := client.ListInstanceProcessorsByName(instanceName)
+func (client *YamcsClient) GetInstanceDefaultProcessorByName(ctx context.Context, instanceName string) (Processor, error) {
+	processors, err := client.ListInstanceProcessorsByName(ctx, instanceName)
 	if err != nil {
 		return nil, err
 	}

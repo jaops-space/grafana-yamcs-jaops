@@ -1,6 +1,7 @@
 package source
 
 import (
+	"context"
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -39,7 +40,7 @@ func (mux *Multiplexer) SetupHost(hostID string) error {
 }
 
 // GetEndpoint retrieves or creates an Endpoint for the given ID.
-func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
+func (mux *Multiplexer) GetEndpoint(ctx context.Context, endpointID string) (*YamcsEndpoint, error) {
 	mux.SyncMux.Lock()
 	defer mux.SyncMux.Unlock()
 
@@ -58,7 +59,7 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		return endpoint, nil
 	}
 
-	instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
+	instance, err := yamcsClient.GetInstanceByName(ctx, endpointConfig.Instance)
 	if err != nil {
 		return nil, err
 	}

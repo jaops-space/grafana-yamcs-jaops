@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -25,9 +26,9 @@ func (c *YamcsClient) ListEventsWithinTimeRange(instance Instance, startTime, en
 
 // fetchEventBatch retrieves a batch of events from the given instance.
 func (c *YamcsClient) fetchEventBatch(instance string) types.FetchFunction[[]*events.Event] {
-	return func() ([]*events.Event, string, error) {
+	return func(ctx context.Context) ([]*events.Event, string, error) {
 		response := &events.ListEventsResponse{}
-		err := c.HTTP.GetProto(fmt.Sprintf("/archive/%s/events", instance), response)
+		err := c.HTTP.GetProtoWithContext(ctx, fmt.Sprintf("/archive/%s/events", instance), response)
 		if err != nil {
 			return nil, "", err
 		}

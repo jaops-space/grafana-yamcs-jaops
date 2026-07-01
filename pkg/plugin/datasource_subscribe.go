@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
-func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceGraphFrame(ctx context.Context, querier *source.Querier, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 	backend.Logger.Debug("DatasourceGraphFrame called",
 		"endpoint", q.EndpointID,
 		"parameter", q.Parameter,
@@ -57,7 +58,7 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		"yamcsFilter", q.YamcsFilter)
 
 	// Include aggregatePath in the API call to get the correct value type (Position.X returns INTEGER instead of AGGREGATE)
-	samples, err := yamcs.GetParameterSamplesInProcessorByNames(endpoint.Instance.GetName(), endpoint.Processor.GetName(), q.Parameter+aggregatePath, start, end)
+	samples, err := yamcs.GetParameterSamplesInProcessorByNames(ctx, endpoint.Instance.GetName(), endpoint.Processor.GetName(), q.Parameter+aggregatePath, start, end)
 
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter samples", "error", err)
@@ -87,11 +88,11 @@ func DatasourceGraphFrame(querier *source.Querier, endpoint *source.YamcsEndpoin
 		frame = tools.ConvertSampleBufferToFrame(samples, q.Parameter+aggregatePath, getMin, getMax)
 	}
 
-	SetUnitAndThresholds(endpoint, q.Parameter, frame)
+	SetUnitAndThresholds(ctx, endpoint, q.Parameter, frame)
 	return frame, nil
 }
 
-func DatasourceSingleValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceSingleValueFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	yamcs, err := endpoint.GetClient()
 	if err != nil {
@@ -103,7 +104,7 @@ func DatasourceSingleValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (
 	}
 
 	// TODO: Pass filter parameters to YAMCS when server-side filtering is implemented
-	lastValue, err := yamcs.GetParameterValueByName(endpoint.Instance, endpoint.Processor, q.Parameter)
+	lastValue, err := yamcs.GetParameterValueByName(ctx, endpoint.Instance, endpoint.Processor, q.Parameter)
 
 	if err != nil {
 		return nil, err
@@ -112,12 +113,12 @@ func DatasourceSingleValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (
 	buffer := []client.ParameterValue{lastValue}
 
 	frame := tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, false, false, aggregatePath, q.Realtime)
-	SetUnitAndThresholds(endpoint, q.Parameter, frame)
+	SetUnitAndThresholds(ctx, endpoint, q.Parameter, frame)
 	return frame, nil
 
 }
 
-func DatasourceDiscreteValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceDiscreteValueFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	yamcs, err := endpoint.GetClient()
 	if err != nil {
@@ -139,6 +140,7 @@ func DatasourceDiscreteValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery)
 	minRange := fmt.Sprint(int(end.Sub(start).Milliseconds()) / q.MaxPoints)
 
 	ranges, err := yamcs.GetParameterRangesByQueryWithTimeByNames(
+		ctx,
 		endpoint.Instance.GetName(),
 		q.Parameter,
 		map[string]string{
@@ -154,12 +156,12 @@ func DatasourceDiscreteValueFrame(endpoint *source.YamcsEndpoint, q PluginQuery)
 	}
 
 	frame := tools.ConvertRangesToFrame(ranges, q.Parameter+aggregatePath, aggregatePath)
-	SetUnitAndThresholds(endpoint, q.Parameter, frame)
+	SetUnitAndThresholds(ctx, endpoint, q.Parameter, frame)
 	return frame, nil
 
 }
 
-func DatasourceEventsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceEventsFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	yamcs, err := endpoint.GetClient()
 	if err != nil {
@@ -176,7 +178,7 @@ func DatasourceEventsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data
 	iterator := yamcs.ListEventsWithinTimeRange(endpoint.Instance, start, end)
 	events := []*events.Event{}
 	for iterator.HasNext() {
-		currentEvents, err := iterator.Next()
+		currentEvents, err := iterator.Next(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -187,9 +189,9 @@ func DatasourceEventsFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data
 	return frame, nil
 }
 
-func SetUnitAndThresholds(endpoint *source.YamcsEndpoint, parameter string, frame *data.Frame) {
+func SetUnitAndThresholds(ctx context.Context, endpoint *source.YamcsEndpoint, parameter string, frame *data.Frame) {
 
-	parameterDemand := endpoint.GetParameterDemand(parameter)
+	parameterDemand := endpoint.GetParameterDemand(ctx, parameter)
 
 	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisTypeGraph}
 
@@ -208,13 +210,13 @@ func SetUnitAndThresholds(endpoint *source.YamcsEndpoint, parameter string, fram
 	}
 }
 
-func DatasourceCommandFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceCommandFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	yamcs, err := endpoint.GetClient()
 	if err != nil {
 		return nil, fmt.Errorf("yamcs client unavailable for endpoint %s: %w", q.EndpointID, err)
 	}
-	command, err := yamcs.GetCommandInfo(endpoint.Instance, q.Command)
+	command, err := yamcs.GetCommandInfo(ctx, endpoint.Instance, q.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +233,7 @@ func DatasourceCommandFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*dat
 	), nil
 }
 
-func DatasourceCommandHistoryFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceCommandHistoryFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 
 	yamcs, err := endpoint.GetClient()
 	if err != nil {
@@ -241,7 +243,7 @@ func DatasourceCommandHistoryFrame(endpoint *source.YamcsEndpoint, q PluginQuery
 	iterator := yamcs.ListCommandsHistory(endpoint.Instance, start, end)
 	commandList := make([]*commanding.CommandHistoryEntry, 0)
 	for iterator.HasNext() {
-		commands, err := iterator.Next()
+		commands, err := iterator.Next(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +256,7 @@ func DatasourceCommandHistoryFrame(endpoint *source.YamcsEndpoint, q PluginQuery
 	return frame, nil
 }
 
-func DatasourceTimeFrame(endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+func DatasourceTimeFrame(_ context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 	return data.NewFrame("response",
 		data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}),
 	), nil
