@@ -1,6 +1,6 @@
 {
   "name": "grafana-yamcs-jaops",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "scripts": {
     "build": "webpack -c ./webpack.config.ts --env production",
     "dev": "webpack -w -c ./webpack.config.ts --env development",
