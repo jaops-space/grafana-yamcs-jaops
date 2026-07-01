@@ -181,8 +181,6 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                 setDatasource(ds as DataSourceWithBackend);
             })
             .catch(console.error);
-        // re-run only when the datasource UID changes
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [(data.request?.targets?.[0]?.datasource as any)?.uid]);
 
     const deduped = useMemo(() => {
