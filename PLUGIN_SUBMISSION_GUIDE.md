@@ -5,18 +5,20 @@ This document outlines the steps and requirements for submitting the JAOPS Yamcs
 ## Plugin Overview
 
 The JAOPS Yamcs plugin is a comprehensive integration that provides:
+
 - **App Plugin**: Main application with navigation pages
 - **Datasource Plugin**: Connects to Yamcs servers for data retrieval
 - **Panel Plugins**: Specialized visualization and commanding panels
-  - Commanding Panel
-  - Command History Panel
-  - Image Panel
-  - Static Image Panel
-  - Variable Commanding Panel
+    - Commanding Panel
+    - Command History Panel
+    - Image Panel
+    - Static Image Panel
+    - Variable Commanding Panel
 
 ## Plugin Structure
 
 This is a multi-plugin package containing:
+
 ```
 jaops-yamcs-app/                    # Main app plugin
 ├── datasource/                     # Yamcs datasource plugin
@@ -31,6 +33,7 @@ jaops-yamcs-app/                    # Main app plugin
 ## Compliance Checklist
 
 ### Community Plugin Requirements
+
 - Interfacing with open source technology (Yamcs: www.yamcs.org, AGPL-3.0 license)
 - Plugin is MIT license
 - Public GitHub repository
@@ -38,6 +41,7 @@ jaops-yamcs-app/                    # Main app plugin
 - Non-commercial nature
 
 ### Technical Requirements
+
 - Plugin metadata complete
 - Keywords for discoverability
 - Author information and contact details
@@ -51,13 +55,14 @@ jaops-yamcs-app/                    # Main app plugin
 
 1. **Plugin ZIP**: Signed plugin archive
 2. **Source Code**: GitHub repository
-3. **Documentation**: 
-   - README.md
-   - TESTING_GUIDE.md
-   - setup_instructions.md
+3. **Documentation**:
+    - README.md
+    - TESTING_GUIDE.md
+    - setup_instructions.md
 4. **Test Environment**: Provisioning configuration
 
 5. **Security Audit and sumbission steps**
+
 ```bash
 # security audit
 pnpm audit
@@ -77,5 +82,3 @@ npx @grafana/plugin-validator@latest jaops-yamcs-app.zip
 
 md5sum jaops-yamcs-app.zip
 ```
-
-

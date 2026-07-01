@@ -1,9 +1,19 @@
 import { dateTime, PanelProps } from '@grafana/data';
 import { DataSourceWithBackend, getDataSourceSrv, getTemplateSrv } from '@grafana/runtime';
-import { Button, Icon, InteractiveTable, Modal, Combobox, Stack, Text, TextArea, Tooltip, useTheme2 } from '@grafana/ui';
+import {
+    Button,
+    Icon,
+    InteractiveTable,
+    Modal,
+    Combobox,
+    Stack,
+    Text,
+    TextArea,
+    Tooltip,
+    useTheme2,
+} from '@grafana/ui';
 import { AlarmsOptions } from 'alarms-panel/module';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-
 
 interface AlarmEntry {
     id: string;
@@ -16,7 +26,7 @@ interface AlarmEntry {
     acknowledged: boolean;
     acknowledgedBy?: string;
     acknowledgeTime?: string;
-        acknowledgeComment?: string;
+    acknowledgeComment?: string;
     processOK: boolean;
     triggered: boolean;
     latching: boolean;
@@ -39,7 +49,6 @@ interface AlarmEntry {
     notificationType: string;
     seqNum: number;
 }
-
 
 function deepCombine<T = any>(obj1: T, obj2: T): T {
     if (Array.isArray(obj1) && Array.isArray(obj2)) {
@@ -94,11 +103,11 @@ const dedupeById = (entries: AlarmEntry[]): AlarmEntry[] => {
 
 // Severity colors and icons - 5 distinct levels
 const severityConfig: Record<string, { color: string; icon: any }> = {
-    'WATCH': { color: '#3399FF', icon: 'record-audio' },      // Light blue
-    'WARNING': { color: '#FF9933', icon: 'record-audio' },    // Orange
-    'DISTRESS': { color: '#FF6600', icon: 'record-audio' },   // Dark orange
-    'CRITICAL': { color: '#FF3333', icon: 'record-audio' },   // Red
-    'SEVERE': { color: '#CC0000', icon: 'record-audio' },     // Dark red
+    WATCH: { color: '#3399FF', icon: 'record-audio' }, // Light blue
+    WARNING: { color: '#FF9933', icon: 'record-audio' }, // Orange
+    DISTRESS: { color: '#FF6600', icon: 'record-audio' }, // Dark orange
+    CRITICAL: { color: '#FF3333', icon: 'record-audio' }, // Red
+    SEVERE: { color: '#CC0000', icon: 'record-audio' }, // Dark red
 };
 
 // Format precise duration (e.g., "56 minutes ago", "1h 10 minutes ago")
@@ -135,7 +144,6 @@ const formatPreciseDuration = (timestamp: string): string => {
     }
 };
 
-
 const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => {
     const theme = useTheme2();
     const [modalOpen, setModalOpen] = useState(false);
@@ -164,27 +172,34 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
     const [datasource, setDatasource] = useState<DataSourceWithBackend | null>(null);
     useEffect(() => {
         const uid = (data.request?.targets?.[0]?.datasource as any)?.uid;
-        if (!uid) { return; }
-        getDataSourceSrv().get(uid).then((ds) => {
-            setDatasource(ds as DataSourceWithBackend);
-        }).catch(console.error);
-    // re-run only when the datasource UID changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (!uid) {
+            return;
+        }
+        getDataSourceSrv()
+            .get(uid)
+            .then((ds) => {
+                setDatasource(ds as DataSourceWithBackend);
+            })
+            .catch(console.error);
     }, [(data.request?.targets?.[0]?.datasource as any)?.uid]);
 
     const deduped = useMemo(() => {
         const frame = data.series[0];
-        if (!frame || !frame.fields.length) { return []; }
+        if (!frame || !frame.fields.length) {
+            return [];
+        }
 
         const rawField = frame.fields.find((f) => f.name === 'alarms');
-        if (!rawField) { return []; }
+        if (!rawField) {
+            return [];
+        }
 
         const raw = rawField.values as any[];
         const parsed: AlarmEntry[] = raw.filter(Boolean);
         const result = dedupeById(parsed);
 
         // Filter out cleared alarms - they should not appear in the active alarms list
-        const activeAlarms = result.filter(alarm => !alarm.cleared);
+        const activeAlarms = result.filter((alarm) => !alarm.cleared);
 
         // Sort consistently by ID to maintain stable order
         activeAlarms.sort((a, b) => {
@@ -241,9 +256,9 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
             return highest;
         };
 
-        const unacknowledged = deduped.filter(a => !a.acknowledged && !a.shelved && !a.cleared);
-        const acknowledged = deduped.filter(a => a.acknowledged && !a.shelved && !a.cleared);
-        const shelved = deduped.filter(a => a.shelved && !a.cleared);
+        const unacknowledged = deduped.filter((a) => !a.acknowledged && !a.shelved && !a.cleared);
+        const acknowledged = deduped.filter((a) => a.acknowledged && !a.shelved && !a.cleared);
+        const shelved = deduped.filter((a) => a.shelved && !a.cleared);
 
         return {
             unacknowledgedCount: unacknowledged.length,
@@ -258,31 +273,38 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
     // Use computed stats if backend data is not available
     const displayStatus = globalAlarmStatus || alarmStats;
 
-    const handleAction = useCallback(async (alarm: AlarmEntry, action: 'acknowledge' | 'clear' | 'shelve' | 'unshelve') => {
-        setSelectedAlarm(alarm);
-        setActionType(action);
-        setComment('');
-        setModalOpen(true);
-    }, []);
+    const handleAction = useCallback(
+        async (alarm: AlarmEntry, action: 'acknowledge' | 'clear' | 'shelve' | 'unshelve') => {
+            setSelectedAlarm(alarm);
+            setActionType(action);
+            setComment('');
+            setModalOpen(true);
+        },
+        []
+    );
 
     const executeAction = useCallback(async () => {
-        if (!selectedAlarm || !endpoint || !datasource) { return; }
+        if (!selectedAlarm || !endpoint || !datasource) {
+            return;
+        }
 
         setLoading(true);
         try {
-            const actionEndpoint = actionType === 'acknowledge' ? 'acknowledge' :
-                                   actionType === 'clear' ? 'clear' :
-                                   actionType === 'shelve' ? 'shelve' : 'unshelve';
+            const actionEndpoint =
+                actionType === 'acknowledge'
+                    ? 'acknowledge'
+                    : actionType === 'clear'
+                      ? 'clear'
+                      : actionType === 'shelve'
+                        ? 'shelve'
+                        : 'unshelve';
 
-            await datasource.postResource(
-                `endpoint/${endpoint}/alarm/${actionEndpoint}`,
-                {
-                    name: selectedAlarm.name,
-                    seqNum: selectedAlarm.seqNum,
-                    comment: comment,
-                    ...(actionType === 'shelve' ? { shelveDuration: shelveDuration } : {}),
-                }
-            );
+            await datasource.postResource(`endpoint/${endpoint}/alarm/${actionEndpoint}`, {
+                name: selectedAlarm.name,
+                seqNum: selectedAlarm.seqNum,
+                comment: comment,
+                ...(actionType === 'shelve' ? { shelveDuration: shelveDuration } : {}),
+            });
             setModalOpen(false);
         } catch (error) {
             console.error(`Failed to ${actionType} alarm:`, error);
@@ -293,229 +315,248 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
 
     // Build columns
     // Columns: State, Severity, Alarm time, Alarm name, Alarm type, Trigger value, Most severe value, Live value, Actions
-    const columns = useMemo(() => [
-        {
-            id: 'state',
-            header: 'State',
-            cell: (info: any) => {
-                const alarm = info.row.original.row;
+    const columns = useMemo(
+        () => [
+            {
+                id: 'state',
+                header: 'State',
+                cell: (info: any) => {
+                    const alarm = info.row.original.row;
 
-                // Determine concise icon + color for the alarm state
-                let iconName = 'question-circle';
-                let iconColor = theme.colors.text.disabled; // default grey
-                let tooltipText = 'Unknown';
+                    // Determine concise icon + color for the alarm state
+                    let iconName = 'question-circle';
+                    let iconColor = theme.colors.text.disabled; // default grey
+                    let tooltipText = 'Unknown';
 
-                if (alarm.shelved) {
-                    iconName = 'clock-nine';
-                    iconColor = theme.colors.text.disabled; // grey
-                    tooltipText = 'Shelved';
-                } else if (alarm.cleared) {
-                    iconName = 'check';
-                    iconColor = theme.colors.text.disabled; // show cleared as grey
-                    tooltipText = 'Cleared';
-                } else if (!alarm.triggered) {
-                    // Not triggered but not cleared -> treat as acknowledged active
-                    iconName = 'check';
-                    iconColor = theme.colors.info.text; // blue for acknowledged
-                    tooltipText = 'Active, acknowledged';
-                } else if (alarm.acknowledged) {
-                    iconName = 'check';
-                    iconColor = theme.colors.info.text; // blue for acknowledged
-                    tooltipText = 'Active, acknowledged';
-                } else {
-                    // active and unacknowledged
-                    iconName = 'exclamation-triangle';
-                    iconColor = theme.colors.error.text; // red for unacknowledged
-                    tooltipText = 'Active, unacknowledged';
-                }
+                    if (alarm.shelved) {
+                        iconName = 'clock-nine';
+                        iconColor = theme.colors.text.disabled; // grey
+                        tooltipText = 'Shelved';
+                    } else if (alarm.cleared) {
+                        iconName = 'check';
+                        iconColor = theme.colors.text.disabled; // show cleared as grey
+                        tooltipText = 'Cleared';
+                    } else if (!alarm.triggered) {
+                        // Not triggered but not cleared -> treat as acknowledged active
+                        iconName = 'check';
+                        iconColor = theme.colors.info.text; // blue for acknowledged
+                        tooltipText = 'Active, acknowledged';
+                    } else if (alarm.acknowledged) {
+                        iconName = 'check';
+                        iconColor = theme.colors.info.text; // blue for acknowledged
+                        tooltipText = 'Active, acknowledged';
+                    } else {
+                        // active and unacknowledged
+                        iconName = 'exclamation-triangle';
+                        iconColor = theme.colors.error.text; // red for unacknowledged
+                        tooltipText = 'Active, unacknowledged';
+                    }
 
-                return (
-                    <Tooltip content={tooltipText}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28 }}>
-                            <Icon name={iconName as any} color={iconColor} />
-                        </span>
-                    </Tooltip>
-                );
+                    return (
+                        <Tooltip content={tooltipText}>
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 28,
+                                }}
+                            >
+                                <Icon name={iconName as any} color={iconColor} />
+                            </span>
+                        </Tooltip>
+                    );
+                },
             },
-        },
-        {
-            id: 'severity',
-            header: 'Severity',
-            cell: (info: any) => {
-                const severity = info.row.original.row.severity;
-                const config = severityConfig[severity] || { color: 'gray', icon: 'question-circle' };
-                return (
-                    <Stack direction="row" gap={1} alignItems="center">
-                        <Icon name={config.icon} color={config.color} />
-                        <span style={{ color: config.color }}><Text>{severity}</Text></span>
-                    </Stack>
-                );
+            {
+                id: 'severity',
+                header: 'Severity',
+                cell: (info: any) => {
+                    const severity = info.row.original.row.severity;
+                    const config = severityConfig[severity] || { color: 'gray', icon: 'question-circle' };
+                    return (
+                        <Stack direction="row" gap={1} alignItems="center">
+                            <Icon name={config.icon} color={config.color} />
+                            <span style={{ color: config.color }}>
+                                <Text>{severity}</Text>
+                            </span>
+                        </Stack>
+                    );
+                },
             },
-        },
-        {
-            id: 'triggerTime',
-            header: 'Alarm time',
-            accessorKey: 'triggerTime',
-            cell: (info: any) => {
-                const triggerTime = info.row.original.row.triggerTime;
-                const timestamp = formatTime(triggerTime);
-                return (
-                    <Tooltip content={timestamp}>
-                        <span>{formatPreciseDuration(triggerTime)}</span>
-                    </Tooltip>
-                );
+            {
+                id: 'triggerTime',
+                header: 'Alarm time',
+                accessorKey: 'triggerTime',
+                cell: (info: any) => {
+                    const triggerTime = info.row.original.row.triggerTime;
+                    const timestamp = formatTime(triggerTime);
+                    return (
+                        <Tooltip content={timestamp}>
+                            <span>{formatPreciseDuration(triggerTime)}</span>
+                        </Tooltip>
+                    );
+                },
             },
-        },
-        {
-            id: 'name',
-            header: 'Alarm name',
-            accessorKey: 'name',
-            cell: (info: any) => {
-                const fullPath = info.row.original.row.name;
-                // Extract just the parameter name (last part after the last '/')
-                const paramName = fullPath.split('/').pop() || fullPath;
-                return (
-                    <Tooltip content={fullPath}>
-                        <span>{paramName}</span>
-                    </Tooltip>
-                );
+            {
+                id: 'name',
+                header: 'Alarm name',
+                accessorKey: 'name',
+                cell: (info: any) => {
+                    const fullPath = info.row.original.row.name;
+                    // Extract just the parameter name (last part after the last '/')
+                    const paramName = fullPath.split('/').pop() || fullPath;
+                    return (
+                        <Tooltip content={fullPath}>
+                            <span>{paramName}</span>
+                        </Tooltip>
+                    );
+                },
             },
-        },
-        {
-            id: 'type',
-            header: 'Alarm type',
-            accessorKey: 'type',
-            cell: (info: any) => info.row.original.row.type || '-',
-        },
-        {
-            id: 'triggerValue',
-            header: 'Trigger value',
-            accessorKey: 'triggerValue',
-            cell: (info: any) => {
-                const alarm = info.row.original.row;
-                const val = alarm.triggerValue;
-                if (!val) { return '-'; }
-                if (alarm.type === 'EVENT') {
-                    // "SEVERITY: message" -> show only "SEVERITY"
-                    const colonIdx = val.indexOf(': ');
-                    return colonIdx >= 0 ? val.substring(0, colonIdx) : val;
-                }
-                return val;
+            {
+                id: 'type',
+                header: 'Alarm type',
+                accessorKey: 'type',
+                cell: (info: any) => info.row.original.row.type || '-',
             },
-        },
+            {
+                id: 'triggerValue',
+                header: 'Trigger value',
+                accessorKey: 'triggerValue',
+                cell: (info: any) => {
+                    const alarm = info.row.original.row;
+                    const val = alarm.triggerValue;
+                    if (!val) {
+                        return '-';
+                    }
+                    if (alarm.type === 'EVENT') {
+                        // "SEVERITY: message" -> show only "SEVERITY"
+                        const colonIdx = val.indexOf(': ');
+                        return colonIdx >= 0 ? val.substring(0, colonIdx) : val;
+                    }
+                    return val;
+                },
+            },
 
-        {
-            id: 'currentValue',
-            header: 'Live value',
-            accessorKey: 'currentValue',
-            cell: (info: any) => {
-                const alarm = info.row.original.row;
-                const val = alarm.currentValue;
-                if (!val) { return '-'; }
-                if (alarm.type === 'EVENT') {
-                    const colonIdx = val.indexOf(': ');
-                    return colonIdx >= 0 ? val.substring(0, colonIdx) : val;
-                }
-                return val;
+            {
+                id: 'currentValue',
+                header: 'Live value',
+                accessorKey: 'currentValue',
+                cell: (info: any) => {
+                    const alarm = info.row.original.row;
+                    const val = alarm.currentValue;
+                    if (!val) {
+                        return '-';
+                    }
+                    if (alarm.type === 'EVENT') {
+                        const colonIdx = val.indexOf(': ');
+                        return colonIdx >= 0 ? val.substring(0, colonIdx) : val;
+                    }
+                    return val;
+                },
             },
-        },
-        {
-            id: 'triggerTimestamp',
-            header: 'Trigger Timestamp',
-            accessorKey: 'triggerTime',
-            cell: (info: any) => {
-                const triggerTime = info.row.original.row.triggerTime;
-                return triggerTime ? formatTime(triggerTime) : '-';
+            {
+                id: 'triggerTimestamp',
+                header: 'Trigger Timestamp',
+                accessorKey: 'triggerTime',
+                cell: (info: any) => {
+                    const triggerTime = info.row.original.row.triggerTime;
+                    return triggerTime ? formatTime(triggerTime) : '-';
+                },
             },
-        },
-        {
-            id: 'violations',
-            header: 'Violations',
-            accessorKey: 'violations',
-            cell: (info: any) => {
-                const v = info.row.original.row.violations;
-                return v !== undefined && v !== null ? v : '-';
+            {
+                id: 'violations',
+                header: 'Violations',
+                accessorKey: 'violations',
+                cell: (info: any) => {
+                    const v = info.row.original.row.violations;
+                    return v !== undefined && v !== null ? v : '-';
+                },
             },
-        },
-        {
-            id: 'acknowledged',
-            header: 'Ack',
-            accessorKey: 'acknowledged',
-            cell: (info: any) => {
-                const alarm = info.row.original.row;
-                return alarm.acknowledged ? (
-                    <Tooltip content={alarm.acknowledgedBy ? `By: ${alarm.acknowledgedBy}` : 'Acknowledged'}>
-                        <Icon name="check" color={theme.colors.info.text} />
-                    </Tooltip>
-                ) : '-';
+            {
+                id: 'acknowledged',
+                header: 'Ack',
+                accessorKey: 'acknowledged',
+                cell: (info: any) => {
+                    const alarm = info.row.original.row;
+                    return alarm.acknowledged ? (
+                        <Tooltip content={alarm.acknowledgedBy ? `By: ${alarm.acknowledgedBy}` : 'Acknowledged'}>
+                            <Icon name="check" color={theme.colors.info.text} />
+                        </Tooltip>
+                    ) : (
+                        '-'
+                    );
+                },
             },
-        },
-        {
-            id: 'actions',
-            header: 'Actions',
-            cell: (info: any) => {
-                const alarm = info.row.original.row;
-                return (
-                    <Stack direction="row" gap={0.5}>
-                        {!alarm.acknowledged && (
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                icon="check"
-                                tooltip="Acknowledge alarm"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAction(alarm, 'acknowledge');
-                                }}
-                            />
-                        )}
-                        {alarm.acknowledged && !alarm.cleared && (
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                icon="times"
-                                tooltip="Clear alarm"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAction(alarm, 'clear');
-                                }}
-                            />
-                        )}
-                        {!alarm.shelved ? (
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                icon="pause-circle" // Updated icon for shelve
-                                tooltip="Shelve alarm"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAction(alarm, 'shelve');
-                                }}
-                            />
-                        ) : (
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                icon="play" // use allowed icon name
-                                tooltip="Unshelve alarm"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAction(alarm, 'unshelve');
-                                }}
-                            />
-                        )}
-                    </Stack>
-                );
+            {
+                id: 'actions',
+                header: 'Actions',
+                cell: (info: any) => {
+                    const alarm = info.row.original.row;
+                    return (
+                        <Stack direction="row" gap={0.5}>
+                            {!alarm.acknowledged && (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    icon="check"
+                                    tooltip="Acknowledge alarm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAction(alarm, 'acknowledge');
+                                    }}
+                                />
+                            )}
+                            {alarm.acknowledged && !alarm.cleared && (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    icon="times"
+                                    tooltip="Clear alarm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAction(alarm, 'clear');
+                                    }}
+                                />
+                            )}
+                            {!alarm.shelved ? (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    icon="pause-circle" // Updated icon for shelve
+                                    tooltip="Shelve alarm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAction(alarm, 'shelve');
+                                    }}
+                                />
+                            ) : (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    icon="play" // use allowed icon name
+                                    tooltip="Unshelve alarm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAction(alarm, 'unshelve');
+                                    }}
+                                />
+                            )}
+                        </Stack>
+                    );
+                },
             },
-        },
-    ], [severityConfig, formatTime, formatPreciseDuration, handleAction, theme]);
+        ],
+        [severityConfig, formatTime, formatPreciseDuration, handleAction, theme]
+    );
 
     // Filter columns based on user's visible fields selection
     const visibleColumns = useMemo(() => {
         // If no visible fields are configured, use all columns
-        let fieldsToShow = options.visibleFields && options.visibleFields.length > 0
-            ? [...options.visibleFields]
-            : ['state', 'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'currentValue', 'actions'];
+        let fieldsToShow =
+            options.visibleFields && options.visibleFields.length > 0
+                ? [...options.visibleFields]
+                : ['state', 'severity', 'triggerTime', 'name', 'type', 'triggerValue', 'currentValue', 'actions'];
 
         // Ensure 'state' is always present (for panels saved before the State column was added).
         if (!fieldsToShow.includes('state')) {
@@ -529,7 +570,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
 
         // Return columns in the order they appear in the visibleFields array
         return fieldsToShow
-            .map(fieldId => columns.find(col => col.id === fieldId))
+            .map((fieldId) => columns.find((col) => col.id === fieldId))
             .filter((col): col is NonNullable<typeof col> => !!col);
     }, [columns, options.visibleFields]);
 
@@ -541,34 +582,51 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
         const alarmExpandedFields = expandedFields[alarm.id] || {};
 
         const toggleParamData = () => {
-            setExpandedParamData(prev => ({
+            setExpandedParamData((prev) => ({
                 ...prev,
-                [alarm.id]: !prev[alarm.id]
+                [alarm.id]: !prev[alarm.id],
             }));
         };
 
         const toggleField = (fieldName: string) => {
-            setExpandedFields(prev => ({
+            setExpandedFields((prev) => ({
                 ...prev,
                 [alarm.id]: {
                     ...(prev[alarm.id] || {}),
-                    [fieldName]: !(prev[alarm.id]?.[fieldName] || false)
-                }
+                    [fieldName]: !(prev[alarm.id]?.[fieldName] || false),
+                },
             }));
         };
 
         return (
             <div style={{ padding: theme.spacing(1), background: theme.colors.background.secondary }}>
                 <Stack direction="column" gap={1}>
-                    <Text><strong>{isEventAlarm ? 'Event Source:' : 'Full Parameter Path:'}</strong> {alarm.name}</Text>
-                    <Text><strong>Alarm Type:</strong> {alarm.type}</Text>
-                    <Text><strong>Trigger Timestamp:</strong> {formatTime(alarm.triggerTime)}</Text>
-                    <Text><strong>Alarm time:</strong> {formatPreciseDuration(alarm.triggerTime)}</Text>
-                    {alarm.updateTime && <Text><strong>Last Update:</strong> {formatTime(alarm.updateTime)}</Text>}
-                    <Text><strong>{isEventAlarm ? 'Trigger Event:' : 'Trigger Value:'}</strong> {alarm.triggerValue || '-'}</Text>
+                    <Text>
+                        <strong>{isEventAlarm ? 'Event Source:' : 'Full Parameter Path:'}</strong> {alarm.name}
+                    </Text>
+                    <Text>
+                        <strong>Alarm Type:</strong> {alarm.type}
+                    </Text>
+                    <Text>
+                        <strong>Trigger Timestamp:</strong> {formatTime(alarm.triggerTime)}
+                    </Text>
+                    <Text>
+                        <strong>Alarm time:</strong> {formatPreciseDuration(alarm.triggerTime)}
+                    </Text>
+                    {alarm.updateTime && (
+                        <Text>
+                            <strong>Last Update:</strong> {formatTime(alarm.updateTime)}
+                        </Text>
+                    )}
+                    <Text>
+                        <strong>{isEventAlarm ? 'Trigger Event:' : 'Trigger Value:'}</strong>{' '}
+                        {alarm.triggerValue || '-'}
+                    </Text>
                     {!isEventAlarm && alarm.mostSevereValue && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Text><strong>Most Severe Value:</strong> {alarm.mostSevereValue}</Text>
+                            <Text>
+                                <strong>Most Severe Value:</strong> {alarm.mostSevereValue}
+                            </Text>
                             <Tooltip content="The parameter value at the moment this alarm reached its highest severity level. This is not necessarily the highest numeric value seen, it only updates when the alarm severity increases (e.g. WARNING → CRITICAL).">
                                 <span style={{ cursor: 'help', lineHeight: 1 }}>
                                     <Icon name="info-circle" size="sm" />
@@ -576,228 +634,417 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                             </Tooltip>
                         </span>
                     )}
-                    <Text><strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}</Text>
+                    <Text>
+                        <strong>{isEventAlarm ? 'Current Event:' : 'Live Value:'}</strong> {alarm.currentValue || '-'}
+                    </Text>
                     <Tooltip content="Number of rule violations (this is what Yamcs web shows)">
-                        <Text><strong>Violations:</strong> {alarm.violations}</Text>
+                        <Text>
+                            <strong>Violations:</strong> {alarm.violations}
+                        </Text>
                     </Tooltip>
 
-                    {!isEventAlarm && <Text><strong>Latching:</strong> {alarm.latching ? 'Yes' : 'No'}</Text>}
+                    {!isEventAlarm && (
+                        <Text>
+                            <strong>Latching:</strong> {alarm.latching ? 'Yes' : 'No'}
+                        </Text>
+                    )}
 
                     {/* ParameterAlarmData Section - Collapsible */}
-                    {!isEventAlarm && (alarm.triggerValueDetail || alarm.mostSevereValueDetail || alarm.currentValueDetail || alarm.parameterInfo) && (
-                        <div style={{ marginTop: theme.spacing(1) }}>
-                            <div
-                                onClick={toggleParamData}
-                                style={{
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: theme.spacing(0.5),
-                                    background: theme.colors.background.primary,
-                                    borderRadius: theme.shape.radius.default
-                                }}
-                            >
-                                <Icon name={isParamDataExpanded ? 'angle-down' : 'angle-right'} />
-                                <Text><strong>ParameterAlarmData</strong></Text>
-                            </div>
-
-                            {isParamDataExpanded && (
-                                <div style={{ marginLeft: theme.spacing(2), marginTop: theme.spacing(1) }}>
-                                    <Stack direction="column" gap={0.5}>
-                                        {/* Trigger Value - Collapsible */}
-                                        {alarm.triggerValueDetail && (
-                                            <div>
-                                                <div
-                                                    onClick={() => toggleField('triggerValue')}
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        padding: theme.spacing(0.25)
-                                                    }}
-                                                >
-                                                    <Icon name={alarmExpandedFields['triggerValue'] ? 'angle-down' : 'angle-right'} size="sm" />
-                                                    <Text><strong>triggerValue: {alarm.triggerValue || JSON.stringify(alarm.triggerValueDetail.engValue)}</strong></Text>
-                                                </div>
-                                                {alarmExpandedFields['triggerValue'] && (
-                                                    <div style={{ marginLeft: theme.spacing(3) }}>
-                                                        <Stack direction="column" gap={0.5}>
-                                                            {alarm.triggerValueDetail.engValue !== undefined && (
-                                                                <Text>engValue: {JSON.stringify(alarm.triggerValueDetail.engValue)}</Text>
-                                                            )}
-                                                            {alarm.triggerValueDetail.rawValue !== undefined && (
-                                                                <Text>rawValue: {JSON.stringify(alarm.triggerValueDetail.rawValue)}</Text>
-                                                            )}
-                                                            {alarm.triggerValueDetail.acquisitionTime && (
-                                                                <Text>acquisitionTime: {alarm.triggerValueDetail.acquisitionTime}</Text>
-                                                            )}
-                                                            {alarm.triggerValueDetail.generationTime && (
-                                                                <Text>generationTime: {alarm.triggerValueDetail.generationTime}</Text>
-                                                            )}
-                                                            {alarm.triggerValueDetail.monitoringResult && (
-                                                                <Text>monitoringResult: {alarm.triggerValueDetail.monitoringResult}</Text>
-                                                            )}
-                                                            {alarm.triggerValueDetail.rangeCondition && (
-                                                                <Text>rangeCondition: {alarm.triggerValueDetail.rangeCondition}</Text>
-                                                            )}
-                                                        </Stack>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Most Severe Value - Collapsible */}
-                                        {alarm.mostSevereValueDetail && (
-                                            <div style={{ marginTop: theme.spacing(0.5) }}>
-                                                <div
-                                                    onClick={() => toggleField('mostSevereValue')}
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        padding: theme.spacing(0.25)
-                                                    }}
-                                                >
-                                                    <Icon name={alarmExpandedFields['mostSevereValue'] ? 'angle-down' : 'angle-right'} size="sm" />
-                                                    <Text><strong>mostSevereValue: {alarm.mostSevereValue || JSON.stringify(alarm.mostSevereValueDetail.engValue)}</strong></Text>
-                                                </div>
-                                                {alarmExpandedFields['mostSevereValue'] && (
-                                                    <div style={{ marginLeft: theme.spacing(3) }}>
-                                                        <Stack direction="column" gap={0.5}>
-                                                            {alarm.mostSevereValueDetail.engValue !== undefined && (
-                                                                <Text>engValue: {JSON.stringify(alarm.mostSevereValueDetail.engValue)}</Text>
-                                                            )}
-                                                            {alarm.mostSevereValueDetail.rawValue !== undefined && (
-                                                                <Text>rawValue: {JSON.stringify(alarm.mostSevereValueDetail.rawValue)}</Text>
-                                                            )}
-                                                            {alarm.mostSevereValueDetail.acquisitionTime && (
-                                                                <Text>acquisitionTime: {alarm.mostSevereValueDetail.acquisitionTime}</Text>
-                                                            )}
-                                                            {alarm.mostSevereValueDetail.generationTime && (
-                                                                <Text>generationTime: {alarm.mostSevereValueDetail.generationTime}</Text>
-                                                            )}
-                                                            {alarm.mostSevereValueDetail.monitoringResult && (
-                                                                <Text>monitoringResult: {alarm.mostSevereValueDetail.monitoringResult}</Text>
-                                                            )}
-                                                            {alarm.mostSevereValueDetail.rangeCondition && (
-                                                                <Text>rangeCondition: {alarm.mostSevereValueDetail.rangeCondition}</Text>
-                                                            )}
-                                                        </Stack>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Current Value - Collapsible */}
-                                        {alarm.currentValueDetail && (
-                                            <div style={{ marginTop: theme.spacing(0.5) }}>
-                                                <div
-                                                    onClick={() => toggleField('currentValue')}
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        padding: theme.spacing(0.25)
-                                                    }}
-                                                >
-                                                    <Icon name={alarmExpandedFields['currentValue'] ? 'angle-down' : 'angle-right'} size="sm" />
-                                                    <Text><strong>currentValue: {alarm.currentValue || JSON.stringify(alarm.currentValueDetail.engValue)}</strong></Text>
-                                                </div>
-                                                {alarmExpandedFields['currentValue'] && (
-                                                    <div style={{ marginLeft: theme.spacing(3) }}>
-                                                        <Stack direction="column" gap={0.5}>
-                                                            {alarm.currentValueDetail.engValue !== undefined && (
-                                                                <Text>engValue: {JSON.stringify(alarm.currentValueDetail.engValue)}</Text>
-                                                            )}
-                                                            {alarm.currentValueDetail.rawValue !== undefined && (
-                                                                <Text>rawValue: {JSON.stringify(alarm.currentValueDetail.rawValue)}</Text>
-                                                            )}
-                                                            {alarm.currentValueDetail.acquisitionTime && (
-                                                                <Text>acquisitionTime: {alarm.currentValueDetail.acquisitionTime}</Text>
-                                                            )}
-                                                            {alarm.currentValueDetail.generationTime && (
-                                                                <Text>generationTime: {alarm.currentValueDetail.generationTime}</Text>
-                                                            )}
-                                                            {alarm.currentValueDetail.monitoringResult && (
-                                                                <Text>monitoringResult: {alarm.currentValueDetail.monitoringResult}</Text>
-                                                            )}
-                                                            {alarm.currentValueDetail.rangeCondition && (
-                                                                <Text>rangeCondition: {alarm.currentValueDetail.rangeCondition}</Text>
-                                                            )}
-                                                        </Stack>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Parameter Info - Collapsible */}
-                                        {alarm.parameterInfo && (
-                                            <div style={{ marginTop: theme.spacing(0.5) }}>
-                                                <div
-                                                    onClick={() => toggleField('parameter')}
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        padding: theme.spacing(0.25)
-                                                    }}
-                                                >
-                                                    <Icon name={alarmExpandedFields['parameter'] ? 'angle-down' : 'angle-right'} size="sm" />
-                                                    <Text><strong>parameter: {alarm.parameterInfo.qualifiedName || alarm.name}</strong></Text>
-                                                </div>
-                                                {alarmExpandedFields['parameter'] && (
-                                                    <div style={{ marginLeft: theme.spacing(3) }}>
-                                                        <Stack direction="column" gap={0.5}>
-                                                            {alarm.parameterInfo.qualifiedName !== undefined && alarm.parameterInfo.qualifiedName !== null && alarm.parameterInfo.qualifiedName !== '' && (
-                                                                <Text>qualifiedName: {alarm.parameterInfo.qualifiedName}</Text>
-                                                            )}
-                                                            {alarm.parameterInfo.dataSource !== undefined && alarm.parameterInfo.dataSource !== null && alarm.parameterInfo.dataSource !== '' && (
-                                                                <Text>
-                                                                    <strong>dataSource:</strong> {alarm.parameterInfo.dataSource}
-                                                                    {(() => {
-                                                                      const name = getDatasourceDisplayName(alarm.parameterInfo.dataSource);
-                                                                      return name ? ` (${name})` : '';
-                                                                    })()}
-                                                                </Text>
-                                                            )}
-                                                            {alarm.parameterInfo.shortDescription !== undefined && alarm.parameterInfo.shortDescription !== null && alarm.parameterInfo.shortDescription !== '' && (
-                                                                <Text>shortDescription: {alarm.parameterInfo.shortDescription}</Text>
-                                                            )}
-                                                            {alarm.parameterInfo.longDescription !== undefined && alarm.parameterInfo.longDescription !== null && alarm.parameterInfo.longDescription !== '' && (
-                                                                <Text>longDescription: {alarm.parameterInfo.longDescription}</Text>
-                                                            )}
-                                                        </Stack>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </Stack>
+                    {!isEventAlarm &&
+                        (alarm.triggerValueDetail ||
+                            alarm.mostSevereValueDetail ||
+                            alarm.currentValueDetail ||
+                            alarm.parameterInfo) && (
+                            <div style={{ marginTop: theme.spacing(1) }}>
+                                <div
+                                    onClick={toggleParamData}
+                                    style={{
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: theme.spacing(0.5),
+                                        background: theme.colors.background.primary,
+                                        borderRadius: theme.shape.radius.default,
+                                    }}
+                                >
+                                    <Icon name={isParamDataExpanded ? 'angle-down' : 'angle-right'} />
+                                    <Text>
+                                        <strong>ParameterAlarmData</strong>
+                                    </Text>
                                 </div>
-                            )}
-                        </div>
-                    )}
+
+                                {isParamDataExpanded && (
+                                    <div style={{ marginLeft: theme.spacing(2), marginTop: theme.spacing(1) }}>
+                                        <Stack direction="column" gap={0.5}>
+                                            {/* Trigger Value - Collapsible */}
+                                            {alarm.triggerValueDetail && (
+                                                <div>
+                                                    <div
+                                                        onClick={() => toggleField('triggerValue')}
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            padding: theme.spacing(0.25),
+                                                        }}
+                                                    >
+                                                        <Icon
+                                                            name={
+                                                                alarmExpandedFields['triggerValue']
+                                                                    ? 'angle-down'
+                                                                    : 'angle-right'
+                                                            }
+                                                            size="sm"
+                                                        />
+                                                        <Text>
+                                                            <strong>
+                                                                triggerValue:{' '}
+                                                                {alarm.triggerValue ||
+                                                                    JSON.stringify(alarm.triggerValueDetail.engValue)}
+                                                            </strong>
+                                                        </Text>
+                                                    </div>
+                                                    {alarmExpandedFields['triggerValue'] && (
+                                                        <div style={{ marginLeft: theme.spacing(3) }}>
+                                                            <Stack direction="column" gap={0.5}>
+                                                                {alarm.triggerValueDetail.engValue !== undefined && (
+                                                                    <Text>
+                                                                        engValue:{' '}
+                                                                        {JSON.stringify(
+                                                                            alarm.triggerValueDetail.engValue
+                                                                        )}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.triggerValueDetail.rawValue !== undefined && (
+                                                                    <Text>
+                                                                        rawValue:{' '}
+                                                                        {JSON.stringify(
+                                                                            alarm.triggerValueDetail.rawValue
+                                                                        )}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.triggerValueDetail.acquisitionTime && (
+                                                                    <Text>
+                                                                        acquisitionTime:{' '}
+                                                                        {alarm.triggerValueDetail.acquisitionTime}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.triggerValueDetail.generationTime && (
+                                                                    <Text>
+                                                                        generationTime:{' '}
+                                                                        {alarm.triggerValueDetail.generationTime}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.triggerValueDetail.monitoringResult && (
+                                                                    <Text>
+                                                                        monitoringResult:{' '}
+                                                                        {alarm.triggerValueDetail.monitoringResult}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.triggerValueDetail.rangeCondition && (
+                                                                    <Text>
+                                                                        rangeCondition:{' '}
+                                                                        {alarm.triggerValueDetail.rangeCondition}
+                                                                    </Text>
+                                                                )}
+                                                            </Stack>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Most Severe Value - Collapsible */}
+                                            {alarm.mostSevereValueDetail && (
+                                                <div style={{ marginTop: theme.spacing(0.5) }}>
+                                                    <div
+                                                        onClick={() => toggleField('mostSevereValue')}
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            padding: theme.spacing(0.25),
+                                                        }}
+                                                    >
+                                                        <Icon
+                                                            name={
+                                                                alarmExpandedFields['mostSevereValue']
+                                                                    ? 'angle-down'
+                                                                    : 'angle-right'
+                                                            }
+                                                            size="sm"
+                                                        />
+                                                        <Text>
+                                                            <strong>
+                                                                mostSevereValue:{' '}
+                                                                {alarm.mostSevereValue ||
+                                                                    JSON.stringify(
+                                                                        alarm.mostSevereValueDetail.engValue
+                                                                    )}
+                                                            </strong>
+                                                        </Text>
+                                                    </div>
+                                                    {alarmExpandedFields['mostSevereValue'] && (
+                                                        <div style={{ marginLeft: theme.spacing(3) }}>
+                                                            <Stack direction="column" gap={0.5}>
+                                                                {alarm.mostSevereValueDetail.engValue !== undefined && (
+                                                                    <Text>
+                                                                        engValue:{' '}
+                                                                        {JSON.stringify(
+                                                                            alarm.mostSevereValueDetail.engValue
+                                                                        )}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.mostSevereValueDetail.rawValue !== undefined && (
+                                                                    <Text>
+                                                                        rawValue:{' '}
+                                                                        {JSON.stringify(
+                                                                            alarm.mostSevereValueDetail.rawValue
+                                                                        )}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.mostSevereValueDetail.acquisitionTime && (
+                                                                    <Text>
+                                                                        acquisitionTime:{' '}
+                                                                        {alarm.mostSevereValueDetail.acquisitionTime}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.mostSevereValueDetail.generationTime && (
+                                                                    <Text>
+                                                                        generationTime:{' '}
+                                                                        {alarm.mostSevereValueDetail.generationTime}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.mostSevereValueDetail.monitoringResult && (
+                                                                    <Text>
+                                                                        monitoringResult:{' '}
+                                                                        {alarm.mostSevereValueDetail.monitoringResult}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.mostSevereValueDetail.rangeCondition && (
+                                                                    <Text>
+                                                                        rangeCondition:{' '}
+                                                                        {alarm.mostSevereValueDetail.rangeCondition}
+                                                                    </Text>
+                                                                )}
+                                                            </Stack>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Current Value - Collapsible */}
+                                            {alarm.currentValueDetail && (
+                                                <div style={{ marginTop: theme.spacing(0.5) }}>
+                                                    <div
+                                                        onClick={() => toggleField('currentValue')}
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            padding: theme.spacing(0.25),
+                                                        }}
+                                                    >
+                                                        <Icon
+                                                            name={
+                                                                alarmExpandedFields['currentValue']
+                                                                    ? 'angle-down'
+                                                                    : 'angle-right'
+                                                            }
+                                                            size="sm"
+                                                        />
+                                                        <Text>
+                                                            <strong>
+                                                                currentValue:{' '}
+                                                                {alarm.currentValue ||
+                                                                    JSON.stringify(alarm.currentValueDetail.engValue)}
+                                                            </strong>
+                                                        </Text>
+                                                    </div>
+                                                    {alarmExpandedFields['currentValue'] && (
+                                                        <div style={{ marginLeft: theme.spacing(3) }}>
+                                                            <Stack direction="column" gap={0.5}>
+                                                                {alarm.currentValueDetail.engValue !== undefined && (
+                                                                    <Text>
+                                                                        engValue:{' '}
+                                                                        {JSON.stringify(
+                                                                            alarm.currentValueDetail.engValue
+                                                                        )}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.currentValueDetail.rawValue !== undefined && (
+                                                                    <Text>
+                                                                        rawValue:{' '}
+                                                                        {JSON.stringify(
+                                                                            alarm.currentValueDetail.rawValue
+                                                                        )}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.currentValueDetail.acquisitionTime && (
+                                                                    <Text>
+                                                                        acquisitionTime:{' '}
+                                                                        {alarm.currentValueDetail.acquisitionTime}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.currentValueDetail.generationTime && (
+                                                                    <Text>
+                                                                        generationTime:{' '}
+                                                                        {alarm.currentValueDetail.generationTime}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.currentValueDetail.monitoringResult && (
+                                                                    <Text>
+                                                                        monitoringResult:{' '}
+                                                                        {alarm.currentValueDetail.monitoringResult}
+                                                                    </Text>
+                                                                )}
+                                                                {alarm.currentValueDetail.rangeCondition && (
+                                                                    <Text>
+                                                                        rangeCondition:{' '}
+                                                                        {alarm.currentValueDetail.rangeCondition}
+                                                                    </Text>
+                                                                )}
+                                                            </Stack>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Parameter Info - Collapsible */}
+                                            {alarm.parameterInfo && (
+                                                <div style={{ marginTop: theme.spacing(0.5) }}>
+                                                    <div
+                                                        onClick={() => toggleField('parameter')}
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            padding: theme.spacing(0.25),
+                                                        }}
+                                                    >
+                                                        <Icon
+                                                            name={
+                                                                alarmExpandedFields['parameter']
+                                                                    ? 'angle-down'
+                                                                    : 'angle-right'
+                                                            }
+                                                            size="sm"
+                                                        />
+                                                        <Text>
+                                                            <strong>
+                                                                parameter:{' '}
+                                                                {alarm.parameterInfo.qualifiedName || alarm.name}
+                                                            </strong>
+                                                        </Text>
+                                                    </div>
+                                                    {alarmExpandedFields['parameter'] && (
+                                                        <div style={{ marginLeft: theme.spacing(3) }}>
+                                                            <Stack direction="column" gap={0.5}>
+                                                                {alarm.parameterInfo.qualifiedName !== undefined &&
+                                                                    alarm.parameterInfo.qualifiedName !== null &&
+                                                                    alarm.parameterInfo.qualifiedName !== '' && (
+                                                                        <Text>
+                                                                            qualifiedName:{' '}
+                                                                            {alarm.parameterInfo.qualifiedName}
+                                                                        </Text>
+                                                                    )}
+                                                                {alarm.parameterInfo.dataSource !== undefined &&
+                                                                    alarm.parameterInfo.dataSource !== null &&
+                                                                    alarm.parameterInfo.dataSource !== '' && (
+                                                                        <Text>
+                                                                            <strong>dataSource:</strong>{' '}
+                                                                            {alarm.parameterInfo.dataSource}
+                                                                            {(() => {
+                                                                                const name = getDatasourceDisplayName(
+                                                                                    alarm.parameterInfo.dataSource
+                                                                                );
+                                                                                return name ? ` (${name})` : '';
+                                                                            })()}
+                                                                        </Text>
+                                                                    )}
+                                                                {alarm.parameterInfo.shortDescription !== undefined &&
+                                                                    alarm.parameterInfo.shortDescription !== null &&
+                                                                    alarm.parameterInfo.shortDescription !== '' && (
+                                                                        <Text>
+                                                                            shortDescription:{' '}
+                                                                            {alarm.parameterInfo.shortDescription}
+                                                                        </Text>
+                                                                    )}
+                                                                {alarm.parameterInfo.longDescription !== undefined &&
+                                                                    alarm.parameterInfo.longDescription !== null &&
+                                                                    alarm.parameterInfo.longDescription !== '' && (
+                                                                        <Text>
+                                                                            longDescription:{' '}
+                                                                            {alarm.parameterInfo.longDescription}
+                                                                        </Text>
+                                                                    )}
+                                                            </Stack>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Stack>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                     {alarm.acknowledged && (
                         <>
-                            <Text><strong>Acknowledged By:</strong> {alarm.acknowledgedBy}</Text>
-                            {alarm.acknowledgeTime && <Text><strong>Acknowledge Time:</strong> {formatTime(alarm.acknowledgeTime)}</Text>}
-                            {alarm.acknowledgeComment && <Text><strong>Acknowledge Comment:</strong> {alarm.acknowledgeComment}</Text>}
+                            <Text>
+                                <strong>Acknowledged By:</strong> {alarm.acknowledgedBy}
+                            </Text>
+                            {alarm.acknowledgeTime && (
+                                <Text>
+                                    <strong>Acknowledge Time:</strong> {formatTime(alarm.acknowledgeTime)}
+                                </Text>
+                            )}
+                            {alarm.acknowledgeComment && (
+                                <Text>
+                                    <strong>Acknowledge Comment:</strong> {alarm.acknowledgeComment}
+                                </Text>
+                            )}
                         </>
                     )}
                     {alarm.cleared && (
                         <>
-                            <Text><strong>Cleared By:</strong> {alarm.clearedBy}</Text>
-                            {alarm.clearTime && <Text><strong>Clear Time:</strong> {formatTime(alarm.clearTime)}</Text>}
-                            {alarm.clearComment && <Text><strong>Clear Comment:</strong> {alarm.clearComment}</Text>}
+                            <Text>
+                                <strong>Cleared By:</strong> {alarm.clearedBy}
+                            </Text>
+                            {alarm.clearTime && (
+                                <Text>
+                                    <strong>Clear Time:</strong> {formatTime(alarm.clearTime)}
+                                </Text>
+                            )}
+                            {alarm.clearComment && (
+                                <Text>
+                                    <strong>Clear Comment:</strong> {alarm.clearComment}
+                                </Text>
+                            )}
                         </>
                     )}
                     {alarm.shelved && (
                         <>
-                            <Text><strong>Shelved:</strong> Yes</Text>
-                            <Text><strong>Shelved By:</strong> {alarm.shelvedBy || '-'}</Text>
-                            {alarm.shelveTime && <Text><strong>Shelve Time:</strong> {formatTime(alarm.shelveTime)}</Text>}
-                            {alarm.shelveExpiration && <Text><strong>Shelve Until:</strong> {formatTime(alarm.shelveExpiration)}</Text>}
-                            {alarm.shelveComment && <Text><strong>Shelve Comment:</strong> {alarm.shelveComment}</Text>}
+                            <Text>
+                                <strong>Shelved:</strong> Yes
+                            </Text>
+                            <Text>
+                                <strong>Shelved By:</strong> {alarm.shelvedBy || '-'}
+                            </Text>
+                            {alarm.shelveTime && (
+                                <Text>
+                                    <strong>Shelve Time:</strong> {formatTime(alarm.shelveTime)}
+                                </Text>
+                            )}
+                            {alarm.shelveExpiration && (
+                                <Text>
+                                    <strong>Shelve Until:</strong> {formatTime(alarm.shelveExpiration)}
+                                </Text>
+                            )}
+                            {alarm.shelveComment && (
+                                <Text>
+                                    <strong>Shelve Comment:</strong> {alarm.shelveComment}
+                                </Text>
+                            )}
                         </>
                     )}
                 </Stack>
@@ -820,36 +1067,50 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
     }, [totalPages]);
 
     return (
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            width: '100%',
-            overflow: 'hidden',
-        }}>
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                width: '100%',
+                overflow: 'hidden',
+            }}
+        >
             {/* Global Alarm Status Bar - Always show all categories */}
-            <div style={{ padding: theme.spacing(1), background: theme.colors.background.canvas, borderBottom: `1px solid ${theme.colors.border.weak}` }}>
+            <div
+                style={{
+                    padding: theme.spacing(1),
+                    background: theme.colors.background.canvas,
+                    borderBottom: `1px solid ${theme.colors.border.weak}`,
+                }}
+            >
                 <Stack direction="row" gap={2} alignItems="center" justifyContent="space-around">
                     {/* Unacknowledged Alarms - Always displayed */}
                     <Stack direction="row" gap={1} alignItems="center">
                         <Icon
                             name="exclamation-triangle"
                             size="lg"
-                            style={{ color: displayStatus.unacknowledgedCount > 0 ? theme.colors.error.text : theme.colors.text.disabled }}
+                            style={{
+                                color:
+                                    displayStatus.unacknowledgedCount > 0
+                                        ? theme.colors.error.text
+                                        : theme.colors.text.disabled,
+                            }}
                         />
                         <Stack direction="column" gap={0}>
-                            <Text weight="bold" color={displayStatus.unacknowledgedCount > 0 ? "error" : "secondary"}>
+                            <Text weight="bold" color={displayStatus.unacknowledgedCount > 0 ? 'error' : 'secondary'}>
                                 {displayStatus.unacknowledgedCount}
                             </Text>
                             <Text variant="bodySmall" color="secondary">
                                 Unacknowledged
                             </Text>
                         </Stack>
-                        {displayStatus.unacknowledgedSeverity && displayStatus.unacknowledgedSeverity !== 'UNRECOGNIZED' && (
-                            <Text variant="bodySmall" color="secondary">
-                                ({displayStatus.unacknowledgedSeverity})
-                            </Text>
-                        )}
+                        {displayStatus.unacknowledgedSeverity &&
+                            displayStatus.unacknowledgedSeverity !== 'UNRECOGNIZED' && (
+                                <Text variant="bodySmall" color="secondary">
+                                    ({displayStatus.unacknowledgedSeverity})
+                                </Text>
+                            )}
                     </Stack>
 
                     {/* Acknowledged Alarms - Always displayed */}
@@ -857,30 +1118,32 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                         <Icon
                             name="check"
                             size="lg"
-                            style={{ color: displayStatus.acknowledgedCount > 0 ? theme.colors.info.text : theme.colors.text.disabled }}
+                            style={{
+                                color:
+                                    displayStatus.acknowledgedCount > 0
+                                        ? theme.colors.info.text
+                                        : theme.colors.text.disabled,
+                            }}
                         />
                         <Stack direction="column" gap={0}>
-                            <Text weight="bold" color={displayStatus.acknowledgedCount > 0 ? "info" : "secondary"}>
+                            <Text weight="bold" color={displayStatus.acknowledgedCount > 0 ? 'info' : 'secondary'}>
                                 {displayStatus.acknowledgedCount}
                             </Text>
                             <Text variant="bodySmall" color="secondary">
                                 Acknowledged
                             </Text>
                         </Stack>
-                        {displayStatus.acknowledgedSeverity && displayStatus.acknowledgedSeverity !== 'UNRECOGNIZED' && (
-                            <Text variant="bodySmall" color="secondary">
-                                ({displayStatus.acknowledgedSeverity})
-                            </Text>
-                        )}
+                        {displayStatus.acknowledgedSeverity &&
+                            displayStatus.acknowledgedSeverity !== 'UNRECOGNIZED' && (
+                                <Text variant="bodySmall" color="secondary">
+                                    ({displayStatus.acknowledgedSeverity})
+                                </Text>
+                            )}
                     </Stack>
 
                     {/* Shelved Alarms - Always displayed */}
                     <Stack direction="row" gap={1} alignItems="center">
-                        <Icon
-                            name="clock-nine"
-                            size="lg"
-                            style={{ color: theme.colors.text.disabled }}
-                        />
+                        <Icon name="clock-nine" size="lg" style={{ color: theme.colors.text.disabled }} />
                         <Stack direction="column" gap={0}>
                             <Text weight="bold" color="secondary">
                                 {displayStatus.shelvedCount}
@@ -903,18 +1166,22 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                     <Text color="secondary">No alarms to display</Text>
                 </div>
             ) : (
-                <div style={{
-                    flex: 1,
-                    overflow: 'auto',
-                    minHeight: 0,
-                    width: '100%'
-                }}>
+                <div
+                    style={{
+                        flex: 1,
+                        overflow: 'auto',
+                        minHeight: 0,
+                        width: '100%',
+                    }}
+                >
                     {options.pagination ? (
                         <>
                             {/* Render only the rows for the current page so updates don't reset pagination */}
                             <InteractiveTable
                                 key={`page-${currentPage}`}
-                                data={deduped.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(d => ({ row: d, id: d.id }))}
+                                data={deduped
+                                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                                    .map((d) => ({ row: d, id: d.id }))}
                                 getRowId={(row: any) => row.id}
                                 columns={visibleColumns}
                                 renderExpandedRow={options.showDetails ? renderSubComponent : undefined}
@@ -924,7 +1191,14 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                             {/* Pagination controls */}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px' }}>
                                 <Stack direction="row" gap={0.5} alignItems="center">
-                                    <Button size="sm" variant="secondary" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} icon="angle-left" />
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        disabled={currentPage <= 1}
+                                        icon="angle-left"
+                                        aria-label=""
+                                    />
 
                                     {/* Render page buttons (limit to reasonable number) */}
                                     {(() => {
@@ -942,7 +1216,12 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                                         }
                                         for (let p = start; p <= end; p++) {
                                             buttons.push(
-                                                <Button key={p} size="sm" variant={p === currentPage ? 'primary' : 'secondary'} onClick={() => setCurrentPage(p)}>
+                                                <Button
+                                                    key={p}
+                                                    size="sm"
+                                                    variant={p === currentPage ? 'primary' : 'secondary'}
+                                                    onClick={() => setCurrentPage(p)}
+                                                >
                                                     {p}
                                                 </Button>
                                             );
@@ -950,14 +1229,21 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                                         return buttons;
                                     })()}
 
-                                    <Button size="sm" variant="secondary" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} icon="angle-right" />
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage >= totalPages}
+                                        icon="angle-right"
+                                        aria-label=""
+                                    />
                                 </Stack>
                             </div>
                         </>
                     ) : (
                         <InteractiveTable
                             key="without-pagination"
-                            data={deduped.map(d => ({ row: d, id: d.id }))}
+                            data={deduped.map((d) => ({ row: d, id: d.id }))}
                             getRowId={(row: any) => row.id}
                             columns={visibleColumns}
                             renderExpandedRow={options.showDetails ? renderSubComponent : undefined}
@@ -975,8 +1261,10 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                     <Text>
                         {actionType === 'acknowledge' && 'Acknowledge this alarm to indicate you are aware of it.'}
                         {actionType === 'clear' && 'Clear this alarm to remove it from the active alarms list.'}
-                        {actionType === 'shelve' && 'Shelve this alarm to temporarily hide it from the active alarms list.'}
-                        {actionType === 'unshelve' && 'Unshelve this alarm to make it visible again in the active alarms list.'}
+                        {actionType === 'shelve' &&
+                            'Shelve this alarm to temporarily hide it from the active alarms list.'}
+                        {actionType === 'unshelve' &&
+                            'Unshelve this alarm to make it visible again in the active alarms list.'}
                     </Text>
                     {selectedAlarm && (
                         <Text color="secondary">
@@ -999,7 +1287,9 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                                     { label: '1 day', value: 86400000 },
                                     { label: 'unlimited', value: 0 },
                                 ]}
-                                onChange={(option) => { setShelveDuration(option.value as number); }}
+                                onChange={(option) => {
+                                    setShelveDuration(option.value as number);
+                                }}
                             />
                         </div>
                     )}
@@ -1027,24 +1317,26 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
 
 // Yamcs DataSourceType enum mapping (from mdb.pb.go)
 const YAMCS_DATA_SOURCE_NAMES: Record<string, string> = {
-  '0': 'TELEMETERED',
-  '1': 'DERIVED',
-  '2': 'CONSTANT',
-  '3': 'LOCAL',
-  '4': 'SYSTEM',
-  '5': 'COMMAND',
-  '6': 'COMMAND_HISTORY',
-  '7': 'EXTERNAL1',
-  '8': 'EXTERNAL2',
-  '9': 'EXTERNAL3',
-  '10': 'GROUND',
+    '0': 'TELEMETERED',
+    '1': 'DERIVED',
+    '2': 'CONSTANT',
+    '3': 'LOCAL',
+    '4': 'SYSTEM',
+    '5': 'COMMAND',
+    '6': 'COMMAND_HISTORY',
+    '7': 'EXTERNAL1',
+    '8': 'EXTERNAL2',
+    '9': 'EXTERNAL3',
+    '10': 'GROUND',
 };
 
 // Helper to get the human-readable Yamcs DataSourceType name for a given numeric value
 function getDatasourceDisplayName(dsValue: string | number | undefined): string | null {
-  if (dsValue === undefined || dsValue === null || dsValue === '') { return null; }
-  const dsStr = String(dsValue);
-  return YAMCS_DATA_SOURCE_NAMES[dsStr] || null;
+    if (dsValue === undefined || dsValue === null || dsValue === '') {
+        return null;
+    }
+    const dsStr = String(dsValue);
+    return YAMCS_DATA_SOURCE_NAMES[dsStr] || null;
 }
 
 export default AlarmsPanel;

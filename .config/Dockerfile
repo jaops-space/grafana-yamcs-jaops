@@ -5,11 +5,14 @@ FROM grafana/${grafana_image}:${grafana_version}
 
 ARG anonymous_auth_enabled=true
 ARG development=false
+ARG TARGETARCH
+
+ARG GO_VERSION=1.26.3
+ARG GO_ARCH=${TARGETARCH:-amd64}
 
 # Platform diagnostics: surfaces any host/builder/target arch mismatch in the build log.
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
-ARG TARGETARCH
 RUN echo "[platform] BUILDPLATFORM=${BUILDPLATFORM} TARGETPLATFORM=${TARGETPLATFORM} TARGETARCH=${TARGETARCH} runtime=$(uname -m)"
 
 ENV DEV "${development}"
@@ -46,6 +49,29 @@ RUN if [ "${development}" = "true" ]; then \
 
 COPY supervisord/supervisord.conf /etc/supervisor.d/supervisord.ini
 COPY supervisord/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+
+# Installing Go
+RUN if [ "${development}" = "true" ]; then \
+    curl -O -L https://golang.org/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
+    rm -rf /usr/local/go && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
+    echo "export PATH=$PATH:/usr/local/go/bin:~/go/bin" >> ~/.bashrc && \
+    rm -f go${GO_VERSION}.linux-${GO_ARCH}.tar.gz; \
+    fi
+
+# Installing delve for debugging
+RUN if [ "${development}" = "true" ]; then \
+    /usr/local/go/bin/go install github.com/go-delve/delve/cmd/dlv@latest; \
+    fi
+
+# Installing mage for plugin (re)building
+RUN if [ "${development}" = "true" ]; then \
+    git clone https://github.com/magefile/mage; \
+    cd mage; \
+    export PATH=$PATH:/usr/local/go/bin; \
+    go run bootstrap.go; \
+    fi
 
 
 

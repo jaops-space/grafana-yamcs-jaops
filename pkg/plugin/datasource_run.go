@@ -84,9 +84,9 @@ func RunParameterStream(ctx context.Context,
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
+				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, false)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
+				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, false)
 			}
 
 			sender.SendFrame(
@@ -302,7 +302,12 @@ func RunTimeStream(
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
-			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
+			currentTime, ok := endpoint.GetCurrentTimeIfFresh(15 * time.Second)
+			if !ok {
+				continue
+			}
+
+			frame := data.NewFrame("response", data.NewField("time", nil, []time.Time{currentTime}))
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,

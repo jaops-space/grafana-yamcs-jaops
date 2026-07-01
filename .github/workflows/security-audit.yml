@@ -1,0 +1,292 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '23 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  issues: write
+
+jobs:
+  audit:
+    name: Weekly vulnerability audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run govulncheck
+        id: govulncheck
+        continue-on-error: true
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          set +e
+          govulncheck -json ./... > govulncheck.json 2>&1
+          gov_json_status=$?
+          govulncheck ./... | tee govulncheck.txt
+          gov_txt_status=$?
+          if [ "$gov_txt_status" -ne 0 ]; then
+            exit "$gov_txt_status"
+          fi
+          exit "$gov_json_status"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run pnpm audit (high+)
+        id: pnpm-audit
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm audit --audit-level=high --json > pnpm-audit.json 2>&1
+          status=$?
+          if jq -e . pnpm-audit.json >/dev/null 2>&1; then
+            jq . pnpm-audit.json > pnpm-audit.txt
+          else
+            cp pnpm-audit.json pnpm-audit.txt
+          fi
+          exit "$status"
+
+      - name: Run OSV-Scanner
+        id: osv-scanner
+        continue-on-error: true
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          set +e
+          osv-scanner scan --recursive . --format json > osv-scanner.json 2>&1
+          status=$?
+          if jq -e . osv-scanner.json >/dev/null 2>&1; then
+            jq . osv-scanner.json > osv-scanner.txt
+          else
+            cp osv-scanner.json osv-scanner.txt
+          fi
+          exit "$status"
+
+      - name: Run Trivy filesystem scan
+        id: trivy
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Upload raw audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-reports-${{ github.run_id }}
+          path: |
+            govulncheck.txt
+            govulncheck.json
+            pnpm-audit.txt
+            pnpm-audit.json
+            osv-scanner.txt
+            osv-scanner.json
+            trivy-results.sarif
+          retention-days: 14
+
+      - name: Evaluate audit status
+        id: evaluate
+        if: always()
+        run: |
+          failed=false
+          summary=""
+
+          if [ "${{ steps.govulncheck.outcome }}" != "success" ]; then
+            failed=true
+            summary="${summary}\n- govulncheck reported issues or failed"
+          fi
+
+          if [ "${{ steps.pnpm-audit.outcome }}" != "success" ]; then
+            failed=true
+            summary="${summary}\n- pnpm audit reported high/critical advisories or failed"
+          fi
+
+          if [ "${{ steps.osv-scanner.outcome }}" != "success" ]; then
+            failed=true
+            summary="${summary}\n- OSV-Scanner reported vulnerabilities or failed"
+          fi
+
+          if [ "${{ steps.trivy.outcome }}" != "success" ]; then
+            failed=true
+            summary="${summary}\n- Trivy reported high/critical findings or failed"
+          fi
+
+          {
+            echo "failed=${failed}"
+            echo "summary<<EOF"
+            echo -e "${summary}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create issue if audit failed
+        if: always() && steps.evaluate.outputs.failed == 'true'
+        id: build-issue-body
+        run: |
+          gov_status="${{ steps.govulncheck.outcome }}"
+          pnpm_status="${{ steps.pnpm-audit.outcome }}"
+          osv_status="${{ steps.osv-scanner.outcome }}"
+          trivy_status="${{ steps.trivy.outcome }}"
+
+          gov_findings="n/a"
+          if [ -f govulncheck.json ]; then
+            gov_findings=$(jq -s '[.[] | select(has("finding"))] | length' govulncheck.json 2>/dev/null || echo "n/a")
+          fi
+
+          pnpm_critical="n/a"
+          pnpm_high="n/a"
+          if [ -f pnpm-audit.json ] && jq -e . pnpm-audit.json >/dev/null 2>&1; then
+            pnpm_critical=$(jq -r '.metadata.vulnerabilities.critical // 0' pnpm-audit.json)
+            pnpm_high=$(jq -r '.metadata.vulnerabilities.high // 0' pnpm-audit.json)
+          fi
+
+          osv_findings="n/a"
+          if [ -f osv-scanner.json ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
+            osv_findings=$(jq '[.results[]?.packages[]?.vulnerabilities[]?] | length' osv-scanner.json 2>/dev/null || echo "n/a")
+          fi
+
+          trivy_findings="n/a"
+          if [ -f trivy-results.sarif ] && jq -e . trivy-results.sarif >/dev/null 2>&1; then
+            trivy_findings=$(jq '[.runs[]?.results[]?] | length' trivy-results.sarif 2>/dev/null || echo "n/a")
+          fi
+
+          cat > issue-body.md <<'EOF'
+          ## Scheduled security audit detected findings
+
+          ### Summary
+          ${{ steps.evaluate.outputs.summary }}
+
+          ### Findings table
+          | Scanner | Step status | Findings |
+          |---|---|---|
+          EOF
+
+          {
+            echo "| govulncheck | ${gov_status} | ${gov_findings} findings |"
+            echo "| pnpm audit | ${pnpm_status} | critical=${pnpm_critical}, high=${pnpm_high} |"
+            echo "| OSV-Scanner | ${osv_status} | ${osv_findings} findings |"
+            echo "| Trivy (SARIF) | ${trivy_status} | ${trivy_findings} findings |"
+          } >> issue-body.md
+
+          cat >> issue-body.md <<'EOF'
+
+          ### Run details
+          - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Trigger: `${{ github.event_name }}`
+          - Commit: `${{ github.sha }}`
+
+          Dependabot should create remediation PRs when fixes are available. If no PR appears, investigate manual upgrades or unavailable upstream fixes.
+          EOF
+
+          if [ -f govulncheck.txt ]; then
+            {
+              echo
+              echo "<details><summary>govulncheck output (first 200 lines)</summary>"
+              echo
+              echo '```text'
+              sed -n '1,200p' govulncheck.txt
+              echo '```'
+              echo
+              echo "</details>"
+            } >> issue-body.md
+          fi
+
+          if [ -f pnpm-audit.txt ]; then
+            {
+              echo
+              echo "<details><summary>pnpm audit output (first 200 lines)</summary>"
+              echo
+              echo '```text'
+              sed -n '1,200p' pnpm-audit.txt
+              echo '```'
+              echo
+              echo "</details>"
+            } >> issue-body.md
+          fi
+
+          if [ -f osv-scanner.txt ]; then
+            {
+              echo
+              echo "<details><summary>OSV-Scanner output (first 200 lines)</summary>"
+              echo
+              echo '```text'
+              sed -n '1,200p' osv-scanner.txt
+              echo '```'
+              echo
+              echo "</details>"
+            } >> issue-body.md
+          fi
+
+          if [ -f trivy-results.sarif ]; then
+            {
+              echo
+              echo "<details><summary>Trivy SARIF preview (first 120 lines)</summary>"
+              echo
+              echo '```json'
+              sed -n '1,120p' trivy-results.sarif
+              echo '```'
+              echo
+              echo "</details>"
+            } >> issue-body.md
+          fi
+
+      - name: Create issue if audit failed
+        if: always() && steps.evaluate.outputs.failed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const now = new Date().toISOString().slice(0, 10);
+            const title = `[Security Audit] Action required (${now})`;
+            const body = fs.readFileSync('issue-body.md', 'utf8');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const exists = issues.some(i => i.title.startsWith('[Security Audit] Action required'));
+            if (!exists) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['security', 'dependencies']
+              });
+            }
+
+      - name: Fail workflow on findings
+        if: always() && steps.evaluate.outputs.failed == 'true'
+        run: |
+          echo "Security audit detected issues. See uploaded artifacts and code scanning alerts."
+          exit 1

@@ -21,7 +21,6 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         value: QueryType.PLOT,
         category: QueryCategory.PARAMETER,
         additionalFields: true,
-        
     },
     {
         label: 'Single Value',
@@ -42,7 +41,7 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         description: 'Display current Yamcs time.',
         value: QueryType.TIME,
         category: QueryCategory.TIMELINE,
-        additionalFields: false
+        additionalFields: false,
     },
     {
         label: 'Events',
@@ -99,7 +98,7 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
         value: QueryType.SUBSCRIPTIONS,
         category: QueryCategory.DEBUG,
         additionalFields: false,
-    }
+    },
 ];
 
 export const FieldsOptions: Array<SelectableValue<QueryField>> = [

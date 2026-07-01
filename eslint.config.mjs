@@ -1,0 +1,48 @@
+import baseConfig from './.config/eslint.config.mjs';
+
+export default [
+    {
+        ignores: [
+            '**/logs',
+            '**/*.log',
+            '**/npm-debug.log*',
+            '**/yarn-debug.log*',
+            '**/yarn-error.log*',
+            '**/.pnpm-debug.log*',
+            '**/node_modules/',
+            '.yarn/cache',
+            '.yarn/unplugged',
+            '.yarn/build-state.yml',
+            '.yarn/install-state.gz',
+            '**/.pnp.*',
+            '**/pids',
+            '**/*.pid',
+            '**/*.seed',
+            '**/*.pid.lock',
+            '**/lib-cov',
+            '**/coverage',
+            '**/dist/',
+            '**/artifacts/',
+            '**/work/',
+            '**/ci/',
+            'test-results/',
+            'playwright-report/',
+            'blob-report/',
+            'playwright/.cache/',
+            'playwright/.auth/',
+            '**/.idea',
+            '**/.eslintcache',
+        ],
+    },
+    ...baseConfig,
+    {
+        rules: {
+            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/exhaustive-deps': 'off',
+            'react-hooks/set-state-in-effect': 'off',
+            'react-hooks/refs': 'off',
+            'no-duplicate-imports': 'off',
+            'eol-last': 'off',
+        },
+    },
+];
