@@ -11,25 +11,38 @@ function TimeSyncSetup() {
             </p>
 
             <Card>
-                <Card.Heading>Step 1: Add a Time Sync Panel</Card.Heading>
+                <Card.Heading>Step 1: Setup a Replay processor on Yamcs</Card.Heading>
+                <Card.Description>
+                    The first step is to set up a replay processor, if you already have it set up, you might skip this step.
+                    <br/><br/>
+                    The provisioned datasource already has a setup for a replay processor called <code>replay</code>, all you need to do is start a replay on <b>Yamcs web</b> with that same name, and change the <code>endpoint</code> variable to <code>myproject_replay</code> or <code>simulator_replay</code> on the Demo dashboard.
+                </Card.Description>
+            </Card>
+
+            <Card>
+                <Card.Heading>Step 2: Add a Time Sync Panel</Card.Heading>
                 <Card.Description>
                     In your dashboard, click <Text color="info">Add panel</Text>, set the data source to{' '}
                     <Text color="primary">Yamcs Datasource</Text>, and choose query type{' '}
                     <Text color="primary">Time</Text>. Then select visualization{' '}
                     <Text color="primary">JAOPS Yamcs Time Sync</Text>.
-                    <br/><br/>
-                    Make sure to choose the right endpoint for your time sync panel, if you use multiple endpoints through a variable, make sure to use that variable as the endpoint.
+                    <br />
+                    <br />
+                    Make sure to choose the right endpoint for your time sync panel, if you use multiple endpoints
+                    through a variable, make sure to use that variable as the endpoint.
                 </Card.Description>
             </Card>
 
             <Card>
-                <Card.Heading>Step 2: Keep Dashboard Range Relative</Card.Heading>
+                <Card.Heading>Step 3: Keep Dashboard Range Relative</Card.Heading>
                 <Card.Description>
                     Use a relative dashboard range, for example <Text variant="code">now-15m</Text> to{' '}
-                    <Text variant="code">now</Text>. Time sync works <Text color="primary">by rewriting these expressions with an
-                    offset during replay/simulation</Text>.
-                    <br/><br/>
-                    E.g. if browser time is <code>30m</code> ahead of Yamcs clock, the panel rewrites the range to <code>now-45m</code> to <code>now-30m</code>.  
+                    <Text variant="code">now</Text>. Time sync works{' '}
+                    <Text color="primary">by rewriting these expressions with an offset during replay/simulation</Text>.
+                    <br />
+                    <br />
+                    E.g. if browser time is <code>30m</code> ahead of Yamcs clock, the panel rewrites the range to{' '}
+                    <code>now-45m</code> to <code>now-30m</code>.
                 </Card.Description>
             </Card>
 
@@ -59,18 +72,24 @@ function TimeSyncSetup() {
                             update the dashboard time. Larger values mean fewer updates.
                         </li>
                         <li>
-                            <Text color="primary">Normalize-to-now threshold (ms):</Text> If skew (offset between local time and Yamcs clock) is under this
-                            threshold, sync snaps back to plain <Text variant="code">now</Text> and shows <Badge text={"REALTIME"} color="blue" />.
+                            <Text color="primary">Normalize-to-now threshold (ms):</Text> If skew (offset between local
+                            time and Yamcs clock) is under this threshold, sync snaps back to plain{' '}
+                            <Text variant="code">now</Text> and shows <Badge text={'REALTIME'} color="blue" />.
                         </li>
                     </ul>
                 </Card.Description>
             </Card>
             <Alert title="Important to know" severity="warning">
-                An important caveat to know is when Yamcs replay speed is different than original speed (<code>1x</code>).
-                <br/>
-                Time synchronization works with sped up replays, but will cause the sync to rewrite the time range to catch up, and panels to refresh every few seconds, specifically every time the skew surpasses <b>Offset step</b>.
-                <br/>
-                In between refreshes, the panel will only move at normal speed. The visual intuition is to follow the movement of refreshes, which will catch up with the Yamcs clock. However, that comes with a potential performance issue (frequent refreshes are expensive).
+                An important caveat to know is when Yamcs replay speed is different than original speed (<code>1x</code>
+                ).
+                <br />
+                Time synchronization works with sped up replays, but will cause the sync to rewrite the time range to
+                catch up, and panels to refresh every few seconds, specifically every time the skew surpasses{' '}
+                <b>Offset step</b>.
+                <br />
+                In between refreshes, the panel will only move at normal speed. The visual intuition is to follow the
+                movement of refreshes, which will catch up with the Yamcs clock. However, that comes with a potential
+                performance issue (frequent refreshes are expensive).
             </Alert>
         </PluginPage>
     );

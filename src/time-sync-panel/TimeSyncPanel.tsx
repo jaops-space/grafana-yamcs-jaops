@@ -44,10 +44,9 @@ function formatDurationLabel(durationMs: number): string {
     return `${sec} ${sec === 1 ? 'second' : 'seconds'}`;
 }
 
-function getRangeLabel(rawFromExpr: string, rawToExpr: string): string {
-    const nowMs = Date.now();
-    const from = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: nowMs });
-    const to = dateMath.toDateTime(rawToExpr, { roundUp: true, now: nowMs });
+function getRangeLabel(rawFromExpr: string, rawToExpr: string, referenceNowMs: number): string {
+    const from = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: referenceNowMs });
+    const to = dateMath.toDateTime(rawToExpr, { roundUp: true, now: referenceNowMs });
 
     if (!from || !to) {
         return 'Custom time range';
@@ -62,7 +61,7 @@ function getRangeLabel(rawFromExpr: string, rawToExpr: string): string {
 }
 
 function readProcessorNameFromConfig(props: PanelProps<PanelOptions>): string | null {
-    const targets = (props.data.request?.targets as Array<any> | undefined) ?? [];
+    const targets = (props.data.request?.targets as any[] | undefined) ?? [];
     if (targets.length === 0) {
         return null;
     }
@@ -116,6 +115,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const processorName = useMemo(() => readProcessorNameFromConfig(props), [props.data.request]);
     const rawFrom = props.timeRange.raw.from;
     const rawTo = props.timeRange.raw.to;
+    const referenceNowMs = props.timeRange.to.valueOf();
     const rawFromExpr = typeof rawFrom === 'string' ? rawFrom : String(rawFrom.valueOf());
     const rawToExpr = typeof rawTo === 'string' ? rawTo : String(rawTo.valueOf());
     const rangeIsRelative = isRelativeExpr(rawFromExpr) && isRelativeExpr(rawToExpr);
@@ -234,11 +234,11 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const statusInfo = getStatusInfo(status);
     const normalizeThresholdMs = Math.max(100, options.normalizeToNowThresholdMs);
     const isRealtime =
-        status === 'functional' && yamcsNowMs != null && Math.abs(Date.now() - yamcsNowMs) <= normalizeThresholdMs;
+        status === 'functional' && yamcsNowMs != null && Math.abs(referenceNowMs - yamcsNowMs) <= normalizeThresholdMs;
     const badgeColor =
         status === 'functional' ? (isRealtime ? 'blue' : 'green') : status === 'disabled' ? 'darkgrey' : 'orange';
     const badgeText = status === 'functional' ? (isRealtime ? 'REALTIME' : 'SYNCHRONIZED') : 'NOT ACTIVE';
-    const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr);
+    const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr, referenceNowMs);
     const processorLabel = processorName ? `Processor: ${processorName}` : 'Processor: default';
     const hasReplaySpeed = Math.abs(speed - 1) > 0.001;
 

@@ -48,11 +48,15 @@ function HowToUse() {
             <img src={StepTwoImage} width={1200} style={{ display: 'block', margin: '20px auto' }} />
 
             <Alert title="Important" severity="info">
-                If you are manually running the plugin through the plugin repository Grafana docker container, to refer to local instances (running at <code>localhost</code>), either use <code>docker.gateway</code> or the proper platform-specific hostname as the <b>host path</b>.
-                <br/><br/>
-                The docker container is configured to resolve <code>docker.gateway</code> to <code>host.docker.internal</code>{' '}
-                for Windows, and <code>172.17.0.1</code> for Linux.
-                <br/><br/>
+                If you are manually running the plugin through the plugin repository Grafana docker container, to refer
+                to local instances (running at <code>localhost</code>), either use <code>docker.gateway</code> or the
+                proper platform-specific hostname as the <b>host path</b>.
+                <br />
+                <br />
+                The docker container is configured to resolve <code>docker.gateway</code> to{' '}
+                <code>host.docker.internal</code> for Windows, and <code>172.17.0.1</code> for Linux.
+                <br />
+                <br />
                 If you are using the plugin in a custom Docker environement, use the proper hostname.
             </Alert>
 
