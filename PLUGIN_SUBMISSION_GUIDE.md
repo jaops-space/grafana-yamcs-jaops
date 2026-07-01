@@ -61,6 +61,8 @@ jaops-yamcs-app/                    # Main app plugin
 ```bash
 # security audit
 # critical and high vulnerabilities must be fixed before submission (CVSS >=7), low and medium can be ignored.
+# gotcha: upgrading the SDK can raise the required Go version in go.mod. if so, bump the pinned
+#         go-version in .github/workflows/ci.yml and release.yml to match (CI uses GOTOOLCHAIN=local, so it won't auto-download).
 pnpm audit
 osv-scanner --recursive .
 
