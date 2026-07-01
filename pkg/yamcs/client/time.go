@@ -15,7 +15,7 @@ type TimeListener func(currentTime time.Time)
 
 // TimeSubscription manages a subscription to a set of parameters from a Yamcs instance and processor.
 type TimeSubscription struct {
-	subscriptionID int
+	subscriptionID int32
 	Instance       string
 	Processor      string
 	listener       TimeListener
@@ -79,7 +79,7 @@ func (subscription *TimeSubscription) Halt() {
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{
-		Call: int32(subscription.subscriptionID),
+		Call: subscription.subscriptionID,
 	}
 
 	anyMessage, _ := anypb.New(subscribeRequest)
@@ -105,7 +105,7 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 
 		// Retrieve the subscription by call ID
 		callID := message.GetCall()
-		subscription, found := client.TimeSubscriptions[int(callID)]
+		subscription, found := client.TimeSubscriptions[callID]
 		if !found {
 			return
 		}

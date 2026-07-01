@@ -24,8 +24,8 @@ type WebSocketHandler struct {
 	useProtobuf      bool
 	serverRoot       string
 	messageListeners map[ListenerID]MessageListener
-	messageCallbacks map[int]MessageCallback
-	currentPacketID  int
+	messageCallbacks map[int32]MessageCallback
+	currentPacketID  int32
 	mutex            sync.Mutex
 	disconnectFunc   func()
 	handshakeTimeout int
@@ -33,14 +33,14 @@ type WebSocketHandler struct {
 }
 
 type MessageListener func(*api.ServerMessage)
-type MessageCallback func(call int, seq int, reply *api.Reply)
+type MessageCallback func(call int32, seq int32, reply *api.Reply)
 
 func NewWebSocketHandler(serverRoot string, useProtobuf bool) *WebSocketHandler {
 	return &WebSocketHandler{
 		serverRoot:       serverRoot,
 		useProtobuf:      useProtobuf,
 		messageListeners: make(map[ListenerID]MessageListener),
-		messageCallbacks: make(map[int]MessageCallback),
+		messageCallbacks: make(map[int32]MessageCallback),
 		handshakeTimeout: 5,
 		once:             sync.Once{},
 	}
@@ -132,8 +132,8 @@ func (websocketHandler *WebSocketHandler) Listen() {
 				backend.Logger.Error("Error unmarshalling reply", "error", err)
 				continue
 			}
-			if callback, found := websocketHandler.messageCallbacks[int(reply.GetReplyTo())]; found {
-				callback(int(message.GetCall()), int(message.GetSeq()), &reply)
+			if callback, found := websocketHandler.messageCallbacks[reply.GetReplyTo()]; found {
+				callback(message.GetCall(), message.GetSeq(), &reply)
 			}
 		}
 
@@ -166,9 +166,9 @@ func (websocketHandler *WebSocketHandler) ForceDisconnect() {
 	}
 }
 
-func (websocketHandler *WebSocketHandler) SendSync(message *api.ClientMessage) (*api.Reply, int, int, error) {
+func (websocketHandler *WebSocketHandler) SendSync(message *api.ClientMessage) (*api.Reply, int32, int32, error) {
 	websocketHandler.mutex.Lock()
-	message.Id = int32(websocketHandler.currentPacketID)
+	message.Id = websocketHandler.currentPacketID
 	currentID := websocketHandler.currentPacketID
 	websocketHandler.currentPacketID++
 	websocketHandler.mutex.Unlock()
@@ -194,10 +194,10 @@ func (websocketHandler *WebSocketHandler) SendSync(message *api.ClientMessage) (
 
 	done := make(chan struct{})
 	var reply *api.Reply
-	var call, seq int
+	var call, seq int32
 
 	websocketHandler.mutex.Lock()
-	websocketHandler.messageCallbacks[currentID] = func(returnedCall int, returnedSeq int, returnedReply *api.Reply) {
+	websocketHandler.messageCallbacks[currentID] = func(returnedCall int32, returnedSeq int32, returnedReply *api.Reply) {
 		call = returnedCall
 		seq = returnedSeq
 		reply = returnedReply
