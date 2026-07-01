@@ -4,12 +4,7 @@
     "name": "JAOPS Links Panel",
     "id": "jaops-links-panel",
     "info": {
-        "keywords": [
-            "yamcs",
-            "links",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "links", "panel", "jaops"],
         "description": "Links Management Panel for JAOPS Yamcs plugin - Enable/disable Yamcs links",
         "author": {
             "name": "JAOPS"

@@ -93,12 +93,17 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 
 // SendRequest sends an HTTP request and automatically applies credentials
 func (m *HTTPManager) SendRequest(method string, url string, body []byte) ([]byte, error) {
+	if m.Credentials != nil && m.Credentials.IsExpired() {
+		if err := m.Credentials.Refresh(m); err != nil {
+			return nil, err
+		}
+	}
+
 	reader := bytes.NewReader(body)
 	req, err := http.NewRequest(method, url, reader)
 	if err != nil {
 		return nil, err
 	}
-	m.Credentials.BeforeRequest(req)
 
 	req.Close = true
 

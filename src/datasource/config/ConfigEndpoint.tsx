@@ -1,6 +1,19 @@
 import { AppEvents, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
-import { Box, Button, Combobox, ComboboxOption, Field, Icon, Input, Modal, Stack, Text, TextArea, useStyles2 } from '@grafana/ui';
+import {
+    Box,
+    Button,
+    Combobox,
+    ComboboxOption,
+    Field,
+    Icon,
+    Input,
+    Modal,
+    Stack,
+    Text,
+    TextArea,
+    useStyles2,
+} from '@grafana/ui';
 import { css } from '@emotion/css';
 import React, { ChangeEvent, useState } from 'react';
 import { Configuration, IndexedEndpoint, ItemStatus } from '../types';
@@ -116,7 +129,9 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                     <div className={styles.meta}>
                         <Text color="info">#{endpoint.index}</Text>
                         <Text color={endpoint.host ? 'info' : 'error'}>@ {hostLabel}</Text>
-                        <Text color={endpoint.instance ? 'secondary' : 'error'}>Instance {endpoint.instance || 'unspecified'}</Text>
+                        <Text color={endpoint.instance ? 'secondary' : 'error'}>
+                            Instance {endpoint.instance || 'unspecified'}
+                        </Text>
                         {endpoint.processor && <Text color="secondary">Processor {endpoint.processor}</Text>}
                     </div>
                 </Box>
@@ -124,10 +139,26 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                 <div className={styles.actions}>
                     <div className={styles.status}>
                         <Icon name={statusView.icon} />
-                        <Text color={statusView.color} weight="medium">{statusView.label}</Text>
+                        <Text color={statusView.color} weight="medium">
+                            {statusView.label}
+                        </Text>
                     </div>
-                    <Button aria-label={`Edit ${name}`} variant="secondary" fill="text" icon="pen" size="sm" onClick={() => setEditing(true)} />
-                    <Button aria-label={`Delete ${name}`} variant="destructive" fill="text" icon="trash-alt" size="sm" onClick={() => removeEndpoint(index)} />
+                    <Button
+                        aria-label={`Edit ${name}`}
+                        variant="secondary"
+                        fill="text"
+                        icon="pen"
+                        size="sm"
+                        onClick={() => setEditing(true)}
+                    />
+                    <Button
+                        aria-label={`Delete ${name}`}
+                        variant="destructive"
+                        fill="text"
+                        icon="trash-alt"
+                        size="sm"
+                        onClick={() => removeEndpoint(index)}
+                    />
                 </div>
             </div>
 
@@ -135,16 +166,29 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                 <Text color="secondary">{endpoint.description || 'No description provided.'}</Text>
             </div>
 
-            {statusView.message && status && 
+            {statusView.message && status && (
                 <div className={styles.statusMessage}>
-                    <Text variant='bodySmall' color={statusView.color}>{status.message}</Text>
-                </div>}
+                    <Text variant="bodySmall" color={statusView.color}>
+                        {status.message}
+                    </Text>
+                </div>
+            )}
 
             <Modal title={`Edit ${name}`} isOpen={editing} onDismiss={close}>
                 <Stack direction="column" gap={2}>
                     <div className={styles.formGrid}>
-                        <Field label="Endpoint ID" description="Identifier used by the plugin to reference this endpoint." required>
-                            <Input value={endpoint.index} placeholder="my-endpoint-X" invalid={uniqueError} width={40} onChange={changeIndex} />
+                        <Field
+                            label="Endpoint ID"
+                            description="Identifier used by the plugin to reference this endpoint."
+                            required
+                        >
+                            <Input
+                                value={endpoint.index}
+                                placeholder="my-endpoint-X"
+                                invalid={uniqueError}
+                                width={40}
+                                onChange={changeIndex}
+                            />
                         </Field>
 
                         <Field label="Endpoint Name" description="Display name for this endpoint." required>
@@ -156,12 +200,18 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                             />
                         </Field>
 
-                        <Field className={styles.fullWidth} label="Endpoint Description" description="Short description shown on the endpoint card.">
+                        <Field
+                            className={styles.fullWidth}
+                            label="Endpoint Description"
+                            description="Short description shown on the endpoint card."
+                        >
                             <TextArea
                                 value={endpoint.description || ''}
                                 placeholder="Realtime telemetry for satellite X..."
                                 rows={3}
-                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(index, 'description', e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                                    onChange(index, 'description', e.target.value)
+                                }
                             />
                         </Field>
 
@@ -176,12 +226,18 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                             />
                         </Field>
 
-                        <Field label="Yamcs Instance" description="Corresponding instance on the Yamcs server." required>
+                        <Field
+                            label="Yamcs Instance"
+                            description="Corresponding instance on the Yamcs server."
+                            required
+                        >
                             <Input
                                 value={endpoint.instance || ''}
                                 placeholder="simulator"
                                 width={40}
-                                onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'instance', e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                    onChange(index, 'instance', e.target.value)
+                                }
                             />
                         </Field>
 
@@ -190,13 +246,17 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                                 value={endpoint.processor || ''}
                                 placeholder="realtime"
                                 width={40}
-                                onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'processor', e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                    onChange(index, 'processor', e.target.value)
+                                }
                             />
                         </Field>
                     </div>
 
                     <Stack direction="row" justifyContent="flex-end">
-                        <Button variant="secondary" onClick={close}>Close</Button>
+                        <Button variant="secondary" onClick={close}>
+                            Close
+                        </Button>
                     </Stack>
                 </Stack>
             </Modal>

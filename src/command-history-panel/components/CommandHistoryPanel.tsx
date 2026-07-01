@@ -110,7 +110,7 @@ const columns = [
         id: 'command',
         header: 'Command',
         accessorKey: 'command',
-        cell: (info: any) => info.row.original.row.command
+        cell: (info: any) => info.row.original.row.command,
     },
     {
         id: 'comment',
@@ -122,7 +122,7 @@ const columns = [
             }
             return (
                 <Tooltip content={comment}>
-                    <Icon name='comment-alt-message' />
+                    <Icon name="comment-alt-message" />
                 </Tooltip>
             );
         },
@@ -141,16 +141,24 @@ const columns = [
             const statusOk = ack.status.toLowerCase() === 'ok';
             const statusNok = ack.status.toLowerCase() === 'nok';
             const icon = statusOk ? 'check-circle' : 'exclamation-triangle';
-            const color = statusOk ? 'green' : (statusNok ? 'red' : 'orange');
+            const color = statusOk ? 'green' : statusNok ? 'red' : 'orange';
             const timeDelta = timeDiffMs(entry.time, ack.time);
 
-            let msg = "";
+            let msg = '';
             if (ack.message) {
-                msg = "\n" + ack.message;
+                msg = '\n' + ack.message;
             }
 
             return (
-                <Tooltip content={<>{`${key.charAt(0).toUpperCase() + key.slice(1)}: ${ack.status} (${timeDelta})`}<br />{msg}</>}>
+                <Tooltip
+                    content={
+                        <>
+                            {`${key.charAt(0).toUpperCase() + key.slice(1)}: ${ack.status} (${timeDelta})`}
+                            <br />
+                            {msg}
+                        </>
+                    }
+                >
                     <Icon name={icon} size="md" color={color} />
                 </Tooltip>
             );
@@ -167,27 +175,37 @@ const columns = [
                 return null;
             }
 
-            return <>
-                {Object.keys(acks).map(key => {
-                    const ack = acks[key];
-                    const statusOk = ack.status.toLowerCase() === 'ok';
-                    const statusNok = ack.status.toLowerCase() === 'nok';
-                    const icon = statusOk ? 'check-circle' : 'exclamation-triangle';
-                    const color = statusOk ? 'green' : (statusNok ? 'red' : 'orange');
-                    const timeDelta = timeDiffMs(entry.time, ack.time);
-                    let msg = "";
-                    if (ack.message) {
-                        msg = "\n" + ack.message;
-                    }
+            return (
+                <>
+                    {Object.keys(acks).map((key) => {
+                        const ack = acks[key];
+                        const statusOk = ack.status.toLowerCase() === 'ok';
+                        const statusNok = ack.status.toLowerCase() === 'nok';
+                        const icon = statusOk ? 'check-circle' : 'exclamation-triangle';
+                        const color = statusOk ? 'green' : statusNok ? 'red' : 'orange';
+                        const timeDelta = timeDiffMs(entry.time, ack.time);
+                        let msg = '';
+                        if (ack.message) {
+                            msg = '\n' + ack.message;
+                        }
 
-                    return (
-                        <Tooltip key={key} content={<>{`${key}: ${ack.status} (${timeDelta})`}<br />{msg}</>}>
-                            <Icon name={icon} size="md" color={color} />
-                        </Tooltip>
-                    );
-                })}
-            </>;
-
+                        return (
+                            <Tooltip
+                                key={key}
+                                content={
+                                    <>
+                                        {`${key}: ${ack.status} (${timeDelta})`}
+                                        <br />
+                                        {msg}
+                                    </>
+                                }
+                            >
+                                <Icon name={icon} size="md" color={color} />
+                            </Tooltip>
+                        );
+                    })}
+                </>
+            );
         },
     },
     {
@@ -201,35 +219,34 @@ const columns = [
                 return null;
             }
 
-            let statusText = "";
+            let statusText = '';
             switch (ack.status.toLowerCase()) {
-                case "ok":
-                    statusText = "COMPLETED";
+                case 'ok':
+                    statusText = 'COMPLETED';
                     break;
-                case "timeout":
-                    statusText = "TIMED OUT";
+                case 'timeout':
+                    statusText = 'TIMED OUT';
                     break;
-                case "nok":
-                    statusText = "FAILED";
+                case 'nok':
+                    statusText = 'FAILED';
                     break;
             }
             const statusOk = ack.status.toLowerCase() === 'ok';
             const statusNok = ack.status.toLowerCase() === 'nok';
-            const variant = statusOk ? 'success' : (statusNok ? 'error' : 'warning');
+            const variant = statusOk ? 'success' : statusNok ? 'error' : 'warning';
             const timeDelta = timeDiffMs(entry.time, ack.time);
 
             return (
-                <Tooltip content={`${ack.message ?? ""} (${timeDelta})`}>
-                    <Stack direction='row' gap={1} alignItems='center' width='max-content' height='max-content'>
-                        <Text variant='code' color={variant}>
+                <Tooltip content={`${ack.message ?? ''} (${timeDelta})`}>
+                    <Stack direction="row" gap={1} alignItems="center" width="max-content" height="max-content">
+                        <Text variant="code" color={variant}>
                             {statusText}
                         </Text>
                     </Stack>
                 </Tooltip>
             );
-
         },
-    }
+    },
 ];
 
 // ------------------
@@ -263,10 +280,14 @@ function renderSubComponent({ row }: { row: any }) {
 const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data, options }) => {
     const deduped = useMemo(() => {
         const frame = data.series[0];
-        if (!frame || !frame.fields.length) { return []; }
+        if (!frame || !frame.fields.length) {
+            return [];
+        }
 
         const rawField = frame.fields.find((f) => f.name === 'commands');
-        if (!rawField) { return []; }
+        if (!rawField) {
+            return [];
+        }
 
         const raw = rawField.values as any[];
 
@@ -281,25 +302,25 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
 
     return (
         <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
-                {options.pagination ? (
-                    <InteractiveTable
-                        key="with-pagination"
-                        data={deduped.map(d => ({ row: d, id: d.id }))}
-                        getRowId={(row: any) => row.id}
-                        columns={columns.filter(column => options.visibleFields.includes(column.id))}
-                        renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
-                        pageSize={Math.max(1, options.pageSize)}
-                    />
-                    ) : (
-                    <InteractiveTable
-                        key="without-pagination"
-                        data={deduped.map(d => ({ row: d, id: d.id }))}
-                        getRowId={(row: any) => row.id}
-                        columns={columns.filter(column => options.visibleFields.includes(column.id))}
-                        renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
-                        // Don't pass pageSize at all
-                    />
-                )}
+            {options.pagination ? (
+                <InteractiveTable
+                    key="with-pagination"
+                    data={deduped.map((d) => ({ row: d, id: d.id }))}
+                    getRowId={(row: any) => row.id}
+                    columns={columns.filter((column) => options.visibleFields.includes(column.id))}
+                    renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                    pageSize={Math.max(1, options.pageSize)}
+                />
+            ) : (
+                <InteractiveTable
+                    key="without-pagination"
+                    data={deduped.map((d) => ({ row: d, id: d.id }))}
+                    getRowId={(row: any) => row.id}
+                    columns={columns.filter((column) => options.visibleFields.includes(column.id))}
+                    renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                    // Don't pass pageSize at all
+                />
+            )}
         </div>
     );
 };

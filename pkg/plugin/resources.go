@@ -2,7 +2,10 @@ package plugin
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
@@ -122,6 +125,7 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/fetch/health-details", d.handleGetLastHealthDetails)
 
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
+	mux.HandleFunc("/endpoint/{endpointID}/time", d.handleEndpointTime)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
@@ -137,6 +141,39 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/disable", d.handleDisableLink)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/reset", d.handleResetLinkCounters)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", d.handleRunLinkAction)
+}
+
+func (d *Datasource) handleEndpointTime(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure we are subscribed to processor time updates.
+	endpoint.RequestTime()
+
+	currentTime := endpoint.CurrentTime
+	currentTimeUpdatedAt := endpoint.CurrentTimeUpdatedAt
+	maxTimeAge := 10 * time.Second
+
+	if currentTime.IsZero() || currentTimeUpdatedAt.IsZero() || time.Since(currentTimeUpdatedAt) > maxTimeAge {
+		http.Error(w, "processor time unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"currentTime": currentTime.UnixMilli(),
+	})
 }
 
 // endpoint to get latest health details and whether they are available (non-nil)
@@ -156,6 +193,43 @@ type CommandIssueBody struct {
 	Name      string         `json:"name"`
 	Arguments map[string]any `json:"arguments"`
 	Comment   string         `json:"comment"`
+}
+
+const maxJSONBodyBytes int64 = 1 << 20
+
+func decodeJSONBody(w http.ResponseWriter, req *http.Request, dst any) error {
+	req.Body = http.MaxBytesReader(w, req.Body, maxJSONBodyBytes)
+	decoder := json.NewDecoder(req.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("request body must contain a single JSON object")
+	}
+
+	return nil
+}
+
+func decodeOptionalJSONBody(w http.ResponseWriter, req *http.Request, dst any) error {
+	req.Body = http.MaxBytesReader(w, req.Body, maxJSONBodyBytes)
+	decoder := json.NewDecoder(req.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(dst); err != nil {
+		if err == io.EOF {
+			return nil
+		}
+		return err
+	}
+
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("request body must contain a single JSON object")
+	}
+
+	return nil
 }
 
 func (d *Datasource) handleGetCommandInfo(w http.ResponseWriter, req *http.Request) {
@@ -205,7 +279,7 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 	endpointID := vars["endpointID"]
 
 	body := &CommandIssueBody{}
-	err := json.NewDecoder(req.Body).Decode(&body)
+	err := decodeJSONBody(w, req, &body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -251,7 +325,7 @@ func (d *Datasource) handleAcknowledgeAlarm(w http.ResponseWriter, req *http.Req
 	endpointID := vars["endpointID"]
 
 	var body AlarmActionBody
-	err := json.NewDecoder(req.Body).Decode(&body)
+	err := decodeJSONBody(w, req, &body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -287,7 +361,7 @@ func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) 
 	endpointID := vars["endpointID"]
 
 	body := AlarmActionBody{}
-	err := json.NewDecoder(req.Body).Decode(&body)
+	err := decodeJSONBody(w, req, &body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -323,7 +397,7 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 	endpointID := vars["endpointID"]
 
 	body := AlarmActionBody{}
-	err := json.NewDecoder(req.Body).Decode(&body)
+	err := decodeJSONBody(w, req, &body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -359,7 +433,7 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 	endpointID := vars["endpointID"]
 
 	body := AlarmActionBody{}
-	err := json.NewDecoder(req.Body).Decode(&body)
+	err := decodeJSONBody(w, req, &body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -587,7 +661,10 @@ func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Reques
 	// Parse optional message body
 	var body LinkActionBody
 	if req.Body != nil {
-		json.NewDecoder(req.Body).Decode(&body)
+		if err := decodeOptionalJSONBody(w, req, &body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	client := endpoint.GetClient()

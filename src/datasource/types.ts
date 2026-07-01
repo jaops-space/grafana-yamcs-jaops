@@ -14,13 +14,14 @@ export interface Query extends DataQuery {
     asVariable: boolean;
     customVariableString: boolean;
     endpointVariable: string;
+    frontendShiftedTime?: boolean;
 
     // YAMCS parameter filter configuration
     yamcsFilter?: {
         enabled: boolean;
-        parameter: string;        // Filter parameter name (e.g., "vcid")
-        operator: 'equals';       // Currently only equality
-        value: string;            // Expected value (e.g., "1")
+        parameter: string; // Filter parameter name (e.g., "vcid")
+        operator: 'equals'; // Currently only equality
+        value: string; // Expected value (e.g., "1")
     };
 }
 
@@ -41,7 +42,7 @@ export enum QueryType {
     COMMANDING = 'commanding',
     COMMAND_HISTORY = 'command-history',
     ALARMS = 'alarms',
-    LINKS = 'links'
+    LINKS = 'links',
 }
 
 /**
@@ -55,7 +56,7 @@ export type QueryField = 'max' | 'min';
 export const DEFAULT_QUERY: Partial<Query> = {
     type: undefined,
     endpoint: undefined,
-    aggregatePath: "",
+    aggregatePath: '',
 };
 
 /**
@@ -97,7 +98,7 @@ export interface Configuration extends DataSourceJsonData {
 }
 
 export interface SecureConfiguration {
-    [key: string]: string
+    [key: string]: string;
 }
 
 export const DefaultConfiguration = {
@@ -115,8 +116,8 @@ export const DefaultSecureConfiguration = {} satisfies SecureConfiguration;
 export type Optional<T> = T | null | undefined;
 
 export interface ItemStatus {
-  status: 'ok' | 'warning' | 'error';
-  message: string;
+    status: 'ok' | 'warning' | 'error';
+    message: string;
 }
 
 /**
@@ -148,4 +149,4 @@ export type Hosts = Configuration['hosts'];
 
 export type Endpoint = ValueOf<Endpoints>;
 export type Host = ValueOf<Hosts>;
-export type IndexedEndpoint = ValueOf<Configuration['endpoints']> & {index: string};
+export type IndexedEndpoint = ValueOf<Configuration['endpoints']> & { index: string };

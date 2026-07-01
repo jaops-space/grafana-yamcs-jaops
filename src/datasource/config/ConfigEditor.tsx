@@ -1,9 +1,16 @@
+import { css } from '@emotion/css';
 import { AppEvents, DataSourcePluginOptionsEditorProps, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
 import { Button, Checkbox, Field, FileDropzone, InlineField, Input, Modal, Stack, Text, useStyles2 } from '@grafana/ui';
-import { css } from '@emotion/css';
 import React, { useEffect, useState } from 'react';
-import { Configuration, DefaultConfiguration, DefaultSecureConfiguration, Endpoints, IndexedEndpoint, SecureConfiguration } from '../types';
+import {
+    Configuration,
+    DefaultConfiguration,
+    DefaultSecureConfiguration,
+    Endpoints,
+    IndexedEndpoint,
+    SecureConfiguration,
+} from '../types';
 import ConfigEndpoint from './ConfigEndpoint';
 import ConfigHost from './ConfigHost';
 import ConnectionStatus, { ConnectionDetails } from './ConnectionStatus';
@@ -86,9 +93,9 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     const styles = useStyles2(getStyles);
     const appEvents = getAppEvents();
 
-    
-
-    const [secureConfig, setSecureConfig] = useState<SecureConfiguration>(options.secureJsonData ?? DefaultSecureConfiguration);
+    const [secureConfig, setSecureConfig] = useState<SecureConfiguration>(
+        options.secureJsonData ?? DefaultSecureConfiguration
+    );
     const [config, setConfig] = useState<Configuration>(options.jsonData ?? DefaultConfiguration);
     const [hosts, setHosts] = useState(config.hosts || {});
     const [endpoints, setEndpoints] = useState<IndexedEndpoint[]>(endpointsToArray(config.endpoints || {}));
@@ -164,9 +171,9 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     };
 
     const updateEndpoint = (index: number, key: keyof IndexedEndpoint, value: any) => {
-        const newEndpoints = endpoints.map((endpoint, endpointIndex) => (
+        const newEndpoints = endpoints.map((endpoint, endpointIndex) =>
             endpointIndex === index ? { ...endpoint, [key]: value } : endpoint
-        ));
+        );
 
         updateConfigIndexEndpoints(newEndpoints);
         setEndpoints(newEndpoints);
@@ -266,7 +273,9 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                 <section className={styles.section}>
                     <div className={styles.sectionHeader}>
                         <Text weight="medium">Hosts</Text>
-                        <Button variant="secondary" icon="plus" size="sm" onClick={addHost}>Add host</Button>
+                        <Button variant="secondary" icon="plus" size="sm" onClick={addHost}>
+                            Add host
+                        </Button>
                     </div>
 
                     {Object.keys(hosts).length > 0 ? (
@@ -290,7 +299,9 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                 <section className={styles.section}>
                     <div className={styles.sectionHeader}>
                         <Text weight="medium">Endpoints</Text>
-                        <Button variant="secondary" icon="plus" size="sm" onClick={addEndpoint}>Add endpoint</Button>
+                        <Button variant="secondary" icon="plus" size="sm" onClick={addEndpoint}>
+                            Add endpoint
+                        </Button>
                     </div>
 
                     {endpoints.length > 0 ? (
@@ -312,8 +323,6 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                     )}
                 </section>
 
-                
-
                 <section className={styles.fullWidthSection}>
                     <div className={styles.sectionHeader}>
                         <Text weight="medium">Plugin configuration</Text>
@@ -330,7 +339,10 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                                 />
                             </InlineField>
 
-                            <InlineField label="Debug Mode" tooltip="Enable additional query types for debugging purposes.">
+                            <InlineField
+                                label="Debug Mode"
+                                tooltip="Enable additional query types for debugging purposes."
+                            >
                                 <Checkbox
                                     value={config.debugMode}
                                     onChange={(e) => updateConfig('debugMode', e.currentTarget.checked)}
