@@ -10,28 +10,35 @@ const App = (props: AppRootProps) => (
     </Suspense>
 );
 
-export const plugin = new AppPlugin<{}>().setRootPage(App)
+export const plugin = new AppPlugin<{}>()
+    .setRootPage(App)
     .addLink({
         title: 'How to Use the plugin',
         icon: 'question-circle',
         path: '/how-to-use',
-        targets: [PluginExtensionPoints.DashboardPanelMenu]
+        targets: [PluginExtensionPoints.DashboardPanelMenu],
     })
     .addLink({
         title: 'Commanding Panel Setup',
         icon: 'rocket',
         path: '/commanding-setup',
-        targets: [PluginExtensionPoints.DashboardPanelMenu]
+        targets: [PluginExtensionPoints.DashboardPanelMenu],
     })
     .addLink({
         title: 'Image Panel Setup',
         icon: 'gf-portrait',
         path: '/image-panel-setup',
-        targets: [PluginExtensionPoints.DashboardPanelMenu]
+        targets: [PluginExtensionPoints.DashboardPanelMenu],
     })
     .addLink({
         title: 'Variable Setup',
         icon: 'cog',
         path: '/variable-setup',
-        targets: [PluginExtensionPoints.DashboardPanelMenu]
+        targets: [PluginExtensionPoints.DashboardPanelMenu],
+    })
+    .addLink({
+        title: 'Time Sync Setup',
+        icon: 'clock-nine',
+        path: '/time-sync-setup',
+        targets: [PluginExtensionPoints.DashboardPanelMenu],
     });

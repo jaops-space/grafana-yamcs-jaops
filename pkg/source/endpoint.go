@@ -3,6 +3,7 @@ package source
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +38,9 @@ type YamcsEndpoint struct {
 	AlarmCache        map[string]*alarms.AlarmData // Cache of all active alarms by ID
 	GlobalAlarmStatus *alarms.GlobalAlarmStatus
 
-	CurrentTime time.Time
+	CurrentTime            time.Time
+	CurrentTimeUpdatedAt   time.Time
+	timeListenerRegistered bool
 }
 
 // ParameterDemand represents a demand for a specific parameter.
@@ -59,24 +62,84 @@ type ParameterStreamDemand struct {
 	Buffer []client.ParameterValue
 }
 
+func parameterStreamFamily(path string) string {
+	parts := strings.Split(path, "-")
+	if len(parts) < 4 {
+		return path
+	}
+
+	// Paths from datasource are: req/<query-key>-<from>-<to>-<points>
+	// Family strips volatile range/points suffix so only one active stream survives.
+	return strings.Join(parts[:len(parts)-3], "-")
+}
+
 func (ep *YamcsEndpoint) RequestTime() {
 	client := ep.GetClient()
-	if client.HasTimeSubscriptionFor(ep.Instance, ep.Processor) {
+	subscription, found := client.GetTimeSubscriptionFor(ep.Instance, ep.Processor)
+	if !found {
+		var err error
+		subscription, err = client.CreateTimeSubscription(ep.Instance, ep.Processor)
+		if err != nil {
+			backend.Logger.Error(err.Error())
+			return
+		}
+		ep.timeListenerRegistered = false
+	}
+
+	if ep.timeListenerRegistered {
 		return
 	}
-	subscription, err := client.CreateTimeSubscription(ep.Instance, ep.Processor)
-	if err != nil {
-		backend.Logger.Error(err.Error())
-		return
-	}
-	subscription.SetTimeListener(ep.GetTimeHandler())
+
+	subscription.AddTimeListener(ep.GetTimeHandler())
+	ep.timeListenerRegistered = true
 }
 
 func (ep *YamcsEndpoint) GetTimeHandler() func(t time.Time) {
 	return func(currentTime time.Time) {
-		ep.CurrentTime = currentTime
+		ep.SetCurrentTime(currentTime)
 		backend.Logger.Debug("Updating time", "time", currentTime)
 	}
+}
+
+func (ep *YamcsEndpoint) SetCurrentTime(currentTime time.Time) {
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+
+	ep.CurrentTime = currentTime
+	ep.CurrentTimeUpdatedAt = time.Now()
+}
+
+func (ep *YamcsEndpoint) GetCurrentTime() (time.Time, time.Time, bool) {
+	ep.mu.RLock()
+	defer ep.mu.RUnlock()
+
+	if ep.CurrentTime.IsZero() || ep.CurrentTimeUpdatedAt.IsZero() {
+		return time.Time{}, time.Time{}, false
+	}
+
+	return ep.CurrentTime, ep.CurrentTimeUpdatedAt, true
+}
+
+func (ep *YamcsEndpoint) GetCurrentTimeIfFresh(maxAge time.Duration) (time.Time, bool) {
+	currentTime, updatedAt, ok := ep.GetCurrentTime()
+	if !ok {
+		return time.Time{}, false
+	}
+
+	if maxAge > 0 && time.Since(updatedAt) > maxAge {
+		return time.Time{}, false
+	}
+
+	return currentTime, true
+}
+
+// GetReplaySpeedMultiplier returns the processor replay speed multiplier for this endpoint.
+func (ep *YamcsEndpoint) GetReplaySpeedMultiplier() float64 {
+	if ep == nil || ep.Multiplexer == nil || ep.Instance == nil || ep.Processor == nil {
+		return 1
+	}
+
+	return ep.Multiplexer.GetReplaySpeedMultiplier(ep.Instance.GetName(), ep.Processor.GetName())
 }
 
 // GetHostConfiguration retrieves the host configuration for the endpoint.
@@ -143,6 +206,16 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(name string, path string) err
 
 	ep.GetParameterDemand(name)
 
+	family := parameterStreamFamily(path)
+	for existingPath := range ep.Parameters[name].Streams {
+		if existingPath == path {
+			continue
+		}
+		if parameterStreamFamily(existingPath) == family {
+			delete(ep.Parameters[name].Streams, existingPath)
+		}
+	}
+
 	ep.Parameters[name].Streams[path] = &ParameterStreamDemand{
 		parameter: ep.Parameters[name],
 		Path:      path,
@@ -169,17 +242,16 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(name string, path string) err
 
 // GetParameterStreamBuffer retrieves the buffer for a specific parameter stream.
 func (ep *YamcsEndpoint) GetParameterStreamBuffer(parameter string, path string) []client.ParameterValue {
-	if ep.Parameters[parameter].Streams[path] == nil {
-		ep.RequestNewParameterStream(parameter, path)
-		return ep.Parameters[parameter].Streams[path].Buffer
+	if ep.Parameters[parameter] == nil || ep.Parameters[parameter].Streams[path] == nil {
+		return nil
 	}
 	return ep.Parameters[parameter].Streams[path].Buffer
 }
 
 // ClearParameterStream clears the buffer for a specific parameter stream.
 func (ep *YamcsEndpoint) ClearParameterStream(parameter string, path string) {
-	if ep.Parameters[parameter].Streams[path] == nil {
-		ep.RequestNewParameterStream(parameter, path)
+	if ep.Parameters[parameter] == nil || ep.Parameters[parameter].Streams[path] == nil {
+		return
 	}
 	ep.Parameters[parameter].Streams[path].Buffer = make([]client.ParameterValue, 0)
 }

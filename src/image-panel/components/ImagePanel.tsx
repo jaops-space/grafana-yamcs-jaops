@@ -3,7 +3,6 @@ import ImageRenderer from 'static-image-panel/components/ImageRenderer';
 import { ImagePanelOptions } from 'static-image-panel/types';
 
 export default function ImagePanel(props: PanelProps<ImagePanelOptions>) {
-
     const { options, data } = props;
     let images: string[] = [];
 
@@ -15,8 +14,7 @@ export default function ImagePanel(props: PanelProps<ImagePanelOptions>) {
                 }
             });
         });
-    } catch(ignored){}
+    } catch (ignored) {}
 
     return images.map((image) => ImageRenderer(options, image));
-
 }

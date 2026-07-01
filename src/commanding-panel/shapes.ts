@@ -1,54 +1,54 @@
 const Shapes: Record<string, { name: string; css: Record<string, string> }> = {
     rectangle: {
         name: 'Rectangle',
-        css: {}
+        css: {},
     },
     ellipse: {
-      name: 'Ellipse',
-      css: {
-        borderRadius: '50%',
-      },
+        name: 'Ellipse',
+        css: {
+            borderRadius: '50%',
+        },
     },
     bean: {
-      name: 'Bean',
-      css: {
-        borderRadius: '9999px',
-      },
+        name: 'Bean',
+        css: {
+            borderRadius: '9999px',
+        },
     },
     arrowUp: {
-      name: 'Up Arrow',
-      css: {
-        clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
-      },
+        name: 'Up Arrow',
+        css: {
+            clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+        },
     },
     arrowDown: {
-      name: 'Down Arrow',
-      css: {
-        clipPath: 'polygon(0% 0%, 100% 0%, 50% 100%)',
-      },
+        name: 'Down Arrow',
+        css: {
+            clipPath: 'polygon(0% 0%, 100% 0%, 50% 100%)',
+        },
     },
     arrowLeft: {
-      name: 'Left Arrow',
-      css: {
-        clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)',
-      },
+        name: 'Left Arrow',
+        css: {
+            clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)',
+        },
     },
     arrowRight: {
-      name: 'Right Arrow',
-      css: {
-        clipPath: 'polygon(0% 0%, 100% 50%, 0% 100%)',
-      },
+        name: 'Right Arrow',
+        css: {
+            clipPath: 'polygon(0% 0%, 100% 50%, 0% 100%)',
+        },
     },
     diamond: {
-      name: 'Diamond',
-      css: {
-        clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-      },
+        name: 'Diamond',
+        css: {
+            clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+        },
     },
     svg: {
-      name: 'Custom (SVG)',
-      css: {}
-    }
-  };
+        name: 'Custom (SVG)',
+        css: {},
+    },
+};
 
 export default Shapes;

@@ -88,7 +88,7 @@ function getStatusCounts(details?: ConnectionDetails) {
     const hostsWarning = hostStatuses.filter(isWarning).length;
     const endpointsWarning = endpointStatuses.filter(isWarning).length;
 
-    const hostsFailed = hostStatuses.filter(isError).length;;
+    const hostsFailed = hostStatuses.filter(isError).length;
     const endpointsFailed = endpointStatuses.filter(isError).length;
 
     return {
@@ -120,10 +120,10 @@ export default function ConnectionStatus({ datasourceUid, onStatusChange }: Conn
 
         try {
             const response = await firstValueFrom(
-            getBackendSrv().fetch({
-                url: `/api/datasources/uid/${datasourceUid}/resources/fetch/health-details`,
-                method: 'GET',
-            })
+                getBackendSrv().fetch({
+                    url: `/api/datasources/uid/${datasourceUid}/resources/fetch/health-details`,
+                    method: 'GET',
+                })
             );
 
             const details = response.data as ConnectionDetails;

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -18,7 +19,8 @@ type TimeSubscription struct {
 	subscriptionID int
 	Instance       string
 	Processor      string
-	listener       TimeListener
+	listeners      []TimeListener
+	listenerMu     sync.RWMutex
 	client         *YamcsClient
 }
 
@@ -65,6 +67,7 @@ func NewTimeSubscription(client *YamcsClient, instance string, processor string)
 		subscriptionID: callID,
 		Instance:       instance,
 		Processor:      processor,
+		listeners:      make([]TimeListener, 0),
 		client:         client,
 	}
 
@@ -109,25 +112,51 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 			return
 		}
 
-		if subscription.listener != nil {
-			backend.Logger.Debug("received time", "time", timestamp.AsTime(), "callID", callID)
-			subscription.listener(timestamp.AsTime())
-		}
+		backend.Logger.Debug("received time", "time", timestamp.AsTime(), "callID", callID)
+		subscription.notifyListeners(timestamp.AsTime())
 	}
 
 }
 
 func (subscription *TimeSubscription) SetTimeListener(listener TimeListener) {
-	subscription.listener = listener
+	subscription.listenerMu.Lock()
+	defer subscription.listenerMu.Unlock()
+
+	subscription.listeners = []TimeListener{listener}
+}
+
+func (subscription *TimeSubscription) AddTimeListener(listener TimeListener) {
+	subscription.listenerMu.Lock()
+	defer subscription.listenerMu.Unlock()
+
+	subscription.listeners = append(subscription.listeners, listener)
+}
+
+func (subscription *TimeSubscription) notifyListeners(currentTime time.Time) {
+	subscription.listenerMu.RLock()
+	defer subscription.listenerMu.RUnlock()
+
+	for _, listener := range subscription.listeners {
+		if listener != nil {
+			listener(currentTime)
+		}
+	}
+}
+
+func (client *YamcsClient) GetTimeSubscriptionFor(instance Instance, processor Processor) (*TimeSubscription, bool) {
+	for _, sub := range client.TimeSubscriptions {
+		if sub.Instance == instance.GetName() && sub.Processor == processor.GetName() {
+			return sub, true
+		}
+	}
+	return nil, false
 }
 
 func (client *YamcsClient) HasTimeSubscriptionFor(instance Instance, processor Processor) bool {
 	backend.Logger.Debug("checking time sub existence for", "instance", instance.GetName(), "processor", processor.GetName())
-	for _, sub := range client.TimeSubscriptions {
-		if sub.Instance == instance.GetName() && sub.Processor == processor.GetName() {
-			backend.Logger.Warn("found already existing time sub.", "instance", sub.Instance, "processor", sub.Processor)
-			return true
-		}
+	if sub, found := client.GetTimeSubscriptionFor(instance, processor); found {
+		backend.Logger.Warn("found already existing time sub.", "instance", sub.Instance, "processor", sub.Processor)
+		return true
 	}
 	return false
 }

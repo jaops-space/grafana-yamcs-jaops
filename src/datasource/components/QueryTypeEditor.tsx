@@ -6,7 +6,6 @@ import { QueryCategory, QueryOptions, QueryProps } from './constants';
 import { ParameterQuery } from './ParameterQuery';
 
 export function QueryTypeEditor(props: QueryProps) {
-
     const { query, onChange, datasource } = props;
 
     const setQueryType = (type: QueryType) => {
@@ -18,11 +17,13 @@ export function QueryTypeEditor(props: QueryProps) {
         if (!query.type) {
             onChange({ ...query, type: QueryType.PLOT });
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const queryTypeInfo = QueryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
-    const queryOptions = datasource.debugMode ? QueryOptions : QueryOptions.filter((o) => o.category !== QueryCategory.DEBUG);
+    const queryOptions = datasource.debugMode
+        ? QueryOptions
+        : QueryOptions.filter((o) => o.category !== QueryCategory.DEBUG);
     const selectedQueryTypeOption = queryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
 
     function getBadgeCategory(category: any): React.ReactNode {
@@ -63,14 +64,12 @@ export function QueryTypeEditor(props: QueryProps) {
                                 <span style={{ zIndex: 212 }}>{getBadgeCategory(value.category)}</span>
                             </Stack>
                         )}
-                        data-testid='select'
+                        data-testid="select"
                     />
                 </InlineField>
             </Stack>
             {(queryTypeInfo?.category === QueryCategory.PARAMETER ||
-                queryTypeInfo?.category === QueryCategory.IMAGE) &&
-                <ParameterQuery {...props} />
-            }
+                queryTypeInfo?.category === QueryCategory.IMAGE) && <ParameterQuery {...props} />}
         </>
     );
 }

@@ -30,6 +30,21 @@ func getStreamTickerInterval(q PluginQuery, fallback time.Duration) time.Duratio
 	return interval
 }
 
+func scaleTickerIntervalByReplay(endpoint *source.YamcsEndpoint, baseInterval time.Duration) time.Duration {
+	if baseInterval <= 0 {
+		baseInterval = time.Second
+	}
+
+	multiplier := endpoint.GetReplaySpeedMultiplier()
+	if multiplier <= 1 {
+		return baseInterval
+	}
+
+	scaled := time.Duration(float64(baseInterval) / multiplier)
+
+	return scaled
+}
+
 func RunParameterStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
@@ -47,8 +62,8 @@ func RunParameterStream(ctx context.Context,
 	backend.Logger.Debug("Requested parameter stream", "parameter", q.Parameter, "path", req.Path)
 	defer endpoint.WithdrawParameterStreamRequest(q.Parameter, req.Path)
 
-	timeWindow := time.Duration(q.To-q.From) * time.Second
-	tickerInterval := timeWindow / time.Duration(q.MaxPoints)
+	tickerInterval := getStreamTickerInterval(q, time.Second)
+	tickerInterval = scaleTickerIntervalByReplay(endpoint, tickerInterval)
 
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
@@ -84,9 +99,9 @@ func RunParameterStream(ctx context.Context,
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
+				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, false)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, q.Realtime)
+				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, false)
 			}
 
 			sender.SendFrame(
@@ -111,7 +126,7 @@ func RunEventStream(ctx context.Context,
 
 	endpoint.RequestEventsStream(req.Path)
 
-	tickerInterval := 1 * time.Second
+	tickerInterval := scaleTickerIntervalByReplay(endpoint, time.Second)
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
@@ -149,7 +164,7 @@ func RunDemandsStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	tickerInterval := 1 * time.Second
+	tickerInterval := scaleTickerIntervalByReplay(endpoint, time.Second)
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
@@ -194,7 +209,7 @@ func RunSubscriptionStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	tickerInterval := 1 * time.Second
+	tickerInterval := scaleTickerIntervalByReplay(endpoint, time.Second)
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
@@ -287,7 +302,7 @@ func RunTimeStream(
 	endpoint.RequestTime()
 
 	// Calculate ticker interval
-	tickerInterval := time.Second * 1
+	tickerInterval := scaleTickerIntervalByReplay(endpoint, time.Second)
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
@@ -302,7 +317,16 @@ func RunTimeStream(
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
-			frame := data.NewFrame("response", data.NewField("current_time", nil, []time.Time{endpoint.CurrentTime}))
+			currentTime, ok := endpoint.GetCurrentTimeIfFresh(15 * time.Second)
+			if !ok {
+				continue
+			}
+			replaySpeedMultiplier := endpoint.GetReplaySpeedMultiplier()
+
+			frame := data.NewFrame("response",
+				data.NewField("time", nil, []time.Time{currentTime}),
+				data.NewField("speed", nil, []float64{replaySpeedMultiplier}),
+			)
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,
@@ -381,6 +405,7 @@ func RunLinksStream(
 	endpoint.RequestLinksStream(req.Path)
 
 	tickerInterval := getStreamTickerInterval(q, time.Second)
+	tickerInterval = scaleTickerIntervalByReplay(endpoint, tickerInterval)
 	ticker := time.NewTicker(tickerInterval)
 
 	defer ticker.Stop()
