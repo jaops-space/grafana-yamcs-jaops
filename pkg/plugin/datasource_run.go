@@ -37,6 +37,9 @@ func RunParameterStream(ctx context.Context,
 	q PluginQuery) error {
 
 	yamcs := endpoint.GetClient()
+	if yamcs == nil {
+		return backend.DownstreamErrorf("No client found")
+	}
 
 	backend.Logger.Debug("Requesting parameter stream", "parameter", q.Parameter, "path", req.Path)
 	err := endpoint.RequestNewParameterStream(q.Parameter, req.Path)
@@ -47,8 +50,7 @@ func RunParameterStream(ctx context.Context,
 	backend.Logger.Debug("Requested parameter stream", "parameter", q.Parameter, "path", req.Path)
 	defer endpoint.WithdrawParameterStreamRequest(q.Parameter, req.Path)
 
-	timeWindow := time.Duration(q.To-q.From) * time.Second
-	tickerInterval := timeWindow / time.Duration(q.MaxPoints)
+	tickerInterval := getStreamTickerInterval(q, time.Second)
 
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
@@ -108,6 +110,12 @@ func RunEventStream(ctx context.Context,
 	q PluginQuery) error {
 
 	yamcs := endpoint.GetClient()
+	if yamcs == nil {
+		return backend.DownstreamErrorf("No client found")
+	}
+	if !yamcs.WebSocket.IsConnected() {
+		return backend.DownstreamErrorf("yamcs client disconnected")
+	}
 
 	endpoint.RequestEventsStream(req.Path)
 
@@ -283,6 +291,12 @@ func RunTimeStream(
 ) error {
 
 	yamcs := endpoint.GetClient()
+	if yamcs == nil {
+		return backend.DownstreamErrorf("No client found")
+	}
+	if !yamcs.WebSocket.IsConnected() {
+		return backend.DownstreamErrorf("yamcs client disconnected")
+	}
 
 	endpoint.RequestTime()
 
@@ -382,6 +396,12 @@ func RunLinksStream(
 	q PluginQuery,
 ) error {
 	yamcs := endpoint.GetClient()
+	if yamcs == nil {
+		return backend.DownstreamErrorf("No client found")
+	}
+	if !yamcs.WebSocket.IsConnected() {
+		return backend.DownstreamErrorf("yamcs client disconnected")
+	}
 
 	endpoint.RequestLinksStream(req.Path)
 
