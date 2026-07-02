@@ -84,11 +84,10 @@ pnpm run build
 mkdir -p dist/screenshots && cp screenshots/*.png dist/screenshots/
 rm -f jaops-yamcs-app.zip && rm -rf /tmp/jaops-yamcs-app && cp -r dist /tmp/jaops-yamcs-app && (cd /tmp && zip -r jaops-yamcs-app.zip jaops-yamcs-app) && mv /tmp/jaops-yamcs-app.zip .
 
-npx @grafana/plugin-validator@latest jaops-yamcs-app.zip
+npx @grafana/plugin-validator@latest -sourceCodeUri file://./ jaops-yamcs-app.zip
 # ignore sponsorship related warnings 
 # ignore MANIFEST.md warning (the signing is done in the CI)
-
-md5sum jaops-yamcs-app.zip
+# ignore no-provenance-attestation (needs to be attested in the CI)
 
 # commit and tag: tag must match package.json version. pushing the tag triggers the CI release (signing + artifact).
 git commit -am "chore: release v1.0.5"
