@@ -70,12 +70,15 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 		}
 
 		backend.Logger.Debug("retrieving processor for instance", "instance", instance.GetName(), "processor", endpointConfig.Processor)
-		processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
-		if err != nil {
-			processor = yamcsClient.GetInstanceDefaultProcessor(instance)
+		if endpointConfig.Processor == "" {
+			processor := yamcsClient.GetInstanceDefaultProcessor(instance)
 			if processor == nil {
 				return nil, err
 			}
+		}
+		processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
+		if processor == nil {
+			return nil, err
 		}
 
 		endpoint = &YamcsEndpoint{
