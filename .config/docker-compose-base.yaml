@@ -7,11 +7,19 @@ services:
       context: .
       args:
         grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
-        grafana_version: ${GRAFANA_VERSION:-12.1.1}
+        grafana_version: ${GRAFANA_VERSION:-13.0.2}
         development: ${DEVELOPMENT:-false}
         anonymous_auth_enabled: ${ANONYMOUS_AUTH_ENABLED:-true}
     ports:
       - 3000:3000/tcp
+      - 2345:2345/tcp # delve
+    security_opt:
+      - 'apparmor:unconfined'
+      - 'seccomp:unconfined'
+    cap_add:
+      - SYS_PTRACE
+    extra_hosts:
+      - 'docker.gateway:host-gateway'
     volumes:
       - ../dist:/var/lib/grafana/plugins/jaops-yamcs-app
       - ../provisioning:/etc/grafana/provisioning
@@ -19,12 +27,9 @@ services:
       - grafana-storage:/var/lib/grafana
 
     environment:
-      NODE_ENV: development
-      GF_LOG_FILTERS: plugin.jaops-yamcs-app:debug, plugin.jaops-yamcs-datasource:debug
-      # GF_LOG_LEVEL: debug
-      GF_LOG_LEVEL: info
+      DEVELOPMENT: ${DEVELOPMENT:-false}
       GF_DATAPROXY_LOGGING: 1
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: jaops-yamcs-app
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: jaops-yamcs-app,jaops-yamcs-datasource,jaops-timesync-panel,jaops-commanding-panel,jaops-commandhistory-panel,jaops-telemetricimage-panel,jaops-staticimage-panel,jaops-variables-panel,jaops-links-panel,jaops-alarms-panel
       # No subpath configuration - for direct localhost:3000 access (default)
 
 volumes:

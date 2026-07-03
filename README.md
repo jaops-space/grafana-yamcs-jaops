@@ -5,7 +5,6 @@ This plugin is engineered for high reliability to be used in Mission Control Cen
 
 The current version has already been tested in real-world deployments but active development continues and community feedback and contributions are very welcome.
 
-
 ## Features
 
 - **Multiplexed Endpoint Support** – Designed to handle complex setups with multiple Yamcs endpoints through a robust multiplexer system. Supports scaling to many Grafana clients efficiently by multiplexing the connections to Yamcs: the same data is only requested once.
@@ -22,6 +21,7 @@ The current version has already been tested in real-world deployments but active
 
 - **Fully Configurable** – Every aspect of the plugin—from endpoint configuration to command structure and visual layout is configurable through Grafana's settings.
 
+- **Replay/Simulation support** - Visualize replays and future simulations through synchronization between Grafana and Yamcs clock.
 
 ![Design Document](./screenshots/DesignDocument.png)
 
@@ -30,20 +30,21 @@ The current version has already been tested in real-world deployments but active
 Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
 They are made to use data from the [Yamcs quickstart](https://github.com/jaops-space/yamcs-quickstart).
 After cloning the repository, run in three separate terminals:
+
 ```bash
 ./mvn yamcs:run
 python3 simulator.sh
 python3 simulator/images/generate_images.py
-``` 
+```
 
-![Screenshot of Demo Dashboard 1](./screenshots/demo_dash1.png)
-![Screenshot of Demo Dashboard 2](./screenshots/demo_dash2.png)
-![Screenshot of Demo Dashboard 3](./screenshots/demo_dash3.png)
+![Screenshot of Demo Dashboard](./screenshots/full_demo_dash.png)
 
 ## Archive Database Configuration
 
 The plugin supports querying telemetry from live Yamcs data.
+
 ## Try Out the Plugin for Yourself
+
 Follow the [setup instruction](./setup_instructions.md) to get started in just a few minutes.
 
 ## Contributions

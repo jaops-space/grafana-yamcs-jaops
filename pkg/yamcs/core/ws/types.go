@@ -10,4 +10,5 @@ const (
 	CommandHistoryLisernerID ListenerID = "COMMAND_HISTORY_LISTENER"
 	TimeListenerID           ListenerID = "TIME_LISTENER"
 	LinksListenerID          ListenerID = "LINKS_LISTENER"
+	ProcessorListenerID      ListenerID = "PROCESSOR_LISTENER"
 )

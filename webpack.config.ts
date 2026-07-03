@@ -9,22 +9,22 @@ import grafanaConfig, { type Env } from './.config/webpack/webpack.config';
  * This file extends the default Grafana plugin webpack config.
  */
 const config = async (env: Env): Promise<Configuration> => {
-  const baseConfig = await grafanaConfig(env);
+    const baseConfig = await grafanaConfig(env);
 
-  return merge(baseConfig, {
-    plugins: [
-      // Copy screenshots for plugin.json marketplace listing
-      new CopyWebpackPlugin({
-        patterns: [
-          {
-            from: path.resolve(process.cwd(), 'screenshots'),
-            to: 'screenshots',
-            noErrorOnMissing: true,
-          },
+    return merge(baseConfig, {
+        plugins: [
+            // Copy screenshots for plugin.json marketplace listing
+            new CopyWebpackPlugin({
+                patterns: [
+                    {
+                        from: path.resolve(process.cwd(), 'screenshots'),
+                        to: 'screenshots',
+                        noErrorOnMissing: true,
+                    },
+                ],
+            }),
         ],
-      }),
-    ],
-  });
+    });
 };
 
 export default config;

@@ -6,13 +6,7 @@
     "streaming": false,
     "skipDataQuery": true,
     "info": {
-        "keywords": [
-            "yamcs",
-            "static",
-            "image",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "static", "image", "panel", "jaops"],
         "description": "Static Image Visualization Panel for JAOPS Yamcs plugin",
         "author": {
             "name": "JAOPS"

@@ -4,13 +4,7 @@
     "name": "JAOPS Alarms Panel",
     "id": "jaops-alarms-panel",
     "info": {
-        "keywords": [
-            "yamcs",
-            "alarms",
-            "monitoring",
-            "panel",
-            "jaops"
-        ],
+        "keywords": ["yamcs", "alarms", "monitoring", "panel", "jaops"],
         "description": "Alarms Panel for JAOPS Yamcs plugin - Monitor and acknowledge alarms in real-time",
         "author": {
             "name": "JAOPS"

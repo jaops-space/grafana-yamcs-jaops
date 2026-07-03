@@ -1,1406 +1,2291 @@
 {
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": {
-          "type": "grafana",
-          "uid": "-- Grafana --"
-        },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "0708823c-c106-407b-9861-f64283746167",
+    "generation": 11,
+    "creationTimestamp": "2026-07-01T09:15:45Z",
+    "labels": {},
+    "annotations": {}
   },
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "id": 2,
-  "links": [],
-  "panels": [
-    {
-      "description": "Set, Add or Multiply the value of a Grafana variable",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 4,
-        "x": 0,
-        "y": 0
-      },
-      "id": 24,
-      "options": {
-        "commandForms": {
-          "NaN": {
-            "changeMode": "input",
-            "label": "Add + 1",
-            "valueToSet": "1",
-            "variableToSet": "TestVariable"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "title": "Variable Setter",
-      "type": "jaops-variable-setting-panel"
-    },
-    {
-      "description": "Set, Add or Multiply the value of a Grafana variable",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 4,
-        "x": 4,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "commandForms": {
-          "NaN": {
-            "changeMode": "add",
-            "label": "Add + 1",
-            "valueToSet": "1",
-            "variableToSet": "TestVariable"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "title": "",
-      "type": "jaops-variable-setting-panel"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 3,
-        "x": 8,
-        "y": 0
-      },
-      "id": 5,
-      "options": {
-        "commandForms": {
-          "NaN": {
-            "changeMode": "change",
-            "comment": "reset value to 0",
-            "label": "Reset",
-            "showVariableLabel": false,
-            "valueToSet": "0",
-            "variableToSet": "TestVariable"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "title": "",
-      "type": "jaops-variable-setting-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 8,
-        "x": 16,
-        "y": 0
-      },
-      "id": 22,
-      "options": {
-        "bgColor": "",
-        "clockType": "24 hour",
-        "countdownSettings": {
-          "endCountdownTime": "2026-04-08T17:11:58+09:00",
-          "endText": "00:00:00",
-          "invalidValueText": "invalid value",
-          "noValueText": "no value found",
-          "queryCalculation": "last",
-          "source": "input"
-        },
-        "countupSettings": {
-          "beginCountupTime": "2026-04-08T17:11:58+09:00",
-          "beginText": "00:00:00",
-          "invalidValueText": "invalid value",
-          "noValueText": "no value found",
-          "queryCalculation": "last",
-          "source": "input"
-        },
-        "dateSettings": {
-          "dateFormat": "YYYY-MM-DD",
-          "fontSize": "20px",
-          "fontWeight": "normal",
-          "locale": "",
-          "showDate": true
-        },
-        "descriptionSettings": {
-          "descriptionText": "",
-          "fontSize": "20px",
-          "fontWeight": "normal",
-          "noValueText": "no description found",
-          "source": "none"
-        },
-        "digitalSettings": {
-          "fillColor": "orange",
-          "glowSize": 0,
-          "strokeColor": "dark-orange",
-          "strokeWidth": 0
-        },
-        "fontMono": false,
-        "mode": "time",
-        "refresh": "sec",
-        "style": "text",
-        "timeSettings": {
-          "fontSize": "20px",
-          "fontWeight": "bold"
-        },
-        "timezone": "",
-        "timezoneSettings": {
-          "fontSize": "20px",
-          "fontWeight": "normal",
-          "showTimezone": true,
-          "zoneFormat": "offsetAbbv"
-        }
-      },
-      "pluginVersion": "3.2.2",
-      "targets": [
-        {
-          "asVariable": true,
-          "customVariableString": false,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "time"
-        }
-      ],
-      "title": "",
-      "type": "grafana-clock-panel"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 3
-      },
-      "id": 7,
-      "panels": [],
-      "title": "Telemetry Panels",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 4
-      },
-      "id": 12,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "aggregatePath": "x",
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/myproject/Gyro",
-          "refId": "A",
-          "type": "plot"
-        },
-        {
-          "aggregatePath": "y",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Gyro",
-          "refId": "B",
-          "type": "plot"
-        },
-        {
-          "aggregatePath": "z",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Gyro",
-          "refId": "C",
-          "type": "plot"
-        }
-      ],
-      "title": "Gyro",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "celsius"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
-      },
-      "id": 13,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/myproject/Battery1_Temp",
-          "refId": "A",
-          "type": "plot"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Battery2_Temp",
-          "refId": "B",
-          "type": "plot"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Detector_Temp",
-          "refId": "C",
-          "type": "plot"
-        }
-      ],
-      "title": "Temperatures",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "volt"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "customVariableString": false,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/myproject/Battery1_Voltage",
-          "refId": "A",
-          "type": "plot"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "customVariableString": false,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Battery2_Voltage",
-          "refId": "B",
-          "type": "plot"
-        }
-      ],
-      "title": "Battery Voltages",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "description": "two queries (one for each Yamcs parameter aggregate) + grafana transformation (merge series)",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 50,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "pointShape": "circle",
-            "pointSize": {
-              "fixed": 5
-            },
-            "pointStrokeWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "show": "points"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "mapping": "auto",
-        "series": [
-          {
-            "frame": {
-              "matcher": {
-                "id": "byIndex",
-                "options": 0
-              }
-            },
-            "x": {
-              "matcher": {
-                "id": "byName",
-                "options": "/myproject/Position.x"
-              }
-            },
-            "y": {
-              "matcher": {
-                "id": "byName",
-                "options": "/myproject/Position.y"
-              }
-            }
-          }
-        ],
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "aggregatePath": "x",
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/myproject/Position",
-          "refId": "A",
-          "type": "plot"
-        },
-        {
-          "aggregatePath": "y",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Position",
-          "refId": "B",
-          "type": "plot"
-        }
-      ],
-      "title": "Position X/Y Map",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        }
-      ],
-      "type": "xychart"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 20
-      },
-      "id": 6,
-      "panels": [],
-      "title": "Commanding Panels",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 7,
-        "x": 0,
-        "y": 21
-      },
-      "id": 23,
-      "options": {
-        "commandForms": {
-          "SwitchVoltageOn0": {
-            "arguments": {
-              "Battery": "${TestVariable}"
-            },
-            "color": "rgba(75, 177, 76, 1)",
-            "comment": "",
-            "isDualButton": true,
-            "label": "",
-            "offCommand": {
-              "arguments": {
-                "Battery": "${battery_id}"
-              },
-              "color": "rgba(231, 36, 5, 1)",
-              "commandName": "/myproject/SwitchVoltageOff",
-              "comment": "uses variable to set the command argument and button title",
-              "label": "OFF"
-            },
-            "onCommand": {
-              "arguments": {
-                "Battery": "${battery_id}"
-              },
-              "commandName": "/myproject/SwitchVoltageOn",
-              "comment": "uses variable to set the command argument and button title",
-              "label": "ON"
-            },
-            "tooltip": ""
-          }
-        },
-        "dualButtonStates": {
-          "SwitchVoltageOn0": "on"
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "asVariable": true,
-          "command": "/myproject/SwitchVoltageOn",
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "commanding"
-        }
-      ],
-      "title": "Battery ${battery_id}",
-      "type": "jaops-commanding-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 4,
-        "x": 10,
-        "y": 21
-      },
-      "id": 9,
-      "options": {
-        "commandForms": {
-          "DeploySolarPanel0": {
-            "arguments": {
-              "Solar_Panel_Id": 1
-            },
-            "color": "rgba(255, 222, 0, 1)",
-            "label": "Deploy Solar Panel #1",
-            "shape": "bean",
-            "textColor": "rgba(0, 0, 0, 1)"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "asVariable": true,
-          "command": "/myproject/DeploySolarPanel",
-          "customVariableString": false,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "commanding"
-        }
-      ],
-      "title": "",
-      "type": "jaops-commanding-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 3,
-        "x": 21,
-        "y": 21
-      },
-      "id": 10,
-      "options": {
-        "commandForms": {
-          "Reboot0": {
-            "color": "rgba(255, 0, 0, 1)",
-            "label": "Reboot",
-            "shape": "diamond",
-            "tooltip": "WARNING: critical command"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "asVariable": true,
-          "command": "/myproject/Reboot",
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "commanding"
-        }
-      ],
-      "title": "",
-      "type": "jaops-commanding-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 24
-      },
-      "id": 2,
-      "maxDataPoints": 1258,
-      "options": {
-        "pageSize": 10,
-        "pagination": false,
-        "showArguments": true,
-        "visibleFields": [
-          "time",
-          "command",
-          "comment",
-          "queued",
-          "released",
-          "sent",
-          "extraAcks",
-          "completion"
-        ]
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "command-history"
-        }
-      ],
-      "title": "Command History",
-      "type": "jaops-commandhistory-panel"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 32
-      },
-      "id": 17,
-      "panels": [],
-      "title": "Image Panels",
-      "type": "row"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 0,
-        "y": 33
-      },
-      "id": 14,
-      "options": {
-        "imageUrl": "https://avatars.githubusercontent.com/u/145332967?s=48&v=4",
-        "objectFit": "contain",
-        "transform": "rotate(${ImageRotation}deg)"
-      },
-      "pluginVersion": "1.0.0",
-      "title": "Static Image",
-      "type": "jaops-staticimage-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 3,
-        "y": 33
-      },
-      "id": 15,
-      "maxDataPoints": 10000,
-      "options": {
-        "objectFit": "contain",
-        "transform": ""
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/images/url_full",
-          "refId": "A",
-          "type": "image"
-        }
-      ],
-      "title": "Telemetric Image",
-      "type": "jaops-telemetricimage-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 14,
-        "y": 33
-      },
-      "id": 16,
-      "maxDataPoints": 10000,
-      "options": {
-        "objectFit": "contain",
-        "transform": "rotate(${ImageRotation}deg)"
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/images/url_full",
-          "refId": "A",
-          "type": "image"
-        }
-      ],
-      "title": "Telemetric Image (variable rotation)",
-      "type": "jaops-telemetricimage-panel"
-    },
-    {
-      "description": "Set, Add or Multiply the value of a Grafana variable",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 4,
-        "x": 20,
-        "y": 33
-      },
-      "id": 19,
-      "options": {
-        "commandForms": {
-          "NaN": {
-            "changeMode": "add",
-            "color": "rgba(110, 108, 108, 1)",
-            "icon": "",
-            "label": "+90 deg",
-            "shape": "arrowUp",
-            "showVariableLabel": false,
-            "valueToSet": "90",
-            "variableToSet": "ImageRotation"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "title": "Rotate Image",
-      "type": "jaops-variable-setting-panel"
-    },
-    {
-      "description": "Set, Add or Multiply the value of a Grafana variable",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 2,
-        "w": 4,
-        "x": 20,
-        "y": 36
-      },
-      "id": 18,
-      "options": {
-        "commandForms": {
-          "NaN": {
-            "changeMode": "add",
-            "color": "rgba(110, 108, 108, 1)",
-            "icon": "",
-            "label": "-90 deg",
-            "shape": "arrowDown",
-            "showVariableLabel": false,
-            "valueToSet": "-90",
-            "variableToSet": "ImageRotation"
-          }
-        }
-      },
-      "pluginVersion": "1.0.0",
-      "title": "",
-      "type": "jaops-variable-setting-panel"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "id": 21,
-      "panels": [],
-      "title": "Other Panels",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "orange",
-            "mode": "thresholds"
-          },
-          "custom": {
-            "axisPlacement": "auto",
-            "fillOpacity": 70,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineWidth": 0,
-            "spanNulls": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 41
-      },
-      "id": 20,
-      "options": {
-        "alignValue": "center",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "mergeValues": true,
-        "rowHeight": 0.9,
-        "showValue": "always",
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "parameter": "/myproject/Mode_Day",
-          "refId": "A",
-          "type": "discrete"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Mode_Night",
-          "refId": "B",
-          "type": "discrete"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Mode_Payload",
-          "refId": "C",
-          "type": "discrete"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Mode_Safe",
-          "refId": "D",
-          "type": "discrete"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Mode_SBand",
-          "refId": "E",
-          "type": "discrete"
-        },
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "datasource": {
-            "type": "jaops-yamcs-datasource",
-            "uid": "jaops-yamcs-main"
-          },
-          "endpoint": "myproject_realtime",
-          "endpointVariable": "$endpoint",
-          "hide": false,
-          "parameter": "/myproject/Mode_XBand",
-          "refId": "F",
-          "type": "discrete"
-        }
-      ],
-      "title": "State Timeline",
-      "type": "state-timeline"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 13,
-        "x": 0,
-        "y": 48
-      },
-      "id": 25,
-      "options": {
-        "pageSize": 10,
-        "pagination": false,
-        "showDetails": true,
-        "visibleFields": [
-          "state",
-          "severity",
-          "triggerTime",
-          "name",
-          "type",
-          "triggerValue",
-          "currentValue",
-          "actions"
-        ]
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "endpoint": "new-endpoint-0",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "alarms"
-        }
-      ],
-      "title": "Alarms",
-      "type": "jaops-alarms-panel"
-    },
-    {
-      "datasource": {
-        "type": "jaops-yamcs-datasource",
-        "uid": "jaops-yamcs-main"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 11,
-        "x": 13,
-        "y": 48
-      },
-      "id": 26,
-      "options": {
-        "nameFilter": "",
-        "refreshInterval": 5,
-        "showDetails": true
-      },
-      "pluginVersion": "1.0.0",
-      "targets": [
-        {
-          "aggregatePath": "",
-          "asVariable": true,
-          "endpoint": "",
-          "endpointVariable": "$endpoint",
-          "refId": "A",
-          "type": "links"
-        }
-      ],
-      "title": "Links",
-      "type": "jaops-links-panel"
-    }
-  ],
-  "preload": false,
-  "schemaVersion": 41,
-  "tags": [],
-  "templating": {
-    "list": [
+  "spec": {
+    "annotations": [
       {
-        "current": {
-          "text": "0",
-          "value": "0"
-        },
-        "name": "TestVariable",
-        "options": [
+        "kind": "AnnotationQuery",
+        "spec": {
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "spec": {},
+            "labels": {
+              "grafana.app/export-label": "grafana-1"
+            }
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "builtIn": true
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "Battery Voltages",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "customVariableString": false,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Battery1_Voltage",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "customVariableString": false,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Battery2_Voltage",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.2",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "volt",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "id": 10,
+          "title": "",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "asVariable": true,
+                        "command": "/myproject/Reboot",
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "type": "commanding"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-commanding-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "color": "rgba(255, 0, 0, 1)",
+                    "commandName": "/myproject/Reboot",
+                    "icon": "repeat",
+                    "label": "Reboot",
+                    "shape": "bean",
+                    "tooltip": "WARNING: critical command"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Position X/Y Map",
+          "description": "two queries (one for each Yamcs parameter aggregate) + grafana transformation (merge series)",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "x",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Position",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "y",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Position",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "xychart",
+            "version": "13.0.2",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
+                "mapping": "auto",
+                "series": [
+                  {
+                    "frame": {
+                      "matcher": {
+                        "id": "byIndex",
+                        "options": 0
+                      }
+                    },
+                    "x": {
+                      "matcher": {
+                        "id": "byName",
+                        "options": "/myproject/Position.x"
+                      }
+                    },
+                    "y": {
+                      "matcher": {
+                        "id": "byName",
+                        "options": "/myproject/Position.y"
+                      }
+                    }
+                  }
+                ],
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "fillOpacity": 50,
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "pointShape": "circle",
+                    "pointSize": {
+                      "fixed": 5
+                    },
+                    "pointStrokeWidth": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "show": "points"
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Gyro",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "x",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Gyro",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "y",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Gyro",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "z",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Gyro",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.2",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "id": 13,
+          "title": "Temperatures",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Battery1_Temp",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Battery2_Temp",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Detector_Temp",
+                        "type": "plot"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.0.2",
+            "spec": {
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "celsius",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-14": {
+        "kind": "Panel",
+        "spec": {
+          "id": 14,
+          "title": "Static Image",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-staticimage-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "imageUrl": "https://avatars.githubusercontent.com/u/145332967?s=48&v=4",
+                "objectFit": "contain",
+                "transform": "rotate(${ImageRotation}deg)"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-15": {
+        "kind": "Panel",
+        "spec": {
+          "id": 15,
+          "title": "Telemetric Image",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/images/url_full",
+                        "type": "image"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {
+                "maxDataPoints": 10000
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-telemetricimage-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "objectFit": "contain",
+                "transform": ""
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-16": {
+        "kind": "Panel",
+        "spec": {
+          "id": 16,
+          "title": "Telemetric Image (variable rotation)",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/images/url_full",
+                        "type": "image"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {
+                "maxDataPoints": 10000
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-telemetricimage-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "objectFit": "contain",
+                "transform": "rotate(${ImageRotation}deg)"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-18": {
+        "kind": "Panel",
+        "spec": {
+          "id": 18,
+          "title": "",
+          "description": "Set, Add or Multiply the value of a Grafana variable",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-variables-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "changeMode": "add",
+                    "color": "rgba(110, 108, 108, 1)",
+                    "icon": "",
+                    "label": "-90 deg",
+                    "shape": "arrowDown",
+                    "showVariableLabel": false,
+                    "valueToSet": "-90",
+                    "variableToSet": "ImageRotation"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-19": {
+        "kind": "Panel",
+        "spec": {
+          "id": 19,
+          "title": "Rotate Image",
+          "description": "Set, Add or Multiply the value of a Grafana variable",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-variables-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "changeMode": "add",
+                    "color": "rgba(110, 108, 108, 1)",
+                    "icon": "",
+                    "label": "+90 deg",
+                    "shape": "arrowUp",
+                    "showVariableLabel": false,
+                    "valueToSet": "90",
+                    "variableToSet": "ImageRotation"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "Command History",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "type": "command-history"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {
+                "maxDataPoints": 1258
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-commandhistory-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "pageSize": 10,
+                "pagination": false,
+                "showArguments": true,
+                "visibleFields": [
+                  "time",
+                  "command",
+                  "comment",
+                  "queued",
+                  "released",
+                  "sent",
+                  "extraAcks",
+                  "completion"
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-20": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "State Timeline",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Mode_Day",
+                        "type": "discrete"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Mode_Night",
+                        "type": "discrete"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Mode_Payload",
+                        "type": "discrete"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Mode_Safe",
+                        "type": "discrete"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Mode_SBand",
+                        "type": "discrete"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "E",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "parameter": "/myproject/Mode_XBand",
+                        "type": "discrete"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "F",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "state-timeline",
+            "version": "13.0.2",
+            "spec": {
+              "options": {
+                "alignValue": "center",
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "mergeValues": true,
+                "rowHeight": 0.9,
+                "showValue": "always",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds",
+                    "fixedColor": "orange"
+                  },
+                  "custom": {
+                    "axisPlacement": "auto",
+                    "fillOpacity": 70,
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineWidth": 0,
+                    "spanNulls": false
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-22": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "asVariable": true,
+                        "customVariableString": false,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "type": "time"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.0.2",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "/^time$/",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "text": {
+                  "valueSize": 50
+                },
+                "textMode": "value",
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "dateTimeAsLocal",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "fixed",
+                    "fixedColor": "blue"
+                  },
+                  "fieldMinMax": false
+                },
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-23": {
+        "kind": "Panel",
+        "spec": {
+          "id": 23,
+          "title": "Battery ${battery_id}",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "asVariable": true,
+                        "command": "/myproject/SwitchVoltageOn",
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "type": "commanding"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-commanding-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "arguments": {
+                      "Battery": "${TestVariable}"
+                    },
+                    "color": "rgba(75, 177, 76, 1)",
+                    "commandName": "/myproject/SwitchVoltageOn",
+                    "comment": "",
+                    "isDualButton": true,
+                    "label": "",
+                    "offCommand": {
+                      "arguments": {
+                        "Battery": "${battery_id}"
+                      },
+                      "color": "rgba(231, 36, 5, 1)",
+                      "commandName": "/myproject/SwitchVoltageOff",
+                      "comment": "uses variable to set the command argument and button title",
+                      "label": "OFF"
+                    },
+                    "onCommand": {
+                      "arguments": {
+                        "Battery": "${battery_id}"
+                      },
+                      "commandName": "/myproject/SwitchVoltageOn",
+                      "comment": "uses variable to set the command argument and button title",
+                      "label": "ON"
+                    },
+                    "tooltip": ""
+                  }
+                },
+                "dualButtonStates": {
+                  "command-0": "on"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-24": {
+        "kind": "Panel",
+        "spec": {
+          "id": 24,
+          "title": "Variable Setter",
+          "description": "Set, Add or Multiply the value of a Grafana variable",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-variables-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "changeMode": "input",
+                    "label": "Add + 1",
+                    "valueToSet": "1",
+                    "variableToSet": "TestVariable"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-25": {
+        "kind": "Panel",
+        "spec": {
+          "id": 25,
+          "title": "Alarms",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "new-endpoint-0",
+                        "endpointVariable": "$endpoint",
+                        "type": "alarms"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-alarms-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "pageSize": 10,
+                "pagination": false,
+                "showDetails": true,
+                "visibleFields": [
+                  "state",
+                  "severity",
+                  "triggerTime",
+                  "name",
+                  "type",
+                  "triggerValue",
+                  "currentValue",
+                  "actions"
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-26": {
+        "kind": "Panel",
+        "spec": {
+          "id": 26,
+          "title": "Links",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "aggregatePath": "",
+                        "asVariable": true,
+                        "endpoint": "",
+                        "endpointVariable": "$endpoint",
+                        "type": "links"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-links-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "nameFilter": "",
+                "refreshInterval": 5,
+                "showDetails": true
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-27": {
+        "kind": "Panel",
+        "spec": {
+          "id": 27,
+          "title": "",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "asVariable": true,
+                        "endpoint": "",
+                        "endpointVariable": "$endpoint",
+                        "type": "time"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-timesync-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "enabled": true,
+                "minWriteIntervalMs": 10000,
+                "normalizeToNowThresholdMs": 1500,
+                "offsetStepMs": 15000,
+                "onlyWhenRelativeRange": true,
+                "showStatus": true
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "id": 4,
+          "title": "",
+          "description": "Set, Add or Multiply the value of a Grafana variable",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-variables-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "changeMode": "add",
+                    "label": "Add + 1",
+                    "showVariableLabel": false,
+                    "valueToSet": "1",
+                    "variableToSet": "TestVariable"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "id": 5,
+          "title": "",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-variables-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "changeMode": "change",
+                    "comment": "reset value to 0",
+                    "label": "Reset",
+                    "showVariableLabel": false,
+                    "valueToSet": "0",
+                    "variableToSet": "TestVariable"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      },
+      "panel-9": {
+        "kind": "Panel",
+        "spec": {
+          "id": 9,
+          "title": "",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "jaops-yamcs-datasource",
+                      "version": "v0",
+                      "spec": {
+                        "asVariable": true,
+                        "command": "/myproject/DeploySolarPanel",
+                        "customVariableString": false,
+                        "endpoint": "myproject_realtime",
+                        "endpointVariable": "$endpoint",
+                        "type": "commanding"
+                      },
+                      "labels": {
+                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "jaops-commanding-panel",
+            "version": "1.0.0",
+            "spec": {
+              "options": {
+                "commandForms": {
+                  "command-0": {
+                    "arguments": {
+                      "Solar_Panel_Id": 1
+                    },
+                    "color": "rgba(255, 222, 0, 1)",
+                    "commandName": "/Rover/system/deploy_solar_panel",
+                    "icon": "layers",
+                    "label": "Deploy Solar Panel #1",
+                    "shape": "bean",
+                    "textColor": "rgba(0, 0, 0, 1)"
+                  }
+                }
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          },
+          "transparent": true
+        }
+      }
+    },
+    "layout": {
+      "kind": "RowsLayout",
+      "spec": {
+        "rows": [
           {
-            "selected": true,
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "",
+              "collapse": false,
+              "hideHeader": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 4,
+                        "height": 3,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-24"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 4,
+                        "y": 0,
+                        "width": 3,
+                        "height": 2,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-5"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 16,
+                        "y": 0,
+                        "width": 8,
+                        "height": 1,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-27"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 16,
+                        "y": 1,
+                        "width": 8,
+                        "height": 3,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-22"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 4,
+                        "y": 2,
+                        "width": 3,
+                        "height": 2,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-4"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Telemetry Panels",
+              "collapse": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-12"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-13"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-1"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-11"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Commanding Panels",
+              "collapse": false,
+              "hideHeader": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 6,
+                        "height": 3,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-23"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 17,
+                        "y": 0,
+                        "width": 4,
+                        "height": 2,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-9"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 21,
+                        "y": 0,
+                        "width": 3,
+                        "height": 3,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-10"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 3,
+                        "width": 24,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-2"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Image Panels",
+              "collapse": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 3,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-14"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 3,
+                        "y": 0,
+                        "width": 6,
+                        "height": 7,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-15"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 14,
+                        "y": 0,
+                        "width": 6,
+                        "height": 7,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-16"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 20,
+                        "y": 0,
+                        "width": 4,
+                        "height": 3,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-19"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 20,
+                        "y": 3,
+                        "width": 4,
+                        "height": 2,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-18"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Other Panels",
+              "collapse": false,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 24,
+                        "height": 7,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-20"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 7,
+                        "width": 13,
+                        "height": 7,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-25"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 13,
+                        "y": 7,
+                        "width": 11,
+                        "height": 7,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-26"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": [],
+    "timeSettings": {
+      "timezone": "browser",
+      "from": "now-15m",
+      "to": "now",
+      "autoRefresh": "",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "title": "Yamcs Quickstart Demo Dashboard",
+    "variables": [
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "TestVariable",
+          "query": "0",
+          "current": {
             "text": "0",
             "value": "0"
-          }
-        ],
-        "query": "0",
-        "type": "custom"
+          },
+          "options": [
+            {
+              "selected": true,
+              "text": "0",
+              "value": "0"
+            }
+          ],
+          "multi": false,
+          "includeAll": false,
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "allowCustomValue": true,
+          "valuesFormat": "csv"
+        }
       },
       {
-        "allowCustomValue": false,
-        "current": {
-          "text": "myproject_realtime",
-          "value": "myproject_realtime"
-        },
-        "description": "name of the endpoint configured in your Yamcs datasource ",
-        "name": "endpoint",
-        "options": [
-          {
-            "selected": true,
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "endpoint",
+          "query": "myproject_realtime, myproject_replay, simulator_realtime, simulator_replay",
+          "current": {
             "text": "myproject_realtime",
             "value": "myproject_realtime"
           },
-          {
-            "selected": false,
-            "text": "simulator_realtime",
-            "value": "simulator_realtime"
-          }
-        ],
-        "query": "myproject_realtime, simulator_realtime",
-        "type": "custom"
+          "options": [
+            {
+              "selected": true,
+              "text": "myproject_realtime",
+              "value": "myproject_realtime"
+            },
+            {
+              "selected": false,
+              "text": "simulator_realtime",
+              "value": "simulator_realtime"
+            }
+          ],
+          "multi": false,
+          "includeAll": false,
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "description": "name of the endpoint configured in your Yamcs datasource ",
+          "allowCustomValue": false,
+          "valuesFormat": "csv"
+        }
       },
       {
-        "allowCustomValue": false,
-        "current": {
-          "text": "0",
-          "value": "0"
-        },
-        "name": "ImageRotation",
-        "options": [
-          {
-            "selected": true,
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "ImageRotation",
+          "query": "0",
+          "current": {
             "text": "0",
             "value": "0"
-          }
-        ],
-        "query": "0",
-        "type": "custom"
+          },
+          "options": [
+            {
+              "selected": true,
+              "text": "0",
+              "value": "0"
+            }
+          ],
+          "multi": false,
+          "includeAll": false,
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "allowCustomValue": false,
+          "valuesFormat": "csv"
+        }
       },
       {
-        "allowCustomValue": false,
-        "current": {
-          "text": "2",
-          "value": "2"
-        },
-        "name": "battery_id",
-        "options": [
-          {
-            "selected": false,
-            "text": "1",
-            "value": "1"
-          },
-          {
-            "selected": true,
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "battery_id",
+          "query": "1, 2, 3",
+          "current": {
             "text": "2",
             "value": "2"
           },
-          {
-            "selected": false,
-            "text": "3",
-            "value": "3"
-          }
-        ],
-        "query": "1, 2, 3",
-        "type": "custom"
+          "options": [
+            {
+              "selected": false,
+              "text": "1",
+              "value": "1"
+            },
+            {
+              "selected": true,
+              "text": "2",
+              "value": "2"
+            },
+            {
+              "selected": false,
+              "text": "3",
+              "value": "3"
+            }
+          ],
+          "multi": false,
+          "includeAll": false,
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "allowCustomValue": false,
+          "valuesFormat": "csv"
+        }
       }
     ]
-  },
-  "time": {
-    "from": "now-15m",
-    "to": "now"
-  },
-  "timepicker": {},
-  "timezone": "browser",
-  "title": "Yamcs Quickstart Demo Dashboard",
-  "uid": "0708823c-c106-407b-9861-f64283746167",
-  "version": 32
+  }
 }

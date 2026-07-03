@@ -30,7 +30,7 @@ type HealthDetails struct {
 }
 
 func okStatus() ItemStatus {
-	return ItemStatus{Status: "ok", Message: "OK"}
+	return ItemStatus{Status: "ok", Message: "operational: no errors"}
 }
 
 func warningStatus(message string) ItemStatus {

@@ -92,18 +92,38 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                     <Text weight="medium">{name}</Text>
                     <div className={styles.meta}>
                         <Text color={host.path ? 'info' : 'error'}>@{host.path || 'unspecified'}</Text>
-                        <Text color={host.tlsEnabled ? 'success' : 'warning'}>{host.tlsEnabled ? 'TLS/SSL' : 'No TLS/SSL'}</Text>
-                        <Text color={host.authEnabled ? 'success' : 'disabled'}>Auth {host.authEnabled ? 'enabled' : 'disabled'}</Text>
+                        <Text color={host.tlsEnabled ? 'success' : 'warning'}>
+                            {host.tlsEnabled ? 'TLS/SSL' : 'No TLS/SSL'}
+                        </Text>
+                        <Text color={host.authEnabled ? 'success' : 'disabled'}>
+                            Auth {host.authEnabled ? 'enabled' : 'disabled'}
+                        </Text>
                     </div>
                 </Box>
 
                 <div className={styles.actions}>
                     <div className={styles.status}>
                         <Icon name={statusView.icon} />
-                        <Text color={statusView.color} weight="medium">{statusView.label}</Text>
+                        <Text color={statusView.color} weight="medium">
+                            {statusView.label}
+                        </Text>
                     </div>
-                    <Button aria-label={`Edit ${name}`} variant="secondary" fill="text" icon="pen" size="sm" onClick={() => setEditing(true)} />
-                    <Button aria-label={`Delete ${name}`} variant="destructive" fill="text" icon="trash-alt" size="sm" onClick={() => removeHost(index)} />
+                    <Button
+                        aria-label={`Edit ${name}`}
+                        variant="secondary"
+                        fill="text"
+                        icon="pen"
+                        size="sm"
+                        onClick={() => setEditing(true)}
+                    />
+                    <Button
+                        aria-label={`Delete ${name}`}
+                        variant="destructive"
+                        fill="text"
+                        icon="trash-alt"
+                        size="sm"
+                        onClick={() => removeHost(index)}
+                    />
                 </div>
             </div>
 
@@ -111,10 +131,13 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                 <Text color="secondary">{description || 'No description provided.'}</Text>
             </div>
 
-            {statusView.message && status && 
-                            <div className={styles.statusMessage}>
-                                <Text variant='bodySmall' color={statusView.color}>{status.message}</Text>
-                            </div>}
+            {statusView.message && status && (
+                <div className={styles.statusMessage}>
+                    <Text variant="bodySmall" color={statusView.color}>
+                        {status.message}
+                    </Text>
+                </div>
+            )}
 
             <Modal title={`Edit ${name}`} isOpen={editing} onDismiss={() => setEditing(false)}>
                 <Stack direction="column" gap={2}>
@@ -137,12 +160,18 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                             />
                         </Field>
 
-                        <Field className={styles.fullWidth} label="Description" description="Short note shown on the host card.">
+                        <Field
+                            className={styles.fullWidth}
+                            label="Description"
+                            description="Short note shown on the host card."
+                        >
                             <TextArea
                                 value={description}
                                 placeholder="Local simulator, production Yamcs, customer environment..."
                                 rows={3}
-                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(index, 'description', e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                                    onChange(index, 'description', e.target.value)
+                                }
                             />
                         </Field>
                     </div>
@@ -150,21 +179,27 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                     <Stack direction="column" gap={1}>
                         <Checkbox
                             value={host.tlsEnabled}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'tlsEnabled', e.target.checked)}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                onChange(index, 'tlsEnabled', e.target.checked)
+                            }
                             label="Enable TLS/SSL"
                         />
 
                         {host.tlsEnabled && (
                             <Checkbox
                                 value={host.tlsInsecure}
-                                onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'tlsInsecure', e.target.checked)}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                    onChange(index, 'tlsInsecure', e.target.checked)
+                                }
                                 label="Bypass certificate validation"
                             />
                         )}
 
                         <Checkbox
                             value={host.authEnabled}
-                            onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'authEnabled', e.target.checked)}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                onChange(index, 'authEnabled', e.target.checked)
+                            }
                             label="Enable Basic Authentication"
                         />
                     </Stack>
@@ -176,7 +211,9 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                                     value={host.username || ''}
                                     placeholder="username"
                                     width={40}
-                                    onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(index, 'username', e.target.value)}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                        onChange(index, 'username', e.target.value)
+                                    }
                                 />
                             </Field>
                             <Field label="Password">
@@ -185,14 +222,18 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                                     type="password"
                                     placeholder="password"
                                     width={40}
-                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSecure(index, 'password', e.target.value)}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                        setSecure(index, 'password', e.target.value)
+                                    }
                                 />
                             </Field>
                         </div>
                     )}
 
                     <Stack direction="row" justifyContent="flex-end">
-                        <Button variant="secondary" onClick={() => setEditing(false)}>Close</Button>
+                        <Button variant="secondary" onClick={() => setEditing(false)}>
+                            Close
+                        </Button>
                     </Stack>
                 </Stack>
             </Modal>
