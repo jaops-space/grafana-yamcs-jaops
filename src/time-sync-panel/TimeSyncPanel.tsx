@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { dateMath, PanelProps } from '@grafana/data';
-import { locationService, TimeRangeUpdatedEvent } from '@grafana/runtime';
+import { getDataSourceSrv, locationService, TimeRangeUpdatedEvent } from '@grafana/runtime';
 import { Badge } from '@grafana/ui';
 import { defaultPanelOptions, PanelOptions } from './types';
 import { getStatusInfo, TimeSyncStatus } from './utils/status';
@@ -44,10 +44,9 @@ function formatDurationLabel(durationMs: number): string {
     return `${sec} ${sec === 1 ? 'second' : 'seconds'}`;
 }
 
-function getRangeLabel(rawFromExpr: string, rawToExpr: string): string {
-    const nowMs = Date.now();
-    const from = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: nowMs });
-    const to = dateMath.toDateTime(rawToExpr, { roundUp: true, now: nowMs });
+function getRangeLabel(rawFromExpr: string, rawToExpr: string, referenceNowMs: number): string {
+    const from = dateMath.toDateTime(rawFromExpr, { roundUp: false, now: referenceNowMs });
+    const to = dateMath.toDateTime(rawToExpr, { roundUp: true, now: referenceNowMs });
 
     if (!from || !to) {
         return 'Custom time range';
@@ -61,14 +60,62 @@ function getRangeLabel(rawFromExpr: string, rawToExpr: string): string {
     return `Last ${formatDurationLabel(durationMs)}`;
 }
 
+function readProcessorNameFromConfig(props: PanelProps<PanelOptions>): string | null {
+    const targets = (props.data.request?.targets as any[] | undefined) ?? [];
+    if (targets.length === 0) {
+        return null;
+    }
+
+    const endpointTarget =
+        targets.find((target) => target?.type === 'time' && typeof target?.endpoint === 'string') ??
+        targets.find((target) => typeof target?.endpoint === 'string');
+    if (!endpointTarget) {
+        return null;
+    }
+
+    const endpointId = String(endpointTarget.endpoint).trim();
+    if (!endpointId) {
+        return null;
+    }
+
+    const datasourceUid = endpointTarget?.datasource?.uid;
+    if (!datasourceUid) {
+        return null;
+    }
+
+    const settings = (getDataSourceSrv() as any).getInstanceSettings?.(datasourceUid);
+    const processor = settings?.jsonData?.endpoints?.[endpointId]?.processor;
+
+    if (typeof processor !== 'string') {
+        return null;
+    }
+
+    const trimmed = processor.trim();
+    return trimmed.length > 0 ? trimmed : 'default';
+}
+
+function readSpeed(series: PanelProps<PanelOptions>['data']['series']): number {
+    const speedField = series?.[0]?.fields?.find((field) => field.name === 'speed');
+    if (!speedField || speedField.values.length === 0) {
+        return 1;
+    }
+
+    const values = speedField.values as unknown as ArrayLike<unknown>;
+    const speed = Number(values[values.length - 1]);
+    return Number.isFinite(speed) && speed > 0 ? speed : 1;
+}
+
 export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     const options = { ...defaultPanelOptions, ...props.options };
     const [timeRangeRev, setTimeRangeRev] = useState(0);
     const lastWriteRef = useRef<LastWrite | null>(null);
 
     const yamcsNowMs = useMemo(() => readLatestYamcsTime(props.data.series), [props.data.series]);
+    const speed = useMemo(() => readSpeed(props.data.series), [props.data.series]);
+    const processorName = useMemo(() => readProcessorNameFromConfig(props), [props.data.request]);
     const rawFrom = props.timeRange.raw.from;
     const rawTo = props.timeRange.raw.to;
+    const referenceNowMs = props.timeRange.to.valueOf();
     const rawFromExpr = typeof rawFrom === 'string' ? rawFrom : String(rawFrom.valueOf());
     const rawToExpr = typeof rawTo === 'string' ? rawTo : String(rawTo.valueOf());
     const rangeIsRelative = isRelativeExpr(rawFromExpr) && isRelativeExpr(rawToExpr);
@@ -185,9 +232,15 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
     }
 
     const statusInfo = getStatusInfo(status);
-    const badgeColor = status === 'functional' ? 'green' : status === 'disabled' ? 'darkgrey' : 'orange';
-    const badgeText = status === 'functional' ? 'ACTIVE' : 'NOT ACTIVE';
-    const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr);
+    const normalizeThresholdMs = Math.max(100, options.normalizeToNowThresholdMs);
+    const isRealtime =
+        status === 'functional' && yamcsNowMs != null && Math.abs(referenceNowMs - yamcsNowMs) <= normalizeThresholdMs;
+    const badgeColor =
+        status === 'functional' ? (isRealtime ? 'blue' : 'green') : status === 'disabled' ? 'darkgrey' : 'orange';
+    const badgeText = status === 'functional' ? (isRealtime ? 'REALTIME' : 'SYNCHRONIZED') : 'NOT ACTIVE';
+    const rangeLabel = getRangeLabel(rawFromExpr, rawToExpr, referenceNowMs);
+    const processorLabel = processorName ? `Processor: ${processorName}` : 'Processor: default';
+    const hasReplaySpeed = Math.abs(speed - 1) > 0.001;
 
     return (
         <div
@@ -213,7 +266,10 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
             >
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     <Badge text={badgeText} color={badgeColor} />
-                    <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>{rangeLabel}</span>
+                    {hasReplaySpeed && <Badge text={`REPLAY ${speed.toFixed(2)}x`} color="orange" />}
+                    <span style={{ fontSize: 12, fontWeight: 600, lineHeight: '16px' }}>
+                        {processorLabel} | {rangeLabel}
+                    </span>
                 </span>
             </div>
         </div>

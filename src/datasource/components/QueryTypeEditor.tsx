@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports
 import { Badge, InlineField, Select, Stack } from '@grafana/ui';
 import { QueryType } from '../types';
 import React, { useEffect } from 'react';
@@ -16,6 +17,7 @@ export function QueryTypeEditor(props: QueryProps) {
         if (!query.type) {
             onChange({ ...query, type: QueryType.PLOT });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const queryTypeInfo = QueryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
