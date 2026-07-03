@@ -1,0 +1,15 @@
+services:
+    grafana:
+        extends:
+            file: .config/docker-compose-base.yaml
+            service: grafana
+        volumes:
+            - ./provisioning/datasources:/etc/grafana/provisioning/datasources
+        environment:
+            # Subpath configuration for reverse proxy
+            GF_SERVER_DOMAIN: ''
+            GF_SERVER_ROOT_URL: '%(protocol)s://%(domain)s/grafana'
+            GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+
+volumes:
+    grafana-storage:

@@ -68,6 +68,7 @@ export default function InputModeField({
             setInputValue(currentVariableValue);
             lastSubmitted.current = currentVariableValue;
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [locationTick]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
