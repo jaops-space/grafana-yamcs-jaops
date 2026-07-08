@@ -2,11 +2,12 @@
 import { Badge, InlineField, Select, Stack } from '@grafana/ui';
 import { QueryType } from '../types';
 import React, { useEffect } from 'react';
-import { QueryCategory, QueryOptions, QueryProps } from './constants';
+import { QueryCategory, QueryEditorModelProps, QueryOptions } from './constants';
 import { ParameterQuery } from './ParameterQuery';
 
-export function QueryTypeEditor(props: QueryProps) {
+export function QueryTypeEditor(props: QueryEditorModelProps) {
     const { query, onChange, datasource } = props;
+    const queryEditorModelProps: QueryEditorModelProps = { query, onChange, datasource };
 
     const setQueryType = (type: QueryType) => {
         onChange({ ...query, type });
@@ -68,8 +69,9 @@ export function QueryTypeEditor(props: QueryProps) {
                     />
                 </InlineField>
             </Stack>
-            {(queryTypeInfo?.category === QueryCategory.PARAMETER ||
-                queryTypeInfo?.category === QueryCategory.IMAGE) && <ParameterQuery {...props} />}
+            {(queryTypeInfo?.category === QueryCategory.PARAMETER || queryTypeInfo?.category === QueryCategory.IMAGE) && (
+                <ParameterQuery {...queryEditorModelProps} />
+            )}
         </>
     );
 }

@@ -2,7 +2,8 @@ import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { QueryField, QueryType, Query, Configuration } from '../types';
 
-export type QueryProps = QueryEditorProps<DataSource, Query, Configuration> & Partial<Query>;
+export type QueryProps = QueryEditorProps<DataSource, Query, Configuration>;
+export type QueryEditorModelProps = Pick<QueryProps, 'query' | 'onChange' | 'datasource'>;
 
 export enum QueryCategory {
     PARAMETER = 'parameter',
