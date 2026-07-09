@@ -1,7 +1,7 @@
 import { getTemplateSrv } from '@grafana/runtime';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QueryProps } from './constants';
+import { QueryEditorModelProps, QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
 
 export function QueryEditor(props: QueryProps) {
@@ -104,6 +104,8 @@ export function QueryEditor(props: QueryProps) {
         query.endpoint && endpoints[query.endpoint] != null
             ? ((endpoints[query.endpoint] as any).online ?? false)
             : null;
+
+    const queryEditorModelProps: QueryEditorModelProps = { query, onChange, datasource };
 
     const renderSelect = () => {
         if (!query.asVariable) {
@@ -217,7 +219,8 @@ export function QueryEditor(props: QueryProps) {
                     Query
                 </Button>
             </Stack>
-            <QueryTypeEditor {...props} />
+            <QueryTypeEditor {...queryEditorModelProps} />
         </Box>
     );
+
 }
