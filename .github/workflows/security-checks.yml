@@ -112,13 +112,20 @@ jobs:
           npx --yes @grafana/plugin-validator@latest \
             -config .plugin-validator-security.yml \
             -sourceCodeUri file://./ \
-            "$PLUGIN_ARCHIVE" > plugin-validator.json 2>&1
+            "$PLUGIN_ARCHIVE" > plugin-validator.raw 2>&1
           status=$?
+
+          # plugin-validator can emit log lines before JSON; keep a normalized JSON file for parsing.
+          if jq -e . plugin-validator.raw >/dev/null 2>&1; then
+            cp plugin-validator.raw plugin-validator.json
+          else
+            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' plugin-validator.raw > plugin-validator.json || true
+          fi
 
           if jq -e . plugin-validator.json >/dev/null 2>&1; then
             jq . plugin-validator.json > plugin-validator.txt
           else
-            cp plugin-validator.json plugin-validator.txt
+            cp plugin-validator.raw plugin-validator.txt
           fi
 
           exit "$status"
