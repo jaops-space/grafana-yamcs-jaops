@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
@@ -22,8 +24,8 @@ type EventSubscription struct {
 }
 
 // CreateEventSubscription creates a new event subscription for a given instance.
-func (client *YamcsClient) CreateEventSubscription(instance Instance) (*EventSubscription, error) {
-	subscription, err := client.newEventSubscription(instance.GetName())
+func (client *YamcsClient) CreateEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
+	subscription, err := client.newEventSubscription(ctx, instance)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +35,7 @@ func (client *YamcsClient) CreateEventSubscription(instance Instance) (*EventSub
 }
 
 // NewEventSubscription initializes a new EventSubscription and subscribes to events.
-func (client *YamcsClient) newEventSubscription(instance string) (*EventSubscription, error) {
+func (client *YamcsClient) newEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
 	subscription := &EventSubscription{
 		client:              client,
 		Instance:            instance,
@@ -57,7 +59,7 @@ func (client *YamcsClient) newEventSubscription(instance string) (*EventSubscrip
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +113,6 @@ func (subscription *EventSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 
 }

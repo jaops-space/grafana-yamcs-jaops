@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,8 +92,8 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 	return manager, nil
 }
 
-// SendRequest sends an HTTP request and automatically applies credentials
-func (m *HTTPManager) SendRequest(method string, url string, body []byte) ([]byte, error) {
+// SendRequest sends an HTTP request and automatically applies credentials.
+func (m *HTTPManager) SendRequest(ctx context.Context, method string, url string, body []byte) ([]byte, error) {
 	if m.Credentials != nil && m.Credentials.IsExpired() {
 		if err := m.Credentials.Refresh(m); err != nil {
 			return nil, err
@@ -100,7 +101,7 @@ func (m *HTTPManager) SendRequest(method string, url string, body []byte) ([]byt
 	}
 
 	reader := bytes.NewReader(body)
-	req, err := http.NewRequest(method, url, reader)
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -145,14 +146,14 @@ func (m *HTTPManager) SendRequest(method string, url string, body []byte) ([]byt
 	return respBody, nil
 }
 
-// SendJSONRequest sends a JSON HTTP request
-func (m *HTTPManager) SendJSONRequest(method string, url string, body any, unmarshalTo any) error {
+// SendJSONRequest sends a JSON HTTP request.
+func (m *HTTPManager) SendJSONRequest(ctx context.Context, method string, url string, body any, unmarshalTo any) error {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-	respBody, err := m.SendRequest(method, url, jsonBody)
+	respBody, err := m.SendRequest(ctx, method, url, jsonBody)
 	if err != nil {
 		return err
 	}

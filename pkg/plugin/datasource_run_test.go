@@ -10,10 +10,8 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/instances"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/yamcsManagement"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
@@ -41,8 +39,8 @@ func (s *testStreamPacketSender) Count() int {
 
 func buildTestEndpointWithClient(connected bool) *source.YamcsEndpoint {
 	instanceName := "sim"
-	instance := &instances.YamcsInstance{Name: &instanceName}
 	processorName := "realtime"
+	instance := &instances.YamcsInstance{Name: &instanceName}
 	processor := &yamcsManagement.ProcessorInfo{Name: &processorName}
 
 	wsHandler := ws.NewWebSocketHandler("ws://example.invalid", true)
@@ -58,30 +56,35 @@ func buildTestEndpointWithClient(connected bool) *source.YamcsEndpoint {
 		TimeSubscriptions:           map[int]*client.TimeSubscription{},
 	}
 
+	host := &source.YamcsHost{
+		Client: c,
+		Instances: map[string]*source.YamcsHostInstance{
+			instanceName: {
+				Instance: instance,
+				Processors: map[string]client.Processor{
+					processorName: processor,
+				},
+			},
+		},
+	}
 	mux := &source.Multiplexer{
 		Hosts: map[string]*source.YamcsHost{
-			"h1": {Client: c},
-		},
-		Configuration: &config.YamcsPluginConfiguration{
-			Endpoints: map[string]*config.YamcsEndpointConfiguration{
-				"e1": {Host: "h1", Instance: instanceName, Processor: processorName},
-			},
+			"h1": host,
 		},
 	}
 
 	return &source.YamcsEndpoint{
-		Multiplexer:    mux,
-		ID:             "e1",
-		Instance:       instance,
-		Processor:      processor,
-		Parameters:     map[string]*source.ParameterDemand{},
-		Events:         map[string][]*events.Event{},
-		CommandHistory: map[string][]*commanding.CommandHistoryEntry{},
-		CommandSignals: map[string]chan struct{}{},
-		Alarms:         map[string][]*alarms.AlarmData{},
-		AlarmSignals:   map[string]chan struct{}{},
-		Links:          map[string][]*links.LinkInfo{},
-		AlarmCache:     map[string]*alarms.AlarmData{},
+		Multiplexer:           mux,
+		Host:                  host,
+		ID:                    "e1",
+		Configuration:         &config.YamcsEndpointConfiguration{Host: "h1", Instance: instanceName, Processor: processorName},
+		Parameters:            map[string]*source.ParameterDemand{},
+		Events:                map[string]chan *events.Event{},
+		CommandHistorySignals: map[string]source.CommandHistorySignal{},
+		Alarms:                map[string][]*alarms.AlarmData{},
+		AlarmSignals:          map[string]chan struct{}{},
+		LinkSignals:           map[string]source.LinkSignal{},
+		AlarmCache:            map[string]*alarms.AlarmData{},
 	}
 }
 
@@ -153,24 +156,18 @@ func TestRunDemandsStream_ContextCancelExits(t *testing.T) {
 
 func TestRunSubscriptionStream_NoClientFailsFast(t *testing.T) {
 	instanceName := "sim"
-	instance := &instances.YamcsInstance{Name: &instanceName}
 	processorName := "realtime"
-	processor := &yamcsManagement.ProcessorInfo{Name: &processorName}
+	host := &source.YamcsHost{Client: nil}
 
 	endpoint := &source.YamcsEndpoint{
 		Multiplexer: &source.Multiplexer{
 			Hosts: map[string]*source.YamcsHost{
-				"h1": {Client: nil},
-			},
-			Configuration: &config.YamcsPluginConfiguration{
-				Endpoints: map[string]*config.YamcsEndpointConfiguration{
-					"e1": {Host: "h1", Instance: instanceName, Processor: processorName},
-				},
+				"h1": host,
 			},
 		},
-		ID:        "e1",
-		Instance:  instance,
-		Processor: processor,
+		Host:          host,
+		ID:            "e1",
+		Configuration: &config.YamcsEndpointConfiguration{Host: "h1", Instance: instanceName, Processor: processorName},
 	}
 
 	packetSender := &testStreamPacketSender{}
@@ -186,7 +183,7 @@ func TestRunSubscriptionStream_NoClientFailsFast(t *testing.T) {
 
 	select {
 	case err := <-done:
-		if err == nil || !strings.Contains(err.Error(), "No client found") {
+		if err == nil || !strings.Contains(err.Error(), "client not found") {
 			t.Fatalf("expected no client error, got %v", err)
 		}
 	case <-time.After(2 * time.Second):
@@ -210,39 +207,32 @@ func TestRunTimeStream_DisconnectedClientErrors(t *testing.T) {
 
 func TestRunParameterStream_NilClientFailsFast(t *testing.T) {
 	instanceName := "sim"
-	instance := &instances.YamcsInstance{Name: &instanceName}
 	processorName := "realtime"
-	processor := &yamcsManagement.ProcessorInfo{Name: &processorName}
+	host := &source.YamcsHost{Client: nil}
 
 	endpoint := &source.YamcsEndpoint{
 		Multiplexer: &source.Multiplexer{
 			Hosts: map[string]*source.YamcsHost{
-				"h1": {Client: nil},
-			},
-			Configuration: &config.YamcsPluginConfiguration{
-				Endpoints: map[string]*config.YamcsEndpointConfiguration{
-					"e1": {Host: "h1", Instance: instanceName, Processor: processorName},
-				},
+				"h1": host,
 			},
 		},
-		ID:             "e1",
-		Instance:       instance,
-		Processor:      processor,
-		Parameters:     map[string]*source.ParameterDemand{},
-		Events:         map[string][]*events.Event{},
-		CommandHistory: map[string][]*commanding.CommandHistoryEntry{},
-		CommandSignals: map[string]chan struct{}{},
-		Alarms:         map[string][]*alarms.AlarmData{},
-		AlarmSignals:   map[string]chan struct{}{},
-		Links:          map[string][]*links.LinkInfo{},
-		AlarmCache:     map[string]*alarms.AlarmData{},
+		Host:                  host,
+		ID:                    "e1",
+		Configuration:         &config.YamcsEndpointConfiguration{Host: "h1", Instance: instanceName, Processor: processorName},
+		Parameters:            map[string]*source.ParameterDemand{},
+		Events:                map[string]chan *events.Event{},
+		CommandHistorySignals: map[string]source.CommandHistorySignal{},
+		Alarms:                map[string][]*alarms.AlarmData{},
+		AlarmSignals:          map[string]chan struct{}{},
+		LinkSignals:           map[string]source.LinkSignal{},
+		AlarmCache:            map[string]*alarms.AlarmData{},
 	}
 
 	packetSender := &testStreamPacketSender{}
 	sender := backend.NewStreamSender(packetSender)
 
 	err := RunParameterStream(context.Background(), &backend.RunStreamRequest{Path: "req/path"}, sender, endpoint, PluginQuery{Parameter: "p", MaxPoints: 100, From: 0, To: 10})
-	if err == nil || !strings.Contains(err.Error(), "No client found") {
+	if err == nil || !strings.Contains(err.Error(), "client not found") {
 		t.Fatalf("expected no client error, got %v", err)
 	}
 }

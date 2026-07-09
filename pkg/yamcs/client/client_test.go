@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -36,8 +37,9 @@ func TestClient(t *testing.T) {
 
 	// Assign mockTransport to the client's HTTP transport
 	client.HTTP.Client.Transport = &mockTransport{}
+	ctx := context.Background()
 
-	instance, err := client.GetInstanceByName("someinstance")
+	instance, err := client.GetInstanceByName(ctx, "someinstance")
 	if err != nil {
 		t.Fatalf("Failed to get instance: %v", err)
 	}
@@ -52,32 +54,32 @@ func TestClient(t *testing.T) {
 		t.Fatalf("Failed to get processor: %v", err)
 	}
 
-	parameter, err := client.GetParameter(instance, "someparameter")
+	parameter, err := client.GetParameter(ctx, instance.GetName(), "someparameter")
 	if err != nil {
 		t.Fatalf("Failed to get parameter: %v", err)
 	}
 
-	_, err = client.GetParameterValue(instance, someProcessor, parameter)
+	_, err = client.GetParameterValue(ctx, instance, someProcessor, parameter)
 	if err != nil {
 		t.Fatalf("Failed to get parameter value: %v", err)
 	}
 
-	_, err = client.GetParameterRanges(instance, parameter)
+	_, err = client.GetParameterRanges(ctx, instance, parameter)
 	if err != nil {
 		t.Fatalf("Failed to get parameter ranges: %v", err)
 	}
 
-	_, err = client.GetParameterSamples(instance, parameter, time.Now(), time.Now())
+	_, err = client.GetParameterSamples(ctx, instance, parameter, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("Failed to get parameter samples: %v", err)
 	}
 
-	_, err = client.GetCommand(instance.GetName(), "somecommand")
+	_, err = client.GetCommand(ctx, instance.GetName(), "somecommand")
 	if err != nil {
 		t.Fatalf("Failed to get command: %v", err)
 	}
 
-	_, err = client.IssueCommand(instance, someProcessor, "somecommand", make(map[string]any))
+	_, err = client.IssueCommand(ctx, instance.GetName(), someProcessor.GetName(), "somecommand", make(map[string]any))
 	if err != nil {
 		t.Fatalf("Failed to issue command: %v", err)
 	}

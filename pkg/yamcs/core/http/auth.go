@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -130,7 +131,7 @@ func ConvertUserCredentials(manager *HTTPManager, username, password, refreshTok
 	}
 
 	var resp map[string]any
-	if err := manager.SendJSONRequest("POST", manager.AuthRoot+"/token", data, &resp); err != nil {
+	if err := manager.SendJSONRequest(context.Background(), "POST", manager.AuthRoot+"/token", data, &resp); err != nil {
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 
@@ -169,7 +170,7 @@ func ConvertServiceAccountCredentials(manager *HTTPManager, clientID, clientSecr
 	var resp map[string]any
 	auth := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
 	manager.Headers["Authorization"] = "Basic " + auth
-	if err := manager.SendJSONRequest("POST", manager.AuthRoot+"/token", data, &resp); err != nil {
+	if err := manager.SendJSONRequest(context.Background(), "POST", manager.AuthRoot+"/token", data, &resp); err != nil {
 		return nil, fmt.Errorf("service account token request failed: %w", err)
 	}
 

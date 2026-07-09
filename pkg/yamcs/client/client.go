@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -118,11 +119,11 @@ func NewYamcsClient(
 	return client, nil
 }
 
-func (client *YamcsClient) EstablishWebSocketConnection() error {
+func (client *YamcsClient) EstablishWebSocketConnection(ctx context.Context) error {
 	if client.IsWebSocketConnected() {
 		return nil
 	}
-	err := client.WebSocket.Connect()
+	err := client.WebSocket.Connect(ctx)
 	if err == nil {
 		client.clearAllSubscriptions()
 		go client.WebSocket.Listen()

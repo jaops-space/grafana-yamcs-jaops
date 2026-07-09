@@ -1,7 +1,7 @@
 package client
 
 import (
-	"sync"
+	"context"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -20,13 +20,12 @@ type TimeSubscription struct {
 	Instance       string
 	Processor      string
 	listeners      []TimeListener
-	listenerMu     sync.RWMutex
 	client         *YamcsClient
 }
 
-func (client *YamcsClient) CreateTimeSubscription(instance Instance, processor Processor) (*TimeSubscription, error) {
+func (client *YamcsClient) CreateTimeSubscription(instance string, processor string) (*TimeSubscription, error) {
 
-	subscription, err := NewTimeSubscription(client, instance.GetName(), processor.GetName())
+	subscription, err := NewTimeSubscription(client, instance, processor)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +57,7 @@ func NewTimeSubscription(client *YamcsClient, instance string, processor string)
 		Options: anyMessage, // Attach the Any message containing the subscription request
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(context.Background(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +92,7 @@ func (subscription *TimeSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 
 }
 
@@ -119,23 +118,14 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 }
 
 func (subscription *TimeSubscription) SetTimeListener(listener TimeListener) {
-	subscription.listenerMu.Lock()
-	defer subscription.listenerMu.Unlock()
-
 	subscription.listeners = []TimeListener{listener}
 }
 
 func (subscription *TimeSubscription) AddTimeListener(listener TimeListener) {
-	subscription.listenerMu.Lock()
-	defer subscription.listenerMu.Unlock()
-
 	subscription.listeners = append(subscription.listeners, listener)
 }
 
 func (subscription *TimeSubscription) notifyListeners(currentTime time.Time) {
-	subscription.listenerMu.RLock()
-	defer subscription.listenerMu.RUnlock()
-
 	for _, listener := range subscription.listeners {
 		if listener != nil {
 			listener(currentTime)
@@ -143,18 +133,18 @@ func (subscription *TimeSubscription) notifyListeners(currentTime time.Time) {
 	}
 }
 
-func (client *YamcsClient) GetTimeSubscriptionFor(instance Instance, processor Processor) (*TimeSubscription, bool) {
+func (client *YamcsClient) GetTimeSubscription(instance string, processor string) (*TimeSubscription, bool) {
 	for _, sub := range client.TimeSubscriptions {
-		if sub.Instance == instance.GetName() && sub.Processor == processor.GetName() {
+		if sub.Instance == instance && sub.Processor == processor {
 			return sub, true
 		}
 	}
 	return nil, false
 }
 
-func (client *YamcsClient) HasTimeSubscriptionFor(instance Instance, processor Processor) bool {
-	backend.Logger.Debug("checking time sub existence for", "instance", instance.GetName(), "processor", processor.GetName())
-	if sub, found := client.GetTimeSubscriptionFor(instance, processor); found {
+func (client *YamcsClient) HasTimeSubscriptionFor(instance string, processor string) bool {
+	backend.Logger.Debug("checking time sub existence for", "instance", instance, "processor", processor)
+	if sub, found := client.GetTimeSubscription(instance, processor); found {
 		backend.Logger.Warn("found already existing time sub.", "instance", sub.Instance, "processor", sub.Processor)
 		return true
 	}

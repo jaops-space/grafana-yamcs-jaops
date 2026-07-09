@@ -60,17 +60,17 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 if (query.parameter) {
                     pathName = `${query.endpoint}-${query.parameter.replaceAll('/', '')}${query.aggregatePath}`;
                 } else if (query.type === QueryType.EVENTS) {
-                    pathName = 'events';
+                    pathName = `${query.endpoint}-events`;
                 } else if (query.type === QueryType.DEMANDS) {
-                    pathName = 'demands';
+                    pathName = `demands`;
                 } else if (query.type === QueryType.SUBSCRIPTIONS) {
                     pathName = 'subscriptions';
                 } else if (query.type === QueryType.COMMAND_HISTORY) {
-                    pathName = 'commands';
+                    pathName = `${query.endpoint}-commands`;
                 } else if (query.type === QueryType.ALARMS) {
-                    pathName = 'alarms';
+                    pathName = `${query.endpoint}-alarms`;
                 } else if (query.type === QueryType.LINKS) {
-                    pathName = 'links';
+                    pathName = `${query.endpoint}-links`;
                 }
 
                 let action = StreamingFrameAction.Append;

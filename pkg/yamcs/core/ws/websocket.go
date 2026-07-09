@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -51,7 +52,7 @@ func (websocketHandler *WebSocketHandler) SetHandshakeTimeout(seconds int) {
 }
 
 // Connect establishes the WebSocket connection, ensuring it happens only once.
-func (websocketHandler *WebSocketHandler) Connect() error {
+func (websocketHandler *WebSocketHandler) Connect(ctx context.Context) error {
 	var err error
 
 	websocketHandler.mutex.Lock()
@@ -78,7 +79,7 @@ func (websocketHandler *WebSocketHandler) Connect() error {
 		websocketHandler.Credentials.BeforeRequest(req)
 	}
 
-	conn, _, dialErr := dialer.Dial(websocketHandler.serverRoot, headers)
+	conn, _, dialErr := dialer.DialContext(ctx, websocketHandler.serverRoot, headers)
 	if dialErr != nil {
 		return dialErr
 	}
@@ -132,7 +133,10 @@ func (websocketHandler *WebSocketHandler) Listen() {
 				backend.Logger.Error("Error unmarshalling reply: ", err)
 				continue
 			}
-			if callback, found := websocketHandler.messageCallbacks[int(reply.GetReplyTo())]; found {
+			websocketHandler.mutex.Lock()
+			callback, found := websocketHandler.messageCallbacks[int(reply.GetReplyTo())]
+			websocketHandler.mutex.Unlock()
+			if found {
 				callback(int(message.GetCall()), int(message.GetSeq()), &reply)
 			}
 		}
@@ -166,12 +170,10 @@ func (websocketHandler *WebSocketHandler) ForceDisconnect() {
 	}
 }
 
-func (websocketHandler *WebSocketHandler) SendSync(message *api.ClientMessage) (*api.Reply, int, int, error) {
-	websocketHandler.mutex.Lock()
-	message.Id = int32(websocketHandler.currentPacketID)
-	currentID := websocketHandler.currentPacketID
-	websocketHandler.currentPacketID++
-	websocketHandler.mutex.Unlock()
+func (websocketHandler *WebSocketHandler) SendSync(ctx context.Context, message *api.ClientMessage) (*api.Reply, int, int, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	var data []byte
 	var err error
@@ -185,25 +187,30 @@ func (websocketHandler *WebSocketHandler) SendSync(message *api.ClientMessage) (
 		return nil, 0, 0, err
 	}
 
-	websocketHandler.mutex.Lock()
-	if err = websocketHandler.connection.WriteMessage(websocket.BinaryMessage, data); err != nil {
-		websocketHandler.mutex.Unlock()
-		return nil, 0, 0, err
-	}
-	websocketHandler.mutex.Unlock()
-
 	done := make(chan struct{})
 	var reply *api.Reply
 	var call, seq int
 
 	websocketHandler.mutex.Lock()
+	message.Id = int32(websocketHandler.currentPacketID)
+	currentID := websocketHandler.currentPacketID
+	websocketHandler.currentPacketID++
 	websocketHandler.messageCallbacks[currentID] = func(returnedCall int, returnedSeq int, returnedReply *api.Reply) {
 		call = returnedCall
 		seq = returnedSeq
 		reply = returnedReply
 		close(done)
 	}
+
+	if err = websocketHandler.connection.WriteMessage(websocket.BinaryMessage, data); err != nil {
+		delete(websocketHandler.messageCallbacks, currentID)
+		websocketHandler.mutex.Unlock()
+		return nil, 0, 0, err
+	}
 	websocketHandler.mutex.Unlock()
+
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
 
 	select {
 	case <-done:
@@ -211,11 +218,16 @@ func (websocketHandler *WebSocketHandler) SendSync(message *api.ClientMessage) (
 		delete(websocketHandler.messageCallbacks, currentID)
 		websocketHandler.mutex.Unlock()
 		return reply, call, seq, nil
-	case <-time.After(10 * time.Second):
+	case <-timer.C:
 		websocketHandler.mutex.Lock()
 		delete(websocketHandler.messageCallbacks, currentID)
 		websocketHandler.mutex.Unlock()
 		return nil, 0, 0, exception.New("Timeout waiting for reply.", "WS_TIMEOUT")
+	case <-ctx.Done():
+		websocketHandler.mutex.Lock()
+		delete(websocketHandler.messageCallbacks, currentID)
+		websocketHandler.mutex.Unlock()
+		return nil, 0, 0, exception.Wrap("Context canceled waiting for reply", "WS_CONTEXT_CANCELED", ctx.Err())
 	}
 }
 

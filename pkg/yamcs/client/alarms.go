@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 
@@ -12,15 +13,15 @@ import (
 )
 
 // ListAlarms retrieves alarms for a given instance and name, returning a paginated iterator.
-func (c *YamcsClient) ListAlarms(instance, name string) *types.PaginatedRequestIterator[[]*alarms.AlarmData] {
-	return types.NewPaginatedRequestIterator(c.HTTP, c.fetchAlarms(instance, name))
+func (c *YamcsClient) ListAlarms(ctx context.Context, instance, name string) *types.PaginatedRequestIterator[[]*alarms.AlarmData] {
+	return types.NewPaginatedRequestIterator(c.HTTP, c.fetchAlarms(ctx, instance, name))
 }
 
 // fetchAlarms fetches a list of alarms from the Yamcs API.
-func (c *YamcsClient) fetchAlarms(instance, name string) types.FetchFunction[[]*alarms.AlarmData] {
+func (c *YamcsClient) fetchAlarms(ctx context.Context, instance, name string) types.FetchFunction[[]*alarms.AlarmData] {
 	return func() ([]*alarms.AlarmData, string, error) {
 		response := &alarms.ListAlarmsResponse{}
-		if err := c.HTTP.GetProto(fmt.Sprintf("/archive/%s/alarms/%s", instance, name), response); err != nil {
+		if err := c.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), response); err != nil {
 			return nil, "", err
 		}
 		return response.Alarms, response.GetContinuationToken(), nil
@@ -28,64 +29,64 @@ func (c *YamcsClient) fetchAlarms(instance, name string) types.FetchFunction[[]*
 }
 
 // ListProcessorAlarms retrieves currently active alarms for a processor.
-func (c *YamcsClient) ListProcessorAlarms(instance Instance, processor Processor) ([]*alarms.AlarmData, error) {
+func (c *YamcsClient) ListProcessorAlarms(ctx context.Context, instance string, processor string) ([]*alarms.AlarmData, error) {
 	response := &alarms.ListProcessorAlarmsResponse{}
-	if err := c.HTTP.GetProto(fmt.Sprintf("/processors/%s/%s/alarms", instance.GetName(), processor.GetName()), response); err != nil {
+	if err := c.HTTP.GetProto(ctx, fmt.Sprintf("/processors/%s/%s/alarms", instance, processor), response); err != nil {
 		return nil, err
 	}
 	return response.Alarms, nil
 }
 
 // AcknowledgeAlarm acknowledges an alarm.
-func (c *YamcsClient) AcknowledgeAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32, comment string) error {
+func (c *YamcsClient) AcknowledgeAlarm(ctx context.Context, instance string, processor string, alarmName string, seqNum uint32, comment string) error {
 	request := &alarms.EditAlarmRequest{
-		Instance:  instance.Name,
-		Processor: processor.Name,
+		Instance:  stringPtr(instance),
+		Processor: stringPtr(processor),
 		Name:      &alarmName,
 		Seqnum:    &seqNum,
 		State:     stringPtr("acknowledged"),
 		Comment:   &comment,
 	}
-	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
+	return c.HTTP.PatchProto(ctx, fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance, processor, url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 // ClearAlarm clears an alarm.
-func (c *YamcsClient) ClearAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32, comment string) error {
+func (c *YamcsClient) ClearAlarm(ctx context.Context, instance string, processor string, alarmName string, seqNum uint32, comment string) error {
 	request := &alarms.EditAlarmRequest{
-		Instance:  instance.Name,
-		Processor: processor.Name,
+		Instance:  stringPtr(instance),
+		Processor: stringPtr(processor),
 		Name:      &alarmName,
 		Seqnum:    &seqNum,
 		State:     stringPtr("cleared"),
 		Comment:   &comment,
 	}
-	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
+	return c.HTTP.PatchProto(ctx, fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance, processor, url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 // ShelveAlarm shelves an alarm.
-func (c *YamcsClient) ShelveAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32, comment string, durationMs uint64) error {
+func (c *YamcsClient) ShelveAlarm(ctx context.Context, instance string, processor string, alarmName string, seqNum uint32, comment string, durationMs uint64) error {
 	request := &alarms.EditAlarmRequest{
-		Instance:       instance.Name,
-		Processor:      processor.Name,
+		Instance:       stringPtr(instance),
+		Processor:      stringPtr(processor),
 		Name:           &alarmName,
 		Seqnum:         &seqNum,
 		State:          stringPtr("shelved"),
 		Comment:        &comment,
 		ShelveDuration: &durationMs,
 	}
-	return c.HTTP.PatchProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
+	return c.HTTP.PatchProto(ctx, fmt.Sprintf("/processors/%s/%s/alarms/%s/%d", instance, processor, url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 // UnshelveAlarm unshelves an alarm.
-func (c *YamcsClient) UnshelveAlarm(instance Instance, processor Processor, alarmName string, seqNum uint32) error {
+func (c *YamcsClient) UnshelveAlarm(ctx context.Context, instance string, processor string, alarmName string, seqNum uint32) error {
 	request := &alarms.EditAlarmRequest{
-		Instance:  instance.Name,
-		Processor: processor.Name,
+		Instance:  stringPtr(instance),
+		Processor: stringPtr(processor),
 		Name:      &alarmName,
 		Seqnum:    &seqNum,
 	}
 	// Yamcs uses the :unshelve action endpoint (similar to :acknowledge, :shelve, :clear)
-	return c.HTTP.PostProto(fmt.Sprintf("/processors/%s/%s/alarms/%s/%d:unshelve", instance.GetName(), processor.GetName(), url.PathEscape(alarmName), seqNum), request, nil)
+	return c.HTTP.PostProto(ctx, fmt.Sprintf("/processors/%s/%s/alarms/%s/%d:unshelve", instance, processor, url.PathEscape(alarmName), seqNum), request, nil)
 }
 
 func stringPtr(s string) *string {
@@ -93,7 +94,7 @@ func stringPtr(s string) *string {
 }
 
 // AlarmListener is a function that handles incoming alarm events.
-type AlarmListener func(event *alarms.AlarmData)
+type AlarmListener func(event *alarms.AlarmData) error
 
 // AlarmSubscription represents a subscription to Yamcs alarm events.
 type AlarmSubscription struct {
@@ -104,20 +105,20 @@ type AlarmSubscription struct {
 }
 
 // CreateAlarmSubscription initializes a new alarm subscription.
-func (c *YamcsClient) CreateAlarmSubscription(instance Instance, processor Processor) (*AlarmSubscription, error) {
-	return c.newAlarmSubscription(instance, processor)
+func (c *YamcsClient) CreateAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
+	return c.newAlarmSubscription(ctx, instance, processor)
 }
 
 // newAlarmSubscription handles the subscription logic for alarms.
-func (c *YamcsClient) newAlarmSubscription(instance Instance, processor Processor) (*AlarmSubscription, error) {
+func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
 	subscription := &AlarmSubscription{
 		client:   c,
-		instance: instance.GetName(),
+		instance: instance,
 	}
 
 	subscribeRequest := &alarms.SubscribeAlarmsRequest{
-		Instance:  instance.Name,
-		Processor: processor.Name,
+		Instance:  new(instance),
+		Processor: new(processor),
 	}
 
 	anyMessage, err := anypb.New(subscribeRequest)
@@ -130,7 +131,7 @@ func (c *YamcsClient) newAlarmSubscription(instance Instance, processor Processo
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := c.WebSocket.SendSync(message)
+	_, callID, _, err := c.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -196,22 +197,22 @@ type GlobalStatusSubscription struct {
 }
 
 // CreateGlobalAlarmStatusSubscription initializes a global alarm status subscription.
-func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(instance Instance, processor Processor) (*GlobalStatusSubscription, error) {
-	return c.newGlobalAlarmStatusSubscription(instance, processor)
+func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
+	return c.newGlobalAlarmStatusSubscription(ctx, instance, processor)
 }
 
 // newGlobalAlarmStatusSubscription handles the subscription logic for global alarm status updates.
-func (c *YamcsClient) newGlobalAlarmStatusSubscription(instance Instance, processor Processor) (*GlobalStatusSubscription, error) {
+func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
 	subscription := &GlobalStatusSubscription{
 		client:              c,
-		instance:            instance.GetName(),
+		instance:            instance,
 		eventMapping:        make(map[int]string),
 		subscribedInstances: types.Set[string]{},
 	}
 
 	subscribeRequest := &alarms.SubscribeGlobalStatusRequest{
-		Instance:  instance.Name,
-		Processor: processor.Name,
+		Instance:  new(instance),
+		Processor: new(processor),
 	}
 
 	anyMessage, err := anypb.New(subscribeRequest)
@@ -224,7 +225,7 @@ func (c *YamcsClient) newGlobalAlarmStatusSubscription(instance Instance, proces
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := c.WebSocket.SendSync(message)
+	_, callID, _, err := c.WebSocket.SendSync(context.Background(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -265,4 +266,3 @@ func (sub *GlobalStatusSubscription) GetInstance() string {
 func (sub *GlobalStatusSubscription) Halt() {
 	delete(sub.client.GlobalAlarmStatusSubscriptions, sub.callID)
 }
-

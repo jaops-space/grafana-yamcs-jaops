@@ -1,65 +1,49 @@
 package source
 
 import (
-	"fmt"
+	"context"
+	"sync"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
-	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
-// YamcsHost represents a Yamcs server connection along with its instances and processors.
-type YamcsHost struct {
-	Client     *client.YamcsClient
-	Instances  map[string]client.Instance
+type YamcsHostInstance struct {
+	Instance   client.Instance
 	Processors map[string]client.Processor
 }
 
+// YamcsHost represents a Yamcs server connection along with its instances and processors.
+type YamcsHost struct {
+	mu            sync.RWMutex
+	Client        *client.YamcsClient
+	Instances     map[string]*YamcsHostInstance
+	Configuration *config.YamcsHostConfiguration
+}
+
+func (host *YamcsHost) Name() string {
+	return host.Configuration.DisplayName()
+}
+
+// retreive Host client
+func (host *YamcsHost) GetClient() *client.YamcsClient {
+
+	return host.Client
+
+}
+
 // SetupHost sets up a host for live subscriptions.
-func (mux *Multiplexer) SetupHost(hostID string) error {
-	hostConfig, exists := mux.Configuration.Hosts[hostID]
-	if !exists {
-		return exception.New(fmt.Sprintf("Configuration for host %s not found", hostID), "CONFIGURATION_NOT_FOUND")
+func (host *YamcsHost) Connect(ctx context.Context) error {
+
+	client := host.GetClient()
+
+	if client == nil {
+		return exception.New("client not found", "HOST_CONNECT_WITHOUT_CLIENT")
 	}
 
-	var tlsConfig corehttp.TLS
-	var creds corehttp.Credentials
-
-	if hostConfig.Tls {
-		tlsConfig = corehttp.GetTLSConfiguration(!hostConfig.TlsInsecure)
-	} else {
-		tlsConfig = corehttp.GetNoTLSConfiguration()
-	}
-
-	if !hostConfig.Auth {
-		creds = &corehttp.NoCredentials{}
-	} else {
-		username := hostConfig.Username
-		secure := mux.GetSecureData(hostID)
-		if secure == nil {
-			return exception.New(fmt.Sprintf("Secure configuration for host %s not found", hostID), "SECURE_CONFIGURATION_NOT_FOUND")
-		}
-		password := secure.Password
-		creds = &corehttp.BasicAuthCredentials{
-			Username: username,
-			Password: password,
-		}
-	}
-
-	yamcsClient, err := client.NewYamcsClient(hostConfig.Path, tlsConfig, creds)
-	if err != nil {
+	if err := client.EstablishWebSocketConnection(ctx); err != nil {
 		return err
-	}
-
-	if err = yamcsClient.EstablishWebSocketConnection(); err != nil {
-		return err
-	}
-
-	mux.Hosts[hostID] = &YamcsHost{
-		Client:     yamcsClient,
-		Instances:  make(map[string]client.Instance),
-		Processors: make(map[string]client.Processor),
 	}
 
 	return nil
@@ -74,4 +58,25 @@ func (mux *Multiplexer) GetSecureData(host string) *config.YamcsSecureHost {
 		return nil
 	}
 	return secureHost
+}
+
+// GetProcessorListener updates processor snapshots and keeps endpoint processor references current.
+func (host *YamcsHost) GetProcessorListener(instance client.Instance, processor client.Processor) func(update client.Processor) {
+
+	instanceName := instance.GetName()
+	processorName := processor.GetName()
+
+	return func(update client.Processor) {
+
+		if update == nil {
+			return
+		}
+
+		host.mu.Lock()
+		defer host.mu.Unlock()
+
+		// TODO: error checking
+		host.Instances[instanceName].Processors[processorName] = processor
+
+	}
 }

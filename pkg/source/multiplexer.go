@@ -1,292 +1,225 @@
 package source
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	yamcsprotobuf "github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
-	"google.golang.org/protobuf/proto"
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 // Multiplexer manages live parameter subscriptions, ensuring that only one subscription is active per parameter.
 // It will automatically terminate subscriptions when they are no longer needed.
 // It delegates connection management to ConnectionManager.
 type Multiplexer struct {
-	Hosts         map[string]*YamcsHost
-	Endpoints     map[string]*YamcsEndpoint
-	Configuration *config.YamcsPluginConfiguration
-	Secure        *config.YamcsSecureConfiguration
-	// ProcessorSnapshots keeps the latest processor update by instance/processor key.
-	ProcessorSnapshots map[string]client.Processor
+	Hosts     map[string]*YamcsHost
+	Endpoints map[string]*YamcsEndpoint
+	Secure    *config.YamcsSecureConfiguration
 
-	SyncMux sync.Mutex
+	SyncMux sync.RWMutex
 }
 
 // NewMultiplexer creates a fresh multiplexer with a connection manager.
-func NewMultiplexer(cfg *config.YamcsPluginConfiguration) *Multiplexer {
-	return &Multiplexer{
-		Hosts:              make(map[string]*YamcsHost),
-		Endpoints:          make(map[string]*YamcsEndpoint),
-		Configuration:      cfg,
-		ProcessorSnapshots: make(map[string]client.Processor),
-		SyncMux:            sync.Mutex{},
+func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSecureConfiguration) (*Multiplexer, error) {
+
+	mux := &Multiplexer{
+		Hosts:     make(map[string]*YamcsHost),
+		Endpoints: make(map[string]*YamcsEndpoint),
+		SyncMux:   sync.RWMutex{},
 	}
+
+	// Set up hosts
+	for hostID, hostCfg := range cfg.Hosts {
+		var tlsConfig corehttp.TLS
+		var creds corehttp.Credentials
+
+		if hostCfg.Tls {
+			tlsConfig = corehttp.GetTLSConfiguration(!hostCfg.TlsInsecure)
+		} else {
+			tlsConfig = corehttp.GetNoTLSConfiguration()
+		}
+
+		if !hostCfg.Auth {
+			creds = &corehttp.NoCredentials{}
+		} else {
+			username := hostCfg.Username
+			secure, found := seccfg.Hosts[hostID]
+			if !found {
+				return nil, exception.New(fmt.Sprintf("Secure configuration for host %s not found", hostID), "SECURE_CONFIGURATION_NOT_FOUND")
+			}
+			password := secure.Password
+			creds = &corehttp.BasicAuthCredentials{
+				Username: username,
+				Password: password,
+			}
+		}
+
+		yamcsClient, err := client.NewYamcsClient(hostCfg.Path, tlsConfig, creds)
+		if err != nil {
+			return nil, err
+		}
+		mux.Hosts[hostID] = &YamcsHost{
+			Instances:     map[string]*YamcsHostInstance{},
+			Configuration: hostCfg,
+			Client:        yamcsClient,
+		}
+	}
+
+	for endpointID, endpointCfg := range cfg.Endpoints {
+
+		endpointHostID := endpointCfg.Host
+		host, ok := mux.Hosts[endpointHostID]
+		if !ok {
+			return nil, exception.New(fmt.Sprintf("Host %s (for endpoint %s) not found", endpointHostID, endpointID), "ENDPOINT_HOST_NOT_FOUND")
+		}
+
+		mux.Endpoints[endpointID] = &YamcsEndpoint{
+			Configuration: endpointCfg,
+			Multiplexer:           mux,
+			Host:                  host,
+			Parameters:            make(map[string]*ParameterDemand),
+			Events:                make(map[string]chan *events.Event),
+			CommandHistorySignals: make(map[string]CommandHistorySignal),
+			Alarms:                make(map[string][]*alarms.AlarmData),
+			AlarmSignals:          make(map[string]chan struct{}),
+			LinkSignals:           make(map[string]LinkSignal),
+			AlarmCache:            make(map[string]*alarms.AlarmData),
+			ID:                    endpointID,
+		}
+	}
+
+	return mux, nil
 }
 
-// GetEndpoint retrieves or creates an Endpoint for the given ID.
 func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
+
+	mux.SyncMux.RLock()
+	defer mux.SyncMux.RUnlock()
+
+	ep, ok := mux.Endpoints[endpointID]
+
+	if !ok {
+		return nil, exception.New(fmt.Sprintf("endpoint %s not found", endpointID), "ENDPOINT_NOT_FOUND")
+	}
+
+	return ep, nil
+
+}
+
+// Connect attemps to connect to all hosts and endpoints and setup initial subscriptions
+// Initial subscriptions can be skipped by setting subscribe=false, this is mainly used in health checks
+// returns map of all errors in hosts and endpoints, op is sucessful when size of both maps is 0
+func (mux *Multiplexer) Connect(ctx context.Context, subscribe bool) (map[string]error, map[string]error) {
 	mux.SyncMux.Lock()
 	defer mux.SyncMux.Unlock()
 
-	// add logs
+	hostErrors := map[string]error{}
+	endpointErrors := map[string]error{}
 
-	backend.Logger.Debug("retrieving endpoint", "endpointID", endpointID)
-	endpointConfig, exists := mux.Configuration.Endpoints[endpointID]
-	if !exists {
-		return nil, exception.New("Configuration for endpoint "+endpointID+" not found", "ENDPOINT_CONFIG_NOT_FOUND")
-	}
+	for hostID, host := range mux.Hosts {
 
-	// Get the Yamcs client from the connection manager
-	backend.Logger.Debug("retrieving Yamcs client for host", "hostID", endpointConfig.Host)
-	yamcsClient, err := mux.GetClient(endpointConfig.Host)
-	if err != nil {
-		return nil, err
-	}
-
-	endpoint, exists := mux.Endpoints[endpointID]
-	if !exists {
-		backend.Logger.Debug("creating new endpoint", "endpointID", endpointID, "instance", endpointConfig.Instance, "processor", endpointConfig.Processor)
-		instance, err := yamcsClient.GetInstanceByName(endpointConfig.Instance)
+		err := host.Connect(ctx)
 		if err != nil {
-			return nil, err
+			hostErrors[hostID] = err
+			continue
 		}
 
-		backend.Logger.Debug("retrieving processor for instance", "instance", instance.GetName(), "processor", endpointConfig.Processor)
-		if endpointConfig.Processor == "" {
-			processor := yamcsClient.GetInstanceDefaultProcessor(instance)
+		cli := host.GetClient()
+		if cli == nil {
+			hostErrors[hostID] = exception.New(fmt.Sprintf("client for %s not found", host.Name()), "MUX_CONNECT_WITHOUT_CLIENT")
+			continue
+		}
+
+		instances, err := cli.ListInstances(ctx)
+		if err != nil {
+			hostErrors[hostID] = exception.Wrap(fmt.Sprintf("could not list instances for host %s", host.Name()), "MUX_CONNECT_LIST_INSTANCES", err)
+			continue
+		}
+		for _, instance := range instances {
+			host.Instances[instance.GetName()] = &YamcsHostInstance{
+				Instance:   instance,
+				Processors: map[string]client.Processor{},
+			}
+			for _, processor := range instance.Processors {
+				host.Instances[instance.GetName()].Processors[processor.GetName()] = processor
+			}
+
+		}
+
+	}
+
+	for endpointID, endpoint := range mux.Endpoints {
+
+		endpointHost := endpoint.GetHost()
+		if endpointHost == nil {
+			endpointErrors[endpointID] = exception.New(fmt.Sprintf("host for endpoint %s not found", endpoint.Name()), "MUX_CONNECT_ENDPOINT_NO_HOST")
+			continue
+		}
+
+		cli := endpointHost.GetClient()
+		if cli == nil {
+			endpointErrors[endpointID] = exception.New(fmt.Sprintf("client for endpoint %s not found", endpoint.Name()), "MUX_CONNECT_ENDPOINT_NO_CLIENT")
+			continue
+		}
+
+		if _, hasError := hostErrors[endpointHost.Configuration.ID]; hasError {
+			continue
+		}
+
+		instanceName := endpoint.Configuration.Instance
+		hInstance, ok := endpointHost.Instances[instanceName]
+		if !ok {
+			endpointErrors[endpointID] = exception.New(fmt.Sprintf("instance %s not found for endpoint %s", instanceName, endpoint.Name()), "MUX_CONNECT_NO_INSTANCE")
+			continue
+		}
+		instance := hInstance.Instance
+
+		var processor client.Processor
+		processorName := endpoint.Configuration.Processor
+		if processorName == "" {
+			processor = cli.GetInstanceDefaultProcessor(hInstance.Instance)
 			if processor == nil {
-				return nil, err
+				endpointErrors[endpointID] = exception.New(fmt.Sprintf("endpoint %s is set to default processor, yet host %s has no default processor", endpoint.Name(), instanceName), "MUX_CONNECT_NO_DEFAULT_PROCESSOR")
+				continue
+			}
+			processorName = processor.GetName()
+			endpoint.Configuration.Processor = processorName // save it
+		} else {
+			processor, ok = hInstance.Processors[processorName]
+			if !ok {
+				endpointErrors[endpointID] = exception.New(fmt.Sprintf("processor %s not found on instance %s for endpoint %s", processorName, instanceName, endpoint.Name()), "MUX_CONNECT_NO_PROCESSOR")
+				continue
 			}
 		}
-		processor, err := yamcsClient.GetProcessor(instance, endpointConfig.Processor)
-		if processor == nil {
-			return nil, err
+
+		if !subscribe {
+			continue
 		}
 
-		endpoint = &YamcsEndpoint{
-			Multiplexer:    mux,
-			Parameters:     make(map[string]*ParameterDemand),
-			Events:         make(map[string][]*events.Event),
-			CommandHistory: make(map[string][]*commanding.CommandHistoryEntry),
-			CommandSignals: make(map[string]chan struct{}),
-			Alarms:         make(map[string][]*alarms.AlarmData),
-			AlarmSignals:   make(map[string]chan struct{}),
-			Links:          make(map[string][]*links.LinkInfo),
-			AlarmCache:     make(map[string]*alarms.AlarmData),
-			ID:             endpointID,
-			Instance:       instance,
-			Processor:      processor,
-		}
-		mux.Endpoints[endpointID] = endpoint
-	}
-
-	mux.setProcessorSnapshot(endpoint.Instance.GetName(), endpoint.Processor.GetName(), endpoint.Processor)
-	if err := mux.ensureProcessorUpdatesSubscription(yamcsClient, endpoint); err != nil {
-		return nil, err
-	}
-
-	// subscribe once per (instance, processor)
-	subscriptionExists := false
-	for _, subscription := range yamcsClient.ParameterSubscriptions {
-		if subscription.Instance == endpointConfig.Instance && subscription.Processor == endpointConfig.Processor {
-			subscriptionExists = true
-			break
-		}
-	}
-	if !subscriptionExists {
-		subscription, err := yamcsClient.CreateParameterSubscription(endpoint.Instance, endpoint.Processor)
+		prosub, err := cli.CreateProcessorSubscription(instance, processor)
 		if err != nil {
-			return nil, err
+			endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not subscribe to updates on processor %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
+			continue
 		}
-		subscription.SetListener(endpoint.GetChannelParameterListener())
-	}
+		prosub.SetListener(endpointHost.GetProcessorListener(instance, processor))
 
-	backend.Logger.Debug("created endpoint", "endpoint", endpoint, "current endpoints", mux.Endpoints)
-
-	return endpoint, nil
-}
-
-func processorSnapshotKey(instanceName string, processorName string) string {
-	return instanceName + "::" + processorName
-}
-
-func (mux *Multiplexer) setProcessorSnapshot(instanceName string, processorName string, processor client.Processor) {
-	mux.ProcessorSnapshots[processorSnapshotKey(instanceName, processorName)] = processor
-}
-
-func (mux *Multiplexer) ensureProcessorUpdatesSubscription(yamcsClient *client.YamcsClient, endpoint *YamcsEndpoint) error {
-	for _, subscription := range yamcsClient.ProcessorSubscriptions {
-		if subscription.Instance == endpoint.Instance.GetName() && subscription.Processor == endpoint.Processor.GetName() {
-			return nil
+		// Create a parameter subscription, that will be used to add and remove parameters
+		parsub, err := cli.CreateParameterSubscription(ctx, instance, processor)
+		if err != nil {
+			endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not create parameter subscriptions on %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
+			continue
 		}
+		parsub.SetListener(endpoint.getChannelParameterListener())
+
 	}
 
-	subscription, err := yamcsClient.CreateProcessorSubscription(endpoint.Instance, endpoint.Processor)
-	if err != nil {
-		return err
-	}
-	subscription.SetListener(mux.GetProcessorListener(endpoint.Instance, endpoint.Processor))
-	return nil
-}
+	return hostErrors, endpointErrors
 
-// GetProcessorListener updates processor snapshots and keeps endpoint processor references current.
-func (mux *Multiplexer) GetProcessorListener(instance client.Instance, processor client.Processor) func(update client.Processor) {
-	instanceName := instance.GetName()
-	processorName := processor.GetName()
-
-	return func(update client.Processor) {
-		if update == nil {
-			return
-		}
-
-		mux.SyncMux.Lock()
-		defer mux.SyncMux.Unlock()
-
-		mux.setProcessorSnapshot(instanceName, processorName, update)
-		for _, endpoint := range mux.Endpoints {
-			if endpoint.Instance.GetName() == instanceName && endpoint.Processor.GetName() == processorName {
-				endpoint.Processor = update
-			}
-		}
-	}
-}
-
-// GetReplaySpeedMultiplier returns a multiplier for ticker speed based on current replay speed.
-// A multiplier <= 1 means no speedup should be applied.
-func (mux *Multiplexer) GetReplaySpeedMultiplier(instanceName string, processorName string) float64 {
-	mux.SyncMux.Lock()
-	processor := mux.ProcessorSnapshots[processorSnapshotKey(instanceName, processorName)]
-	mux.SyncMux.Unlock()
-
-	if processor == nil || !processor.GetReplay() {
-		return 1
-	}
-
-	replayRequest := processor.GetReplayRequest()
-	if replayRequest == nil || replayRequest.GetSpeed() == nil {
-		return 1
-	}
-
-	speed := replayRequest.GetSpeed()
-	if speed.GetType() != yamcsprotobuf.ReplaySpeed_REALTIME {
-		return 1
-	}
-
-	multiplier := float64(speed.GetParam())
-	if multiplier <= 1 {
-		return 1
-	}
-
-	return multiplier
-}
-
-// GetEventListener returns a function that listens for events from a specific Yamcs instance.
-func (mux *Multiplexer) GetEventListener(instance client.Instance) func(event *events.Event) {
-	return func(event *events.Event) {
-		for _, dataSource := range mux.Endpoints {
-			if dataSource.Instance.GetName() == instance.GetName() {
-				for path := range dataSource.Events {
-					dataSource.Events[path] = append(dataSource.Events[path], event)
-				}
-			}
-		}
-	}
-}
-
-// GetCommandHistoryListener returns a function that listens for command history entries.
-func (mux *Multiplexer) GetCommandHistoryListener(instance client.Instance) func(entry *commanding.CommandHistoryEntry) {
-	return func(entry *commanding.CommandHistoryEntry) {
-		for _, dataSource := range mux.Endpoints {
-			if dataSource.Instance.GetName() == instance.GetName() {
-				for path := range dataSource.CommandHistory {
-					dataSource.CommandHistory[path] = append(dataSource.CommandHistory[path], entry)
-					dataSource.NotifyCommandHistoryStream(path)
-				}
-			}
-		}
-	}
-}
-
-// GetAlarmsListener returns a function that listens for alarm events from a specific Yamcs instance.
-func (mux *Multiplexer) GetAlarmsListener(instance client.Instance) func(alarm *alarms.AlarmData) {
-	return func(alarm *alarms.AlarmData) {
-		for _, dataSource := range mux.Endpoints {
-			if dataSource.Instance.GetName() == instance.GetName() {
-				hasUpdate := false
-				// Generate unique alarm ID (namespace/name/seqNum)
-				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
-				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
-
-				dataSource.mu.Lock()
-				// If the alarm has been cleared, remove it from the cache
-				if alarm.GetClearInfo() != nil {
-					delete(dataSource.AlarmCache, alarmID)
-					hasUpdate = true
-					dataSource.mu.Unlock()
-					// Skip adding cleared alarms to streaming buffer
-				} else {
-
-					// Update the cache: merge incoming alarm data onto the existing cached entry
-					// so that fields only sent in TRIGGERED/SEVERITY_INCREASED (e.g. mostSevereValue)
-					// are not lost when VALUE_UPDATED notifications arrive with partial data.
-					if existing, ok := dataSource.AlarmCache[alarmID]; ok {
-						merged := proto.Clone(existing).(*alarms.AlarmData)
-						proto.Merge(merged, alarm)
-						// When an alarm is unshelved, Yamcs sends a notification with no shelveInfo.
-						// proto.Merge does not clear existing fields, so we must explicitly clear
-						// ShelveInfo when the notification type is UNSHELVED.
-						if alarm.GetNotificationType() == alarms.AlarmNotificationType_UNSHELVED {
-							merged.ShelveInfo = nil
-						}
-						dataSource.AlarmCache[alarmID] = merged
-					} else {
-						dataSource.AlarmCache[alarmID] = alarm
-					}
-					hasUpdate = true
-					dataSource.mu.Unlock()
-				}
-
-				if hasUpdate {
-					for path := range dataSource.Alarms {
-						dataSource.NotifyAlarmsStream(path)
-					}
-				}
-			}
-		}
-	}
-}
-
-// GetLinksListener returns a function that listens for links updates from a specific Yamcs instance.
-func (mux *Multiplexer) GetLinksListener(instance client.Instance) func(event *links.LinkEvent) {
-	return func(event *links.LinkEvent) {
-		for _, dataSource := range mux.Endpoints {
-			if dataSource.Instance.GetName() == instance.GetName() {
-				for path := range dataSource.Links {
-					buffer := make([]*links.LinkInfo, 0, len(event.GetLinks()))
-					buffer = append(buffer, event.GetLinks()...)
-					dataSource.Links[path] = buffer
-				}
-			}
-		}
-	}
 }
 
 func (mux *Multiplexer) Dispose() {
@@ -297,29 +230,4 @@ func (mux *Multiplexer) Dispose() {
 	}
 	mux.Hosts = make(map[string]*YamcsHost)
 	mux.Endpoints = make(map[string]*YamcsEndpoint)
-	mux.ProcessorSnapshots = make(map[string]client.Processor)
-}
-
-// GetClient gets or creates a YamcsClient for the given host ID.
-func (mux *Multiplexer) GetClient(hostID string) (*client.YamcsClient, error) {
-
-	host, exists := mux.Hosts[hostID]
-	if !exists {
-		if err := mux.SetupHost(hostID); err != nil {
-			return nil, err
-		}
-		host = mux.Hosts[hostID]
-	}
-
-	if host.Client == nil {
-		return nil, exception.New("Unexpected error retrieving Yamcs client", "CONNECTION_CLIENT_NOT_FOUND")
-	}
-
-	if !host.Client.IsWebSocketConnected() {
-		if err := host.Client.EstablishWebSocketConnection(); err != nil {
-			return nil, err
-		}
-	}
-
-	return host.Client, nil
 }

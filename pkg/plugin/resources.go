@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -20,16 +20,22 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 	}
 
 	response := make(map[string]any)
-	for endpointID, endpointConfiguration := range d.multiplexer.Configuration.Endpoints {
-		endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	for endpointID, endpoint := range d.multiplexer.Endpoints {
 		object := map[string]any{}
-		object["name"] = endpointConfiguration.Name
-		object["description"] = endpointConfiguration.Description
+		object["name"] = endpoint.Configuration.Name
+		object["description"] = endpoint.Configuration.Description
+		cli, err := endpoint.GetClient()
 		if err != nil {
 			object["online"] = false
 			object["error"] = err.Error()
 		} else {
-			object["online"] = endpoint.GetClient().WebSocket.IsConnected()
+			d.healthMutex.Lock()
+			status := d.lastHealthDetails.Endpoints[endpointID]
+			object["online"] = cli.WebSocket.IsConnected() && status.Status == "ok"
+			if status.Status != "ok" {
+				object["error"] = status.Message
+			}
+			d.healthMutex.Unlock()
 		}
 		response[endpointID] = object
 	}
@@ -52,11 +58,15 @@ func (d *Datasource) handleSearchParameters(w http.ResponseWriter, req *http.Req
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "SEARCH_PARAMETERS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	reqIterator := client.SearchParameters(endpoint.Instance, query)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "SEARCH_PARAMETERS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	reqIterator := client.SearchParameters(req.Context(), endpoint.GetInstanceName(), query)
 	results, err := reqIterator.Next()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -90,11 +100,16 @@ func (d *Datasource) handleSearchCommands(w http.ResponseWriter, req *http.Reque
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "SEARCH_COMMANDS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	reqIterator := client.SearchCommandInfo(endpoint.Instance, query)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "SEARCH_COMMANDS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+
+	reqIterator := client.SearchCommandInfo(req.Context(), endpoint.GetInstanceName(), query)
 	results, err := reqIterator.Next()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -125,7 +140,6 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/fetch/health-details", d.handleGetLastHealthDetails)
 
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
-	mux.HandleFunc("/endpoint/{endpointID}/time", d.handleEndpointTime)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
@@ -143,39 +157,6 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", d.handleRunLinkAction)
 }
 
-func (d *Datasource) handleEndpointTime(w http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodGet {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(req)
-	endpointID := vars["endpointID"]
-
-	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Ensure we are subscribed to processor time updates.
-	endpoint.RequestTime()
-
-	currentTime := endpoint.CurrentTime
-	currentTimeUpdatedAt := endpoint.CurrentTimeUpdatedAt
-	maxTimeAge := 10 * time.Second
-
-	if currentTime.IsZero() || currentTimeUpdatedAt.IsZero() || time.Since(currentTimeUpdatedAt) > maxTimeAge {
-		http.Error(w, "processor time unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"currentTime": currentTime.UnixMilli(),
-	})
-}
-
 // endpoint to get latest health details and whether they are available (non-nil)
 func (d *Datasource) handleGetLastHealthDetails(w http.ResponseWriter, req *http.Request) {
 	d.healthMutex.RLock()
@@ -183,7 +164,12 @@ func (d *Datasource) handleGetLastHealthDetails(w http.ResponseWriter, req *http
 
 	if d.lastHealthDetails != nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(d.lastHealthDetails)
+		jsonBytes, err := json.Marshal(d.lastHealthDetails)
+		if err != nil {
+			http.Error(w, "marshal error", http.StatusInternalServerError)
+			return
+		}
+		w.Write(jsonBytes)
 	} else {
 		http.Error(w, "No health details available", http.StatusNotFound)
 	}
@@ -248,12 +234,17 @@ func (d *Datasource) handleGetCommandInfo(w http.ResponseWriter, req *http.Reque
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "COMMAND_INFO_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
-	client := endpoint.GetClient()
-	commandInfo, err := client.GetCommandInfo(endpoint.Instance, commandName)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "COMMAND_INFO_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+
+	commandInfo, err := client.GetCommandInfo(req.Context(), endpoint.GetInstanceName(), commandName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -261,7 +252,7 @@ func (d *Datasource) handleGetCommandInfo(w http.ResponseWriter, req *http.Reque
 
 	marshalled, err := protojson.Marshal(commandInfo)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("could not marshal command info", "COMMAND_INFO_MARSHAL", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -287,18 +278,22 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "EXECUTE_COMMAND_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	response, err := client.IssueCommandWithComment(endpoint.Instance, endpoint.Processor, body.Name, body.Arguments, body.Comment)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "EXECUTE_COMMAND_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	response, err := client.IssueCommandWithComment(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.Arguments, body.Comment)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	marshalled, err := protojson.Marshal(response)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("could not marshal command response", "EXECUTE_COMMAND_MARSHAL", err).Error(), http.StatusInternalServerError)
 		return
 	}
 	responseJSON := json.RawMessage(marshalled)
@@ -337,11 +332,15 @@ func (d *Datasource) handleAcknowledgeAlarm(w http.ResponseWriter, req *http.Req
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "ACK_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	err = client.AcknowledgeAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum, body.Comment)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "ACK_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	err = client.AcknowledgeAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum, body.Comment)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -373,11 +372,15 @@ func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) 
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "CLEAR_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	err = client.ClearAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum, body.Comment)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "CLEAR_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	err = client.ClearAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum, body.Comment)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -409,11 +412,15 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "SHELVE_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	err = client.ShelveAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum, body.Comment, body.ShelveDuration)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "SHELVE_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	err = client.ShelveAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum, body.Comment, body.ShelveDuration)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -445,11 +452,15 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "UNSHELVE_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
-	client := endpoint.GetClient()
-	err = client.UnshelveAlarm(endpoint.Instance, endpoint.Processor, body.Name, body.SeqNum)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "UNSHELVE_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	err = client.UnshelveAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -495,12 +506,16 @@ func (d *Datasource) handleListLinks(w http.ResponseWriter, req *http.Request) {
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "LIST_LINKS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
-	client := endpoint.GetClient()
-	links, err := client.ListLinks(endpoint.Instance)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "LIST_LINKS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	links, err := client.ListLinks(req.Context(), endpoint.GetInstanceName())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -528,12 +543,16 @@ func (d *Datasource) handleGetLink(w http.ResponseWriter, req *http.Request) {
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "GET_LINK_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
-	client := endpoint.GetClient()
-	link, err := client.GetLink(endpoint.Instance, linkName)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "GET_LINK_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	link, err := client.GetLink(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -558,12 +577,16 @@ func (d *Datasource) handleEnableLink(w http.ResponseWriter, req *http.Request) 
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "ENABLE_LINK_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
-	client := endpoint.GetClient()
-	link, err := client.EnableLink(endpoint.Instance, linkName)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "ENABLE_LINK_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	link, err := client.EnableLink(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -588,12 +611,16 @@ func (d *Datasource) handleDisableLink(w http.ResponseWriter, req *http.Request)
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "DISABLE_LINK_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
-	client := endpoint.GetClient()
-	link, err := client.DisableLink(endpoint.Instance, linkName)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "DISABLE_LINK_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	link, err := client.DisableLink(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -618,12 +645,16 @@ func (d *Datasource) handleResetLinkCounters(w http.ResponseWriter, req *http.Re
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "RESET_LINK_COUNTERS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
-	client := endpoint.GetClient()
-	link, err := client.ResetLinkCounters(endpoint.Instance, linkName)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "RESET_LINK_COUNTERS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	link, err := client.ResetLinkCounters(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -654,7 +685,7 @@ func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Reques
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, exception.Wrap("endpoint not found", "RUN_LINK_ACTION_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -667,8 +698,12 @@ func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Reques
 		}
 	}
 
-	client := endpoint.GetClient()
-	response, err := client.RunLinkAction(endpoint.Instance, linkName, actionID, body.Message)
+	client, err := endpoint.GetClient()
+	if err != nil {
+		http.Error(w, exception.Wrap("client not found", "RUN_LINK_ACTION_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		return
+	}
+	response, err := client.RunLinkAction(req.Context(), endpoint.GetInstanceName(), linkName, actionID, body.Message)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
@@ -9,7 +11,7 @@ import (
 )
 
 // CommandHistoryListener defines a callback for incoming command history entries.
-type CommandHistoryListener func(entry *commanding.CommandHistoryEntry)
+type CommandHistoryListener func(entry *commanding.CommandHistoryEntry) error
 
 // CommandHistorySubscription manages a subscription to command history updates.
 type CommandHistorySubscription struct {
@@ -21,8 +23,8 @@ type CommandHistorySubscription struct {
 }
 
 // CreateCommandHistorySubscription creates a new command history subscription.
-func (client *YamcsClient) CreateCommandHistorySubscription(instance Instance, processor Processor) (*CommandHistorySubscription, error) {
-	subscription, err := client.newCommandHistorySubscription(instance.GetName(), processor.GetName())
+func (client *YamcsClient) CreateCommandHistorySubscription(instance string, processor string) (*CommandHistorySubscription, error) {
+	subscription, err := client.newCommandHistorySubscription(instance, processor)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +58,7 @@ func (client *YamcsClient) newCommandHistorySubscription(instance, processor str
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(context.Background(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -103,5 +105,5 @@ func (subscription *CommandHistorySubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 }

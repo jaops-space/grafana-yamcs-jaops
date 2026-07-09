@@ -28,16 +28,17 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 	// Create a per-instance multiplexer so different datasource instances
 	// do not share state or collide with each other.
-	multiplexer := source.NewMultiplexer(cfg)
-	multiplexer.Secure = secure
+	multiplexer, err := source.NewMultiplexer(cfg, secure)
+	if err != nil {
+		return nil, err
+	}
 	datasource.multiplexer = multiplexer
+
+	multiplexer.Connect(ctx, true)
 
 	router := mux.NewRouter()
 	datasource.registerRoutes(router)
 	datasource.CallResourceHandler = httpadapter.New(router)
-
-	// Always create querier (it will use Yamcs-only for endpoints without a database)
-	datasource.querier = source.New(cfg.Endpoints)
 
 	return &datasource, nil
 
@@ -45,7 +46,7 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 // SubscribeStream handles the initial data request when a user subscribes to a stream.
 // It fetches the historical data based on the query and returns it as the initial response.
-func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
+func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
 	var q PluginQuery
 
 	// Parse the query from the request payload
@@ -63,27 +64,27 @@ func (d *Datasource) SubscribeStream(_ context.Context, req *backend.SubscribeSt
 	var frame *data.Frame
 	switch q.Type {
 	case Graph:
-		frame, err = DatasourceGraphFrame(d.querier, endpoint, q)
+		frame, err = DatasourceGraphFrame(ctx, endpoint, q)
 	case SingleValue, Image:
-		frame, err = DatasourceSingleValueFrame(endpoint, q)
+		frame, err = DatasourceSingleValueFrame(ctx, endpoint, q)
 	case DiscreteValue:
-		frame, err = DatasourceDiscreteValueFrame(endpoint, q)
+		frame, err = DatasourceDiscreteValueFrame(ctx, endpoint, q)
 	case Events:
-		frame, err = DatasourceEventsFrame(endpoint, q)
+		frame, err = DatasourceEventsFrame(ctx, endpoint, q)
 	case Commanding:
-		frame, err = DatasourceCommandFrame(endpoint, q)
+		frame, err = DatasourceCommandFrame(ctx, endpoint, q)
 	case CommandHistory:
-		frame, err = DatasourceCommandHistoryFrame(endpoint, q)
+		frame, err = DatasourceCommandHistoryFrame(ctx, endpoint, q)
 	case Alarms:
-		frame, err = DatasourceAlarmsFrame(endpoint, q)
+		frame, err = DatasourceAlarmsFrame(ctx, endpoint, q)
 	case Links:
-		frame, err = DatasourceLinksFrame(endpoint, q)
+		frame, err = DatasourceLinksFrame(ctx, endpoint, q)
 	case Demands, Subscriptions:
 		return &backend.SubscribeStreamResponse{
 			Status: backend.SubscribeStreamStatusOK,
 		}, nil
 	case Time:
-		frame, err = DatasourceTimeFrame(endpoint, q)
+		frame, err = DatasourceTimeFrame(ctx, endpoint, q)
 	default:
 		return nil, exception.New("Query type not identified", "QUERY_TYPE_NOT_FOUND")
 	}
@@ -136,7 +137,6 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	if err != nil {
 		return err
 	}
-	endpoint.RequestTime()
 
 	// Route the stream to the appropriate handler
 	switch q.Type {

@@ -140,7 +140,7 @@ func TestApplyConnectivityChecks_NetworkFreeBranches(t *testing.T) {
 		},
 	}
 
-	d.applyConnectivityChecks(cfg, &config.YamcsSecureConfiguration{}, details)
+	d.applyConnectivityChecks(context.Background(), cfg, &config.YamcsSecureConfiguration{}, details)
 
 	if got := details.Endpoints["missingHostEndpoint"].Message; got != "Host configuration not found" {
 		t.Fatalf("expected missing host message, got %q", got)
@@ -160,7 +160,7 @@ func TestEvaluateHealth_ReturnsValidationErrorStatusAndJSON(t *testing.T) {
 		Endpoints: map[string]*config.YamcsEndpointConfiguration{},
 	}
 
-	status, message, detailsJSON, err := d.evaluateHealth(cfg, &config.YamcsSecureConfiguration{})
+	status, message, details, err := d.evaluateHealth(context.Background(), cfg, &config.YamcsSecureConfiguration{})
 	if err != nil {
 		t.Fatalf("evaluateHealth returned unexpected error: %v", err)
 	}
@@ -171,10 +171,6 @@ func TestEvaluateHealth_ReturnsValidationErrorStatusAndJSON(t *testing.T) {
 		t.Fatalf("expected message %q, got %q", "no hosts configured", message)
 	}
 
-	var details HealthDetails
-	if err := json.Unmarshal(detailsJSON, &details); err != nil {
-		t.Fatalf("failed to unmarshal details JSON: %v", err)
-	}
 	if details.TotalHosts != 0 || details.TotalEndpoints != 0 {
 		t.Fatalf("expected zero totals, got hosts=%d endpoints=%d", details.TotalHosts, details.TotalEndpoints)
 	}
@@ -218,25 +214,6 @@ func TestBuildHealthSummary(t *testing.T) {
 	})
 }
 
-func TestDisplayNameHelpers(t *testing.T) {
-	if got := hostDisplayName("h1", &config.YamcsHostConfiguration{Name: "Host Name", Path: "localhost:8090"}); got != "Host Name" {
-		t.Fatalf("expected host name preference, got %q", got)
-	}
-	if got := hostDisplayName("h1", &config.YamcsHostConfiguration{Path: "localhost:8090"}); got != "localhost:8090" {
-		t.Fatalf("expected host path fallback, got %q", got)
-	}
-	if got := hostDisplayName("h1", &config.YamcsHostConfiguration{}); got != "h1" {
-		t.Fatalf("expected host id fallback, got %q", got)
-	}
-
-	if got := endpointDisplayName("e1", &config.YamcsEndpointConfiguration{Name: "Endpoint Name"}); got != "Endpoint Name" {
-		t.Fatalf("expected endpoint name preference, got %q", got)
-	}
-	if got := endpointDisplayName("e1", &config.YamcsEndpointConfiguration{}); got != "e1" {
-		t.Fatalf("expected endpoint id fallback, got %q", got)
-	}
-}
-
 func TestCheckHealth_StoresLastDetailsOnValidationError(t *testing.T) {
 	d := &Datasource{}
 	settingsCfg := validConfig()
@@ -266,8 +243,8 @@ func TestCheckHealth_StoresLastDetailsOnValidationError(t *testing.T) {
 		t.Fatalf("expected validation message, got %q", result.Message)
 	}
 
-	details, ok := d.GetLastHealthDetails()
-	if !ok || len(details) == 0 {
+	_, ok := d.GetLastHealthDetails()
+	if !ok {
 		t.Fatalf("expected stored health details")
 	}
 }

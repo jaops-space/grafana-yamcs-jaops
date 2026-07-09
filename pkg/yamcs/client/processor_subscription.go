@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/processing"
@@ -64,7 +66,7 @@ func (client *YamcsClient) newProcessorSubscription(instance string, processor s
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(context.Background(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -112,5 +114,5 @@ func (subscription *ProcessorSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 }
