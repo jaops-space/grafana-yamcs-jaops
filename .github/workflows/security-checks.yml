@@ -220,8 +220,8 @@ jobs:
           {
             echo "<details><summary>Raw outputs</summary>"
             echo
-            echo "- gosec JSON: artifact `security-reports-${{ github.run_id }}` / `gosec.json`"
-            echo "- plugin-validator JSON: artifact `security-reports-${{ github.run_id }}` / `plugin-validator.json`"
+            echo "- gosec JSON: artifact security-reports-${{ github.run_id }} / gosec.json"
+            echo "- plugin-validator JSON: artifact security-reports-${{ github.run_id }} / plugin-validator.json"
             echo
             echo "</details>"
           } >> pr-security-comment.md
