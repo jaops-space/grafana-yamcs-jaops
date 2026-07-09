@@ -97,7 +97,7 @@ type AlarmListener func(event *alarms.AlarmData)
 
 // AlarmSubscription represents a subscription to Yamcs alarm events.
 type AlarmSubscription struct {
-	callID   int
+	callID   int32
 	listener AlarmListener
 	instance string
 	client   *YamcsClient
@@ -152,7 +152,7 @@ func (c *YamcsClient) HandleAlarmMessage(msg *api.ServerMessage) {
 		return
 	}
 
-	if subscription, exists := c.AlarmSubscriptions[int(msg.GetCall())]; exists && subscription.listener != nil {
+	if subscription, exists := c.AlarmSubscriptions[msg.GetCall()]; exists && subscription.listener != nil {
 		subscription.listener(alarmData)
 	}
 }
@@ -172,7 +172,7 @@ func (sub *AlarmSubscription) Halt() {
 	delete(sub.client.AlarmSubscriptions, sub.callID)
 
 	cancelRequest := &api.CancelOptions{
-		Call: int32(sub.callID),
+		Call: sub.callID,
 	}
 
 	anyMessage, _ := anypb.New(cancelRequest)
@@ -187,7 +187,7 @@ type GlobalStatusListener func(event *alarms.GlobalAlarmStatus)
 
 // GlobalStatusSubscription represents a subscription to global alarm status events.
 type GlobalStatusSubscription struct {
-	callID              int
+	callID              int32
 	eventMapping        map[int]string
 	subscribedInstances types.Set[string]
 	listener            GlobalStatusListener
@@ -246,7 +246,7 @@ func (c *YamcsClient) HandleGlobalStatusMessage(msg *api.ServerMessage) {
 		return
 	}
 
-	if subscription, exists := c.GlobalAlarmStatusSubscriptions[int(msg.GetCall())]; exists && subscription.listener != nil {
+	if subscription, exists := c.GlobalAlarmStatusSubscriptions[msg.GetCall()]; exists && subscription.listener != nil {
 		subscription.listener(statusData)
 	}
 }

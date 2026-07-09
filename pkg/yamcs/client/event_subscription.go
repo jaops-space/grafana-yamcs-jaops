@@ -13,7 +13,7 @@ type EventListener func(event *events.Event)
 
 // EventSubscription represents a subscription to events in a specific instance.
 type EventSubscription struct {
-	subscriptionID      int
+	subscriptionID      int32
 	eventMapping        map[int]string
 	activeSubscriptions types.Set[string]
 	eventListener       EventListener
@@ -80,7 +80,7 @@ func (client *YamcsClient) HandleEventMessage(message *api.ServerMessage) {
 
 		// Retrieve the subscription using the call ID from the message
 		callID := message.GetCall()
-		subscription, found := client.EventSubscriptions[int(callID)]
+		subscription, found := client.EventSubscriptions[callID]
 		if found && subscription.eventListener != nil {
 			// Invoke the listener with the unmarshalled event data
 			subscription.eventListener(event)
@@ -100,7 +100,7 @@ func (subscription *EventSubscription) Halt() {
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{
-		Call: int32(subscription.subscriptionID),
+		Call: subscription.subscriptionID,
 	}
 
 	anyMessage, _ := anypb.New(subscribeRequest)

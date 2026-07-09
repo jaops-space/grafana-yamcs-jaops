@@ -1,4 +1,4 @@
-name: Security PR Checks
+name: Security Checks
 
 'on':
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  pr-security:
+  security:
     name: gosec + plugin-validator
     runs-on: ubuntu-latest
     steps:
@@ -47,14 +47,16 @@ jobs:
 
           exit "$gosec_json_status"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
-
-      - name: Enable pnpm
-        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
@@ -122,11 +124,11 @@ jobs:
 
           exit "$status"
 
-      - name: Upload raw PR security artifacts
+      - name: Upload raw security artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: security-pr-reports-${{ github.run_id }}
+          name: security-reports-${{ github.run_id }}
           path: |
             gosec.txt
             gosec.json
@@ -134,7 +136,7 @@ jobs:
             plugin-validator.json
           retention-days: 14
 
-      - name: Evaluate PR security status
+      - name: Evaluate security status
         id: evaluate
         if: always()
         run: |
@@ -161,6 +163,6 @@ jobs:
       - name: Fail workflow on findings
         if: always() && steps.evaluate.outputs.failed == 'true'
         run: |
-          echo "PR security checks detected issues:"
+          echo "security checks detected issues:"
           echo "${{ steps.evaluate.outputs.summary }}"
           exit 1
