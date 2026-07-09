@@ -1,0 +1,166 @@
+name: Security PR Checks
+
+'on':
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      plugin_archive:
+        description: Plugin archive filename for validator input
+        required: false
+        default: jaops-yamcs-app.zip
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pr-security:
+    name: gosec + plugin-validator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run gosec (HIGH only)
+        id: gosec
+        continue-on-error: true
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+
+          set +e
+          gosec -severity high -fmt=json -out=gosec.json ./pkg/...
+          gosec_json_status=$?
+
+          gosec -severity high ./pkg/... | tee gosec.txt
+          gosec_txt_status=$?
+
+          if [ "$gosec_txt_status" -ne 0 ]; then
+            exit "$gosec_txt_status"
+          fi
+
+          exit "$gosec_json_status"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build plugin package for validator
+        env:
+          PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
+        run: |
+          pnpm run build
+
+          plugin_id="$(jq -r '.id' dist/plugin.json)"
+          if [ -z "$plugin_id" ] || [ "$plugin_id" = "null" ]; then
+            echo "Could not determine plugin id from dist/plugin.json"
+            exit 1
+          fi
+
+          rm -rf "$plugin_id"
+          cp -R dist "$plugin_id"
+          rm -f "$PLUGIN_ARCHIVE"
+          zip -r "$PLUGIN_ARCHIVE" "$plugin_id"
+
+      - name: Run plugin-validator
+        id: plugin-validator
+        continue-on-error: true
+        env:
+          PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
+        run: |
+          cat > .plugin-validator-security.yml <<'EOF'
+          global:
+            enabled: true
+            jsonOutput: true
+            reportAll: false
+
+          analyzers:
+            sponsorshiplink:
+              rules:
+                sponsorshiplink:
+                  enabled: false
+            manifest:
+              rules:
+                unsigned-plugin:
+                  enabled: false
+            signature:
+              rules:
+                unsigned-plugin:
+                  enabled: false
+            provenance:
+              rules:
+                no-provenance-attestation:
+                  enabled: false
+          EOF
+
+          set +e
+          npx --yes @grafana/plugin-validator@latest \
+            -config .plugin-validator-security.yml \
+            -sourceCodeUri file://./ \
+            "$PLUGIN_ARCHIVE" > plugin-validator.json 2>&1
+          status=$?
+
+          if jq -e . plugin-validator.json >/dev/null 2>&1; then
+            jq . plugin-validator.json > plugin-validator.txt
+          else
+            cp plugin-validator.json plugin-validator.txt
+          fi
+
+          exit "$status"
+
+      - name: Upload raw PR security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-pr-reports-${{ github.run_id }}
+          path: |
+            gosec.txt
+            gosec.json
+            plugin-validator.txt
+            plugin-validator.json
+          retention-days: 14
+
+      - name: Evaluate PR security status
+        id: evaluate
+        if: always()
+        run: |
+          failed=false
+          summary=""
+
+          if [ "${{ steps.gosec.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- gosec reported HIGH findings or failed"
+          fi
+
+          if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- plugin-validator reported blocking findings or failed"
+          fi
+
+          {
+            echo "failed=${failed}"
+            echo "summary<<EOF"
+            echo -e "${summary}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fail workflow on findings
+        if: always() && steps.evaluate.outputs.failed == 'true'
+        run: |
+          echo "PR security checks detected issues:"
+          echo "${{ steps.evaluate.outputs.summary }}"
+          exit 1
