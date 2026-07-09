@@ -13,6 +13,7 @@ name: Security Checks
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   security:
@@ -157,6 +158,102 @@ jobs:
             echo -e "${summary}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Build PR security comment from JSON
+        id: pr-comment
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          gosec_findings=0
+          if [ -f gosec.json ] && jq -e . gosec.json >/dev/null 2>&1; then
+            gosec_findings=$(jq '[.Issues[]?] | length' gosec.json)
+          fi
+
+          plugin_findings=0
+          if [ -f plugin-validator.json ] && jq -e . plugin-validator.json >/dev/null 2>&1; then
+            plugin_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
+          fi
+
+          total_findings=$((gosec_findings + plugin_findings))
+          if [ "$total_findings" -eq 0 ]; then
+            echo "has_findings=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "<!-- security-checks-comment -->"
+            echo "## Security checks found issues"
+            echo
+            echo "This PR introduced findings in automated security checks."
+            echo
+            echo "| Scanner | Findings |"
+            echo "|---|---:|"
+            echo "| gosec (HIGH severity) | ${gosec_findings} |"
+            echo "| plugin-validator (error severity) | ${plugin_findings} |"
+            echo
+          } > pr-security-comment.md
+
+          if [ "$gosec_findings" -gt 0 ]; then
+            {
+              echo "### gosec highlights"
+              echo
+              jq -r '.Issues[]? | "- \(.severity // "UNKNOWN") \(.rule_id // "RULE") in \(.file // "unknown file"):\(.line // 0) - \(.details // "No details")"' gosec.json | sed -n '1,15p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          if [ "$plugin_findings" -gt 0 ]; then
+            {
+              echo "### plugin-validator highlights"
+              echo
+              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          {
+            echo "<details><summary>Raw outputs</summary>"
+            echo
+            echo "- gosec JSON: artifact `security-reports-${{ github.run_id }}` / `gosec.json`"
+            echo "- plugin-validator JSON: artifact `security-reports-${{ github.run_id }}` / `plugin-validator.json`"
+            echo
+            echo "</details>"
+          } >> pr-security-comment.md
+
+          echo "has_findings=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post PR security comment
+        if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const marker = '<!-- security-checks-comment -->';
+            const body = fs.readFileSync('pr-security-comment.md', 'utf8');
+            const issue_number = context.payload.pull_request.number;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              });
+            }
 
       - name: Fail workflow on findings
         if: always() && steps.evaluate.outputs.failed == 'true'
