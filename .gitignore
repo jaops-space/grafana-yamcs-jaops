@@ -24,7 +24,7 @@ yarn-error.log*
 coverage.out
 
 # IDE and Editor Files
-.vscode/
+.vscode/*
 .idea/
 
 # archive files
@@ -37,3 +37,6 @@ dist/
 package-lock.json
 .eslintcache
 jaops-yamcs-app.zip
+
+# delve configuration
+!.vscode/launch.json
