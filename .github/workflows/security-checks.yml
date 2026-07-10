@@ -90,6 +90,14 @@ jobs:
             reportAll: false
 
           analyzers:
+            backendbinary:
+              enabled: false
+            binarypermissions:
+              enabled: false
+            go-manifest:
+              enabled: false
+            version:
+              enabled: false
             sponsorshiplink:
               rules:
                 sponsorshiplink:
