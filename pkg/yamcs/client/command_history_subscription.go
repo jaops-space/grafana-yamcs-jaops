@@ -13,7 +13,7 @@ type CommandHistoryListener func(entry *commanding.CommandHistoryEntry)
 
 // CommandHistorySubscription manages a subscription to command history updates.
 type CommandHistorySubscription struct {
-	subscriptionID      int
+	subscriptionID      int32
 	activeSubscriptions types.Set[string]
 	commandListener     CommandHistoryListener
 	Instance            string
@@ -75,7 +75,7 @@ func (client *YamcsClient) HandleCommandMessage(message *api.ServerMessage) {
 		}
 
 		callID := message.GetCall()
-		subscription, found := client.CommandHistorySubscriptions[int(callID)]
+		subscription, found := client.CommandHistorySubscriptions[callID]
 		if found && subscription.commandListener != nil {
 			subscription.commandListener(entry)
 		}
@@ -93,7 +93,7 @@ func (subscription *CommandHistorySubscription) Halt() {
 	delete(subscription.client.CommandHistorySubscriptions, subscription.subscriptionID)
 
 	cancelRequest := &api.CancelOptions{
-		Call: int32(subscription.subscriptionID),
+		Call: subscription.subscriptionID,
 	}
 
 	anyMessage, _ := anypb.New(cancelRequest)

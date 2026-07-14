@@ -1,0 +1,63 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "00:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - security
+      - go
+    groups:
+      go-patch-minor:
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "00:15"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - security
+      - node
+    groups:
+      npm-patch-minor:
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "00:30"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - security
+      - docker
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "00:45"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - security
+      - ci

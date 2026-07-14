@@ -16,7 +16,7 @@ type ParameterListener func(parameter string, newValue *pvalue.ParameterValue)
 
 // ParameterSubscription manages a subscription to a set of parameters from a Yamcs instance and processor.
 type ParameterSubscription struct {
-	subscriptionID      int
+	subscriptionID      int32
 	parameterIDToName   map[int]string    // Maps internal parameter IDs to names
 	ActiveSubscriptions types.Set[string] // Set of currently subscribed parameters
 	valueChangeListener ParameterListener // Listener for value changes
@@ -159,7 +159,7 @@ func (sub *ParameterSubscription) updateSubscription(action processing.Subscribe
 
 	message := &api.ClientMessage{
 		Type:    "parameters",
-		Call:    int32(sub.subscriptionID),
+		Call:    sub.subscriptionID,
 		Options: anyMessage,
 	}
 
@@ -177,7 +177,7 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 
 		// Retrieve the subscription by call ID
 		callID := message.GetCall()
-		subscription, found := client.ParameterSubscriptions[int(callID)]
+		subscription, found := client.ParameterSubscriptions[callID]
 		if !found {
 			return
 		}
@@ -247,7 +247,7 @@ func (subscription *ParameterSubscription) Halt() {
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{
-		Call: int32(subscription.subscriptionID),
+		Call: subscription.subscriptionID,
 	}
 
 	anyMessage, _ := anypb.New(subscribeRequest)

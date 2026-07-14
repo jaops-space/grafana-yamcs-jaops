@@ -34,7 +34,25 @@ function TimeSyncSetup() {
             </Card>
 
             <Card>
-                <Card.Heading>Step 3: Keep Dashboard Range Relative</Card.Heading>
+                <Card.Heading>Step 3: Recommended Replay/Simulation Setup</Card.Heading>
+                <Card.Description>
+                    <ul>
+                        <li>
+                            Enable <Text color="primary">Enable Yamcs time sync</Text>.
+                        </li>
+                        <li>
+                            Keep <Text color="primary">Only apply when range is relative</Text> enabled.
+                        </li>
+                        <li>
+                            Start with <Text variant="code">Offset step (ms) = 15000</Text> and{' '}
+                            <Text variant="code">Minimum write interval (ms) = 10000</Text> for stable updates.
+                        </li>
+                    </ul>
+                </Card.Description>
+            </Card>
+
+            <Card>
+                <Card.Heading>Step 4: Keep Dashboard Range Relative</Card.Heading>
                 <Card.Description>
                     Use a relative dashboard range, for example <Text variant="code">now-15m</Text> to{' '}
                     <Text variant="code">now</Text>. Time sync works{' '}
