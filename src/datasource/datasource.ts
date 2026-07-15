@@ -58,19 +58,19 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
 
                 let pathName = 'query';
                 if (query.parameter) {
-                    pathName = `${query.endpoint}-${query.parameter.replaceAll('/', '')}${query.aggregatePath}`;
+                    pathName = `${query.parameter.replaceAll('/', '-')}`;
                 } else if (query.type === QueryType.EVENTS) {
-                    pathName = `${query.endpoint}-events`;
+                    pathName = `events`;
                 } else if (query.type === QueryType.DEMANDS) {
                     pathName = `demands`;
                 } else if (query.type === QueryType.SUBSCRIPTIONS) {
                     pathName = 'subscriptions';
                 } else if (query.type === QueryType.COMMAND_HISTORY) {
-                    pathName = `${query.endpoint}-commands`;
+                    pathName = `commands`;
                 } else if (query.type === QueryType.ALARMS) {
-                    pathName = `${query.endpoint}-alarms`;
+                    pathName = `alarms`;
                 } else if (query.type === QueryType.LINKS) {
-                    pathName = `${query.endpoint}-links`;
+                    pathName = `links`;
                 }
 
                 let action = StreamingFrameAction.Append;
@@ -97,6 +97,8 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const fromUnix = request.range.from.unix();
                 const toUnix = request.range.to.unix();
 
+                const formattedRange = `${request.range.raw.from}-${request.range.raw.to}`;
+
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
                         maxLength: this.bufferMaxLength,
@@ -105,13 +107,12 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     addr: {
                         scope: LiveChannelScope.DataSource,
                         stream: this.uid,
-                        path: `req/${query.endpoint}-${pathName}-${fromUnix}-${toUnix}-${request.maxDataPoints ?? 1000}`,
+                        path: `req/${query.endpoint}/${pathName}/${formattedRange}-${request.maxDataPoints ?? 1000}`,
                         data: {
                             ...query,
                             from: fromUnix,
                             to: toUnix,
                             realtime: request.range.raw.to === 'now',
-                            frontendShiftedTime: false,
                             points: request.maxDataPoints ?? 1000,
                         },
                     },

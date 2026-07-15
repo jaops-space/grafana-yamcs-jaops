@@ -19,23 +19,39 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 		return
 	}
 
+	details, err := d.refreshHealthDetails(req.Context())
+	if err != nil {
+		http.Error(w, exception.Wrap("could not refresh endpoint health", "FETCH_ENDPOINTS_REFRESH", err).Error(), http.StatusInternalServerError)
+		return
+	}
+
 	response := make(map[string]any)
 	for endpointID, endpoint := range d.multiplexer.Endpoints {
 		object := map[string]any{}
-		object["name"] = endpoint.Configuration.Name
+		object["name"] = endpoint.Name()
 		object["description"] = endpoint.Configuration.Description
+		object["online"] = false
+
 		cli, err := endpoint.GetClient()
 		if err != nil {
-			object["online"] = false
 			object["error"] = err.Error()
 		} else {
-			d.healthMutex.Lock()
-			status := d.lastHealthDetails.Endpoints[endpointID]
-			object["online"] = cli.WebSocket.IsConnected() && status.Status == "ok"
-			if status.Status != "ok" {
-				object["error"] = status.Message
+			connected := cli.WebSocket != nil && cli.WebSocket.IsConnected()
+			status := ItemStatus{Status: "ok"}
+			if details != nil {
+				if s, ok := details.Endpoints[endpointID]; ok {
+					status = s
+				}
 			}
-			d.healthMutex.Unlock()
+
+			online := connected && status.Status == "ok"
+			object["online"] = online
+
+			if status.Status != "ok" && status.Message != "" {
+				object["error"] = status.Message
+			} else if !connected {
+				object["error"] = "websocket not connected"
+			}
 		}
 		response[endpointID] = object
 	}

@@ -168,6 +168,7 @@ func (ep *YamcsEndpoint) getOrCreateParameterDemand(ctx context.Context, paramet
 		thresholds = tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
 		if len(unitSet) > 0 {
 			unit = unitSet[0].GetUnit()
+			backend.Logger.Debug("found unit", "parameter", parameter, "unit", unit)
 		}
 
 		ep.Parameters[parameter] = &ParameterDemand{

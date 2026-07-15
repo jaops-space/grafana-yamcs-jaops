@@ -81,11 +81,6 @@ func RunParameterStream(ctx context.Context,
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 
-	aggregatePath := ""
-	if len(q.AggregatePath) > 0 {
-		aggregatePath = "." + q.AggregatePath
-	}
-
 	var getMin bool = false
 	var getMax bool = false
 	for _, getField := range q.Fields {
@@ -111,9 +106,9 @@ func RunParameterStream(ctx context.Context,
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, false)
+				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter, getMin, getMax, "", false)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, getMin, getMax, aggregatePath, false)
+				frame = tools.ConvertBufferToFrame(buffer, q.Parameter, getMin, getMax, "", false)
 			}
 
 			sender.SendFrame(
@@ -161,99 +156,6 @@ func RunEventStream(ctx context.Context,
 				frame,
 				data.IncludeDataOnly,
 			)
-		}
-	}
-
-}
-
-func RunDemandsStream(ctx context.Context,
-	req *backend.RunStreamRequest,
-	sender *backend.StreamSender,
-	endpoint *source.YamcsEndpoint,
-	q PluginQuery) error {
-
-	tickerInterval := scaleTickerIntervalByReplay(endpoint, time.Second)
-	ticker := time.NewTicker(tickerInterval)
-
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-
-			streamPaths := make([]string, 0)
-			parameters := make([]string, 0)
-			lastReceived := make([]time.Time, 0)
-
-			for _, parameter := range endpoint.Parameters {
-				for _, stream := range parameter.Streams {
-					streamPaths = append(streamPaths, stream.Path)
-					parameters = append(parameters, parameter.Name)
-					lastReceived = append(lastReceived, parameter.LastReceived)
-				}
-			}
-
-			frame := data.NewFrame("response",
-				data.NewField("Parameter", nil, parameters),
-				data.NewField("Stream Path", nil, streamPaths),
-				data.NewField("Last Value Received", nil, lastReceived),
-			)
-
-			sender.SendFrame(
-				frame,
-				data.IncludeAll,
-			)
-
-		}
-	}
-
-}
-
-func RunSubscriptionStream(ctx context.Context,
-	req *backend.RunStreamRequest,
-	sender *backend.StreamSender,
-	endpoint *source.YamcsEndpoint,
-	q PluginQuery) error {
-
-	yamcs, err := endpoint.GetClient()
-	if err != nil {
-		return backend.DownstreamError(err)
-	}
-
-	if !yamcs.WebSocket.IsConnected() {
-		return backend.DownstreamErrorf("yamcs client disconnected")
-	}
-
-	tickerInterval := scaleTickerIntervalByReplay(endpoint, time.Second)
-	ticker := time.NewTicker(tickerInterval)
-
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-
-			subscriptions := make([]string, 0)
-
-			for _, sub := range yamcs.ParameterSubscriptions {
-				for param := range sub.ActiveSubscriptions {
-					subscriptions = append(subscriptions, param)
-				}
-			}
-
-			frame := data.NewFrame("response",
-				data.NewField("Parameter", nil, subscriptions),
-			)
-
-			sender.SendFrame(
-				frame,
-				data.IncludeAll,
-			)
-
 		}
 	}
 

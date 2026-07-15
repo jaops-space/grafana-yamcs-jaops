@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -21,13 +22,14 @@ import (
 type WebSocketHandler struct {
 	Credentials      corehttp.Credentials
 	connection       *websocket.Conn
-	isConnected      int32
+	isConnected      atomic.Int32
 	useProtobuf      bool
 	serverRoot       string
 	messageListeners map[ListenerID]MessageListener
 	messageCallbacks map[int]MessageCallback
 	currentPacketID  int
-	mutex            sync.Mutex
+	mu               sync.Mutex
+	nmu              sync.Mutex // network mutex
 	disconnectFunc   func()
 	handshakeTimeout int
 	once             sync.Once // Ensures only one connection attempt
@@ -40,6 +42,7 @@ func NewWebSocketHandler(serverRoot string, useProtobuf bool) *WebSocketHandler 
 	return &WebSocketHandler{
 		serverRoot:       serverRoot,
 		useProtobuf:      useProtobuf,
+		currentPacketID:  0,
 		messageListeners: make(map[ListenerID]MessageListener),
 		messageCallbacks: make(map[int]MessageCallback),
 		handshakeTimeout: 5,
@@ -47,24 +50,24 @@ func NewWebSocketHandler(serverRoot string, useProtobuf bool) *WebSocketHandler 
 	}
 }
 
-func (websocketHandler *WebSocketHandler) SetHandshakeTimeout(seconds int) {
-	websocketHandler.handshakeTimeout = seconds
+func (ws *WebSocketHandler) SetHandshakeTimeout(seconds int) {
+	ws.handshakeTimeout = seconds
 }
 
 // Connect establishes the WebSocket connection, ensuring it happens only once.
-func (websocketHandler *WebSocketHandler) Connect(ctx context.Context) error {
+func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 	var err error
 
-	websocketHandler.mutex.Lock()
-	defer websocketHandler.mutex.Unlock()
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
 
-	if atomic.LoadInt32(&websocketHandler.isConnected) == 1 {
+	if ws.isConnected.Load() == 1 {
 		return nil
 	}
 
 	dialer := websocket.DefaultDialer
-	dialer.HandshakeTimeout = time.Duration(websocketHandler.handshakeTimeout) * time.Second
-	if websocketHandler.useProtobuf {
+	dialer.HandshakeTimeout = time.Duration(ws.handshakeTimeout) * time.Second
+	if ws.useProtobuf {
 		dialer.Subprotocols = []string{"protobuf"}
 	} else {
 		dialer.Subprotocols = []string{"json"}
@@ -72,33 +75,33 @@ func (websocketHandler *WebSocketHandler) Connect(ctx context.Context) error {
 
 	// Prepare headers
 	headers := http.Header{}
-	if websocketHandler.Credentials != nil {
+	if ws.Credentials != nil {
 		// Apply credentials headers
 		// Here we fake a request so BeforeRequest can set headers normally
 		req := &http.Request{Header: headers}
-		websocketHandler.Credentials.BeforeRequest(req)
+		ws.Credentials.BeforeRequest(req)
 	}
 
-	conn, _, dialErr := dialer.DialContext(ctx, websocketHandler.serverRoot, headers)
+	conn, _, dialErr := dialer.DialContext(ctx, ws.serverRoot, headers)
 	if dialErr != nil {
 		return dialErr
 	}
 	backend.Logger.Debug("Websocket: Connected to WebSocket.")
 
-	websocketHandler.connection = conn
-	atomic.StoreInt32(&websocketHandler.isConnected, 1)
+	ws.connection = conn
+	ws.isConnected.Store(1)
 
 	return err
 }
 
-func (websocketHandler *WebSocketHandler) Listen() {
+func (ws *WebSocketHandler) Listen() {
 
-	defer websocketHandler.ForceDisconnect()
+	defer ws.ForceDisconnect()
 	backend.Logger.Debug("Websocket: Listening for WebSocket messages.")
 	defer backend.Logger.Debug("Websocket: Stopped listening for WebSocket messages.")
 
 	for {
-		messageType, data, err := websocketHandler.connection.ReadMessage()
+		messageType, data, err := ws.connection.ReadMessage()
 
 		if messageType == websocket.CloseMessage {
 			backend.Logger.Debug("Websocket: Received close message.")
@@ -115,7 +118,7 @@ func (websocketHandler *WebSocketHandler) Listen() {
 		}
 
 		message := &api.ServerMessage{}
-		if websocketHandler.useProtobuf {
+		if ws.useProtobuf {
 			if err = proto.Unmarshal(data, message); err != nil {
 				backend.Logger.Error("Error unmarshalling message: ", err)
 				continue
@@ -133,112 +136,145 @@ func (websocketHandler *WebSocketHandler) Listen() {
 				backend.Logger.Error("Error unmarshalling reply: ", err)
 				continue
 			}
-			websocketHandler.mutex.Lock()
-			callback, found := websocketHandler.messageCallbacks[int(reply.GetReplyTo())]
-			websocketHandler.mutex.Unlock()
+			ws.mu.Lock()
+			callback, found := ws.messageCallbacks[int(reply.GetReplyTo())]
+			ws.mu.Unlock()
+
 			if found {
 				callback(int(message.GetCall()), int(message.GetSeq()), &reply)
 			}
 		}
 
-		for _, listener := range websocketHandler.messageListeners {
+		for _, listener := range ws.messageListeners {
 			listener(message)
 		}
 	}
 }
 
-func (websocketHandler *WebSocketHandler) IsConnected() bool {
-	return atomic.LoadInt32(&websocketHandler.isConnected) == 1
+func (ws *WebSocketHandler) IsConnected() bool {
+	return ws.isConnected.Load() == 1
 }
 
 // Disconnect properly closes the WebSocket and resets connection state.
-func (websocketHandler *WebSocketHandler) Disconnect() error {
-	if !websocketHandler.IsConnected() {
+func (ws *WebSocketHandler) Disconnect() error {
+	if !ws.IsConnected() {
 		return exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
 	}
-	err := websocketHandler.connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	websocketHandler.ForceDisconnect()
+	ws.nmu.Lock()
+	err := ws.connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	ws.nmu.Unlock()
+
+	ws.ForceDisconnect()
 	return err
 }
 
-func (websocketHandler *WebSocketHandler) ForceDisconnect() {
-	atomic.StoreInt32(&websocketHandler.isConnected, 0)
-	websocketHandler.connection.Close()
-	websocketHandler.once = sync.Once{} // Reset Once so connection can be retried.
-	if websocketHandler.disconnectFunc != nil {
-		websocketHandler.disconnectFunc()
+func (ws *WebSocketHandler) ForceDisconnect() {
+	ws.isConnected.Store(0)
+	ws.connection.Close()
+	ws.once = sync.Once{} // Reset Once so connection can be retried.
+	if ws.disconnectFunc != nil {
+		ws.disconnectFunc()
 	}
 }
 
-func (websocketHandler *WebSocketHandler) SendSync(ctx context.Context, message *api.ClientMessage) (*api.Reply, int, int, error) {
+type syncResponse struct {
+	reply *api.Reply
+	call  int
+	seq   int
+}
+
+func (ws *WebSocketHandler) SendSync(
+	ctx context.Context,
+	message *api.ClientMessage,
+) (*api.Reply, int, int, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	var data []byte
-	var err error
-	if websocketHandler.useProtobuf {
-		data, err = proto.Marshal(message)
-	} else {
-		data, err = protojson.Marshal(message)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	responseCh := make(chan syncResponse, 1)
+
+	// Allocate the ID and register the callback before sending.
+	ws.mu.Lock()
+	currentID := ws.currentPacketID
+	ws.currentPacketID++
+
+	message.Id = int32(currentID)
+
+	ws.messageCallbacks[currentID] = func(
+		call int,
+		seq int,
+		reply *api.Reply,
+	) {
+		// Buffered channel prevents the callback from blocking if timeout and
+		// reply arrival happen at nearly the same time.
+		select {
+		case responseCh <- syncResponse{
+			reply: reply,
+			call:  call,
+			seq:   seq,
+		}:
+		default:
+		}
 	}
+	ws.mu.Unlock()
+
+	defer func() {
+		ws.mu.Lock()
+		delete(ws.messageCallbacks, currentID)
+		ws.mu.Unlock()
+	}()
+
+	data, err := ws.marshalClientMessage(message)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	ws.nmu.Lock()
+	err = ws.connection.WriteMessage(websocket.BinaryMessage, data)
+	ws.nmu.Unlock()
 
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	done := make(chan struct{})
-	var reply *api.Reply
-	var call, seq int
-
-	websocketHandler.mutex.Lock()
-	message.Id = int32(websocketHandler.currentPacketID)
-	currentID := websocketHandler.currentPacketID
-	websocketHandler.currentPacketID++
-	websocketHandler.messageCallbacks[currentID] = func(returnedCall int, returnedSeq int, returnedReply *api.Reply) {
-		call = returnedCall
-		seq = returnedSeq
-		reply = returnedReply
-		close(done)
-	}
-
-	if err = websocketHandler.connection.WriteMessage(websocket.BinaryMessage, data); err != nil {
-		delete(websocketHandler.messageCallbacks, currentID)
-		websocketHandler.mutex.Unlock()
-		return nil, 0, 0, err
-	}
-	websocketHandler.mutex.Unlock()
-
-	timer := time.NewTimer(10 * time.Second)
-	defer timer.Stop()
-
 	select {
-	case <-done:
-		websocketHandler.mutex.Lock()
-		delete(websocketHandler.messageCallbacks, currentID)
-		websocketHandler.mutex.Unlock()
-		return reply, call, seq, nil
-	case <-timer.C:
-		websocketHandler.mutex.Lock()
-		delete(websocketHandler.messageCallbacks, currentID)
-		websocketHandler.mutex.Unlock()
-		return nil, 0, 0, exception.New("Timeout waiting for reply.", "WS_TIMEOUT")
+	case response := <-responseCh:
+		return response.reply, response.call, response.seq, nil
+
 	case <-ctx.Done():
-		websocketHandler.mutex.Lock()
-		delete(websocketHandler.messageCallbacks, currentID)
-		websocketHandler.mutex.Unlock()
-		return nil, 0, 0, exception.Wrap("Context canceled waiting for reply", "WS_CONTEXT_CANCELED", ctx.Err())
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, 0, 0, exception.New(
+				"Timeout waiting for reply.",
+				"WS_TIMEOUT",
+			)
+		}
+
+		return nil, 0, 0, exception.Wrap(
+			"Context canceled waiting for reply",
+			"WS_CONTEXT_CANCELED",
+			ctx.Err(),
+		)
 	}
 }
 
-func (websocketHandler *WebSocketHandler) Send(message *api.ClientMessage) error {
+func (ws *WebSocketHandler) marshalClientMessage(
+	message *api.ClientMessage,
+) ([]byte, error) {
+	if ws.useProtobuf {
+		return proto.Marshal(message)
+	}
 
-	websocketHandler.mutex.Lock()
-	defer websocketHandler.mutex.Unlock()
+	return protojson.Marshal(message)
+}
+
+func (ws *WebSocketHandler) Send(message *api.ClientMessage) error {
 
 	var data []byte
 	var err error
-	if websocketHandler.useProtobuf {
+	if ws.useProtobuf {
 		data, err = proto.Marshal(message)
 	} else {
 		data, err = protojson.Marshal(message)
@@ -246,20 +282,24 @@ func (websocketHandler *WebSocketHandler) Send(message *api.ClientMessage) error
 	if err != nil {
 		return err
 	}
-	return websocketHandler.connection.WriteMessage(websocket.BinaryMessage, data)
+
+	ws.nmu.Lock()
+	defer ws.nmu.Unlock()
+
+	return ws.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
 // AddListener registers a listener for a specific message type.
-func (websocketHandler *WebSocketHandler) AddListener(name ListenerID, listener MessageListener) {
-	websocketHandler.messageListeners[name] = listener
+func (ws *WebSocketHandler) AddListener(name ListenerID, listener MessageListener) {
+	ws.messageListeners[name] = listener
 }
 
 // RemoveListener removes a listener by name.
-func (websocketHandler *WebSocketHandler) RemoveListener(name ListenerID) {
-	delete(websocketHandler.messageListeners, name)
+func (ws *WebSocketHandler) RemoveListener(name ListenerID) {
+	delete(ws.messageListeners, name)
 }
 
 // SetDisconnectHandler sets the callback function to be called on disconnection.
-func (websocketHandler *WebSocketHandler) SetDisconnectHandler(handler func()) {
-	websocketHandler.disconnectFunc = handler
+func (ws *WebSocketHandler) SetDisconnectHandler(handler func()) {
+	ws.disconnectFunc = handler
 }

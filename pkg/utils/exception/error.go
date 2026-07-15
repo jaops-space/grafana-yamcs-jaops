@@ -20,7 +20,7 @@ type PluginException struct {
 
 // It returns a detailed error string including the message, code, timestamp, and cause.
 func (e *PluginException) Error() string {
-	errorMessage := fmt.Sprintf("yamcs plugin error (%s): %s", e.Code, e.Message)
+	errorMessage := fmt.Sprintf("yamcs plugin error: %s (code: %s)", e.Message, e.Code)
 	if e.Cause != nil {
 		errorMessage += fmt.Sprintf(" | cause: %v", e.Cause)
 	}

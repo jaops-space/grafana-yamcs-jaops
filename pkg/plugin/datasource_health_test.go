@@ -153,29 +153,6 @@ func TestApplyConnectivityChecks_NetworkFreeBranches(t *testing.T) {
 	}
 }
 
-func TestEvaluateHealth_ReturnsValidationErrorStatusAndJSON(t *testing.T) {
-	d := &Datasource{}
-	cfg := &config.YamcsPluginConfiguration{
-		Hosts:     map[string]*config.YamcsHostConfiguration{},
-		Endpoints: map[string]*config.YamcsEndpointConfiguration{},
-	}
-
-	status, message, details, err := d.evaluateHealth(context.Background(), cfg, &config.YamcsSecureConfiguration{})
-	if err != nil {
-		t.Fatalf("evaluateHealth returned unexpected error: %v", err)
-	}
-	if status != backend.HealthStatusError {
-		t.Fatalf("expected HealthStatusError, got %v", status)
-	}
-	if message != "no hosts configured" {
-		t.Fatalf("expected message %q, got %q", "no hosts configured", message)
-	}
-
-	if details.TotalHosts != 0 || details.TotalEndpoints != 0 {
-		t.Fatalf("expected zero totals, got hosts=%d endpoints=%d", details.TotalHosts, details.TotalEndpoints)
-	}
-}
-
 func TestBuildHealthSummary(t *testing.T) {
 	t.Run("errors", func(t *testing.T) {
 		status, message := buildHealthSummary(&HealthDetails{

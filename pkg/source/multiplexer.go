@@ -19,6 +19,7 @@ import (
 type Multiplexer struct {
 	Hosts     map[string]*YamcsHost
 	Endpoints map[string]*YamcsEndpoint
+	Config    *config.YamcsPluginConfiguration
 	Secure    *config.YamcsSecureConfiguration
 
 	SyncMux sync.RWMutex
@@ -30,6 +31,8 @@ func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSe
 	mux := &Multiplexer{
 		Hosts:     make(map[string]*YamcsHost),
 		Endpoints: make(map[string]*YamcsEndpoint),
+		Config:    cfg,
+		Secure:    seccfg,
 		SyncMux:   sync.RWMutex{},
 	}
 
@@ -79,7 +82,7 @@ func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSe
 		}
 
 		mux.Endpoints[endpointID] = &YamcsEndpoint{
-			Configuration: endpointCfg,
+			Configuration:         endpointCfg,
 			Multiplexer:           mux,
 			Host:                  host,
 			Parameters:            make(map[string]*ParameterDemand),
