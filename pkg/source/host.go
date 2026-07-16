@@ -49,6 +49,18 @@ func (host *YamcsHost) Connect(ctx context.Context) error {
 	return nil
 }
 
+func (host *YamcsHost) IsConnected() bool {
+
+	client := host.GetClient()
+
+	if client != nil {
+		return false
+	}
+
+	return client.IsWebSocketConnected()
+
+}
+
 func (mux *Multiplexer) GetSecureData(host string) *config.YamcsSecureHost {
 	if host == "" {
 		return nil

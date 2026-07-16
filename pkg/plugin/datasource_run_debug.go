@@ -20,7 +20,7 @@ func RunSubscriptionStream(ctx context.Context,
 		return backend.DownstreamError(err)
 	}
 
-	if !yamcs.WebSocket.IsConnected() {
+	if !yamcs.IsWebSocketConnected() {
 		return backend.DownstreamErrorf("yamcs client disconnected")
 	}
 

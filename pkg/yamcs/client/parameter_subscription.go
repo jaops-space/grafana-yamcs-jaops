@@ -174,7 +174,8 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 	if message.GetType() == "parameters" {
 		parameterData := &processing.SubscribeParametersData{}
 		if err := message.Data.UnmarshalTo(parameterData); err != nil {
-			panic(exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
+			backend.Logger.Error(exception.Wrap("unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err).Error())
+			return
 		}
 
 		// Retrieve the subscription by call ID

@@ -47,6 +47,9 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 // SubscribeStream handles the initial data request when a user subscribes to a stream.
 // It fetches the historical data based on the query and returns it as the initial response.
 func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
+
+	d.multiplexer.Connect(ctx, true)
+
 	var q PluginQuery
 
 	// Parse the query from the request payload
@@ -86,7 +89,7 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	case Time:
 		frame, err = DatasourceTimeFrame(ctx, endpoint, q)
 	default:
-		return nil, exception.New("Query type not identified", "QUERY_TYPE_NOT_FOUND")
+		return nil, exception.New("query type not identified", "QUERY_TYPE_NOT_FOUND")
 	}
 
 	if err != nil {
@@ -125,10 +128,13 @@ func (d *Datasource) PublishStream(context.Context, *backend.PublishStreamReques
 // frequent value (for non-numeric values). This behavior ensures consistency with
 // how historical data is retrieved, making real-time and historical views seamless.
 func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
+
+	d.multiplexer.Connect(ctx, true)
+
 	var q PluginQuery
 
 	// Parse the query from the request payload
-	if err := json.Unmarshal(req.Data, &q); err != nil {
+	if err := json.Unmarshal(req.Data, &q); err != nil {	
 		return err
 	}
 
@@ -157,7 +163,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	case Time:
 		return RunTimeStream(ctx, req, sender, endpoint, q)
 	default:
-		return nil
+		return exception.New("query type not identified", "QUERY_TYPE_NOT_FOUND")
 	}
 }
 

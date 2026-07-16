@@ -62,7 +62,7 @@ func RunParameterStream(ctx context.Context,
 		return backend.DownstreamError(err)
 	}
 
-	if !yamcs.WebSocket.IsConnected() {
+	if !yamcs.IsWebSocketConnected() {
 		yamcs.EstablishWebSocketConnection(ctx)
 	}
 
@@ -131,7 +131,7 @@ func RunEventStream(ctx context.Context,
 		return backend.DownstreamError(err)
 	}
 
-	if !yamcs.WebSocket.IsConnected() {
+	if !yamcs.IsWebSocketConnected() {
 		return backend.DownstreamErrorf("yamcs client disconnected")
 	}
 	signal, err := endpoint.RequestEventsStream(ctx, req.Path)
@@ -147,7 +147,7 @@ func RunEventStream(ctx context.Context,
 			return ctx.Err()
 		case event := <-signal:
 
-			if !yamcs.WebSocket.IsConnected() {
+			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
@@ -184,7 +184,7 @@ func RunCommandHistoryStream(
 		case <-ctx.Done():
 			return ctx.Err()
 		case command := <-signal:
-			if !yamcs.WebSocket.IsConnected() {
+			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 			// TODO: remove array overhead
@@ -210,7 +210,7 @@ func RunTimeStream(
 		return backend.DownstreamError(err)
 	}
 
-	if !yamcs.WebSocket.IsConnected() {
+	if !yamcs.IsWebSocketConnected() {
 		return backend.DownstreamErrorf("yamcs client disconnected")
 	}
 
@@ -231,7 +231,7 @@ func RunTimeStream(
 			return ctx.Err()
 		case <-ticker.C:
 
-			if !yamcs.WebSocket.IsConnected() {
+			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
@@ -270,7 +270,7 @@ func RunAlarmsStream(
 		return backend.DownstreamError(err)
 	}
 
-	if !yamcs.WebSocket.IsConnected() {
+	if !yamcs.IsWebSocketConnected() {
 		return backend.DownstreamErrorf("yamcs client disconnected")
 	}
 
@@ -284,7 +284,7 @@ func RunAlarmsStream(
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-signal:
-			if !yamcs.WebSocket.IsConnected() {
+			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
@@ -334,7 +334,7 @@ func RunLinksStream(
 		return backend.DownstreamError(err)
 	}
 
-	if !yamcs.WebSocket.IsConnected() {
+	if !yamcs.IsWebSocketConnected() {
 		return backend.DownstreamErrorf("yamcs client disconnected")
 	}
 
@@ -348,7 +348,7 @@ func RunLinksStream(
 		case <-ctx.Done():
 			return ctx.Err()
 		case link := <-signal:
-			if !yamcs.WebSocket.IsConnected() {
+			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 

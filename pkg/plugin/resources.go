@@ -36,7 +36,7 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 		if err != nil {
 			object["error"] = err.Error()
 		} else {
-			connected := cli.WebSocket != nil && cli.WebSocket.IsConnected()
+			connected := cli.IsWebSocketConnected()
 			status := ItemStatus{Status: "ok"}
 			if details != nil {
 				if s, ok := details.Endpoints[endpointID]; ok {

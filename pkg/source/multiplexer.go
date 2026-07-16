@@ -9,6 +9,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
@@ -114,17 +115,25 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 
 }
 
-// Connect attemps to connect to all hosts and endpoints and setup initial subscriptions
+// Connect attemps to connect to all disconnected hosts and endpoints and setup initial subscriptions
 // Initial subscriptions can be skipped by setting subscribe=false, this is mainly used in health checks
 // returns map of all errors in hosts and endpoints, op is sucessful when size of both maps is 0
 func (mux *Multiplexer) Connect(ctx context.Context, subscribe bool) (map[string]error, map[string]error) {
+
 	mux.SyncMux.Lock()
 	defer mux.SyncMux.Unlock()
 
 	hostErrors := map[string]error{}
 	endpointErrors := map[string]error{}
 
+	alreadyConnectedHosts := types.NewSet[*YamcsHost]()
+
 	for hostID, host := range mux.Hosts {
+
+		if host.IsConnected() {
+			alreadyConnectedHosts.Add(host)
+			continue
+		}
 
 		err := host.Connect(ctx)
 		if err != nil {
@@ -161,6 +170,11 @@ func (mux *Multiplexer) Connect(ctx context.Context, subscribe bool) (map[string
 		endpointHost := endpoint.GetHost()
 		if endpointHost == nil {
 			endpointErrors[endpointID] = exception.New(fmt.Sprintf("host for endpoint %s not found", endpoint.Name()), "MUX_CONNECT_ENDPOINT_NO_HOST")
+			continue
+		}
+
+		// skip if already connected to host beforehand
+		if alreadyConnectedHosts.Exists(endpointHost) {
 			continue
 		}
 
