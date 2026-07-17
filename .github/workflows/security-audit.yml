@@ -71,7 +71,7 @@ jobs:
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
           export PATH="$(go env GOPATH)/bin:$PATH"
           set +e
-          osv-scanner scan --recursive . --format json > osv-scanner.json 2>&1
+          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.json 2>&1
           status=$?
           if jq -e . osv-scanner.json >/dev/null 2>&1; then
             jq . osv-scanner.json > osv-scanner.txt

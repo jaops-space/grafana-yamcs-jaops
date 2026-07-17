@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   security:
-    name: gosec + plugin-validator
+    name: gosec + osv-scanner + plugin-validator
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -60,6 +60,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Run OSV-Scanner
+        id: osv-scanner
+        continue-on-error: true
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          set +e
+          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.json 2>&1
+          status=$?
+          if jq -e . osv-scanner.json >/dev/null 2>&1; then
+            jq . osv-scanner.json > osv-scanner.txt
+          else
+            cp osv-scanner.json osv-scanner.txt
+          fi
+          exit "$status"
+
       - name: Build plugin package for validator
         env:
           PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
@@ -90,6 +106,8 @@ jobs:
             reportAll: false
 
           analyzers:
+            osv-scanner:
+              enabled: false
             backendbinary:
               enabled: false
             binarypermissions:
@@ -146,6 +164,8 @@ jobs:
           path: |
             gosec.txt
             gosec.json
+            osv-scanner.txt
+            osv-scanner.json
             plugin-validator.txt
             plugin-validator.json
           retention-days: 14
@@ -160,6 +180,11 @@ jobs:
           if [ "${{ steps.gosec.outcome }}" = "failure" ]; then
             failed=true
             summary="${summary}\n- gosec reported HIGH findings or failed"
+          fi
+
+          if [ "${{ steps.osv-scanner.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- osv-scanner reported vulnerabilities or failed"
           fi
 
           if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
@@ -183,12 +208,17 @@ jobs:
             gosec_findings=$(jq '[.Issues[]?] | length' gosec.json)
           fi
 
+          osv_findings=0
+          if [ -f osv-scanner.json ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
+            osv_findings=$(jq '[.results[]?.packages[]?.vulnerabilities[]?] | length' osv-scanner.json)
+          fi
+
           plugin_findings=0
           if [ -f plugin-validator.json ] && jq -e . plugin-validator.json >/dev/null 2>&1; then
             plugin_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
           fi
 
-          total_findings=$((gosec_findings + plugin_findings))
+          total_findings=$((gosec_findings + osv_findings + plugin_findings))
           if [ "$total_findings" -eq 0 ]; then
             echo "has_findings=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -196,13 +226,14 @@ jobs:
 
           {
             echo "<!-- security-checks-comment -->"
-            echo "## Security checks found issues"
+            echo "### Security checks found issues"
             echo
             echo "This PR introduced findings in automated security checks."
             echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
             echo "| gosec (HIGH severity) | ${gosec_findings} |"
+            echo "| osv-scanner | ${osv_findings} |"
             echo "| plugin-validator (error severity) | ${plugin_findings} |"
             echo
           } > pr-security-comment.md
@@ -212,6 +243,15 @@ jobs:
               echo "### gosec highlights"
               echo
               jq -r '.Issues[]? | "- \(.severity // "UNKNOWN") \(.rule_id // "RULE") in \(.file // "unknown file"):\(.line // 0) - \(.details // "No details")"' gosec.json | sed -n '1,15p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          if [ "$osv_findings" -gt 0 ]; then
+            {
+              echo "### osv-scanner highlights"
+              echo
+              jq -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | "- Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
               echo
             } >> pr-security-comment.md
           fi
@@ -229,6 +269,7 @@ jobs:
             echo "<details><summary>Raw outputs</summary>"
             echo
             echo "- gosec JSON: artifact security-reports-${{ github.run_id }} / gosec.json"
+            echo "- osv-scanner JSON: artifact security-reports-${{ github.run_id }} / osv-scanner.json"
             echo "- plugin-validator JSON: artifact security-reports-${{ github.run_id }} / plugin-validator.json"
             echo
             echo "</details>"
