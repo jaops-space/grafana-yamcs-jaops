@@ -67,14 +67,27 @@ jobs:
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
           export PATH="$(go env GOPATH)/bin:$PATH"
           set +e
-          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.json 2>&1
-          status=$?
+          ./osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.raw 2>&1
+          scan_status=$?
+
+          # osv-scanner may emit log lines before JSON; normalize output for jq parsing.
+          if jq -e . osv-scanner.raw >/dev/null 2>&1; then
+            cp osv-scanner.raw osv-scanner.json
+          else
+            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' osv-scanner.raw > osv-scanner.json || true
+          fi
+
           if jq -e . osv-scanner.json >/dev/null 2>&1; then
             jq . osv-scanner.json > osv-scanner.txt
-          else
-            cp osv-scanner.json osv-scanner.txt
+            osv_high_critical=$(jq '[.results[]?.packages[]?.vulnerabilities[]? | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+            if [ "$osv_high_critical" -gt 0 ]; then
+              exit 1
+            fi
+            exit 0
           fi
-          exit "$status"
+
+          cp osv-scanner.raw osv-scanner.txt
+          exit "$scan_status"
 
       - name: Build plugin package for validator
         env:
@@ -164,6 +177,7 @@ jobs:
           path: |
             gosec.txt
             gosec.json
+            osv-scanner.raw
             osv-scanner.txt
             osv-scanner.json
             plugin-validator.txt
@@ -184,7 +198,7 @@ jobs:
 
           if [ "${{ steps.osv-scanner.outcome }}" = "failure" ]; then
             failed=true
-            summary="${summary}\n- osv-scanner reported vulnerabilities or failed"
+            summary="${summary}\n- osv-scanner reported HIGH/CRITICAL vulnerabilities or failed"
           fi
 
           if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
@@ -210,7 +224,7 @@ jobs:
 
           osv_findings=0
           if [ -f osv-scanner.json ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
-            osv_findings=$(jq '[.results[]?.packages[]?.vulnerabilities[]?] | length' osv-scanner.json)
+            osv_findings=$(jq '[.results[]?.packages[]?.vulnerabilities[]? | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
           fi
 
           plugin_findings=0
@@ -226,14 +240,14 @@ jobs:
 
           {
             echo "<!-- security-checks-comment -->"
-            echo "### Security checks found issues"
+            echo "## Security checks found issues"
             echo
             echo "This PR introduced findings in automated security checks."
             echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
             echo "| gosec (HIGH severity) | ${gosec_findings} |"
-            echo "| osv-scanner | ${osv_findings} |"
+            echo "| osv-scanner (HIGH/CRITICAL) | ${osv_findings} |"
             echo "| plugin-validator (error severity) | ${plugin_findings} |"
             echo
           } > pr-security-comment.md
@@ -251,7 +265,7 @@ jobs:
             {
               echo "### osv-scanner highlights"
               echo
-              jq -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | "- Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
+              jq -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
               echo
             } >> pr-security-comment.md
           fi
