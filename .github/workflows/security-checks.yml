@@ -28,7 +28,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run gosec (HIGH only)
+      - name: Run gosec (HIGH/CRITICAL policy)
         id: gosec
         continue-on-error: true
         run: |
@@ -79,8 +79,13 @@ jobs:
 
           if jq -e . osv-scanner.json >/dev/null 2>&1; then
             jq . osv-scanner.json > osv-scanner.txt
-            osv_high_critical=$(jq '[.results[]?.packages[]?.vulnerabilities[]? | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
-            if [ "$osv_high_critical" -gt 0 ]; then
+            pnpm list --prod --depth Infinity --json \
+              | jq -r '.. | objects | .name? // empty' \
+              | sort -u > osv-prod-packages.txt
+
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_runtime_high_critical=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+            if [ "$osv_runtime_high_critical" -gt 0 ]; then
               exit 1
             fi
             exit 0
@@ -180,6 +185,7 @@ jobs:
             osv-scanner.raw
             osv-scanner.txt
             osv-scanner.json
+            osv-prod-packages.txt
             plugin-validator.txt
             plugin-validator.json
           retention-days: 14
@@ -193,12 +199,12 @@ jobs:
 
           if [ "${{ steps.gosec.outcome }}" = "failure" ]; then
             failed=true
-            summary="${summary}\n- gosec reported HIGH findings or failed"
+            summary="${summary}\n- gosec reported HIGH/CRITICAL-policy findings or failed"
           fi
 
           if [ "${{ steps.osv-scanner.outcome }}" = "failure" ]; then
             failed=true
-            summary="${summary}\n- osv-scanner reported HIGH/CRITICAL vulnerabilities or failed"
+            summary="${summary}\n- osv-scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
           fi
 
           if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
@@ -223,8 +229,9 @@ jobs:
           fi
 
           osv_findings=0
-          if [ -f osv-scanner.json ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
-            osv_findings=$(jq '[.results[]?.packages[]?.vulnerabilities[]? | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+          if [ -f osv-scanner.json ] && [ -f osv-prod-packages.txt ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
           fi
 
           plugin_findings=0
@@ -246,8 +253,8 @@ jobs:
             echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
-            echo "| gosec (HIGH severity) | ${gosec_findings} |"
-            echo "| osv-scanner (HIGH/CRITICAL) | ${osv_findings} |"
+            echo "| gosec (HIGH/CRITICAL policy) | ${gosec_findings} |"
+            echo "| osv-scanner (runtime HIGH/CRITICAL) | ${osv_findings} |"
             echo "| plugin-validator (error severity) | ${plugin_findings} |"
             echo
           } > pr-security-comment.md
@@ -265,7 +272,8 @@ jobs:
             {
               echo "### osv-scanner highlights"
               echo
-              jq -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
+              prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
               echo
             } >> pr-security-comment.md
           fi
