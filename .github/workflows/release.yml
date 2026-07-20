@@ -27,7 +27,7 @@ jobs:
                     echo "::notice::GRAFANA_ACCESS_POLICY_TOKEN found"
                     echo "has_token=true" >> $GITHUB_OUTPUT
                   fi
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
             - uses: grafana/plugin-actions/build-plugin@main
               with:
                   # Use Go 1.25 to match go.mod requirements
