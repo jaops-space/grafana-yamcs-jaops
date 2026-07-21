@@ -10,7 +10,8 @@ on:
             - master
             - main
 
-permissions: read-all
+permissions:
+    contents: read
 
 jobs:
     build:
@@ -146,8 +147,60 @@ jobs:
               id: resolve-versions
               uses: grafana/plugin-actions/e2e-version@main
 
+    yamcs-integration:
+        name: Yamcs integration tests
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        needs: build
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Go environment
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+
+            - name: Start Yamcs quickstart
+              run: |
+                  git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml up -d --build
+
+            - name: Wait for Yamcs readiness
+              run: |
+                  for i in $(seq 1 120); do
+                    if curl -fsS http://localhost:8090/api/instances >/tmp/yamcs_instances.json; then
+                      cat /tmp/yamcs_instances.json
+                      exit 0
+                    fi
+                    sleep 2
+                  done
+                  echo "Yamcs did not become ready in time"
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs || true
+                  exit 1
+
+            - name: Run Yamcs integration tests
+              env:
+                  YAMCS_ADDRESS: localhost:8090
+              run: go test -tags=integration ./pkg/yamcs/client -run Integration -v -count=1
+
+            - name: Dump Yamcs logs on failure
+              if: ${{ failure() }}
+              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs > yamcs-integration.log
+
+            - name: Upload Yamcs logs
+              if: ${{ failure() }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: yamcs-integration-logs-${{ github.run_id }}
+                  path: yamcs-integration.log
+                  retention-days: 7
+
+            - name: Stop Yamcs quickstart
+              if: always()
+              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v
+
     playwright-tests:
-        needs: [resolve-versions, build]
+        needs: [resolve-versions, build, yamcs-integration]
         timeout-minutes: 15
         strategy:
             fail-fast: false
@@ -186,6 +239,23 @@ jobs:
                   docker compose pull
                   GF_LOG_LEVEL=debug ANONYMOUS_AUTH_ENABLED=false DEVELOPMENT=false GRAFANA_VERSION=${{ matrix.GRAFANA_IMAGE.VERSION }} GRAFANA_IMAGE=${{ matrix.GRAFANA_IMAGE.NAME }} docker compose up -d
 
+            - name: Start Yamcs quickstart
+              run: |
+                  git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml up -d --build
+
+            - name: Wait for Yamcs readiness
+              run: |
+                  for i in $(seq 1 120); do
+                    if curl -fsS http://localhost:8090/api/instances >/dev/null; then
+                      exit 0
+                    fi
+                    sleep 2
+                  done
+                  echo "Yamcs did not become ready in time"
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs || true
+                  exit 1
+
             - name: Check if Grafana container is running
               run: |
                   sleep 10
@@ -212,7 +282,10 @@ jobs:
                   docker logs jaops-yamcs-app >& grafana-server.log
 
             - name: Stop grafana docker
-              run: docker compose down
+              if: always()
+              run: |
+                  docker compose down
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v
 
             - name: Upload server log
               uses: actions/upload-artifact@v4

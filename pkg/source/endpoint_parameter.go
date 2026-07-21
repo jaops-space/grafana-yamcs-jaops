@@ -36,9 +36,16 @@ type ParameterStreamDemand struct {
 // GetChannelParameterListener returns a function to listen for parameter updates.
 func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener {
 	return func(parameter string, value *pvalue.ParameterValue) error {
+		started := time.Now()
+		streamCount := 0
 
 		ep.mu.Lock()
 		defer ep.mu.Unlock()
+		defer func() {
+			if ep.ParameterProcessObserver != nil && streamCount > 0 {
+				ep.ParameterProcessObserver(parameter, streamCount, time.Since(started))
+			}
+		}()
 
 		paramDemand, err := ep.getOrCreateParameterDemand(context.Background(), parameter)
 		if err != nil {
@@ -46,6 +53,7 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 		}
 
 		streamDemands := paramDemand.Streams
+		streamCount = len(streamDemands)
 		paramDemand.LastReceived = time.Now()
 
 		if value.GetAcquisitionStatus() != pvalue.AcquisitionStatus_ACQUIRED {
@@ -53,10 +61,14 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 			return nil
 		}
 
+		receivedAt := time.Now()
 		for _, streamDemand := range streamDemands {
 			streamDemand.mu.Lock()
 			streamDemand.Buffer = append(streamDemand.Buffer, value)
 			streamDemand.mu.Unlock()
+			if ep.ParameterBufferObserver != nil {
+				ep.ParameterBufferObserver(parameter, streamDemand.Path, receivedAt)
+			}
 		}
 		return nil
 

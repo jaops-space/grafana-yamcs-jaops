@@ -1,0 +1,232 @@
+name: Benchmark
+
+on:
+    workflow_dispatch:
+    pull_request:
+        types: [opened, synchronize, reopened, labeled]
+        branches:
+            - master
+            - main
+        paths:
+            - "pkg/source/**"
+            - "pkg/plugin/**"
+            - "pkg/yamcs/**"
+            - "scripts/benchmarks/**"
+            - ".github/workflows/benchmark.yml"
+            - "package.json"
+
+permissions:
+    contents: read
+
+jobs:
+    yamcs-streams:
+        name: Yamcs stream scenario benchmark
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        if: >-
+            ${{
+              github.event_name == 'workflow_dispatch' ||
+              (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-benchmark'))
+            }}
+        permissions:
+            contents: write
+            actions: read
+            issues: write
+            pull-requests: read
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Go environment
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - uses: pnpm/action-setup@v3
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+
+            - name: Install Yamcs quickstart
+              run: git clone --depth 1 https://github.com/yamcs/quickstart.git /tmp/yamcs-quickstart
+
+            - name: Start Yamcs quickstart
+              working-directory: /tmp/yamcs-quickstart
+              run: |
+                  docker compose up -d yamcs
+                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+
+            - name: Install benchmark Python deps
+              run: pip install -r scripts/benchmarks/requirements.txt
+
+            - name: Run Yamcs stream scenario benchmark
+              id: run-benchmark
+              continue-on-error: true
+              run: pnpm run bench
+
+            - name: Generate benchmark report files
+              if: ${{ steps.run-benchmark.outcome == 'success' }}
+              run: |
+                  pnpm run bench:report -- \
+                    --output-dir benchmark-output \
+                    --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+            - name: Upload Yamcs stream benchmark artifacts
+              id: upload-benchmark
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: benchmark-yamcs-streams-${{ github.run_id }}
+                  path: benchmark-output
+                  retention-days: 14
+
+            - name: Read benchmark status
+              if: ${{ steps.run-benchmark.outcome == 'success' }}
+              id: benchmark-status
+              run: |
+                  python3 - <<'PY' >> "$GITHUB_OUTPUT"
+                  import json
+                  with open("benchmark-output/benchmark-status.json", encoding="utf-8") as fp:
+                      status = json.load(fp)
+                  print(f"status={status['status']}")
+                  print(f"should_comment={str(status['should_comment']).lower()}")
+                  print(f"should_fail={str(status['should_fail']).lower()}")
+                  PY
+
+            - name: Publish benchmark plot images for PR comment
+              id: publish-plots
+              if: >-
+                  ${{
+                    github.event_name == 'pull_request' &&
+                    steps.run-benchmark.outcome == 'success' &&
+                    steps.benchmark-status.outputs.should_comment == 'true'
+                  }}
+              continue-on-error: true
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const fs = require('fs');
+                      const path = require('path');
+                      const status = JSON.parse(fs.readFileSync('benchmark-output/benchmark-status.json', 'utf8'));
+                      const plots = status.regression_plots || [];
+                      if (plots.length === 0) {
+                        core.setOutput('plots-base-url', '');
+                        return;
+                      }
+
+                      const {owner, repo} = context.repo;
+                      const prNumber = context.payload.pull_request.number;
+                      const runId = context.runId;
+                      const branch = `benchmark-artifacts-pr-${prNumber}`;
+                      const prefix = `yamcs-streams/run-${runId}/regression-plots`;
+                      const defaultBranch = context.payload.repository.default_branch;
+
+                      try {
+                        await github.rest.git.getRef({owner, repo, ref: `heads/${branch}`});
+                      } catch (error) {
+                        if (error.status !== 404) {
+                          throw error;
+                        }
+                        const base = await github.rest.git.getRef({owner, repo, ref: `heads/${defaultBranch}`});
+                        await github.rest.git.createRef({
+                          owner,
+                          repo,
+                          ref: `refs/heads/${branch}`,
+                          sha: base.data.object.sha,
+                        });
+                      }
+
+                      for (const plot of plots) {
+                        const source = path.join('benchmark-output', 'regression-plots', plot);
+                        const target = `${prefix}/${plot}`;
+                        let sha;
+                        try {
+                          const existing = await github.rest.repos.getContent({
+                            owner,
+                            repo,
+                            path: target,
+                            ref: branch,
+                          });
+                          if (!Array.isArray(existing.data)) {
+                            sha = existing.data.sha;
+                          }
+                        } catch (error) {
+                          if (error.status !== 404) {
+                            throw error;
+                          }
+                        }
+
+                        await github.rest.repos.createOrUpdateFileContents({
+                          owner,
+                          repo,
+                          branch,
+                          path: target,
+                          message: `Add Yamcs benchmark plot for PR #${prNumber}, run ${runId}`,
+                          content: fs.readFileSync(source).toString('base64'),
+                          sha,
+                        });
+                      }
+
+                      core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
+
+            - name: Add artifact link to benchmark PR comment
+              if: ${{ steps.run-benchmark.outcome == 'success' }}
+              run: |
+                  pnpm run bench:report -- \
+                    --output-dir benchmark-output \
+                    --artifact-url "${{ steps.upload-benchmark.outputs.artifact-url }}" \
+                    --plots-base-url "${{ steps.publish-plots.outputs.plots-base-url }}" \
+                    --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+            - name: Comment benchmark warnings or failures
+              if: >-
+                  ${{
+                    github.event_name == 'pull_request' &&
+                    steps.run-benchmark.outcome == 'success' &&
+                    steps.benchmark-status.outputs.should_comment == 'true'
+                  }}
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const fs = require('fs');
+                      const marker = '<!-- jaops-yamcs-benchmark-report -->';
+                      const body = fs.readFileSync('benchmark-output/benchmark-comment.md', 'utf8');
+                      const {owner, repo} = context.repo;
+                      const issue_number = context.payload.pull_request.number;
+                      const comments = await github.paginate(github.rest.issues.listComments, {
+                        owner,
+                        repo,
+                        issue_number,
+                        per_page: 100,
+                      });
+                      const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+                      if (existing) {
+                        await github.rest.issues.updateComment({
+                          owner,
+                          repo,
+                          comment_id: existing.id,
+                          body,
+                        });
+                      } else {
+                        await github.rest.issues.createComment({
+                          owner,
+                          repo,
+                          issue_number,
+                          body,
+                        });
+                      }
+
+            - name: Fail benchmark on threshold failure
+              if: >-
+                  ${{
+                    steps.run-benchmark.outcome != 'success' ||
+                    steps.benchmark-status.outputs.should_fail == 'true'
+                  }}
+              run: exit 1

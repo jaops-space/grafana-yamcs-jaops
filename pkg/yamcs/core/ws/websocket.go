@@ -160,6 +160,10 @@ func (ws *WebSocketHandler) Disconnect() error {
 	if !ws.IsConnected() {
 		return exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
 	}
+	if ws.connection == nil {
+		ws.ForceDisconnect()
+		return exception.New("WebSocket connection is not initialized.", "WS_CONNECTION_NOT_INITIALIZED")
+	}
 	ws.nmu.Lock()
 	err := ws.connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	ws.nmu.Unlock()
@@ -170,7 +174,10 @@ func (ws *WebSocketHandler) Disconnect() error {
 
 func (ws *WebSocketHandler) ForceDisconnect() {
 	ws.isConnected.Store(0)
-	ws.connection.Close()
+	if ws.connection != nil {
+		ws.connection.Close()
+		ws.connection = nil
+	}
 	ws.once = sync.Once{} // Reset Once so connection can be retried.
 	if ws.disconnectFunc != nil {
 		ws.disconnectFunc()
@@ -231,6 +238,9 @@ func (ws *WebSocketHandler) SendSync(
 	if err != nil {
 		return nil, 0, 0, err
 	}
+	if !ws.IsConnected() || ws.connection == nil {
+		return nil, 0, 0, exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
+	}
 
 	ws.nmu.Lock()
 	err = ws.connection.WriteMessage(websocket.BinaryMessage, data)
@@ -271,6 +281,9 @@ func (ws *WebSocketHandler) marshalClientMessage(
 }
 
 func (ws *WebSocketHandler) Send(message *api.ClientMessage) error {
+	if !ws.IsConnected() || ws.connection == nil {
+		return exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
+	}
 
 	var data []byte
 	var err error

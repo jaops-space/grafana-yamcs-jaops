@@ -31,6 +31,9 @@ type YamcsEndpoint struct {
 	CurrentTime          time.Time
 	CurrentTimeUpdatedAt time.Time
 
+	ParameterProcessObserver func(parameter string, streamCount int, elapsed time.Duration)
+	ParameterBufferObserver  func(parameter string, path string, receivedAt time.Time)
+
 	Configuration *config.YamcsEndpointConfiguration
 }
 

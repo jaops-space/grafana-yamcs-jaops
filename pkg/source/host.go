@@ -53,7 +53,7 @@ func (host *YamcsHost) IsConnected() bool {
 
 	client := host.GetClient()
 
-	if client != nil {
+	if client == nil {
 		return false
 	}
 

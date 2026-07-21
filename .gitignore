@@ -22,6 +22,12 @@ yarn-error.log*
 # Test artifacts
 *.test
 coverage.out
+benchmark-output/
+playwright-report/
+test-results/
+playwright/.auth/
+**/__pycache__/
+*.py[cod]
 
 # IDE and Editor Files
 .vscode/*
@@ -36,7 +42,10 @@ coverage.out
 dist/
 package-lock.json
 .eslintcache
+.eslintcache_*
 jaops-yamcs-app.zip
 
 # delve configuration
 !.vscode/launch.json
+
+TESTING_SPECS.md
