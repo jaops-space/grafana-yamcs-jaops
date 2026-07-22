@@ -1,4 +1,13 @@
 version: 2
+
+multi-ecosystem-groups:
+  ci-infrastructure:
+    schedule:
+      interval: weekly
+      day: monday
+      time: "00:30"
+      timezone: "UTC"
+
 updates:
   - package-ecosystem: gomod
     directory: "/"
@@ -7,7 +16,7 @@ updates:
       day: monday
       time: "00:00"
       timezone: "UTC"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     labels:
       - dependencies
       - security
@@ -25,7 +34,9 @@ updates:
       day: monday
       time: "00:15"
       timezone: "UTC"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    allow:
+      - dependency-type: "production"
     labels:
       - dependencies
       - security
@@ -38,12 +49,10 @@ updates:
 
   - package-ecosystem: docker
     directory: "/"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "00:30"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
+    patterns:
+      - "*"
+    multi-ecosystem-group: ci-infrastructure
+    open-pull-requests-limit: 3
     labels:
       - dependencies
       - security
@@ -51,12 +60,10 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "00:45"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
+    patterns:
+      - "*"
+    multi-ecosystem-group: ci-infrastructure
+    open-pull-requests-limit: 3
     labels:
       - dependencies
       - security

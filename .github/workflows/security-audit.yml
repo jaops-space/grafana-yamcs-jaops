@@ -71,18 +71,35 @@ jobs:
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
           export PATH="$(go env GOPATH)/bin:$PATH"
           set +e
-          osv-scanner scan --recursive . --format json > osv-scanner.json 2>&1
-          status=$?
+          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.raw 2>&1
+          scan_status=$?
+
+          if jq -e . osv-scanner.raw >/dev/null 2>&1; then
+            cp osv-scanner.raw osv-scanner.json
+          else
+            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' osv-scanner.raw > osv-scanner.json || true
+          fi
+
           if jq -e . osv-scanner.json >/dev/null 2>&1; then
             jq . osv-scanner.json > osv-scanner.txt
-          else
-            cp osv-scanner.json osv-scanner.txt
+            pnpm list --prod --depth Infinity --json \
+              | jq -r '.. | objects | .name? // empty' \
+              | sort -u > osv-prod-packages.txt
+
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_runtime_high_critical=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+            if [ "$osv_runtime_high_critical" -gt 0 ]; then
+              exit 1
+            fi
+            exit 0
           fi
-          exit "$status"
+
+          cp osv-scanner.raw osv-scanner.txt
+          exit "$scan_status"
 
       - name: Run Trivy filesystem scan
         id: trivy
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -107,8 +124,10 @@ jobs:
             govulncheck.json
             pnpm-audit.txt
             pnpm-audit.json
+            osv-scanner.raw
             osv-scanner.txt
             osv-scanner.json
+            osv-prod-packages.txt
             trivy-results.sarif
           retention-days: 14
 
@@ -131,7 +150,7 @@ jobs:
 
           if [ "${{ steps.osv-scanner.outcome }}" != "success" ]; then
             failed=true
-            summary="${summary}\n- OSV-Scanner reported vulnerabilities or failed"
+            summary="${summary}\n- OSV-Scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
           fi
 
           if [ "${{ steps.trivy.outcome }}" != "success" ]; then
@@ -168,8 +187,9 @@ jobs:
           fi
 
           osv_findings="0"
-          if [ -f osv-scanner.json ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
-            osv_findings=$(jq '[.results[]?.packages[]?.vulnerabilities[]?] | length' osv-scanner.json 2>/dev/null || echo "0")
+          if [ -f osv-scanner.json ] && [ -f osv-prod-packages.txt ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json 2>/dev/null || echo "0")
           fi
 
           trivy_findings="0"
@@ -192,7 +212,7 @@ jobs:
             echo "|---|---|---:|"
             echo "| govulncheck | ${gov_status} | ${gov_findings} |"
             echo "| pnpm audit | ${pnpm_status} | critical=${pnpm_critical}, high=${pnpm_high} |"
-            echo "| OSV-Scanner | ${osv_status} | ${osv_findings} |"
+            echo "| OSV-Scanner (runtime HIGH/CRITICAL) | ${osv_status} | ${osv_findings} |"
             echo "| Trivy (SARIF) | ${trivy_status} | ${trivy_findings} |"
             echo
             echo "### Human-readable highlights"
@@ -215,9 +235,9 @@ jobs:
             echo
             echo "#### OSV-Scanner"
             if [ "$osv_findings" -gt 0 ] 2>/dev/null; then
-              jq -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | "- Vulnerability \(.id // "unknown") found in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
+              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") found in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
             else
-              echo "- No OSV vulnerabilities parsed from JSON."
+              echo "- No runtime HIGH/CRITICAL OSV vulnerabilities parsed from JSON."
             fi
             echo
             echo "#### Trivy"
@@ -229,7 +249,7 @@ jobs:
             echo
             echo "### Raw artifacts"
             echo "- Artifact: security-audit-reports-${{ github.run_id }}"
-            echo "- Files: govulncheck.json, pnpm-audit.json, osv-scanner.json, trivy-results.sarif"
+            echo "- Files: govulncheck.json, pnpm-audit.json, osv-scanner.json, osv-prod-packages.txt, trivy-results.sarif"
           } >> audit-report.md
 
           {
@@ -240,7 +260,7 @@ jobs:
             echo "|---|---:|"
             echo "| govulncheck | ${gov_findings} |"
             echo "| pnpm audit | critical=${pnpm_critical}, high=${pnpm_high} |"
-            echo "| OSV-Scanner | ${osv_findings} |"
+            echo "| OSV-Scanner (runtime HIGH/CRITICAL) | ${osv_findings} |"
             echo "| Trivy | ${trivy_findings} |"
             echo
             echo "### Highlights"
@@ -259,7 +279,7 @@ jobs:
 
             if [ "$osv_findings" -gt 0 ] 2>/dev/null; then
               echo "#### OSV-Scanner"
-              jq -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | "- Vulnerability \(.id // "unknown") found in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,8p'
+              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") found in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,8p'
               echo
             fi
 

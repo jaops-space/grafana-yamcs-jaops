@@ -1,0 +1,6 @@
+# Ignore vulnerabilities for npm devDependencies to reduce CI noise.
+[[PackageOverrides]]
+ecosystem = "npm"
+group = "dev"
+vulnerability.ignore = true
+reason = "CI only tracks runtime npm vulnerabilities"

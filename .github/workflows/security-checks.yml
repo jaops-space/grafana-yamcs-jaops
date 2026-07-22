@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   security:
-    name: gosec + plugin-validator
+    name: gosec + osv-scanner + plugin-validator
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,7 +28,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run gosec (HIGH only)
+      - name: Run gosec (HIGH/CRITICAL policy)
         id: gosec
         continue-on-error: true
         run: |
@@ -60,6 +60,40 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Run OSV-Scanner
+        id: osv-scanner
+        continue-on-error: true
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          set +e
+          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.raw 2>&1
+          scan_status=$?
+
+          # osv-scanner may emit log lines before JSON; normalize output for jq parsing.
+          if jq -e . osv-scanner.raw >/dev/null 2>&1; then
+            cp osv-scanner.raw osv-scanner.json
+          else
+            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' osv-scanner.raw > osv-scanner.json || true
+          fi
+
+          if jq -e . osv-scanner.json >/dev/null 2>&1; then
+            jq . osv-scanner.json > osv-scanner.txt
+            pnpm list --prod --depth Infinity --json \
+              | jq -r '.. | objects | .name? // empty' \
+              | sort -u > osv-prod-packages.txt
+
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_runtime_high_critical=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+            if [ "$osv_runtime_high_critical" -gt 0 ]; then
+              exit 1
+            fi
+            exit 0
+          fi
+
+          cp osv-scanner.raw osv-scanner.txt
+          exit "$scan_status"
+
       - name: Build plugin package for validator
         env:
           PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
@@ -90,6 +124,8 @@ jobs:
             reportAll: false
 
           analyzers:
+            osv-scanner:
+              enabled: false
             backendbinary:
               enabled: false
             binarypermissions:
@@ -146,6 +182,10 @@ jobs:
           path: |
             gosec.txt
             gosec.json
+            osv-scanner.raw
+            osv-scanner.txt
+            osv-scanner.json
+            osv-prod-packages.txt
             plugin-validator.txt
             plugin-validator.json
           retention-days: 14
@@ -159,7 +199,12 @@ jobs:
 
           if [ "${{ steps.gosec.outcome }}" = "failure" ]; then
             failed=true
-            summary="${summary}\n- gosec reported HIGH findings or failed"
+            summary="${summary}\n- gosec reported HIGH/CRITICAL-policy findings or failed"
+          fi
+
+          if [ "${{ steps.osv-scanner.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- osv-scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
           fi
 
           if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
@@ -183,12 +228,18 @@ jobs:
             gosec_findings=$(jq '[.Issues[]?] | length' gosec.json)
           fi
 
+          osv_findings=0
+          if [ -f osv-scanner.json ] && [ -f osv-prod-packages.txt ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+          fi
+
           plugin_findings=0
           if [ -f plugin-validator.json ] && jq -e . plugin-validator.json >/dev/null 2>&1; then
             plugin_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
           fi
 
-          total_findings=$((gosec_findings + plugin_findings))
+          total_findings=$((gosec_findings + osv_findings + plugin_findings))
           if [ "$total_findings" -eq 0 ]; then
             echo "has_findings=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -202,7 +253,8 @@ jobs:
             echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
-            echo "| gosec (HIGH severity) | ${gosec_findings} |"
+            echo "| gosec (HIGH/CRITICAL policy) | ${gosec_findings} |"
+            echo "| osv-scanner (runtime HIGH/CRITICAL) | ${osv_findings} |"
             echo "| plugin-validator (error severity) | ${plugin_findings} |"
             echo
           } > pr-security-comment.md
@@ -212,6 +264,16 @@ jobs:
               echo "### gosec highlights"
               echo
               jq -r '.Issues[]? | "- \(.severity // "UNKNOWN") \(.rule_id // "RULE") in \(.file // "unknown file"):\(.line // 0) - \(.details // "No details")"' gosec.json | sed -n '1,15p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          if [ "$osv_findings" -gt 0 ]; then
+            {
+              echo "### osv-scanner highlights"
+              echo
+              prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
               echo
             } >> pr-security-comment.md
           fi
@@ -229,6 +291,7 @@ jobs:
             echo "<details><summary>Raw outputs</summary>"
             echo
             echo "- gosec JSON: artifact security-reports-${{ github.run_id }} / gosec.json"
+            echo "- osv-scanner JSON: artifact security-reports-${{ github.run_id }} / osv-scanner.json"
             echo "- plugin-validator JSON: artifact security-reports-${{ github.run_id }} / plugin-validator.json"
             echo
             echo "</details>"
