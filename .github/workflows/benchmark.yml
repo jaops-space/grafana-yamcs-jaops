@@ -3,7 +3,7 @@ name: Benchmark
 on:
     workflow_dispatch:
     pull_request:
-        types: [opened, synchronize, reopened, labeled]
+        types: [opened, synchronize, reopened, labeled, closed]
         branches:
             - master
             - main
@@ -19,6 +19,35 @@ permissions:
     contents: read
 
 jobs:
+    cleanup-benchmark-artifacts:
+        name: Cleanup Benchmark Artifacts
+        runs-on: ubuntu-latest
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
+        permissions:
+            contents: write
+        steps:
+            - name: Delete benchmark artifact branch
+              uses: actions/github-script@v8
+              with:
+                  script: |
+                      const {owner, repo} = context.repo;
+                      const branch = `benchmark-artifacts-pr-${context.payload.pull_request.number}`;
+
+                      try {
+                        await github.rest.git.deleteRef({
+                          owner,
+                          repo,
+                          ref: `heads/${branch}`,
+                        });
+                        core.info(`Deleted ${branch}`);
+                      } catch (error) {
+                        if (error.status === 404) {
+                          core.info(`${branch} did not exist; nothing to clean up.`);
+                          return;
+                        }
+                        throw error;
+                      }
+
     benchmark:
         name: Performance Benchmark
         runs-on: ubuntu-latest
@@ -101,7 +130,7 @@ jobs:
                   print(f"should_fail={str(status['should_fail']).lower()}")
                   PY
 
-            - name: Publish benchmark plot images for PR comment
+            - name: Publish benchmark plot images for PR artifacts
               id: publish-plots
               if: >-
                   ${{
@@ -116,8 +145,13 @@ jobs:
                       const fs = require('fs');
                       const path = require('path');
                       const status = JSON.parse(fs.readFileSync('benchmark-output/benchmark-status.json', 'utf8'));
-                      const plots = status.regression_plots || [];
-                      if (plots.length === 0) {
+                      const regressionPlots = status.regression_plots || [];
+                      const plotsDir = path.join('benchmark-output', 'plots');
+                      const allPlots = fs.existsSync(plotsDir)
+                        ? fs.readdirSync(plotsDir).filter((name) => name.endsWith('.png'))
+                        : [];
+
+                      if (allPlots.length === 0) {
                         core.setOutput('plots-base-url', '');
                         return;
                       }
@@ -126,7 +160,7 @@ jobs:
                       const prNumber = context.payload.pull_request.number;
                       const runId = context.runId;
                       const branch = `benchmark-artifacts-pr-${prNumber}`;
-                      const prefix = `benchmark/run-${runId}/regression-plots`;
+                      const prefix = `benchmark/run-${runId}/plots`;
                       const defaultBranch = context.payload.repository.default_branch;
 
                       try {
@@ -144,8 +178,8 @@ jobs:
                         });
                       }
 
-                      for (const plot of plots) {
-                        const source = path.join('benchmark-output', 'regression-plots', plot);
+                      for (const plot of allPlots) {
+                        const source = path.join(plotsDir, plot);
                         const target = `${prefix}/${plot}`;
                         let sha;
                         try {
@@ -175,7 +209,10 @@ jobs:
                         });
                       }
 
-                      core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
+                      const plotsBaseUrl = regressionPlots.length > 0
+                        ? `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`
+                        : '';
+                      core.setOutput('plots-base-url', plotsBaseUrl);
 
             - name: Add artifact link to benchmark PR comment
               if: ${{ steps.run-benchmark.outcome == 'success' }}
