@@ -19,8 +19,8 @@ permissions:
     contents: read
 
 jobs:
-    yamcs-streams:
-        name: Yamcs stream scenario benchmark
+    benchmark:
+        name: Performance Benchmark
         runs-on: ubuntu-latest
         timeout-minutes: 20
         if: >-
@@ -66,7 +66,7 @@ jobs:
             - name: Install benchmark Python deps
               run: pip install -r scripts/benchmarks/requirements.txt
 
-            - name: Run Yamcs stream scenario benchmark
+            - name: Run performance benchmark
               id: run-benchmark
               continue-on-error: true
               run: pnpm run bench
@@ -78,12 +78,12 @@ jobs:
                     --output-dir benchmark-output \
                     --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-            - name: Upload Yamcs stream benchmark artifacts
+            - name: Upload benchmark artifacts
               id: upload-benchmark
               if: always()
               uses: actions/upload-artifact@v4
               with:
-                  name: benchmark-yamcs-streams-${{ github.run_id }}
+                  name: benchmark-${{ github.run_id }}
                   path: benchmark-output
                   retention-days: 14
 
@@ -125,7 +125,7 @@ jobs:
                       const prNumber = context.payload.pull_request.number;
                       const runId = context.runId;
                       const branch = `benchmark-artifacts-pr-${prNumber}`;
-                      const prefix = `yamcs-streams/run-${runId}/regression-plots`;
+                      const prefix = `benchmark/run-${runId}/regression-plots`;
                       const defaultBranch = context.payload.repository.default_branch;
 
                       try {

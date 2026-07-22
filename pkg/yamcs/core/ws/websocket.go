@@ -101,6 +101,10 @@ func (ws *WebSocketHandler) Listen() {
 	defer backend.Logger.Debug("Websocket: Stopped listening for WebSocket messages.")
 
 	for {
+		if ws.connection == nil {
+			// assume connection was closed
+			return
+		}
 		messageType, data, err := ws.connection.ReadMessage()
 
 		if messageType == websocket.CloseMessage {
