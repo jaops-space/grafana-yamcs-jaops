@@ -22,7 +22,9 @@ function CommandingPanelSetup() {
             <img src={CommandingImage} width={1200} style={{ display: 'block', margin: '20px auto' }} />
 
             <Card>
-                <Card.Heading>Step 2: Choose Commanding Query Type</Card.Heading>
+                <Card.Heading>
+                    <span data-testid="jaops-setup-page-commanding">Step 2: Choose Commanding Query Type</span>
+                </Card.Heading>
                 <Card.Description>
                     In the panel&quot;s query settings, select <Text color="primary">Commanding</Text> as the query
                     type. Then, search for your desired command.

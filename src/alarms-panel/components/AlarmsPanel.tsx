@@ -1070,6 +1070,8 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
 
     return (
         <div
+            data-testid="jaops-alarms-panel"
+            data-alarm-count={deduped.length}
             style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1080,6 +1082,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
         >
             {/* Global Alarm Status Bar - Always show all categories */}
             <div
+                data-testid="jaops-alarms-panel-status"
                 style={{
                     padding: theme.spacing(1),
                     background: theme.colors.background.canvas,
@@ -1164,7 +1167,10 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
             </div>
 
             {!deduped.length ? (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                    data-testid="jaops-alarms-panel-empty"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
                     <Text color="secondary">No alarms to display</Text>
                 </div>
             ) : (

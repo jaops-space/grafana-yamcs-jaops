@@ -12,7 +12,9 @@ function Overview() {
             </p>
 
             <Card>
-                <Card.Heading>How to Use the Yamcs Plugin</Card.Heading>
+                <Card.Heading>
+                    <span data-testid="jaops-setup-page-overview">How to Use the Yamcs Plugin</span>
+                </Card.Heading>
                 <Card.Description>
                     <p>
                         This guide will help you set up and use the Yamcs Datasource and Panels in Grafana. Learn about

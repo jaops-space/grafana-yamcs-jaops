@@ -4,7 +4,6 @@ import { ImagePanelOptions } from 'static-image-panel/types';
 import React from 'react';
 
 export default function ImageRenderer(options: ImagePanelOptions, url: string) {
-    
     const templateSrv = getTemplateSrv();
 
     let imageUrl = DOMPurify.sanitize(templateSrv.replace(url || '')).trim();
@@ -35,11 +34,8 @@ export default function ImageRenderer(options: ImagePanelOptions, url: string) {
             transition: 'all 0.3s ease',
         };
 
-        return <img src={parsed.href} alt="Image" style={style} />;
-
+        return <img src={parsed.href} alt="Image" style={style} data-testid="jaops-image-panel-image" />;
     } catch {
-        
         return <div>Invalid image URL</div>;
-    
     }
 }

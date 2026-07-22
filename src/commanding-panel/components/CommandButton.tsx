@@ -66,6 +66,7 @@ export function CommandButton(props: {
         return (
             <div style={{ display: 'flex', width: '100%', height: '100%', minHeight: 40, gap: '0px' }}>
                 <Button
+                    data-testid="jaops-command-button-on"
                     disabled={loading}
                     style={getSideStyle(commandState, onState, 'on', activeState)}
                     size={(onState.size ?? commandState?.size) as any}
@@ -77,6 +78,7 @@ export function CommandButton(props: {
                     {getTemplateSrv().replace(onState.label ?? 'ON', scopedVars)}
                 </Button>
                 <Button
+                    data-testid="jaops-command-button-off"
                     disabled={loading}
                     style={getSideStyle(commandState, offState, 'off', activeState)}
                     size={(offState.size ?? commandState?.size) as any}
@@ -93,6 +95,7 @@ export function CommandButton(props: {
 
     return (
         <Button
+            data-testid="jaops-command-button"
             disabled={loading}
             style={{
                 ...Shapes[commandState?.shape as any]?.css,

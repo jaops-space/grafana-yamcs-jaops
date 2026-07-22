@@ -180,7 +180,7 @@ export function QueryEditor(props: QueryProps) {
     };
 
     return (
-        <Box backgroundColor="primary" borderColor="weak" data-testid="query-type-editor">
+        <Box backgroundColor="primary" borderColor="weak" data-testid="jaops-query-editor">
             <Stack direction="row" alignItems="center">
                 <InlineField
                     label={query.asVariable ? 'Endpoint Variable' : 'Endpoint'}
@@ -206,7 +206,12 @@ export function QueryEditor(props: QueryProps) {
                         onChange={(e) => setAsVariable(e.currentTarget.checked)}
                     />
                 </InlineField>
-                <Button onClick={fetchEndpoints} disabled={loading} size="sm" data-testid="fetch-endpoints-button">
+                <Button
+                    onClick={fetchEndpoints}
+                    disabled={loading}
+                    size="sm"
+                    data-testid="jaops-query-editor-fetch-endpoints"
+                >
                     Fetch endpoints
                 </Button>
                 <Button
@@ -214,7 +219,7 @@ export function QueryEditor(props: QueryProps) {
                     disabled={loading}
                     size="sm"
                     variant="success"
-                    data-testid="fetch-endpoints-button"
+                    data-testid="jaops-query-editor-run-query"
                 >
                     Query
                 </Button>
@@ -222,5 +227,4 @@ export function QueryEditor(props: QueryProps) {
             <QueryTypeEditor {...queryEditorModelProps} />
         </Box>
     );
-
 }

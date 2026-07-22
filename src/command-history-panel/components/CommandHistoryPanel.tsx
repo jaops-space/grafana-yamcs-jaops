@@ -297,11 +297,15 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
     }, [data]);
 
     if (!deduped.length) {
-        return <div>No data</div>;
+        return <div data-testid="jaops-command-history-panel-empty">No data</div>;
     }
 
     return (
-        <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
+        <div
+            data-testid="jaops-command-history-panel"
+            data-row-count={deduped.length}
+            style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}
+        >
             {options.pagination ? (
                 <InteractiveTable
                     key="with-pagination"

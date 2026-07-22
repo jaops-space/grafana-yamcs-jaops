@@ -131,7 +131,11 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     };
 
     return (
-        <div style={{ width: '100%', height: '100%', overflow: editing ? 'auto' : 'hidden' }}>
+        <div
+            data-testid={variableMode ? 'jaops-variable-setting-panel' : 'jaops-commanding-panel'}
+            data-command-count={commandInfos.length}
+            style={{ width: '100%', height: '100%', overflow: editing ? 'auto' : 'hidden' }}
+        >
             {editing && commandInfos.length > 1 && (
                 <>
                     <ButtonGroupPreview options={options}>

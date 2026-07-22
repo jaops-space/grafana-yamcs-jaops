@@ -262,7 +262,7 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     }, [options.jsonData]);
 
     return (
-        <>
+        <div data-testid="jaops-datasource-config-editor">
             <div className={styles.toolbar}>
                 <Button onClick={() => setExportOpen(true)} size="sm" variant="secondary">
                     Import / Export
@@ -376,6 +376,6 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                     </Button>
                 </Stack>
             </Modal>
-        </>
+        </div>
     );
 }

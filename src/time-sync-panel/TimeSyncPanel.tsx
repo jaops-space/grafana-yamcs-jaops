@@ -244,6 +244,7 @@ export function TimeSyncPanel(props: PanelProps<PanelOptions>) {
 
     return (
         <div
+            data-testid="jaops-time-sync-panel"
             style={{
                 height: '100%',
                 display: 'flex',
