@@ -241,9 +241,9 @@ func runScenario(address string, instance string, processor string, parameters [
 			for {
 				select {
 				case <-ticker.C:
-					tickOffset := time.Duration(0)
+					startOffset := time.Duration(0)
 					if !scenarioStarted.IsZero() {
-						tickOffset = time.Since(scenarioStarted)
+						startOffset = time.Since(scenarioStarted)
 					}
 					started := time.Now()
 					values := endpoint.GetAndClearParameterStreamBuffer(req.parameter, req.path)
@@ -272,7 +272,7 @@ func runScenario(address string, instance string, processor string, parameters [
 					}
 					readSendElapsed := time.Since(started)
 					readNSTotal.Add(readSendElapsed.Nanoseconds())
-					tickWork.addReadSend(tickOffset, readSendElapsed)
+					tickWork.addReadSendSpan(startOffset, startOffset+readSendElapsed)
 					readOps.Add(1)
 					valuesRead.Add(int64(len(values)))
 				case <-stop:
@@ -365,8 +365,14 @@ type tickWorkload struct {
 	mu           sync.Mutex
 	interval     time.Duration
 	processNS    map[int]int64
-	readSendNS   map[int]int64
+	readSendSpan map[int]tickSpan
 	highestIndex int
+}
+
+type tickSpan struct {
+	startNS int64
+	endNS   int64
+	seen    bool
 }
 
 type tickWorkloadSummary struct {
@@ -385,9 +391,9 @@ func newTickWorkload(interval time.Duration) *tickWorkload {
 		interval = time.Second
 	}
 	return &tickWorkload{
-		interval:   interval,
-		processNS:  map[int]int64{},
-		readSendNS: map[int]int64{},
+		interval:     interval,
+		processNS:    map[int]int64{},
+		readSendSpan: map[int]tickSpan{},
 	}
 }
 
@@ -395,8 +401,33 @@ func (workload *tickWorkload) addProcess(offset time.Duration, elapsed time.Dura
 	workload.add(workload.processNS, offset, elapsed)
 }
 
-func (workload *tickWorkload) addReadSend(offset time.Duration, elapsed time.Duration) {
-	workload.add(workload.readSendNS, offset, elapsed)
+func (workload *tickWorkload) addReadSendSpan(startOffset time.Duration, endOffset time.Duration) {
+	if startOffset < 0 {
+		startOffset = 0
+	}
+	if endOffset < startOffset {
+		endOffset = startOffset
+	}
+	index := int(startOffset / workload.interval)
+	startNS := startOffset.Nanoseconds()
+	endNS := endOffset.Nanoseconds()
+
+	workload.mu.Lock()
+	defer workload.mu.Unlock()
+
+	span := workload.readSendSpan[index]
+	if !span.seen || startNS < span.startNS {
+		span.startNS = startNS
+	}
+	if !span.seen || endNS > span.endNS {
+		span.endNS = endNS
+	}
+	span.seen = true
+	workload.readSendSpan[index] = span
+
+	if index > workload.highestIndex {
+		workload.highestIndex = index
+	}
 }
 
 func (workload *tickWorkload) add(target map[int]int64, offset time.Duration, elapsed time.Duration) {
@@ -415,7 +446,7 @@ func (workload *tickWorkload) add(target map[int]int64, offset time.Duration, el
 func (workload *tickWorkload) summary() tickWorkloadSummary {
 	workload.mu.Lock()
 	defer workload.mu.Unlock()
-	tickCount := workload.highestIndex + 1
+	tickCount := workload.runStreamTickCount()
 	if tickCount <= 0 {
 		return tickWorkloadSummary{}
 	}
@@ -429,8 +460,11 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 	ticksOverInterval := 0
 	for i := 0; i < tickCount; i++ {
 		process := workload.processNS[i]
-		readSend := workload.readSendNS[i]
-		total := process + readSend
+		readSend := int64(0)
+		if span := workload.readSendSpan[i]; span.seen {
+			readSend = span.endNS - span.startNS
+		}
+		total := readSend
 		totalSum += total
 		processSum += process
 		readSendSum += readSend
@@ -458,6 +492,19 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 		AverageReadSendNS: float64(readSendSum) / float64(tickCount),
 		MaxReadSendNS:     maxReadSend,
 	}
+}
+
+func (workload *tickWorkload) runStreamTickCount() int {
+	highest := -1
+	for index, span := range workload.readSendSpan {
+		if span.seen && index > highest {
+			highest = index
+		}
+	}
+	if highest >= 0 {
+		return highest + 1
+	}
+	return workload.highestIndex + 1
 }
 
 type arrivalTracker struct {

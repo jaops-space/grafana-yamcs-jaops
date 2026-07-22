@@ -73,13 +73,13 @@ METRIC_LABELS = {
     "avg_value_read_age_ns": "Average value buffer age",
     "max_value_read_age_ns": "Max value buffer age",
     "max_value_stall_ns": "Max stall beyond freshness window",
-    "avg_tick_runstream_ns": "Average 1s tick RunStream workload",
-    "max_tick_runstream_ns": "Worst 1s tick RunStream workload",
-    "max_tick_runstream_pct": "Worst 1s tick workload",
+    "avg_tick_runstream_ns": "Average RunStream tick wall time",
+    "max_tick_runstream_ns": "Worst RunStream tick wall time",
+    "max_tick_runstream_pct": "Worst RunStream tick wall time",
     "avg_tick_process_ns": "Average 1s tick Yamcs process workload",
     "max_tick_process_ns": "Worst 1s tick Yamcs process workload",
-    "avg_tick_read_send_ns": "Average 1s tick read/frame/send workload",
-    "max_tick_read_send_ns": "Worst 1s tick read/frame/send workload",
+    "avg_tick_read_send_ns": "Average read/frame/send wall time per tick",
+    "max_tick_read_send_ns": "Worst read/frame/send wall time per tick",
     "setup_ns": "Stream setup time",
 }
 PLOT_FILE_NAMES = {

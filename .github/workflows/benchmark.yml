@@ -60,6 +60,7 @@ jobs:
             - name: Start Yamcs quickstart
               working-directory: /tmp/yamcs-quickstart
               run: |
+                  cd docker
                   docker compose up -d yamcs
                   timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
 

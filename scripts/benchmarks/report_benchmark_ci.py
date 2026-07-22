@@ -13,7 +13,7 @@ METRIC_NAMES = {
     "live_memory_growth_bytes_per_stream": "Live memory growth per stream",
     "values_read_per_sec_per_stream": "Values read per second per stream",
     "values_read_fresh_pct": "Values read within one tick",
-    "avg_tick_runstream_ns": "Average total RunStream work per tick",
+    "avg_tick_runstream_ns": "Average RunStream tick wall time",
 }
 METRIC_DETAILS = {
     "avg_read_clear_ns": "Time spent clearing one stream buffer.",
@@ -22,7 +22,7 @@ METRIC_DETAILS = {
     "live_memory_growth_bytes_per_stream": "Additional live memory retained per stream during the scenario.",
     "values_read_per_sec_per_stream": "Per-stream throughput against the 1 Hz simulator cadence.",
     "values_read_fresh_pct": "Share of values read within the 1 second freshness window.",
-    "avg_tick_runstream_ns": "Average total read/frame/send-handoff work across all RunStreams in one 1s tick.",
+    "avg_tick_runstream_ns": "Wall-clock time from the first RunStream starting read/frame/send work to the last RunStream finishing in one 1s tick.",
 }
 THRESHOLD_TO_PLOT = {
     "avg_read_clear_ns": "avg_read_clear.png",

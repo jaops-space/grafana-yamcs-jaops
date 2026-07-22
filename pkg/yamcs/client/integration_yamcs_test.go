@@ -122,6 +122,10 @@ func TestIntegrationYamcs_WebSocketConnectDisconnect(t *testing.T) {
 	if err := client.CloseWebSocketConnection(); err != nil {
 		t.Fatalf("close websocket: %v", err)
 	}
+
+	if client.IsWebSocketConnected() {
+		t.Fatalf("expected websocket to be disconnected")
+	}
 }
 
 func TestIntegrationYamcs_CommandMetadataLookup(t *testing.T) {
@@ -259,6 +263,11 @@ func TestIntegrationYamcs_RepeatedConnectDisconnectStability(t *testing.T) {
 		if err := client.CloseWebSocketConnection(); err != nil {
 			t.Fatalf("disconnect #%d failed: %v", i+1, err)
 		}
+
+		if client.IsWebSocketConnected() {
+			t.Fatalf("expected disconnected after disconnect #%d", i+1)
+		}
+
 	}
 
 	if client.IsWebSocketConnected() {

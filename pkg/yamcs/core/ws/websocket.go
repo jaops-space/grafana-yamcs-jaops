@@ -97,26 +97,26 @@ func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 func (ws *WebSocketHandler) Listen() {
 
 	defer ws.ForceDisconnect()
-	backend.Logger.Debug("Websocket: Listening for WebSocket messages.")
-	defer backend.Logger.Debug("Websocket: Stopped listening for WebSocket messages.")
+	backend.Logger.Debug("started listening for websocket messages")
+	defer backend.Logger.Debug("stopped listening for websocket messages")
 
 	for {
-		if ws.connection == nil {
+		if ws.connection == nil || !ws.IsConnected() {
 			// assume connection was closed
 			return
 		}
 		messageType, data, err := ws.connection.ReadMessage()
 
 		if messageType == websocket.CloseMessage {
-			backend.Logger.Debug("Websocket: Received close message.")
+			backend.Logger.Debug("ws connected closd normally")
 			return
 		}
 
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-				backend.Logger.Debug("WebSocket connection closed normally.")
+				backend.Logger.Debug("ws connection closed normally")
 			} else {
-				backend.Logger.Error("Websocket: WebSocket closed with error: ", err)
+				backend.Logger.Error("websocket closed with error", "error", err)
 			}
 			return
 		}
@@ -124,12 +124,12 @@ func (ws *WebSocketHandler) Listen() {
 		message := &api.ServerMessage{}
 		if ws.useProtobuf {
 			if err = proto.Unmarshal(data, message); err != nil {
-				backend.Logger.Error("Error unmarshalling message: ", err)
+				backend.Logger.Error("error unmarshalling message: ", err)
 				continue
 			}
 		} else {
 			if err = protojson.Unmarshal(data, message); err != nil {
-				backend.Logger.Error("Error unmarshalling message: ", err)
+				backend.Logger.Error("error unmarshalling message: ", err)
 				continue
 			}
 		}
@@ -137,7 +137,7 @@ func (ws *WebSocketHandler) Listen() {
 		if message.GetType() == "reply" {
 			reply := api.Reply{}
 			if err = message.Data.UnmarshalTo(&reply); err != nil {
-				backend.Logger.Error("Error unmarshalling reply: ", err)
+				backend.Logger.Error("error unmarshalling reply: ", err)
 				continue
 			}
 			ws.mu.Lock()
@@ -162,11 +162,11 @@ func (ws *WebSocketHandler) IsConnected() bool {
 // Disconnect properly closes the WebSocket and resets connection state.
 func (ws *WebSocketHandler) Disconnect() error {
 	if !ws.IsConnected() {
-		return exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
+		return exception.New("websocket is not connected", "WS_NOT_CONNECTED")
 	}
 	if ws.connection == nil {
 		ws.ForceDisconnect()
-		return exception.New("WebSocket connection is not initialized.", "WS_CONNECTION_NOT_INITIALIZED")
+		return exception.New("websocket is not initialized", "WS_CONNECTION_NOT_INITIALIZED")
 	}
 	ws.nmu.Lock()
 	err := ws.connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
