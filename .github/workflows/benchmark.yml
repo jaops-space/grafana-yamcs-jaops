@@ -32,7 +32,7 @@ jobs:
             contents: write
             actions: read
             issues: write
-            pull-requests: read
+            pull-requests: write
 
         steps:
             - uses: actions/checkout@v4
@@ -110,7 +110,7 @@ jobs:
                     steps.benchmark-status.outputs.should_comment == 'true'
                   }}
               continue-on-error: true
-              uses: actions/github-script@v7
+              uses: actions/github-script@v8
               with:
                   script: |
                       const fs = require('fs');
@@ -193,7 +193,8 @@ jobs:
                     steps.run-benchmark.outcome == 'success' &&
                     steps.benchmark-status.outputs.should_comment == 'true'
                   }}
-              uses: actions/github-script@v7
+              continue-on-error: true
+              uses: actions/github-script@v8
               with:
                   script: |
                       const fs = require('fs');
