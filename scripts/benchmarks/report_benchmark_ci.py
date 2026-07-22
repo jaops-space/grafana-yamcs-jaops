@@ -8,22 +8,22 @@ from typing import Any
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
 METRIC_NAMES = {
-    "avg_read_clear_ns": "Average read/clear latency",
-    "avg_process_ns": "Average Yamcs listener processing time",
-    "setup_ns_per_stream": "Stream setup time per stream",
-    "live_memory_growth_bytes_per_stream": "Live memory growth per stream",
+    "avg_read_clear_ns": "Read and clear time",
+    "avg_process_ns": "Yamcs listener processing time",
+    "setup_ns_per_stream": "Setup time per stream",
+    "live_memory_growth_bytes_per_stream": "Live memory per stream",
     "values_read_per_sec_per_stream": "Values read per second per stream",
-    "values_read_fresh_pct": "Values read within one tick",
-    "avg_tick_runstream_ns": "Average RunStream tick wall time",
+    "values_read_fresh_pct": "Values read within the same 1s tick",
+    "avg_tick_runstream_ns": "RunStream wall time per 1s tick",
 }
 METRIC_DETAILS = {
     "avg_read_clear_ns": "Time spent clearing one stream buffer.",
     "avg_process_ns": "Time spent processing one Yamcs parameter update.",
     "setup_ns_per_stream": "Time spent creating stream demand state and Yamcs subscriptions.",
-    "live_memory_growth_bytes_per_stream": "Additional live memory retained per stream during the scenario.",
+    "live_memory_growth_bytes_per_stream": "Additional live memory used per stream during the run.",
     "values_read_per_sec_per_stream": "Per-stream throughput against the 1 Hz simulator cadence.",
-    "values_read_fresh_pct": "Share of values read within the 1 second freshness window.",
-    "avg_tick_runstream_ns": "Wall-clock time from the first RunStream starting read/frame/send work to the last RunStream finishing in one 1s tick.",
+    "values_read_fresh_pct": "Share of values read before the next 1 second simulator update.",
+    "avg_tick_runstream_ns": "Wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
 }
 THRESHOLD_TO_PLOT = {
     "avg_read_clear_ns": "avg_read_clear.png",

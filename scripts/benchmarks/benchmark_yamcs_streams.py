@@ -63,24 +63,35 @@ DEFAULT_PARAMETERS = ",".join(
     ]
 )
 METRIC_LABELS = {
-    "avg_read_clear_ns": "Average read and clear latency",
-    "avg_process_ns": "Average Yamcs listener process time",
-    "live_memory_growth_bytes": "Live memory growth",
-    "total_allocated_bytes": "Total allocated",
+    "avg_read_clear_ns": "Read and clear time",
+    "avg_process_ns": "Yamcs listener processing time",
+    "live_memory_growth_bytes": "Live memory used during run",
+    "total_allocated_bytes": "Total memory allocated during run",
     "values_read_per_sec": "Values read per second",
-    "values_read_fresh_pct": "Values read within freshness window",
-    "values_read_stale_pct": "Values read after freshness window",
-    "avg_value_read_age_ns": "Average value buffer age",
+    "values_read_fresh_pct": "Values read within 1s tick",
+    "values_read_stale_pct": "Values read after 1s tick",
+    "avg_value_read_age_ns": "Average value age when read",
     "max_value_read_age_ns": "Max value buffer age",
     "max_value_stall_ns": "Max stall beyond freshness window",
-    "avg_tick_runstream_ns": "Average RunStream tick wall time",
+    "avg_tick_runstream_ns": "RunStream wall time per 1s tick",
     "max_tick_runstream_ns": "Worst RunStream tick wall time",
     "max_tick_runstream_pct": "Worst RunStream tick wall time",
-    "avg_tick_process_ns": "Average 1s tick Yamcs process workload",
+    "avg_tick_process_ns": "Yamcs processing time per 1s tick",
     "max_tick_process_ns": "Worst 1s tick Yamcs process workload",
     "avg_tick_read_send_ns": "Average read/frame/send wall time per tick",
     "max_tick_read_send_ns": "Worst read/frame/send wall time per tick",
     "setup_ns": "Stream setup time",
+}
+PLOT_TITLES = {
+    "avg_read_clear_ns": "Time to read and clear one stream buffer",
+    "avg_process_ns": "Time to process one Yamcs parameter update",
+    "live_memory_growth_bytes": "Live memory used while N Grafana streams run",
+    "total_allocated_bytes": "Total memory allocated while N Grafana streams run",
+    "values_read_per_sec": "Values read per second from N Grafana streams",
+    "values_read_fresh_pct": "Values read within the same 1s simulator tick",
+    "avg_value_read_age_ns": "Average age of values when Grafana reads them",
+    "avg_tick_runstream_ns": "RunStream wall time with N Grafana streams on a 1s ticker",
+    "setup_ns": "Time to set up N Grafana streams",
 }
 PLOT_FILE_NAMES = {
     "avg_read_clear_ns": "avg_read_clear",
@@ -359,7 +370,7 @@ def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str) -> str | 
     plt.xscale("log")
     plt.xlabel("Concurrent Grafana streams (N, log scale)")
     plt.ylabel(label)
-    plt.title(f"{label} by concurrent Grafana streams")
+    plt.title(PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
     axis_values = ys + [value for _, _, threshold_values in threshold_lines for value in threshold_values]
     if key in LOG_Y_KEYS:
         apply_log_y_axis(axis_values)
