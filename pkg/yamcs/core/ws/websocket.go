@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,8 @@ type WebSocketHandler struct {
 	messageListeners map[ListenerID]MessageListener
 	messageCallbacks map[int32]MessageCallback
 	currentPacketID  int32
+	stateCh          chan *api.State
+	stateMu          sync.Mutex
 	mu               sync.Mutex
 	nmu              sync.Mutex // network mutex
 	disconnectFunc   func()
@@ -45,6 +48,7 @@ func NewWebSocketHandler(serverRoot string, useProtobuf bool) *WebSocketHandler 
 		currentPacketID:  0,
 		messageListeners: make(map[ListenerID]MessageListener),
 		messageCallbacks: make(map[int32]MessageCallback),
+		stateCh:          make(chan *api.State, 1),
 		handshakeTimeout: 5,
 		once:             sync.Once{},
 	}
@@ -148,8 +152,11 @@ func (ws *WebSocketHandler) Listen() {
 				callback(message.GetCall(), message.GetSeq(), &reply)
 			}
 		}
+		if message.GetType() == "state" {
+			ws.handleStateMessage(message)
+		}
 
-		for _, listener := range ws.messageListeners {
+		for _, listener := range ws.listenersSnapshot() {
 			listener(message)
 		}
 	}
@@ -306,14 +313,85 @@ func (ws *WebSocketHandler) Send(message *api.ClientMessage) error {
 	return ws.connection.WriteMessage(websocket.BinaryMessage, data)
 }
 
+func (ws *WebSocketHandler) GetState(timeout time.Duration) (*api.State, error) {
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+
+	ws.stateMu.Lock()
+	defer ws.stateMu.Unlock()
+	ws.drainStateChannel()
+
+	if err := ws.Send(&api.ClientMessage{Type: "state"}); err != nil {
+		return nil, err
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case state := <-ws.stateCh:
+		return state, nil
+	case <-timer.C:
+		return nil, exception.New("Timeout waiting for websocket state.", "WS_STATE_TIMEOUT")
+	}
+}
+
+func (ws *WebSocketHandler) handleStateMessage(message *api.ServerMessage) {
+	state := &api.State{}
+	if err := message.Data.UnmarshalTo(state); err != nil {
+		backend.Logger.Error("error unmarshalling websocket state: ", err)
+		return
+	}
+	fmt.Printf("received websocket state: %s\n", state.String())
+
+	select {
+	case ws.stateCh <- state:
+	default:
+		select {
+		case <-ws.stateCh:
+		default:
+		}
+		select {
+		case ws.stateCh <- state:
+		default:
+		}
+	}
+}
+
+func (ws *WebSocketHandler) drainStateChannel() {
+	for {
+		select {
+		case <-ws.stateCh:
+		default:
+			return
+		}
+	}
+}
+
 // AddListener registers a listener for a specific message type.
 func (ws *WebSocketHandler) AddListener(name ListenerID, listener MessageListener) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
 	ws.messageListeners[name] = listener
 }
 
 // RemoveListener removes a listener by name.
 func (ws *WebSocketHandler) RemoveListener(name ListenerID) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
 	delete(ws.messageListeners, name)
+}
+
+func (ws *WebSocketHandler) listenersSnapshot() []MessageListener {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	listeners := make([]MessageListener, 0, len(ws.messageListeners))
+	for _, listener := range ws.messageListeners {
+		listeners = append(listeners, listener)
+	}
+	return listeners
 }
 
 // SetDisconnectHandler sets the callback function to be called on disconnection.

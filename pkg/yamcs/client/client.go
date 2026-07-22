@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/ws"
@@ -137,6 +139,16 @@ func (client *YamcsClient) CloseWebSocketConnection() error {
 
 func (client *YamcsClient) IsWebSocketConnected() bool {
 	return client.WebSocket.IsConnected()
+}
+
+func (client *YamcsClient) WebSocketState(ctx context.Context) (*api.State, error) {
+	timeout := 10 * time.Second
+	if ctx != nil {
+		if deadline, ok := ctx.Deadline(); ok {
+			timeout = time.Until(deadline)
+		}
+	}
+	return client.WebSocket.GetState(timeout)
 }
 
 // OptionSetUserAgent allows overriding the default User-Agent.

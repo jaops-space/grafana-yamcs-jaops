@@ -265,4 +265,14 @@ func (sub *GlobalStatusSubscription) GetInstance() string {
 // Halt stops the global alarm status subscription and removes it from the client.
 func (sub *GlobalStatusSubscription) Halt() {
 	delete(sub.client.GlobalAlarmStatusSubscriptions, sub.callID)
+
+	cancelRequest := &api.CancelOptions{
+		Call: sub.callID,
+	}
+
+	anyMessage, _ := anypb.New(cancelRequest)
+	sub.client.WebSocket.Send(&api.ClientMessage{
+		Type:    "cancel",
+		Options: anyMessage,
+	})
 }
