@@ -65,12 +65,20 @@ type scenarioResult struct {
 	YamcsAddress    string           `json:"yamcs_address"`
 	Instance        string           `json:"instance"`
 	Processor       string           `json:"processor"`
+	System          systemInfo       `json:"system"`
 	DurationSeconds float64          `json:"duration_seconds"`
 	WarmupSeconds   float64          `json:"warmup_seconds"`
 	ReadIntervalMS  int              `json:"read_interval_ms"`
 	FreshnessMS     int              `json:"freshness_ms"`
 	Parameters      []string         `json:"parameters"`
 	Scenarios       []scenarioMetric `json:"scenarios"`
+}
+
+type systemInfo struct {
+	OS        string `json:"os"`
+	Arch      string `json:"arch"`
+	CPUs      int    `json:"cpus"`
+	GoVersion string `json:"go_version"`
 }
 
 type streamRequest struct {
@@ -100,10 +108,16 @@ func main() {
 	}
 
 	result := scenarioResult{
-		StartedAt:       time.Now().UTC().Format(time.RFC3339Nano),
-		YamcsAddress:    *address,
-		Instance:        *instance,
-		Processor:       *processor,
+		StartedAt:    time.Now().UTC().Format(time.RFC3339Nano),
+		YamcsAddress: *address,
+		Instance:     *instance,
+		Processor:    *processor,
+		System: systemInfo{
+			OS:        runtime.GOOS,
+			Arch:      runtime.GOARCH,
+			CPUs:      runtime.NumCPU(),
+			GoVersion: runtime.Version(),
+		},
 		DurationSeconds: duration.Seconds(),
 		WarmupSeconds:   warmup.Seconds(),
 		ReadIntervalMS:  int(readInterval.Milliseconds()),

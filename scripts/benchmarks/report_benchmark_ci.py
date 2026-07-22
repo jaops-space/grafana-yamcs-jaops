@@ -120,6 +120,14 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
     scenarios = result.get("scenarios", [])
     streams = [str(s["streams"]) for s in scenarios]
     parameters = result.get("parameters", [])
+    system = result.get("system", {})
+    system_arch = "unknown"
+    if system:
+        os_name = system.get("os", "unknown")
+        arch = system.get("arch", "unknown")
+        cpus = system.get("cpus", "unknown")
+        go_version = system.get("go_version", "unknown")
+        system_arch = f"{os_name}/{arch}, {cpus} CPU(s), {go_version}"
 
     lines = [
         COMMENT_MARKER,
@@ -143,6 +151,7 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         f"| Simulator rate | `{result.get('simulator_rate', 'unknown')} Hz` |",
         f"| Yamcs | `{result.get('yamcs_address', 'unknown')}` |",
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
+        f"| System architecture | `{system_arch}` |",
     ]
     if args.run_url:
         lines.append(f"| Workflow run | [open run]({args.run_url}) |")
