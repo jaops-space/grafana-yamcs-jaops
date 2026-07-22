@@ -53,6 +53,8 @@ This starts Yamcs quickstart's `simulator.py` by default, opens N concurrent Gra
 
 By default the benchmark matches Yamcs quickstart's simulator cadence: simulator rate `1 Hz`, stream read interval `1s`, and freshness window `1s`. A value counts as fresh when it is read from its Grafana stream buffer within one second of being placed there by the Yamcs listener.
 
+See [BENCHMARKING.md](./BENCHMARKING.md) for the full scenario description, metric definitions, thresholds, and CI behavior.
+
 Invariant metrics such as goroutine count, stream goroutine count, unique parameter count, active Yamcs subscription count, paths per parameter, and scenario wall time remain in JSON/CSV for sanity checks, but are not plotted. Thresholds are rendered directly on plots where they apply and are also included in the JSON output. Distant thresholds are hidden so plots can zoom into observed behavior. Use `--fail-on-threshold` to make failed thresholds exit non-zero:
 
     pnpm run bench -- --fail-on-threshold

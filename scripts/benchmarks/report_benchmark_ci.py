@@ -8,31 +8,31 @@ from typing import Any
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
 METRIC_NAMES = {
-    "avg_read_clear_ns": "Read and clear time",
-    "avg_process_ns": "Yamcs listener processing time",
-    "setup_ns_per_stream": "Setup time per stream",
+    "avg_read_clear": "Average read and clear time",
+    "avg_process": "Average Yamcs listener processing time",
+    "setup_per_stream": "Setup time per stream",
     "live_memory_growth_bytes_per_stream": "Live memory per stream",
-    "values_read_per_sec_per_stream": "Values read per second per stream",
+    "values_read_per_sec_per_stream": "Values read per second from buffers per stream",
     "values_read_fresh_pct": "Values read within the same 1s tick",
-    "avg_tick_runstream_ns": "RunStream wall time per 1s tick",
+    "avg_tick_runstream": "Average RunStream wall time per 1s tick",
 }
 METRIC_DETAILS = {
-    "avg_read_clear_ns": "Time spent clearing one stream buffer.",
-    "avg_process_ns": "Time spent processing one Yamcs parameter update.",
-    "setup_ns_per_stream": "Time spent creating stream demand state and Yamcs subscriptions.",
+    "avg_read_clear": "Average time spent clearing one stream buffer.",
+    "avg_process": "Average time spent processing one Yamcs parameter update.",
+    "setup_per_stream": "Time spent creating stream demand state and Yamcs subscriptions.",
     "live_memory_growth_bytes_per_stream": "Additional live memory used per stream during the run.",
-    "values_read_per_sec_per_stream": "Per-stream throughput against the 1 Hz simulator cadence.",
+    "values_read_per_sec_per_stream": "Per-stream buffer throughput against the 1 Hz simulator cadence.",
     "values_read_fresh_pct": "Share of values read before the next 1 second simulator update.",
-    "avg_tick_runstream_ns": "Wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
+    "avg_tick_runstream": "Average wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
 }
 THRESHOLD_TO_PLOT = {
-    "avg_read_clear_ns": "avg_read_clear.png",
-    "avg_process_ns": "avg_process.png",
-    "setup_ns_per_stream": "setup.png",
+    "avg_read_clear": "avg_read_clear.png",
+    "avg_process": "avg_process.png",
+    "setup_per_stream": "setup.png",
     "live_memory_growth_bytes_per_stream": "live_memory_growth_bytes.png",
     "values_read_per_sec_per_stream": "values_read_per_sec.png",
     "values_read_fresh_pct": "values_read_fresh_pct.png",
-    "avg_tick_runstream_ns": "avg_tick_runstream.png",
+    "avg_tick_runstream": "avg_tick_runstream.png",
 }
 
 
@@ -136,6 +136,8 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         "",
         f"**Status:** {status_label(status)}",
         "",
+        "**Scenario:** Yamcs quickstart simulator at 1 Hz with Grafana streams reading buffers on 1s tickers.",
+        "",
         status_sentence(status),
         "",
         "<details>",
@@ -150,6 +152,7 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         f"| Read interval | `{result.get('read_interval_ms', 0)}ms` |",
         f"| Freshness window | `{result.get('freshness_ms', 0)}ms` |",
         f"| Simulator rate | `{result.get('simulator_rate', 'unknown')} Hz` |",
+        f"| Simulator / stream ticker | `{result.get('simulator_rate', 'unknown')} Hz` / `{result.get('read_interval_ms', 0)}ms` |",
         f"| Yamcs | `{result.get('yamcs_address', 'unknown')}` |",
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
         f"| System architecture | `{system_arch}` |",

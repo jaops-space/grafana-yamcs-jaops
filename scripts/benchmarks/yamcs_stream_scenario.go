@@ -25,33 +25,33 @@ type scenarioMetric struct {
 	PathsPerParameterMax      int     `json:"paths_per_parameter_max"`
 	StreamGoroutines          int     `json:"stream_goroutines"`
 	Goroutines                int     `json:"goroutines"`
-	SetupNS                   int64   `json:"setup_ns"`
-	ScenarioNS                int64   `json:"scenario_ns"`
+	SetupDuration             int64   `json:"setup"`
+	ScenarioDuration          int64   `json:"scenario"`
 	ProcessEvents             int64   `json:"process_events"`
-	AverageProcessNS          float64 `json:"avg_process_ns"`
+	AverageProcessDuration    float64 `json:"avg_process"`
 	AverageProcessStreams     float64 `json:"avg_process_streams"`
 	ReadClearOperations       int64   `json:"read_clear_operations"`
-	AverageReadClearNS        float64 `json:"avg_read_clear_ns"`
+	AverageReadClearDuration  float64 `json:"avg_read_clear"`
 	ValuesRead                int64   `json:"values_read"`
 	ValuesReadPerSecond       float64 `json:"values_read_per_sec"`
 	AverageValuesPerReadClear float64 `json:"avg_values_per_read_clear"`
-	FreshnessWindowNS         int64   `json:"freshness_window_ns"`
+	FreshnessWindowDuration   int64   `json:"freshness_window"`
 	ValuesReadFresh           int64   `json:"values_read_fresh"`
 	ValuesReadStale           int64   `json:"values_read_stale"`
 	ValuesReadFreshPercent    float64 `json:"values_read_fresh_pct"`
 	ValuesReadStalePercent    float64 `json:"values_read_stale_pct"`
-	AverageValueReadAgeNS     float64 `json:"avg_value_read_age_ns"`
-	MaxValueReadAgeNS         int64   `json:"max_value_read_age_ns"`
-	MaxValueStallNS           int64   `json:"max_value_stall_ns"`
-	TickIntervalNS            int64   `json:"tick_interval_ns"`
-	AverageTickRunStreamNS    float64 `json:"avg_tick_runstream_ns"`
-	MaxTickRunStreamNS        int64   `json:"max_tick_runstream_ns"`
+	AverageValueReadAge       float64 `json:"avg_value_read_age"`
+	MaxValueReadAge           int64   `json:"max_value_read_age"`
+	MaxValueStall             int64   `json:"max_value_stall"`
+	TickInterval              int64   `json:"tick_interval"`
+	AverageTickRunStream      float64 `json:"avg_tick_runstream"`
+	MaxTickRunStream          int64   `json:"max_tick_runstream"`
 	MaxTickRunStreamPercent   float64 `json:"max_tick_runstream_pct"`
 	TicksOverInterval         int     `json:"ticks_over_interval"`
-	AverageTickProcessNS      float64 `json:"avg_tick_process_ns"`
-	MaxTickProcessNS          int64   `json:"max_tick_process_ns"`
-	AverageTickReadSendNS     float64 `json:"avg_tick_read_send_ns"`
-	MaxTickReadSendNS         int64   `json:"max_tick_read_send_ns"`
+	AverageTickProcess        float64 `json:"avg_tick_process"`
+	MaxTickProcess            int64   `json:"max_tick_process"`
+	AverageTickReadSend       float64 `json:"avg_tick_read_send"`
+	MaxTickReadSend           int64   `json:"max_tick_read_send"`
 	LiveMemoryGrowthBytes     int64   `json:"live_memory_growth_bytes"`
 	TotalAllocatedBytes       uint64  `json:"total_allocated_bytes"`
 	NumGCDelta                uint32  `json:"num_gc_delta"`
@@ -180,14 +180,14 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 
 	var processEvents atomic.Int64
-	var processNSTotal atomic.Int64
+	var processNanosTotal atomic.Int64
 	var processStreamsTotal atomic.Int64
 	arrivals := newArrivalTracker()
 	tickWork := newTickWorkload(readInterval)
 	var scenarioStarted time.Time
 	endpoint.ParameterProcessObserver = func(_ string, streamCount int, elapsed time.Duration) {
 		processEvents.Add(1)
-		processNSTotal.Add(elapsed.Nanoseconds())
+		processNanosTotal.Add(elapsed.Nanoseconds())
 		processStreamsTotal.Add(int64(streamCount))
 		if !scenarioStarted.IsZero() {
 			tickWork.addProcess(time.Since(scenarioStarted), elapsed)
@@ -209,7 +209,7 @@ func runScenario(address string, instance string, processor string, parameters [
 		requests = append(requests, streamRequest{parameter: parameter, path: path})
 		pathsByParameter[parameter]++
 	}
-	setupNS := time.Since(setupStarted).Nanoseconds()
+	setupNanos := time.Since(setupStarted).Nanoseconds()
 
 	time.Sleep(warmup)
 	for _, req := range requests {
@@ -217,7 +217,7 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 	arrivals.clear()
 	processEvents.Store(0)
-	processNSTotal.Store(0)
+	processNanosTotal.Store(0)
 	processStreamsTotal.Store(0)
 	runtime.GC()
 
@@ -226,10 +226,10 @@ func runScenario(address string, instance string, processor string, parameters [
 
 	var valuesRead atomic.Int64
 	var freshValues atomic.Int64
-	var readAgeNSTotal atomic.Int64
-	var maxReadAgeNS atomic.Int64
+	var readAgeNanosTotal atomic.Int64
+	var maxReadAgeNanos atomic.Int64
 	var readOps atomic.Int64
-	var readNSTotal atomic.Int64
+	var readNanosTotal atomic.Int64
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(len(requests))
@@ -254,9 +254,9 @@ func runScenario(address string, instance string, processor string, parameters [
 						if age < 0 {
 							age = 0
 						}
-						ageNS := age.Nanoseconds()
-						readAgeNSTotal.Add(ageNS)
-						updateMaxInt64(&maxReadAgeNS, ageNS)
+						ageNanos := age.Nanoseconds()
+						readAgeNanosTotal.Add(ageNanos)
+						updateMaxInt64(&maxReadAgeNanos, ageNanos)
 						if age <= freshnessWindow {
 							freshValues.Add(1)
 						}
@@ -271,7 +271,7 @@ func runScenario(address string, instance string, processor string, parameters [
 						}
 					}
 					readSendElapsed := time.Since(started)
-					readNSTotal.Add(readSendElapsed.Nanoseconds())
+					readNanosTotal.Add(readSendElapsed.Nanoseconds())
 					tickWork.addReadSendSpan(startOffset, startOffset+readSendElapsed)
 					readOps.Add(1)
 					valuesRead.Add(int64(len(values)))
@@ -285,7 +285,7 @@ func runScenario(address string, instance string, processor string, parameters [
 	scenarioStarted = time.Now()
 	goroutines := runtime.NumGoroutine()
 	time.Sleep(duration)
-	scenarioNS := time.Since(scenarioStarted).Nanoseconds()
+	scenarioNanos := time.Since(scenarioStarted).Nanoseconds()
 	close(stop)
 	wg.Wait()
 
@@ -315,13 +315,13 @@ func runScenario(address string, instance string, processor string, parameters [
 		PathsPerParameterMax:     maxPaths,
 		StreamGoroutines:         streams,
 		Goroutines:               goroutines,
-		SetupNS:                  setupNS,
-		ScenarioNS:               scenarioNS,
+		SetupDuration:            setupNanos,
+		ScenarioDuration:         scenarioNanos,
 		ProcessEvents:            processCount,
 		ReadClearOperations:      readCount,
 		ValuesRead:               valueCount,
 		ValuesReadPerSecond:      float64(valueCount) / duration.Seconds(),
-		FreshnessWindowNS:        freshnessWindow.Nanoseconds(),
+		FreshnessWindowDuration:  freshnessWindow.Nanoseconds(),
 		LiveMemoryGrowthBytes:    int64(memEnd.Alloc) - int64(memStart.Alloc),
 		TotalAllocatedBytes:      memEnd.TotalAlloc - memStart.TotalAlloc,
 		NumGCDelta:               memEnd.NumGC - memStart.NumGC,
@@ -329,7 +329,7 @@ func runScenario(address string, instance string, processor string, parameters [
 		ActiveYamcsSubscriptions: len(pathsByParameter),
 	}
 	if readCount > 0 {
-		metric.AverageReadClearNS = float64(readNSTotal.Load()) / float64(readCount)
+		metric.AverageReadClearDuration = float64(readNanosTotal.Load()) / float64(readCount)
 		metric.AverageValuesPerReadClear = float64(valueCount) / float64(readCount)
 	}
 	freshCount := freshValues.Load()
@@ -338,52 +338,52 @@ func runScenario(address string, instance string, processor string, parameters [
 	if valueCount > 0 {
 		metric.ValuesReadFreshPercent = 100 * float64(freshCount) / float64(valueCount)
 		metric.ValuesReadStalePercent = 100 - metric.ValuesReadFreshPercent
-		metric.AverageValueReadAgeNS = float64(readAgeNSTotal.Load()) / float64(valueCount)
-		metric.MaxValueReadAgeNS = maxReadAgeNS.Load()
-		if metric.MaxValueReadAgeNS > freshnessWindow.Nanoseconds() {
-			metric.MaxValueStallNS = metric.MaxValueReadAgeNS - freshnessWindow.Nanoseconds()
+		metric.AverageValueReadAge = float64(readAgeNanosTotal.Load()) / float64(valueCount)
+		metric.MaxValueReadAge = maxReadAgeNanos.Load()
+		if metric.MaxValueReadAge > freshnessWindow.Nanoseconds() {
+			metric.MaxValueStall = metric.MaxValueReadAge - freshnessWindow.Nanoseconds()
 		}
 	}
 	if processCount > 0 {
-		metric.AverageProcessNS = float64(processNSTotal.Load()) / float64(processCount)
+		metric.AverageProcessDuration = float64(processNanosTotal.Load()) / float64(processCount)
 		metric.AverageProcessStreams = float64(processStreamsTotal.Load()) / float64(processCount)
 	}
 	tickSummary := tickWork.summary()
-	metric.TickIntervalNS = readInterval.Nanoseconds()
-	metric.AverageTickRunStreamNS = tickSummary.AverageTotalNS
-	metric.MaxTickRunStreamNS = tickSummary.MaxTotalNS
+	metric.TickInterval = readInterval.Nanoseconds()
+	metric.AverageTickRunStream = tickSummary.AverageTotalNanos
+	metric.MaxTickRunStream = tickSummary.MaxTotalNanos
 	metric.MaxTickRunStreamPercent = tickSummary.MaxTotalPercent
 	metric.TicksOverInterval = tickSummary.TicksOverInterval
-	metric.AverageTickProcessNS = tickSummary.AverageProcessNS
-	metric.MaxTickProcessNS = tickSummary.MaxProcessNS
-	metric.AverageTickReadSendNS = tickSummary.AverageReadSendNS
-	metric.MaxTickReadSendNS = tickSummary.MaxReadSendNS
+	metric.AverageTickProcess = tickSummary.AverageProcessNanos
+	metric.MaxTickProcess = tickSummary.MaxProcessNanos
+	metric.AverageTickReadSend = tickSummary.AverageReadSendNanos
+	metric.MaxTickReadSend = tickSummary.MaxReadSendNanos
 	return metric, nil
 }
 
 type tickWorkload struct {
 	mu           sync.Mutex
 	interval     time.Duration
-	processNS    map[int]int64
+	processNanos map[int]int64
 	readSendSpan map[int]tickSpan
 	highestIndex int
 }
 
 type tickSpan struct {
-	startNS int64
-	endNS   int64
-	seen    bool
+	startNanos int64
+	endNanos   int64
+	seen       bool
 }
 
 type tickWorkloadSummary struct {
-	AverageTotalNS    float64
-	MaxTotalNS        int64
-	MaxTotalPercent   float64
-	TicksOverInterval int
-	AverageProcessNS  float64
-	MaxProcessNS      int64
-	AverageReadSendNS float64
-	MaxReadSendNS     int64
+	AverageTotalNanos    float64
+	MaxTotalNanos        int64
+	MaxTotalPercent      float64
+	TicksOverInterval    int
+	AverageProcessNanos  float64
+	MaxProcessNanos      int64
+	AverageReadSendNanos float64
+	MaxReadSendNanos     int64
 }
 
 func newTickWorkload(interval time.Duration) *tickWorkload {
@@ -392,13 +392,13 @@ func newTickWorkload(interval time.Duration) *tickWorkload {
 	}
 	return &tickWorkload{
 		interval:     interval,
-		processNS:    map[int]int64{},
+		processNanos: map[int]int64{},
 		readSendSpan: map[int]tickSpan{},
 	}
 }
 
 func (workload *tickWorkload) addProcess(offset time.Duration, elapsed time.Duration) {
-	workload.add(workload.processNS, offset, elapsed)
+	workload.add(workload.processNanos, offset, elapsed)
 }
 
 func (workload *tickWorkload) addReadSendSpan(startOffset time.Duration, endOffset time.Duration) {
@@ -409,18 +409,18 @@ func (workload *tickWorkload) addReadSendSpan(startOffset time.Duration, endOffs
 		endOffset = startOffset
 	}
 	index := int(startOffset / workload.interval)
-	startNS := startOffset.Nanoseconds()
-	endNS := endOffset.Nanoseconds()
+	startNanos := startOffset.Nanoseconds()
+	endNanos := endOffset.Nanoseconds()
 
 	workload.mu.Lock()
 	defer workload.mu.Unlock()
 
 	span := workload.readSendSpan[index]
-	if !span.seen || startNS < span.startNS {
-		span.startNS = startNS
+	if !span.seen || startNanos < span.startNanos {
+		span.startNanos = startNanos
 	}
-	if !span.seen || endNS > span.endNS {
-		span.endNS = endNS
+	if !span.seen || endNanos > span.endNanos {
+		span.endNanos = endNanos
 	}
 	span.seen = true
 	workload.readSendSpan[index] = span
@@ -459,10 +459,10 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 	var maxReadSend int64
 	ticksOverInterval := 0
 	for i := 0; i < tickCount; i++ {
-		process := workload.processNS[i]
+		process := workload.processNanos[i]
 		readSend := int64(0)
 		if span := workload.readSendSpan[i]; span.seen {
-			readSend = span.endNS - span.startNS
+			readSend = span.endNanos - span.startNanos
 		}
 		total := readSend
 		totalSum += total
@@ -483,14 +483,14 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 	}
 
 	return tickWorkloadSummary{
-		AverageTotalNS:    float64(totalSum) / float64(tickCount),
-		MaxTotalNS:        maxTotal,
-		MaxTotalPercent:   100 * float64(maxTotal) / float64(workload.interval.Nanoseconds()),
-		TicksOverInterval: ticksOverInterval,
-		AverageProcessNS:  float64(processSum) / float64(tickCount),
-		MaxProcessNS:      maxProcess,
-		AverageReadSendNS: float64(readSendSum) / float64(tickCount),
-		MaxReadSendNS:     maxReadSend,
+		AverageTotalNanos:    float64(totalSum) / float64(tickCount),
+		MaxTotalNanos:        maxTotal,
+		MaxTotalPercent:      100 * float64(maxTotal) / float64(workload.interval.Nanoseconds()),
+		TicksOverInterval:    ticksOverInterval,
+		AverageProcessNanos:  float64(processSum) / float64(tickCount),
+		MaxProcessNanos:      maxProcess,
+		AverageReadSendNanos: float64(readSendSum) / float64(tickCount),
+		MaxReadSendNanos:     maxReadSend,
 	}
 }
 

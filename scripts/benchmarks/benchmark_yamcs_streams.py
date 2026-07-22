@@ -63,89 +63,89 @@ DEFAULT_PARAMETERS = ",".join(
     ]
 )
 METRIC_LABELS = {
-    "avg_read_clear_ns": "Read and clear time",
-    "avg_process_ns": "Yamcs listener processing time",
+    "avg_read_clear": "Average read and clear time",
+    "avg_process": "Average Yamcs listener processing time",
     "live_memory_growth_bytes": "Live memory used during run",
     "total_allocated_bytes": "Total memory allocated during run",
-    "values_read_per_sec": "Values read per second",
+    "values_read_per_sec": "Values read per second from buffers",
     "values_read_fresh_pct": "Values read within 1s tick",
     "values_read_stale_pct": "Values read after 1s tick",
-    "avg_value_read_age_ns": "Average value age when read",
-    "max_value_read_age_ns": "Max value buffer age",
-    "max_value_stall_ns": "Max stall beyond freshness window",
-    "avg_tick_runstream_ns": "RunStream wall time per 1s tick",
-    "max_tick_runstream_ns": "Worst RunStream tick wall time",
+    "avg_value_read_age": "Average value age when read",
+    "max_value_read_age": "Max value buffer age",
+    "max_value_stall": "Max stall beyond freshness window",
+    "avg_tick_runstream": "Average RunStream wall time per 1s tick",
+    "max_tick_runstream": "Worst RunStream tick wall time",
     "max_tick_runstream_pct": "Worst RunStream tick wall time",
-    "avg_tick_process_ns": "Yamcs processing time per 1s tick",
-    "max_tick_process_ns": "Worst 1s tick Yamcs process workload",
-    "avg_tick_read_send_ns": "Average read/frame/send wall time per tick",
-    "max_tick_read_send_ns": "Worst read/frame/send wall time per tick",
-    "setup_ns": "Stream setup time",
+    "avg_tick_process": "Average Yamcs processing time per 1s tick",
+    "max_tick_process": "Worst 1s tick Yamcs process workload",
+    "avg_tick_read_send": "Average read/frame/send wall time per tick",
+    "max_tick_read_send": "Worst read/frame/send wall time per tick",
+    "setup": "Stream setup time",
 }
 PLOT_TITLES = {
-    "avg_read_clear_ns": "Time to read and clear one stream buffer",
-    "avg_process_ns": "Time to process one Yamcs parameter update",
+    "avg_read_clear": "Average time to read and clear one stream buffer",
+    "avg_process": "Average time to process one Yamcs parameter update",
     "live_memory_growth_bytes": "Live memory used while N Grafana streams run",
     "total_allocated_bytes": "Total memory allocated while N Grafana streams run",
-    "values_read_per_sec": "Values read per second from N Grafana streams",
+    "values_read_per_sec": "Values read per second from buffers by N Grafana streams",
     "values_read_fresh_pct": "Values read within the same 1s simulator tick",
-    "avg_value_read_age_ns": "Average age of values when Grafana reads them",
-    "avg_tick_runstream_ns": "RunStream wall time with N Grafana streams on a 1s ticker",
-    "setup_ns": "Time to set up N Grafana streams",
+    "avg_value_read_age": "Average age of values when Grafana stream reads them",
+    "avg_tick_runstream": "Average RunStream wall time with N Grafana streams on 1s tickers",
+    "setup": "Time to set up N Grafana streams",
 }
 PLOT_FILE_NAMES = {
-    "avg_read_clear_ns": "avg_read_clear",
-    "avg_process_ns": "avg_process",
-    "avg_value_read_age_ns": "avg_value_read_age",
-    "avg_tick_runstream_ns": "avg_tick_runstream",
-    "setup_ns": "setup",
+    "avg_read_clear": "avg_read_clear",
+    "avg_process": "avg_process",
+    "avg_value_read_age": "avg_value_read_age",
+    "avg_tick_runstream": "avg_tick_runstream",
+    "setup": "setup",
 }
 PERFORMANCE_PLOT_KEYS = [
-    "avg_read_clear_ns",
-    "avg_process_ns",
+    "avg_read_clear",
+    "avg_process",
     "live_memory_growth_bytes",
     "total_allocated_bytes",
     "values_read_per_sec",
     "values_read_fresh_pct",
-    "avg_value_read_age_ns",
-    "avg_tick_runstream_ns",
-    "setup_ns",
+    "avg_value_read_age",
+    "avg_tick_runstream",
+    "setup",
 ]
 LOG_Y_KEYS = {"values_read_per_sec"}
 TIME_KEYS = {
-    "avg_read_clear_ns",
-    "avg_process_ns",
-    "setup_ns",
-    "avg_value_read_age_ns",
-    "max_value_read_age_ns",
-    "max_value_stall_ns",
-    "avg_tick_runstream_ns",
-    "max_tick_runstream_ns",
+    "avg_read_clear",
+    "avg_process",
+    "setup",
+    "avg_value_read_age",
+    "max_value_read_age",
+    "max_value_stall",
+    "avg_tick_runstream",
+    "max_tick_runstream",
 }
 BYTE_KEYS = {"live_memory_growth_bytes", "total_allocated_bytes"}
 THRESHOLDS = {
-    "avg_read_clear_ns": {
+    "avg_read_clear": {
         "warn": 1_000_000,
         "fail": 10_000_000,
         "operator": "max",
         "unit": "ns",
-        "plot_key": "avg_read_clear_ns",
+        "plot_key": "avg_read_clear",
         "scale": "constant",
     },
-    "avg_process_ns": {
+    "avg_process": {
         "warn": 1_000_000,
         "fail": 10_000_000,
         "operator": "max",
         "unit": "ns",
-        "plot_key": "avg_process_ns",
+        "plot_key": "avg_process",
         "scale": "constant",
     },
-    "setup_ns_per_stream": {
+    "setup_per_stream": {
         "warn": 50_000_000,
         "fail": 100_000_000,
         "operator": "max",
         "unit": "ns/stream",
-        "plot_key": "setup_ns",
+        "plot_key": "setup",
         "scale": "per_stream",
     },
     "live_memory_growth_bytes_per_stream": {
@@ -172,20 +172,20 @@ THRESHOLDS = {
         "plot_key": "values_read_fresh_pct",
         "scale": "constant",
     },
-    "max_value_read_age_ns": {
+    "max_value_read_age": {
         "warn": 1_000_000_000,
         "fail": 2_000_000_000,
         "operator": "max",
         "unit": "ns",
-        "plot_key": "max_value_read_age_ns",
+        "plot_key": "max_value_read_age",
         "scale": "constant",
     },
-    "avg_tick_runstream_ns": {
+    "avg_tick_runstream": {
         "warn": 1_000_000_000,
         "fail": 1_200_000_000,
         "operator": "max",
         "unit": "ns",
-        "plot_key": "avg_tick_runstream_ns",
+        "plot_key": "avg_tick_runstream",
         "scale": "constant",
     },
 }
@@ -395,8 +395,8 @@ def plot_all_metrics(output_dir: str, rows: list[dict[str, Any]]) -> list[str]:
 
 
 def threshold_value(row: dict[str, Any], key: str) -> float:
-    if key == "setup_ns_per_stream":
-        return float(row["setup_ns"]) / max(float(row["streams"]), 1)
+    if key == "setup_per_stream":
+        return float(row["setup"]) / max(float(row["streams"]), 1)
     if key == "live_memory_growth_bytes_per_stream":
         return float(row["live_memory_growth_bytes"]) / max(float(row["streams"]), 1)
     if key == "values_read_per_sec_per_stream":
