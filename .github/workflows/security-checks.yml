@@ -1,0 +1,365 @@
+name: Security Checks
+
+'on':
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      plugin_archive:
+        description: Plugin archive filename for validator input
+        required: false
+        default: jaops-yamcs-app.zip
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  security:
+    name: gosec + osv-scanner + plugin-validator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run gosec (HIGH/CRITICAL policy)
+        id: gosec
+        continue-on-error: true
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+
+          set +e
+          gosec -severity high -fmt=json -out=gosec.json ./pkg/...
+          gosec_json_status=$?
+
+          gosec -severity high ./pkg/... | tee gosec.txt
+          gosec_txt_status=$?
+
+          if [ "$gosec_txt_status" -ne 0 ]; then
+            exit "$gosec_txt_status"
+          fi
+
+          exit "$gosec_json_status"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run OSV-Scanner
+        id: osv-scanner
+        continue-on-error: true
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          set +e
+          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.raw 2>&1
+          scan_status=$?
+
+          # osv-scanner may emit log lines before JSON; normalize output for jq parsing.
+          if jq -e . osv-scanner.raw >/dev/null 2>&1; then
+            cp osv-scanner.raw osv-scanner.json
+          else
+            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' osv-scanner.raw > osv-scanner.json || true
+          fi
+
+          if jq -e . osv-scanner.json >/dev/null 2>&1; then
+            jq . osv-scanner.json > osv-scanner.txt
+            pnpm list --prod --depth Infinity --json \
+              | jq -r '.. | objects | .name? // empty' \
+              | sort -u > osv-prod-packages.txt
+
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_runtime_high_critical=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+            if [ "$osv_runtime_high_critical" -gt 0 ]; then
+              exit 1
+            fi
+            exit 0
+          fi
+
+          cp osv-scanner.raw osv-scanner.txt
+          exit "$scan_status"
+
+      - name: Build plugin package for validator
+        env:
+          PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
+        run: |
+          pnpm run build
+
+          plugin_id="$(jq -r '.id' dist/plugin.json)"
+          if [ -z "$plugin_id" ] || [ "$plugin_id" = "null" ]; then
+            echo "Could not determine plugin id from dist/plugin.json"
+            exit 1
+          fi
+
+          rm -rf "$plugin_id"
+          cp -R dist "$plugin_id"
+          rm -f "$PLUGIN_ARCHIVE"
+          zip -r "$PLUGIN_ARCHIVE" "$plugin_id"
+
+      - name: Run plugin-validator
+        id: plugin-validator
+        continue-on-error: true
+        env:
+          PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
+        run: |
+          cat > .plugin-validator-security.yml <<'EOF'
+          global:
+            enabled: true
+            jsonOutput: true
+            reportAll: false
+
+          analyzers:
+            osv-scanner:
+              enabled: false
+            backendbinary:
+              enabled: false
+            binarypermissions:
+              enabled: false
+            go-manifest:
+              enabled: false
+            version:
+              enabled: false
+            sponsorshiplink:
+              rules:
+                sponsorshiplink:
+                  enabled: false
+            manifest:
+              rules:
+                unsigned-plugin:
+                  enabled: false
+            signature:
+              rules:
+                unsigned-plugin:
+                  enabled: false
+            provenance:
+              rules:
+                no-provenance-attestation:
+                  enabled: false
+          EOF
+
+          set +e
+          npx --yes @grafana/plugin-validator@latest \
+            -config .plugin-validator-security.yml \
+            -sourceCodeUri file://./ \
+            "$PLUGIN_ARCHIVE" > plugin-validator.raw 2>&1
+          status=$?
+
+          # plugin-validator can emit log lines before JSON; keep a normalized JSON file for parsing.
+          if jq -e . plugin-validator.raw >/dev/null 2>&1; then
+            cp plugin-validator.raw plugin-validator.json
+          else
+            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' plugin-validator.raw > plugin-validator.json || true
+          fi
+
+          if jq -e . plugin-validator.json >/dev/null 2>&1; then
+            jq . plugin-validator.json > plugin-validator.txt
+          else
+            cp plugin-validator.raw plugin-validator.txt
+          fi
+
+          exit "$status"
+
+      - name: Upload raw security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.run_id }}
+          path: |
+            gosec.txt
+            gosec.json
+            osv-scanner.raw
+            osv-scanner.txt
+            osv-scanner.json
+            osv-prod-packages.txt
+            plugin-validator.txt
+            plugin-validator.json
+          retention-days: 14
+
+      - name: Evaluate security status
+        id: evaluate
+        if: always()
+        run: |
+          failed=false
+          summary=""
+
+          if [ "${{ steps.gosec.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- gosec reported HIGH/CRITICAL-policy findings or failed"
+          fi
+
+          if [ "${{ steps.osv-scanner.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- osv-scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
+          fi
+
+          if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
+            failed=true
+            summary="${summary}\n- plugin-validator reported blocking findings or failed"
+          fi
+
+          {
+            echo "failed=${failed}"
+            echo "summary<<EOF"
+            echo -e "${summary}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build PR security comment from JSON
+        id: pr-comment
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          gosec_findings=0
+          if [ -f gosec.json ] && jq -e . gosec.json >/dev/null 2>&1; then
+            gosec_findings=$(jq '[.Issues[]?] | length' gosec.json)
+          fi
+
+          osv_findings=0
+          if [ -f osv-scanner.json ] && [ -f osv-prod-packages.txt ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
+            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+            osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
+          fi
+
+          plugin_findings=0
+          if [ -f plugin-validator.json ] && jq -e . plugin-validator.json >/dev/null 2>&1; then
+            plugin_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
+          fi
+
+          total_findings=$((gosec_findings + osv_findings + plugin_findings))
+          if [ "$total_findings" -eq 0 ]; then
+            echo "has_findings=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "<!-- security-checks-comment -->"
+            echo "## Security checks found issues"
+            echo
+            echo "This PR introduced findings in automated security checks."
+            echo
+            echo "| Scanner | Findings |"
+            echo "|---|---:|"
+            echo "| gosec (HIGH/CRITICAL policy) | ${gosec_findings} |"
+            echo "| osv-scanner (runtime HIGH/CRITICAL) | ${osv_findings} |"
+            echo "| plugin-validator (error severity) | ${plugin_findings} |"
+            echo
+          } > pr-security-comment.md
+
+          if [ "$gosec_findings" -gt 0 ]; then
+            {
+              echo "### gosec highlights"
+              echo
+              jq -r '.Issues[]? | "- \(.severity // "UNKNOWN") \(.rule_id // "RULE") in \(.file // "unknown file"):\(.line // 0) - \(.details // "No details")"' gosec.json | sed -n '1,15p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          if [ "$osv_findings" -gt 0 ]; then
+            {
+              echo "### osv-scanner highlights"
+              echo
+              prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
+              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          if [ "$plugin_findings" -gt 0 ]; then
+            {
+              echo "### plugin-validator highlights"
+              echo
+              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          {
+            echo "<details><summary>Raw outputs</summary>"
+            echo
+            echo "- gosec JSON: artifact security-reports-${{ github.run_id }} / gosec.json"
+            echo "- osv-scanner JSON: artifact security-reports-${{ github.run_id }} / osv-scanner.json"
+            echo "- plugin-validator JSON: artifact security-reports-${{ github.run_id }} / plugin-validator.json"
+            echo
+            echo "</details>"
+          } >> pr-security-comment.md
+
+          echo "has_findings=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post PR security comment
+        if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const marker = '<!-- security-checks-comment -->';
+            const body = fs.readFileSync('pr-security-comment.md', 'utf8');
+            const issue_number = context.payload.pull_request.number;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body,
+              });
+            }
+
+      - name: Delete PR security comment when clean
+        if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- security-checks-comment -->';
+            const issue_number = context.payload.pull_request.number;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+              });
+            }
+
+      - name: Fail workflow on findings
+        if: always() && steps.evaluate.outputs.failed == 'true'
+        run: |
+          echo "security checks detected issues:"
+          echo "${{ steps.evaluate.outputs.summary }}"
+          exit 1

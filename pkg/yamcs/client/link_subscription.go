@@ -14,7 +14,7 @@ type LinkListener func(event *links.LinkEvent) error
 
 // LinkSubscription manages a subscription to link status updates.
 type LinkSubscription struct {
-	subscriptionID int
+	subscriptionID int32
 	listener       LinkListener
 	Instance       string
 	client         *YamcsClient
@@ -74,7 +74,7 @@ func (client *YamcsClient) HandleLinkMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
-	subscription, found := client.LinkSubscriptions[int(callID)]
+	subscription, found := client.LinkSubscriptions[callID]
 	if found && subscription.listener != nil {
 		subscription.listener(event)
 	}
@@ -90,7 +90,7 @@ func (subscription *LinkSubscription) Halt() {
 	delete(subscription.client.LinkSubscriptions, subscription.subscriptionID)
 
 	cancelRequest := &api.CancelOptions{
-		Call: int32(subscription.subscriptionID),
+		Call: subscription.subscriptionID,
 	}
 
 	anyMessage, _ := anypb.New(cancelRequest)

@@ -26,8 +26,8 @@ type WebSocketHandler struct {
 	useProtobuf      bool
 	serverRoot       string
 	messageListeners map[ListenerID]MessageListener
-	messageCallbacks map[int]MessageCallback
-	currentPacketID  int
+	messageCallbacks map[int32]MessageCallback
+	currentPacketID  int32
 	mu               sync.Mutex
 	nmu              sync.Mutex // network mutex
 	disconnectFunc   func()
@@ -36,7 +36,7 @@ type WebSocketHandler struct {
 }
 
 type MessageListener func(*api.ServerMessage)
-type MessageCallback func(call int, seq int, reply *api.Reply)
+type MessageCallback func(call int32, seq int32, reply *api.Reply)
 
 func NewWebSocketHandler(serverRoot string, useProtobuf bool) *WebSocketHandler {
 	return &WebSocketHandler{
@@ -44,7 +44,7 @@ func NewWebSocketHandler(serverRoot string, useProtobuf bool) *WebSocketHandler 
 		useProtobuf:      useProtobuf,
 		currentPacketID:  0,
 		messageListeners: make(map[ListenerID]MessageListener),
-		messageCallbacks: make(map[int]MessageCallback),
+		messageCallbacks: make(map[int32]MessageCallback),
 		handshakeTimeout: 5,
 		once:             sync.Once{},
 	}
@@ -137,11 +137,11 @@ func (ws *WebSocketHandler) Listen() {
 				continue
 			}
 			ws.mu.Lock()
-			callback, found := ws.messageCallbacks[int(reply.GetReplyTo())]
+			callback, found := ws.messageCallbacks[reply.GetReplyTo()]
 			ws.mu.Unlock()
 
 			if found {
-				callback(int(message.GetCall()), int(message.GetSeq()), &reply)
+				callback(message.GetCall(), message.GetSeq(), &reply)
 			}
 		}
 
@@ -186,14 +186,14 @@ func (ws *WebSocketHandler) ForceDisconnect() {
 
 type syncResponse struct {
 	reply *api.Reply
-	call  int
-	seq   int
+	call  int32
+	seq   int32
 }
 
 func (ws *WebSocketHandler) SendSync(
 	ctx context.Context,
 	message *api.ClientMessage,
-) (*api.Reply, int, int, error) {
+) (*api.Reply, int32, int32, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -208,11 +208,11 @@ func (ws *WebSocketHandler) SendSync(
 	currentID := ws.currentPacketID
 	ws.currentPacketID++
 
-	message.Id = int32(currentID)
+	message.Id = currentID
 
 	ws.messageCallbacks[currentID] = func(
-		call int,
-		seq int,
+		call int32,
+		seq int32,
 		reply *api.Reply,
 	) {
 		// Buffered channel prevents the callback from blocking if timeout and

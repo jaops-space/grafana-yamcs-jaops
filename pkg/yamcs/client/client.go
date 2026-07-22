@@ -44,14 +44,14 @@ type YamcsClient struct {
 	WebSocket *ws.WebSocketHandler
 
 	// Various subscriptions for data streams
-	ParameterSubscriptions         map[int]*ParameterSubscription
-	CommandHistorySubscriptions    map[int]*CommandHistorySubscription
-	EventSubscriptions             map[int]*EventSubscription
-	AlarmSubscriptions             map[int]*AlarmSubscription
-	GlobalAlarmStatusSubscriptions map[int]*GlobalStatusSubscription
-	TimeSubscriptions              map[int]*TimeSubscription
-	LinkSubscriptions              map[int]*LinkSubscription
-	ProcessorSubscriptions         map[int]*ProcessorSubscription
+	ParameterSubscriptions         map[int32]*ParameterSubscription
+	CommandHistorySubscriptions    map[int32]*CommandHistorySubscription
+	EventSubscriptions             map[int32]*EventSubscription
+	AlarmSubscriptions             map[int32]*AlarmSubscription
+	GlobalAlarmStatusSubscriptions map[int32]*GlobalStatusSubscription
+	TimeSubscriptions              map[int32]*TimeSubscription
+	LinkSubscriptions              map[int32]*LinkSubscription
+	ProcessorSubscriptions         map[int32]*ProcessorSubscription
 
 	// Sample Point Count for Sample endpoints
 	SamplePointCount *types.Optional[int]
@@ -72,14 +72,14 @@ func NewYamcsClient(
 		Credentials:                    credentials,
 		UseProtobuf:                    true,
 		KeepAlive:                      true,
-		ParameterSubscriptions:         make(map[int]*ParameterSubscription),
-		CommandHistorySubscriptions:    make(map[int]*CommandHistorySubscription),
-		EventSubscriptions:             make(map[int]*EventSubscription),
-		AlarmSubscriptions:             make(map[int]*AlarmSubscription),
-		GlobalAlarmStatusSubscriptions: make(map[int]*GlobalStatusSubscription),
-		TimeSubscriptions:              make(map[int]*TimeSubscription),
-		LinkSubscriptions:              make(map[int]*LinkSubscription),
-		ProcessorSubscriptions:         make(map[int]*ProcessorSubscription),
+		ParameterSubscriptions:         make(map[int32]*ParameterSubscription),
+		CommandHistorySubscriptions:    make(map[int32]*CommandHistorySubscription),
+		EventSubscriptions:             make(map[int32]*EventSubscription),
+		AlarmSubscriptions:             make(map[int32]*AlarmSubscription),
+		GlobalAlarmStatusSubscriptions: make(map[int32]*GlobalStatusSubscription),
+		TimeSubscriptions:              make(map[int32]*TimeSubscription),
+		LinkSubscriptions:              make(map[int32]*LinkSubscription),
+		ProcessorSubscriptions:         make(map[int32]*ProcessorSubscription),
 		SamplePointCount:               types.OptionalOfNil[int](),
 	}
 
@@ -179,12 +179,12 @@ func getProtocolPrefix(isTLS bool) string {
 // clearAllSubscriptions clears all subscriptions for the client.
 func (client *YamcsClient) clearAllSubscriptions() {
 	// Clear subscriptions
-	client.ParameterSubscriptions = make(map[int]*ParameterSubscription)
-	client.EventSubscriptions = make(map[int]*EventSubscription)
-	client.CommandHistorySubscriptions = make(map[int]*CommandHistorySubscription)
-	client.AlarmSubscriptions = make(map[int]*AlarmSubscription)
-	client.GlobalAlarmStatusSubscriptions = make(map[int]*GlobalStatusSubscription)
-	client.TimeSubscriptions = make(map[int]*TimeSubscription)
-	client.LinkSubscriptions = make(map[int]*LinkSubscription)
-	client.ProcessorSubscriptions = make(map[int]*ProcessorSubscription)
+	client.ParameterSubscriptions = make(map[int32]*ParameterSubscription)
+	client.EventSubscriptions = make(map[int32]*EventSubscription)
+	client.CommandHistorySubscriptions = make(map[int32]*CommandHistorySubscription)
+	client.AlarmSubscriptions = make(map[int32]*AlarmSubscription)
+	client.GlobalAlarmStatusSubscriptions = make(map[int32]*GlobalStatusSubscription)
+	client.TimeSubscriptions = make(map[int32]*TimeSubscription)
+	client.LinkSubscriptions = make(map[int32]*LinkSubscription)
+	client.ProcessorSubscriptions = make(map[int32]*ProcessorSubscription)
 }

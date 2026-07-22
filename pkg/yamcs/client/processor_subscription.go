@@ -15,7 +15,7 @@ type ProcessorListener func(processor Processor)
 
 // ProcessorSubscription manages a subscription to processor updates.
 type ProcessorSubscription struct {
-	subscriptionID int
+	subscriptionID int32
 	listener       ProcessorListener
 	Instance       string
 	Processor      string
@@ -88,7 +88,7 @@ func (client *YamcsClient) HandleProcessorMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
-	subscription, found := client.ProcessorSubscriptions[int(callID)]
+	subscription, found := client.ProcessorSubscriptions[callID]
 	if found && subscription.listener != nil {
 		subscription.listener(processor)
 	}
@@ -104,7 +104,7 @@ func (subscription *ProcessorSubscription) Halt() {
 	delete(subscription.client.ProcessorSubscriptions, subscription.subscriptionID)
 
 	cancelRequest := &api.CancelOptions{
-		Call: int32(subscription.subscriptionID),
+		Call: subscription.subscriptionID,
 	}
 
 	anyMessage, _ := anypb.New(cancelRequest)

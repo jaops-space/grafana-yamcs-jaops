@@ -48,12 +48,12 @@ func buildTestEndpointWithClient(connected bool) *source.YamcsEndpoint {
 
 	c := &client.YamcsClient{
 		WebSocket:                   wsHandler,
-		ParameterSubscriptions:      map[int]*client.ParameterSubscription{},
-		EventSubscriptions:          map[int]*client.EventSubscription{},
-		CommandHistorySubscriptions: map[int]*client.CommandHistorySubscription{},
-		AlarmSubscriptions:          map[int]*client.AlarmSubscription{},
-		LinkSubscriptions:           map[int]*client.LinkSubscription{},
-		TimeSubscriptions:           map[int]*client.TimeSubscription{},
+		ParameterSubscriptions:      map[int32]*client.ParameterSubscription{},
+		EventSubscriptions:          map[int32]*client.EventSubscription{},
+		CommandHistorySubscriptions: map[int32]*client.CommandHistorySubscription{},
+		AlarmSubscriptions:          map[int32]*client.AlarmSubscription{},
+		LinkSubscriptions:           map[int32]*client.LinkSubscription{},
+		TimeSubscriptions:           map[int32]*client.TimeSubscription{},
 	}
 
 	host := &source.YamcsHost{

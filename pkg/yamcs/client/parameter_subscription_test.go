@@ -29,7 +29,7 @@ func TestHandleParameterMessageUsesSnapshotMappingForValues(t *testing.T) {
 		},
 	}
 	c := &YamcsClient{
-		ParameterSubscriptions: map[int]*ParameterSubscription{
+		ParameterSubscriptions: map[int32]*ParameterSubscription{
 			subscription.subscriptionID: subscription,
 		},
 	}
@@ -72,7 +72,7 @@ func TestHandleParameterMessageIgnoresUnknownSubscriptionCall(t *testing.T) {
 		t.Fatalf("build payload: %v", err)
 	}
 
-	c := &YamcsClient{ParameterSubscriptions: map[int]*ParameterSubscription{}}
+	c := &YamcsClient{ParameterSubscriptions: map[int32]*ParameterSubscription{}}
 	c.HandleParameterMessage(&api.ServerMessage{Type: "parameters", Call: 99, Data: payload})
 
 	if len(c.ParameterSubscriptions) != 0 {

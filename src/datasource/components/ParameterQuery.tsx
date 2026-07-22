@@ -1,34 +1,31 @@
 import { SelectableValue } from '@grafana/data';
-import { Combobox, ComboboxOption, Checkbox, InlineField, Input, MultiSelect, Stack } from '@grafana/ui';
-import React, { useMemo } from 'react';
-import { QueryField } from '../types';
-import { FieldsOptions, QueryOptions, QueryProps } from './constants';
+import { Combobox, ComboboxOption, InlineField, MultiSelect, Stack } from '@grafana/ui';
+import React, { useCallback } from 'react';
+import { Query, QueryField } from '../types';
+import { FieldsOptions, QueryEditorModelProps, QueryOptions } from './constants';
 
-export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
+export function ParameterQuery({ query, onChange, datasource }: QueryEditorModelProps) {
     const { endpoint } = query;
 
     const queryTypeInfo = QueryOptions.find((o) => o.value === query.type);
     const additionalFields = queryTypeInfo?.additionalFields;
 
-    const selectedFields = useMemo(
-        () => FieldsOptions.filter((opt) => query.fields?.includes(opt.value as QueryField)),
-        [query.fields]
-    );
+    const selectedFields = FieldsOptions.filter((opt) => query.fields?.includes(opt.value as QueryField));
 
-    const updateQuery = (patch: Partial<typeof query>) => {
+    const updateQuery = useCallback((patch: Partial<Query>) => {
         onChange({
             ...query,
             ...patch,
         });
-    };
+    }, [onChange, query]);
 
-    const handleParameterChange = (v: ComboboxOption | null) => {
+    const handleParameterChange = useCallback((v: ComboboxOption | null) => {
         updateQuery({ parameter: (v?.value as string) ?? '' });
-    };
+    }, [updateQuery]);
 
-    const isAggregate = Boolean(query.aggregatePath);
+    //const isAggregate = Boolean(query.aggregatePath);
 
-    const fetchOptions = async (inputValue: string): Promise<ComboboxOption[]> => {
+    const fetchOptions = useCallback(async (inputValue: string): Promise<ComboboxOption[]> => {
         if (!endpoint) {
             return [];
         }
@@ -37,7 +34,7 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
             inputValue ? { q: inputValue } : undefined
         );
         return parameters.map((p) => ({ label: p, value: p }));
-    };
+    }, [datasource, endpoint]);
 
     return (
         <>
@@ -49,10 +46,13 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                             options={fetchOptions}
                             onChange={handleParameterChange}
                             value={query.parameter ?? null}
+                            createCustomValue
+                            customValueDescription='Use custom aggregate parameter expression'
                         />
                     </InlineField>
 
-                    {isAggregate && (
+                    {/* TODO: to be removed and use inline custom aggregate
+                    isAggregate && (
                         <InlineField label="." grow>
                             <Input
                                 marginWidth={0}
@@ -63,10 +63,10 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                                 value={query.aggregatePath || ''}
                             />
                         </InlineField>
-                    )}
+                    )*/}
                 </Stack>
 
-                <InlineField>
+                {/*<InlineField>
                     <Checkbox
                         checked={isAggregate}
                         onChange={(e) => {
@@ -75,7 +75,7 @@ export function ParameterQuery({ query, onChange, datasource }: QueryProps) {
                         }}
                         label="Aggregate"
                     />
-                </InlineField>
+                </InlineField>*/}
             </Stack>
 
             {additionalFields && (
