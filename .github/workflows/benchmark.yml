@@ -55,7 +55,7 @@ jobs:
                   node-version: "22"
 
             - name: Install Yamcs quickstart
-              run: git clone --depth 1 https://github.com/yamcs/quickstart.git /tmp/yamcs-quickstart
+              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
 
             - name: Start Yamcs quickstart
               working-directory: /tmp/yamcs-quickstart

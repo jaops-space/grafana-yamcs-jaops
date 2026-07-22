@@ -69,7 +69,6 @@ Yamcs stream scenario output files are written directly to `benchmark-output/`:
     - clone the quickstart from: https://github.com/jaops-space/yamcs-quickstart
     - start Yamcs server: `./mvnw yamcs:run`
     - run the simulator for basic spacecraft data: `./simulator.py`
-    - run the simulator for example image generation `python3 simulator/images/generate_images.py`
 2. **Grafana Instance**: Grafana 10.4.0 or later
 
 ## Quick Setup for Testing

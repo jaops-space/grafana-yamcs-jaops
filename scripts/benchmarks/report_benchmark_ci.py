@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import shutil
+import sys
 from typing import Any
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
@@ -219,7 +220,10 @@ def main() -> None:
     parser.add_argument("--artifact-url", default="")
     parser.add_argument("--plots-base-url", default="")
     parser.add_argument("--run-url", default="")
-    args = parser.parse_args()
+    argv = sys.argv[1:]
+    if argv and argv[0] == "--":
+        argv = argv[1:]
+    args = parser.parse_args(argv)
 
     results_path = os.path.join(args.output_dir, "yamcs-stream-results.json")
     with open(results_path, encoding="utf-8") as fp:

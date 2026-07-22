@@ -181,7 +181,7 @@ jobs:
             - name: Run Yamcs integration tests
               env:
                   YAMCS_ADDRESS: localhost:8090
-              run: go test -tags=integration ./pkg/yamcs/client -run Integration -v -count=1
+              run: go test -tags=integration ./pkg/yamcs/client/integration -run Integration -v -count=1
 
             - name: Dump Yamcs logs on failure
               if: ${{ failure() }}
@@ -256,6 +256,10 @@ jobs:
                   docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs || true
                   exit 1
 
+            - name: Start Yamcs quickstart simulators
+              run: |
+                  nohup python3 /tmp/yamcs-quickstart/simulator.py > /tmp/yamcs-simulator.log 2>&1 &
+
             - name: Check if Grafana container is running
               run: |
                   sleep 10
@@ -280,6 +284,7 @@ jobs:
               if: ${{ always() && steps.run-tests.outcome == 'failure' }}
               run: |
                   docker logs jaops-yamcs-app >& grafana-server.log
+                  cat /tmp/yamcs-simulator.log > yamcs-simulator.log || true
 
             - name: Stop grafana docker
               if: always()
@@ -292,15 +297,17 @@ jobs:
               if: ${{ always() && steps.run-tests.outcome == 'failure' }}
               with:
                   name: ${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}-server-log
-                  path: grafana-server.log
+                  path: |
+                    grafana-server.log
+                    yamcs-simulator.log
                   retention-days: 5
 
             # Uncomment this step to upload the Playwright report to Github artifacts.
             # If your repository is public, the report will be public on the Internet so beware not to expose sensitive information.
-            # - name: Upload artifacts
-            #   uses: actions/upload-artifact@v4
-            #   if: ${{ always() && steps.run-tests.outcome == 'failure' }}
-            #   with:
-            #     name: playwright-report-${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}
-            #     path: playwright-report/
-            #     retention-days: 5
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              if: ${{ always() && steps.run-tests.outcome == 'failure' }}
+              with:
+                name: playwright-report-${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}
+                path: playwright-report/
+                retention-days: 5
