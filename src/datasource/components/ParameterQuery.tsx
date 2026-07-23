@@ -12,29 +12,36 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
 
     const selectedFields = FieldsOptions.filter((opt) => query.fields?.includes(opt.value as QueryField));
 
-    const updateQuery = useCallback((patch: Partial<Query>) => {
-        onChange({
-            ...query,
-            ...patch,
-        });
-    }, [onChange, query]);
+    const updateQuery = useCallback(
+        (patch: Partial<Query>) => {
+            onChange({
+                ...query,
+                ...patch,
+            });
+        },
+        [onChange, query]
+    );
 
-    const handleParameterChange = useCallback((v: ComboboxOption | null) => {
-        updateQuery({ parameter: (v?.value as string) ?? '' });
-    }, [updateQuery]);
+    const handleParameterChange = useCallback(
+        (v: ComboboxOption | null) => {
+            updateQuery({ parameter: (v?.value as string) ?? '' });
+        },
+        [updateQuery]
+    );
 
-    //const isAggregate = Boolean(query.aggregatePath);
-
-    const fetchOptions = useCallback(async (inputValue: string): Promise<ComboboxOption[]> => {
-        if (!endpoint) {
-            return [];
-        }
-        const parameters: string[] = await datasource.getResource(
-            `endpoint/${endpoint}/parameters`,
-            inputValue ? { q: inputValue } : undefined
-        );
-        return parameters.map((p) => ({ label: p, value: p }));
-    }, [datasource, endpoint]);
+    const fetchOptions = useCallback(
+        async (inputValue: string): Promise<ComboboxOption[]> => {
+            if (!endpoint) {
+                return [];
+            }
+            const parameters: string[] = await datasource.getResource(
+                `endpoint/${endpoint}/parameters`,
+                inputValue ? { q: inputValue } : undefined
+            );
+            return parameters.map((p) => ({ label: p, value: p }));
+        },
+        [datasource, endpoint]
+    );
 
     return (
         <>
@@ -47,35 +54,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
                             onChange={handleParameterChange}
                             value={query.parameter ?? null}
                             createCustomValue
-                            customValueDescription='Use custom aggregate parameter expression'
+                            customValueDescription="Use custom parameter expression"
+                            data-testid="jaops-parameter-select"
                         />
                     </InlineField>
-
-                    {/* TODO: to be removed and use inline custom aggregate
-                    isAggregate && (
-                        <InlineField label="." grow>
-                            <Input
-                                marginWidth={0}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                    updateQuery({ aggregatePath: e.target.value });
-                                }}
-                                placeholder="Path to value (case sensitive)"
-                                value={query.aggregatePath || ''}
-                            />
-                        </InlineField>
-                    )*/}
                 </Stack>
-
-                {/*<InlineField>
-                    <Checkbox
-                        checked={isAggregate}
-                        onChange={(e) => {
-                            const newState = e.currentTarget.checked;
-                            updateQuery({ aggregatePath: newState ? query.aggregatePath || '.' : '' });
-                        }}
-                        label="Aggregate"
-                    />
-                </InlineField>*/}
             </Stack>
 
             {additionalFields && (

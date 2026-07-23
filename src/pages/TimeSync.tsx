@@ -11,11 +11,16 @@ function TimeSyncSetup() {
             </p>
 
             <Card>
-                <Card.Heading>Step 1: Setup a Replay processor on Yamcs</Card.Heading>
+                <Card.Heading>
+                    <span data-testid="jaops-setup-page-time-sync">Step 1: Setup a Replay processor on Yamcs</span>
+                </Card.Heading>
                 <Card.Description>
-                    The first step is to set up a replay processor, if you already have it set up, you might skip this step.
-                    <br/><br/>
-                    The provisioned datasource already has a setup for a replay processor called <code>replay</code>, all you need to do is start a replay on <b>Yamcs web</b> with that same name, and change the <code>endpoint</code> variable to <code>myproject_replay</code> or <code>simulator_replay</code> on the Demo dashboard.
+                    The first step is to set up a replay processor, if you already have it set up, you might skip this
+                    step.
+                    <br />
+                    <br />
+                    Add a datasource endpoint for the replay processor you start in <b>Yamcs web</b>, then point your
+                    dashboard endpoint variable at that configured endpoint.
                 </Card.Description>
             </Card>
 

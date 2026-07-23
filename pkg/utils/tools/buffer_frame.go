@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
@@ -242,6 +242,25 @@ func prepend[T any](s []T, v T) []T {
 	return append([]T{v}, s...)
 }
 
+func commandHistoryEntryID(command *commanding.CommandHistoryEntry) string {
+	if command.GetId() != "" {
+		return command.GetId()
+	}
+
+	commandID := command.GetCommandId()
+	if commandID == nil {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"%s/%d/%d/%s",
+		commandID.GetOrigin(),
+		commandID.GetSequenceNumber(),
+		commandID.GetGenerationTime(),
+		commandID.GetCommandName(),
+	)
+}
+
 func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
 
 	commandList := make([]json.RawMessage, 0)
@@ -249,7 +268,7 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 	for _, command := range commands {
 
 		commandEntry := &CommandEntry{
-			Id:                    command.GetId(),
+			Id:                    commandHistoryEntryID(command),
 			Time:                  command.GetGenerationTime().AsTime(),
 			Command:               command.GetCommandName(),
 			Comment:               nil,
@@ -276,10 +295,13 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				var ack **CommandAck
 				switch {
 				case nameHasPrefix(name, "Acknowledge_Queued"):
+					backend.Logger.Debug("received queued!")
 					ack = &commandEntry.Queued
 				case nameHasPrefix(name, "Acknowledge_Released"):
+					backend.Logger.Debug("received released!")
 					ack = &commandEntry.Released
 				case nameHasPrefix(name, "Acknowledge_Sent"):
+					backend.Logger.Debug("received sent!")
 					ack = &commandEntry.Sent
 				}
 
@@ -439,12 +461,12 @@ func ConvertSampleBufferToFrameWithOffset(buffer []*pvalue.TimeSeries_Sample,
 }
 
 // ConvertBufferToFrame converts a parameter value buffer into a data frame.
-func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, aggregatePath string, realtime bool) *data.Frame {
+func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int32{}))
 	}
 
-	values, times := extractParameterValues(buffer, aggregatePath, realtime)
+	values, times := extractParameterValues(buffer, realtime)
 	valueField := CreateValueField(values, parameter)
 
 	frame := data.NewFrame("response", data.NewField("time", nil, times), valueField)
@@ -461,7 +483,7 @@ func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, inc
 }
 
 // ConvertRangesToFrame converts a range of parameter values into a Grafana data frame.
-func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, aggregatePath string) *data.Frame {
+func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string) *data.Frame {
 
 	times := []time.Time{}
 	values := []interface{}{}
@@ -478,7 +500,7 @@ func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, aggregatePath
 
 	for _, valueRange := range ranges.GetRange() {
 		if len(valueRange.GetEngValues()) > 0 {
-			val := extractValue(valueRange.GetEngValues()[0], aggregatePath)
+			val := extractValue(valueRange.GetEngValues()[0])
 			label := fmt.Sprint(val)
 			labels[label] = label
 			valueMapping[label] = data.ValueMappingResult{
@@ -498,12 +520,12 @@ func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, aggregatePath
 
 // ConvertBufferToAverageFrame extracts statistics from the parameter buffer and returns a data frame.
 func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
-	parameter string, getMin, getMax bool, aggregatePath string, realtime bool) *data.Frame {
+	parameter string, getMin, getMax bool, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}))
 	}
 
-	values, times := extractParameterValues(buffer, aggregatePath, realtime)
+	values, times := extractParameterValues(buffer, realtime)
 	avg, min, max := CalculateStats(values, parameter)
 
 	timeField := data.NewField("time", nil, []time.Time{times[len(times)-1]})
@@ -523,12 +545,12 @@ func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
 }
 
 // extractParameterValues extracts values and timestamps from a parameter buffer.
-func extractParameterValues(buffer []*pvalue.ParameterValue, aggregatePath string, realtime bool) ([]interface{}, []time.Time) {
+func extractParameterValues(buffer []*pvalue.ParameterValue, realtime bool) ([]interface{}, []time.Time) {
 	var values []interface{}
 	var times []time.Time
 
 	for _, item := range buffer {
-		values = append(values, extractValue(item.GetEngValue(), aggregatePath))
+		values = append(values, extractValue(item.GetEngValue()))
 		if realtime {
 			times = append(times, time.Now())
 		} else {
@@ -540,7 +562,7 @@ func extractParameterValues(buffer []*pvalue.ParameterValue, aggregatePath strin
 }
 
 // extractValue extracts the correct value type from a Yamcs parameter value.
-func extractValue(v *protobuf.Value, aggregatePath string) interface{} {
+func extractValue(v *protobuf.Value) interface{} {
 	switch v.GetType() {
 	case protobuf.Value_DOUBLE:
 		return v.GetDoubleValue()
@@ -561,60 +583,10 @@ func extractValue(v *protobuf.Value, aggregatePath string) interface{} {
 	case protobuf.Value_BOOLEAN:
 		return strconv.FormatBool(v.GetBooleanValue())
 	case protobuf.Value_AGGREGATE:
-		return extractValue(aggregateExtractFromPath(v, aggregatePath), "")
+		return v.String()
 	default:
 		return v.GetStringValue()
 	}
-}
-
-// splitPath splits a path like ".x[0].y[2]" into its components.
-func splitPath(path string) []string {
-	re := regexp.MustCompile(`\.?([a-zA-Z_]\w*|\[\d+\])`)
-	matches := re.FindAllString(path, -1)
-	for i, match := range matches {
-		matches[i] = strings.TrimPrefix(match, ".")
-	}
-	return matches
-}
-
-func aggregateExtractFromPath(value *protobuf.Value, path string) *protobuf.Value {
-
-	defaultValue := &protobuf.Value{Type: protobuf.Value_SINT64.Enum(), Sint64Value: new(int64)}
-
-	if path == "" {
-		return defaultValue
-	}
-
-	paths := splitPath(path)
-	for _, p := range paths {
-		if value.GetType() == protobuf.Value_ARRAY && strings.HasPrefix(p, "[") && strings.HasSuffix(p, "]") {
-			indexStr := p[1 : len(p)-1]
-			index, err := strconv.Atoi(indexStr)
-			if err != nil {
-				return defaultValue
-			}
-			arrayValue := value.GetArrayValue()
-			if index < len(arrayValue) {
-				value = arrayValue[index]
-			} else {
-				return defaultValue
-			}
-		} else if value.GetType() == protobuf.Value_AGGREGATE {
-			found := false
-			aggregateValue := value.GetAggregateValue()
-			for i, name := range aggregateValue.GetName() {
-				if strings.EqualFold(name, p) {
-					value = aggregateValue.GetValue()[i]
-					found = true
-					break
-				}
-			}
-			if !found {
-				return defaultValue
-			}
-		}
-	}
-	return value
 }
 
 // formatBinary converts a binary value into a readable string.
@@ -951,4 +923,3 @@ func convertParameterInfoToMap(pi interface{}) map[string]interface{} {
 
 	return result
 }
-

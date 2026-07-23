@@ -9,3 +9,7 @@ type YamcsSecureConfiguration struct {
 type YamcsSecureHost struct {
 	Password string
 }
+
+func (scfg *YamcsSecureConfiguration) GetHost(host string) *YamcsSecureHost {
+	return scfg.Hosts[host]
+}

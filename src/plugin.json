@@ -151,10 +151,22 @@
             "name": "JAOPS Yamcs Time Sync",
             "id": "jaops-timesync-panel",
             "path": "time-sync-panel/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Links Panel",
+            "id": "jaops-links-panel",
+            "path": "links-panel/plugin.json"
+        },
+        {
+            "type": "panel",
+            "name": "JAOPS Alarms Panel",
+            "id": "jaops-alarms-panel",
+            "path": "alarms-panel/plugin.json"
         }
     ],
     "dependencies": {
-        "grafanaDependency": ">=10.4.0",
+        "grafanaDependency": ">=12.1.1",
         "plugins": []
     }
 }

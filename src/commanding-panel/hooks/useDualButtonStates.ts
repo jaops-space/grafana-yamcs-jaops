@@ -7,7 +7,7 @@ export function useDualButtonStates(
     options: PanelOptions,
     onOptionsChange: (options: PanelOptions) => void
 ) {
-    const storageKey = useMemo(() => `commanding-panel-state-${panelId}`, [panelId]);
+    const storageKey = useMemo(() => `jaops-yamcs-app.commanding-panel-state-${panelId}`, [panelId]);
 
     const [dualButtonStates, setDualButtonStates] = useState<DualButtonStates>(() => {
         try {

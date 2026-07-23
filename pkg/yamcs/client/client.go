@@ -1,9 +1,12 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/ws"
@@ -118,11 +121,11 @@ func NewYamcsClient(
 	return client, nil
 }
 
-func (client *YamcsClient) EstablishWebSocketConnection() error {
+func (client *YamcsClient) EstablishWebSocketConnection(ctx context.Context) error {
 	if client.IsWebSocketConnected() {
 		return nil
 	}
-	err := client.WebSocket.Connect()
+	err := client.WebSocket.Connect(ctx)
 	if err == nil {
 		client.clearAllSubscriptions()
 		go client.WebSocket.Listen()
@@ -134,8 +137,30 @@ func (client *YamcsClient) CloseWebSocketConnection() error {
 	return client.WebSocket.Disconnect()
 }
 
+func (client *YamcsClient) Close() error {
+	var err error
+	if client.WebSocket != nil {
+		err = client.WebSocket.Disconnect()
+	}
+	if client.HTTP != nil {
+		client.HTTP.Dispose()
+	}
+	client.clearAllSubscriptions()
+	return err
+}
+
 func (client *YamcsClient) IsWebSocketConnected() bool {
 	return client.WebSocket.IsConnected()
+}
+
+func (client *YamcsClient) WebSocketState(ctx context.Context) (*api.State, error) {
+	timeout := 10 * time.Second
+	if ctx != nil {
+		if deadline, ok := ctx.Deadline(); ok {
+			timeout = time.Until(deadline)
+		}
+	}
+	return client.WebSocket.GetState(timeout)
 }
 
 // OptionSetUserAgent allows overriding the default User-Agent.

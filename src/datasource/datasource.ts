@@ -13,6 +13,17 @@ import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafa
 import { Observable, merge } from 'rxjs';
 import { Configuration, DEFAULT_QUERY as DefaultQuery, Query, QueryType } from './types';
 
+function formatRangePath(request: DataQueryRequest<Query>): string {
+    const fromUnix = request.range.from.unix();
+    const toUnix = request.range.to.unix();
+    return `${fromUnix}-${toUnix}`;
+}
+
+function formatGraphFieldsPath(query: Query): string {
+    const fields = [...(query.fields ?? [])].filter((field) => field === 'min' || field === 'max').sort();
+    return fields.length > 0 ? `fields=${fields.join('-')}` : 'fields=none';
+}
+
 /**
  * Custom Grafana DataSource for retrieving and streaming data.
  */
@@ -58,19 +69,19 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
 
                 let pathName = 'query';
                 if (query.parameter) {
-                    pathName = `${query.endpoint}-${query.parameter.replaceAll('/', '')}${query.aggregatePath}`;
+                    pathName = `${query.parameter.replaceAll('/', '-')}`;
                 } else if (query.type === QueryType.EVENTS) {
-                    pathName = 'events';
+                    pathName = `events`;
                 } else if (query.type === QueryType.DEMANDS) {
-                    pathName = 'demands';
+                    pathName = `demands`;
                 } else if (query.type === QueryType.SUBSCRIPTIONS) {
                     pathName = 'subscriptions';
                 } else if (query.type === QueryType.COMMAND_HISTORY) {
-                    pathName = 'commands';
+                    pathName = `commands`;
                 } else if (query.type === QueryType.ALARMS) {
-                    pathName = 'alarms';
+                    pathName = `alarms`;
                 } else if (query.type === QueryType.LINKS) {
-                    pathName = 'links';
+                    pathName = `links`;
                 }
 
                 let action = StreamingFrameAction.Append;
@@ -86,7 +97,6 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const templateSrv = getTemplateSrv();
 
                 pathName = templateSrv.replace(pathName, request.scopedVars);
-                query.aggregatePath = templateSrv.replace(query.aggregatePath, request.scopedVars);
                 query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
                 query.command = templateSrv.replace(query.command, request.scopedVars);
 
@@ -97,6 +107,13 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const fromUnix = request.range.from.unix();
                 const toUnix = request.range.to.unix();
 
+                const pathParts = [query.endpoint, pathName];
+                if (query.type === QueryType.PLOT) {
+                    pathParts.push(formatRangePath(request), `${request.maxDataPoints ?? 1000}`, formatGraphFieldsPath(query));
+                } else if (query.type === QueryType.COMMAND_HISTORY) {
+                    pathParts.push(formatRangePath(request));
+                }
+
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
                         maxLength: this.bufferMaxLength,
@@ -105,13 +122,12 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     addr: {
                         scope: LiveChannelScope.DataSource,
                         stream: this.uid,
-                        path: `req/${query.endpoint}-${pathName}-${fromUnix}-${toUnix}-${request.maxDataPoints ?? 1000}`,
+                        path: pathParts.join('/'),
                         data: {
                             ...query,
                             from: fromUnix,
                             to: toUnix,
                             realtime: request.range.raw.to === 'now',
-                            frontendShiftedTime: false,
                             points: request.maxDataPoints ?? 1000,
                         },
                     },

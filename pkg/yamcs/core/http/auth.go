@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -130,7 +131,7 @@ func ConvertUserCredentials(manager *HTTPManager, username, password, refreshTok
 	}
 
 	var resp map[string]any
-	if err := manager.SendJSONRequest("POST", manager.AuthRoot+"/token", data, &resp); err != nil {
+	if err := manager.SendJSONRequest(context.Background(), "POST", manager.AuthRoot+"/token", data, &resp); err != nil {
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 
@@ -169,7 +170,7 @@ func ConvertServiceAccountCredentials(manager *HTTPManager, clientID, clientSecr
 	var resp map[string]any
 	auth := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
 	manager.Headers["Authorization"] = "Basic " + auth
-	if err := manager.SendJSONRequest("POST", manager.AuthRoot+"/token", data, &resp); err != nil {
+	if err := manager.SendJSONRequest(context.Background(), "POST", manager.AuthRoot+"/token", data, &resp); err != nil {
 		return nil, fmt.Errorf("service account token request failed: %w", err)
 	}
 
@@ -296,7 +297,28 @@ func (a *APIKeyCredentials) BeforeRequest(req *http.Request) error {
 	return nil
 }
 
+func credentialsCanExpire(credentials Credentials) bool {
+	switch creds := credentials.(type) {
+	case *BearerCredentials:
+		return !creds.Expiry.IsZero()
+	case *ServiceAccountCredentials:
+		return !creds.Expiry.IsZero()
+	default:
+		return false
+	}
+}
+
 func (m *HTTPManager) StartAutoRefresh() {
+	m.StopAutoRefresh()
+	if m.Credentials == nil || !credentialsCanExpire(m.Credentials) {
+		return
+	}
+
+	stop := make(chan struct{})
+	m.refreshMu.Lock()
+	m.RefreshStop = stop
+	m.refreshMu.Unlock()
+
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		defer ticker.Stop()
@@ -308,9 +330,28 @@ func (m *HTTPManager) StartAutoRefresh() {
 						backend.Logger.Error("failed to refresh token", "error", err)
 					}
 				}
-			case <-m.RefreshStop:
+			case <-stop:
 				return
 			}
 		}
 	}()
+}
+
+func (m *HTTPManager) StopAutoRefresh() {
+	m.refreshMu.Lock()
+	defer m.refreshMu.Unlock()
+
+	if m.RefreshStop == nil {
+		return
+	}
+
+	close(m.RefreshStop)
+	m.RefreshStop = nil
+}
+
+func (m *HTTPManager) Dispose() {
+	m.StopAutoRefresh()
+	if m.Client != nil {
+		m.Client.CloseIdleConnections()
+	}
 }

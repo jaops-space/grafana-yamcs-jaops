@@ -13,6 +13,7 @@ type YamcsPluginConfiguration struct {
 }
 
 type YamcsEndpointConfiguration struct {
+	ID          string
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Host        string `json:"host"`
@@ -20,7 +21,18 @@ type YamcsEndpointConfiguration struct {
 	Processor   string `json:"processor"`
 }
 
+func (epcfg *YamcsEndpointConfiguration) DisplayName() string {
+	if epcfg.Name != "" {
+		return epcfg.Name
+	}
+	if epcfg.ID != "" {
+		return epcfg.ID
+	}
+	return "<unnamed endpoint>"
+}
+
 type YamcsHostConfiguration struct {
+	ID          string
 	Name        string `json:"name"`
 	Path        string `json:"path"`
 	Tls         bool   `json:"tlsEnabled"`
@@ -30,7 +42,18 @@ type YamcsHostConfiguration struct {
 	Protobuf    bool   `json:"protobuf"`
 }
 
+func (hcfg *YamcsHostConfiguration) DisplayName() string {
+	if hcfg.Name != "" {
+		return hcfg.Name
+	}
+	if hcfg.Path != "" {
+		return fmt.Sprintf("host at %s", hcfg.Path)
+	}
+	return "<unnamed host>"
+}
+
 func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfiguration, *YamcsSecureConfiguration, error) {
+
 	// Debug: log what Grafana sent us
 	backend.Logger.Debug("ExtractConfig received JSONData",
 		"jsonDataString", string(source.JSONData))
@@ -38,6 +61,13 @@ func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfi
 	configuration := &YamcsPluginConfiguration{}
 	secure := &YamcsSecureConfiguration{}
 	err := json.Unmarshal(source.JSONData, configuration)
+
+	for hostID, host := range configuration.Hosts {
+		host.ID = hostID
+	}
+	for endpointID, endpoint := range configuration.Endpoints {
+		endpoint.ID = endpointID
+	}
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
@@ -48,16 +78,16 @@ func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfi
 
 	// Extract secure fields for hosts
 	secure.Hosts = make(map[string]*YamcsSecureHost)
-	for hostName, hostConfig := range configuration.Hosts {
+	for hostID, hostConfig := range configuration.Hosts {
 		if hostConfig.Auth {
 			backend.Logger.Debug("ExtractConfig processing secure config for host",
-				"hostName", hostName)
-			secure.Hosts[hostName] = &YamcsSecureHost{}
-			passwordKey := hostName + "-password"
+				"hostName", hostID)
+			secure.Hosts[hostID] = &YamcsSecureHost{}
+			passwordKey := hostID + "-password"
 			if password, ok := source.DecryptedSecureJSONData[passwordKey]; ok {
-				secure.Hosts[hostName].Password = password
+				secure.Hosts[hostID].Password = password
 			} else {
-				return nil, nil, fmt.Errorf("missing secure password for host %s", hostName)
+				return nil, nil, fmt.Errorf("missing secure password for host %s", hostID)
 			}
 		}
 	}

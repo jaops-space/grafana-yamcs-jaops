@@ -13,7 +13,9 @@ function HowToUse() {
             </p>
 
             <Card>
-                <Card.Heading>Step 1: Add the Datasource</Card.Heading>
+                <Card.Heading>
+                    <span data-testid="jaops-setup-page-how-to-use">Step 1: Add the Datasource</span>
+                </Card.Heading>
                 <Card.Description>
                     Navigate to <Text color="info">Connections &gt; Data sources</Text>, then click{' '}
                     <Text color="info">Add a new data source</Text>. Search for{' '}

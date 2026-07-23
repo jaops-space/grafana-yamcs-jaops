@@ -10,7 +10,6 @@ type PluginQuery struct {
 	Fields              []string        `json:"fields"`
 	Realtime            bool            `json:"realtime"`
 	MaxPoints           int             `json:"points"`
-	AggregatePath       string          `json:"aggregatePath"`
 	FrontendShiftedTime bool            `json:"frontendShiftedTime,omitempty"`
 
 	// user-chosen split time from Grafana

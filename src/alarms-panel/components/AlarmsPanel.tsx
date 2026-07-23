@@ -1,5 +1,5 @@
-import { dateTime, PanelProps } from '@grafana/data';
-import { DataSourceWithBackend, getDataSourceSrv, getTemplateSrv } from '@grafana/runtime';
+import { AppEvents, dateTime, PanelProps } from '@grafana/data';
+import { DataSourceWithBackend, getAppEvents, getDataSourceSrv, getTemplateSrv } from '@grafana/runtime';
 import {
     Button,
     Icon,
@@ -180,9 +180,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
             .then((ds) => {
                 setDatasource(ds as DataSourceWithBackend);
             })
-            .catch(console.error);
-        // re-run only when the datasource UID changes
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+            .catch(() => setDatasource(null));
     }, [(data.request?.targets?.[0]?.datasource as any)?.uid]);
 
     const deduped = useMemo(() => {
@@ -308,8 +306,11 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
                 ...(actionType === 'shelve' ? { shelveDuration: shelveDuration } : {}),
             });
             setModalOpen(false);
-        } catch (error) {
-            console.error(`Failed to ${actionType} alarm:`, error);
+        } catch {
+            getAppEvents().publish({
+                type: AppEvents.alertError.name,
+                payload: [`Failed to ${actionType} alarm.`],
+            });
         } finally {
             setLoading(false);
         }
@@ -1070,6 +1071,8 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
 
     return (
         <div
+            data-testid="jaops-alarms-panel"
+            data-alarm-count={deduped.length}
             style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1080,6 +1083,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
         >
             {/* Global Alarm Status Bar - Always show all categories */}
             <div
+                data-testid="jaops-alarms-panel-status"
                 style={{
                     padding: theme.spacing(1),
                     background: theme.colors.background.canvas,
@@ -1164,7 +1168,10 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
             </div>
 
             {!deduped.length ? (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                    data-testid="jaops-alarms-panel-empty"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
                     <Text color="secondary">No alarms to display</Text>
                 </div>
             ) : (

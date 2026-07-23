@@ -1,5 +1,6 @@
-import { dateTime, PanelProps } from '@grafana/data';
-import { Icon, InteractiveTable, Stack, Text, Tooltip } from '@grafana/ui';
+import { css } from '@emotion/css';
+import { dateTime, GrafanaTheme2, PanelProps } from '@grafana/data';
+import { Icon, InteractiveTable, Stack, Text, Tooltip, useStyles2 } from '@grafana/ui';
 import { CommandHistoryOptions } from 'command-history-panel/module';
 import React, { useMemo } from 'react';
 
@@ -94,6 +95,19 @@ const dedupeById = (entries: CommandEntry[]): CommandEntry[] => {
 
     return result;
 };
+
+const getStyles = (theme: GrafanaTheme2) => ({
+    panel: css`
+        overflow-y: auto;
+        overflow-x: clip;
+        width: 100%;
+        height: 100%;
+    `,
+    argsList: css`
+        padding-left: ${theme.spacing(2.5)};
+        margin-top: ${theme.spacing(0.125)};
+    `,
+});
 
 // ------------------
 // Table Column Definitions
@@ -253,7 +267,8 @@ const columns = [
 // Row Expansion Renderer
 // ------------------
 
-function renderSubComponent({ row }: { row: any }) {
+function RowSubComponent({ row }: { row: any }) {
+    const styles = useStyles2(getStyles);
     const args: CommandArgument[] = row.arguments;
     if (!args.length) {
         return null;
@@ -262,7 +277,7 @@ function renderSubComponent({ row }: { row: any }) {
     return (
         <div>
             <strong>Arguments:</strong>
-            <ul style={{ paddingLeft: 20, marginTop: 1 }}>
+            <ul className={styles.argsList}>
                 {args.map((arg) => (
                     <li key={arg.name}>
                         <strong>{arg.name}</strong>: {arg.value}
@@ -278,6 +293,7 @@ function renderSubComponent({ row }: { row: any }) {
 // ------------------
 
 const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data, options }) => {
+    const styles = useStyles2(getStyles);
     const deduped = useMemo(() => {
         const frame = data.series[0];
         if (!frame || !frame.fields.length) {
@@ -297,18 +313,22 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
     }, [data]);
 
     if (!deduped.length) {
-        return <div>No data</div>;
+        return <div data-testid="jaops-command-history-panel-empty">No data</div>;
     }
 
     return (
-        <div style={{ overflowY: 'scroll', overflowX: 'clip', width: '100%', height: '100%' }}>
+        <div
+            data-testid="jaops-command-history-panel"
+            data-row-count={deduped.length}
+            className={styles.panel}
+        >
             {options.pagination ? (
                 <InteractiveTable
                     key="with-pagination"
                     data={deduped.map((d) => ({ row: d, id: d.id }))}
                     getRowId={(row: any) => row.id}
                     columns={columns.filter((column) => options.visibleFields.includes(column.id))}
-                    renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                    renderExpandedRow={options.showArguments ? RowSubComponent : undefined}
                     pageSize={Math.max(1, options.pageSize)}
                 />
             ) : (
@@ -317,7 +337,7 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
                     data={deduped.map((d) => ({ row: d, id: d.id }))}
                     getRowId={(row: any) => row.id}
                     columns={columns.filter((column) => options.visibleFields.includes(column.id))}
-                    renderExpandedRow={options.showArguments ? renderSubComponent : undefined}
+                    renderExpandedRow={options.showArguments ? RowSubComponent : undefined}
                     // Don't pass pageSize at all
                 />
             )}

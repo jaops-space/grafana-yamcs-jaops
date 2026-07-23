@@ -263,6 +263,24 @@ func TestConvertCommandListToFrame(t *testing.T) {
 			wantLen: 1,
 		},
 		{
+			name: "Command without id uses command id fallback",
+			commands: []*commanding.CommandHistoryEntry{
+				{
+					CommandName:    pointer("test_cmd"),
+					GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
+					CommandId: &commanding.CommandId{
+						Origin:         pointer("grafana"),
+						SequenceNumber: pointer[int32](42),
+						GenerationTime: pointer[int64](123456789),
+						CommandName:    pointer("test_cmd"),
+					},
+					Assignments: []*commanding.CommandAssignment{},
+					Attr:        []*commanding.CommandHistoryAttribute{},
+				},
+			},
+			wantLen: 1,
+		},
+		{
 			name: "Invalid JSON marshal (but skip)",
 			commands: []*commanding.CommandHistoryEntry{
 				{
@@ -361,37 +379,27 @@ func TestConvertSampleBufferToFrameWithOffset(t *testing.T) {
 // TestConvertBufferToFrame tests the ConvertBufferToFrame function.
 func TestConvertBufferToFrame(t *testing.T) {
 	tests := []struct {
-		name          string
-		buffer        []*pvalue.ParameterValue
-		parameter     string
-		includeMin    bool
-		includeMax    bool
-		aggregatePath string
-		realtime      bool
-		wantLen       int
+		name       string
+		buffer     []*pvalue.ParameterValue
+		parameter  string
+		includeMin bool
+		includeMax bool
+		realtime   bool
+		wantLen    int
 	}{
-		{"Empty", []*pvalue.ParameterValue{}, "param", false, false, "", false, 0},
-		{"Empty return default", []*pvalue.ParameterValue{}, "param", false, false, "", false, 0}, // Checks default frame
+		{"Empty", []*pvalue.ParameterValue{}, "param", false, false, false, 0},
+		{"Empty return default", []*pvalue.ParameterValue{}, "param", false, false, false, 0}, // Checks default frame
 		{"With values", []*pvalue.ParameterValue{
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
-		}, "param", true, true, "", false, 1},
+		}, "param", true, true, false, 1},
 		{"Realtime uses now", []*pvalue.ParameterValue{
 			{EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
-		}, "param", false, false, "", true, 1},
-		{"Aggregate path", []*pvalue.ParameterValue{
-			{GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{
-				Type: protobuf.Value_AGGREGATE.Enum(),
-				AggregateValue: &protobuf.AggregateValue{
-					Name:  []string{"x"},
-					Value: []*protobuf.Value{{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
-				},
-			}},
-		}, "param", false, false, ".x", false, 1},
+		}, "param", false, false, true, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ConvertBufferToFrame(tt.buffer, tt.parameter, tt.includeMin, tt.includeMax, tt.aggregatePath, tt.realtime)
+			got := ConvertBufferToFrame(tt.buffer, tt.parameter, tt.includeMin, tt.includeMax, tt.realtime)
 			assert.Equal(t, tt.wantLen, got.Fields[0].Len())
 		})
 	}
@@ -400,34 +408,24 @@ func TestConvertBufferToFrame(t *testing.T) {
 // TestConvertRangesToFrame tests the ConvertRangesToFrame function.
 func TestConvertRangesToFrame(t *testing.T) {
 	tests := []struct {
-		name          string
-		ranges        *pvalue.Ranges
-		parameter     string
-		aggregatePath string
-		wantLen       int
+		name      string
+		ranges    *pvalue.Ranges
+		parameter string
+		wantLen   int
 	}{
-		{"Nil ranges", nil, "param", "", 0},
-		{"Empty ranges", &pvalue.Ranges{}, "param", "", 0},
+		{"Nil ranges", nil, "param", 0},
+		{"Empty ranges", &pvalue.Ranges{}, "param", 0},
 		{"With ranges", &pvalue.Ranges{Range: []*pvalue.Ranges_Range{
 			{Start: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("val1")}}},
-		}}, "param", "", 1},
-		{"Aggregate path", &pvalue.Ranges{Range: []*pvalue.Ranges_Range{
-			{Start: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{{
-				Type: protobuf.Value_AGGREGATE.Enum(),
-				AggregateValue: &protobuf.AggregateValue{
-					Name:  []string{"x"},
-					Value: []*protobuf.Value{{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("val1")}},
-				},
-			}}},
-		}}, "param", ".x", 1},
+		}}, "param", 1},
 		{"Empty eng values", &pvalue.Ranges{Range: []*pvalue.Ranges_Range{
 			{Start: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{}},
-		}}, "param", "", 0},
+		}}, "param", 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ConvertRangesToFrame(tt.ranges, tt.parameter, tt.aggregatePath)
+			got := ConvertRangesToFrame(tt.ranges, tt.parameter)
 			assert.Equal(t, tt.wantLen, got.Fields[0].Len())
 			if tt.wantLen > 0 {
 				assert.NotNil(t, got.Fields[1].Config)
@@ -439,34 +437,33 @@ func TestConvertRangesToFrame(t *testing.T) {
 // TestConvertBufferToAverageFrame tests the ConvertBufferToAverageFrame function.
 func TestConvertBufferToAverageFrame(t *testing.T) {
 	tests := []struct {
-		name          string
-		buffer        []*pvalue.ParameterValue
-		parameter     string
-		getMin        bool
-		getMax        bool
-		aggregatePath string
-		realtime      bool
-		wantFields    int
-		wantLen       int
+		name       string
+		buffer     []*pvalue.ParameterValue
+		parameter  string
+		getMin     bool
+		getMax     bool
+		realtime   bool
+		wantFields int
+		wantLen    int
 	}{
-		{"Empty", []*pvalue.ParameterValue{}, "param", false, false, "", false, 1, 0},
+		{"Empty", []*pvalue.ParameterValue{}, "param", false, false, false, 1, 0},
 		{"Numeric avg", []*pvalue.ParameterValue{
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(3.0)}},
-		}, "param", true, true, "", false, 4, 1},
+		}, "param", true, true, false, 4, 1},
 		{"String most frequent", []*pvalue.ParameterValue{
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("a")}},
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("a")}},
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 3, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("b")}},
-		}, "param", false, false, "", false, 2, 1},
+		}, "param", false, false, false, 2, 1},
 		{"Realtime", []*pvalue.ParameterValue{
 			{EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
-		}, "param", false, false, "", true, 2, 1},
+		}, "param", false, false, true, 2, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ConvertBufferToAverageFrame(tt.buffer, tt.parameter, tt.getMin, tt.getMax, tt.aggregatePath, tt.realtime)
+			got := ConvertBufferToAverageFrame(tt.buffer, tt.parameter, tt.getMin, tt.getMax, tt.realtime)
 			assert.Equal(t, tt.wantFields, len(got.Fields))
 			assert.Equal(t, tt.wantLen, got.Fields[0].Len())
 		})
@@ -478,23 +475,22 @@ func TestExtractParameterValues(t *testing.T) {
 	tests := []struct {
 		name          string
 		buffer        []*pvalue.ParameterValue
-		aggregatePath string
 		realtime      bool
 		wantValuesLen int
 		wantTimesLen  int
 	}{
-		{"Empty", []*pvalue.ParameterValue{}, "", false, 0, 0},
+		{"Empty", []*pvalue.ParameterValue{}, false, 0, 0},
 		{"Basic", []*pvalue.ParameterValue{
 			{GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
-		}, "", false, 1, 1},
+		}, false, 1, 1},
 		{"Realtime", []*pvalue.ParameterValue{
 			{EngValue: &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.0)}},
-		}, "", true, 1, 1},
+		}, true, 1, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values, times := extractParameterValues(tt.buffer, tt.aggregatePath, tt.realtime)
+			values, times := extractParameterValues(tt.buffer, tt.realtime)
 			assert.Equal(t, tt.wantValuesLen, len(values))
 			assert.Equal(t, tt.wantTimesLen, len(times))
 		})
@@ -504,112 +500,26 @@ func TestExtractParameterValues(t *testing.T) {
 // TestExtractValue tests the extractValue function.
 func TestExtractValue(t *testing.T) {
 	tests := []struct {
-		name          string
-		v             *protobuf.Value
-		aggregatePath string
-		want          interface{}
-	}{
-		{"Double", &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}, "", 1.5},
-		{"Binary", &protobuf.Value{Type: protobuf.Value_BINARY.Enum(), BinaryValue: []byte{0x01, 0x02}}, "", "00000001 00000010"},
-		{"Timestamp", &protobuf.Value{Type: protobuf.Value_TIMESTAMP.Enum(), TimestampValue: pointer[int64](123456)}, "", int64(123456)},
-		{"Sint64", &protobuf.Value{Type: protobuf.Value_SINT64.Enum(), Sint64Value: pointer[int64](-123)}, "", int64(-123)},
-		{"Uint64", &protobuf.Value{Type: protobuf.Value_UINT64.Enum(), Uint64Value: pointer[uint64](123)}, "", uint64(123)},
-		{"Sint32", &protobuf.Value{Type: protobuf.Value_SINT32.Enum(), Sint32Value: pointer[int32](-123)}, "", int32(-123)},
-		{"Uint32", &protobuf.Value{Type: protobuf.Value_UINT32.Enum(), Uint32Value: pointer[uint32](123)}, "", uint32(123)},
-		{"Float", &protobuf.Value{Type: protobuf.Value_FLOAT.Enum(), FloatValue: pointer[float32](1.5)}, "", 1.5},
-		{"Boolean true", &protobuf.Value{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: pointer(true)}, "", "true"},
-		{"Boolean false", &protobuf.Value{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: pointer(false)}, "", "false"},
-		{"String", &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("test")}, "", "test"},
-		{"Aggregate with path", &protobuf.Value{
-			Type: protobuf.Value_AGGREGATE.Enum(),
-			AggregateValue: &protobuf.AggregateValue{
-				Name:  []string{"x"},
-				Value: []*protobuf.Value{{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-			},
-		}, ".x", 1.5},
-		{"Aggregate no path", &protobuf.Value{Type: protobuf.Value_AGGREGATE.Enum()}, "", int64(0)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, extractValue(tt.v, tt.aggregatePath))
-		})
-	}
-}
-
-// TestSplitPath tests the splitPath function.
-func TestSplitPath(t *testing.T) {
-	tests := []struct {
 		name string
-		path string
-		want []string
+		v    *protobuf.Value
+		want interface{}
 	}{
-		{"Empty", "", []string(nil)},
-		{"Simple", ".x", []string{"x"}},
-		{"Array", "[0]", []string{"[0]"}},
-		{"Complex", ".x[0].y[2]", []string{"x", "[0]", "y", "[2]"}},
-		{"No dot", "x[0]", []string{"x", "[0]"}},
-		{"Invalid chars", ".x.y", []string{"x", "y"}},
+		{"Double", &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}, 1.5},
+		{"Binary", &protobuf.Value{Type: protobuf.Value_BINARY.Enum(), BinaryValue: []byte{0x01, 0x02}}, "00000001 00000010"},
+		{"Timestamp", &protobuf.Value{Type: protobuf.Value_TIMESTAMP.Enum(), TimestampValue: pointer[int64](123456)}, int64(123456)},
+		{"Sint64", &protobuf.Value{Type: protobuf.Value_SINT64.Enum(), Sint64Value: pointer[int64](-123)}, int64(-123)},
+		{"Uint64", &protobuf.Value{Type: protobuf.Value_UINT64.Enum(), Uint64Value: pointer[uint64](123)}, uint64(123)},
+		{"Sint32", &protobuf.Value{Type: protobuf.Value_SINT32.Enum(), Sint32Value: pointer[int32](-123)}, int32(-123)},
+		{"Uint32", &protobuf.Value{Type: protobuf.Value_UINT32.Enum(), Uint32Value: pointer[uint32](123)}, uint32(123)},
+		{"Float", &protobuf.Value{Type: protobuf.Value_FLOAT.Enum(), FloatValue: pointer[float32](1.5)}, 1.5},
+		{"Boolean true", &protobuf.Value{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: pointer(true)}, "true"},
+		{"Boolean false", &protobuf.Value{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: pointer(false)}, "false"},
+		{"String", &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: pointer("test")}, "test"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, splitPath(tt.path))
-		})
-	}
-}
-
-// TestAggregateExtractFromPath tests the aggregateExtractFromPath function.
-func TestAggregateExtractFromPath(t *testing.T) {
-	defaultValue := &protobuf.Value{Type: protobuf.Value_SINT64.Enum(), Sint64Value: new(int64)}
-
-	tests := []struct {
-		name  string
-		value *protobuf.Value
-		path  string
-		want  *protobuf.Value
-	}{
-		{"Empty path", &protobuf.Value{}, "", defaultValue},
-		{"Invalid path", &protobuf.Value{Type: protobuf.Value_AGGREGATE.Enum()}, ".invalid", defaultValue},
-		{"Aggregate valid", &protobuf.Value{
-			Type: protobuf.Value_AGGREGATE.Enum(),
-			AggregateValue: &protobuf.AggregateValue{
-				Name:  []string{"x"},
-				Value: []*protobuf.Value{{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-			},
-		}, ".x", &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-		{"Array valid", &protobuf.Value{
-			Type:       protobuf.Value_ARRAY.Enum(),
-			ArrayValue: []*protobuf.Value{{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-		}, "[0]", &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-		{"Array out of bounds", &protobuf.Value{
-			Type:       protobuf.Value_ARRAY.Enum(),
-			ArrayValue: []*protobuf.Value{},
-		}, "[0]", defaultValue},
-		{"Nested", &protobuf.Value{
-			Type: protobuf.Value_AGGREGATE.Enum(),
-			AggregateValue: &protobuf.AggregateValue{
-				Name: []string{"x"},
-				Value: []*protobuf.Value{{
-					Type:       protobuf.Value_ARRAY.Enum(),
-					ArrayValue: []*protobuf.Value{{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-				}},
-			},
-		}, ".x[0]", &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-		{"Case insensitive name", &protobuf.Value{
-			Type: protobuf.Value_AGGREGATE.Enum(),
-			AggregateValue: &protobuf.AggregateValue{
-				Name:  []string{"X"},
-				Value: []*protobuf.Value{{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-			},
-		}, ".x", &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: pointer(1.5)}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := aggregateExtractFromPath(tt.value, tt.path)
-			assert.Equal(t, tt.want.GetType(), got.GetType())
-			assert.Equal(t, tt.want.GetDoubleValue(), got.GetDoubleValue())
+			assert.Equal(t, tt.want, extractValue(tt.v))
 		})
 	}
 }
@@ -994,10 +904,10 @@ func TestConvertAlarmListToFrame(t *testing.T) {
 				Name:      pointer("Temperature"),
 			},
 			ShelveInfo: &alarms.ShelveInfo{
-				ShelvedBy:       pointer("operator2"),
-				ShelveTime:      timestamppb.New(shelveTime),
+				ShelvedBy:        pointer("operator2"),
+				ShelveTime:       timestamppb.New(shelveTime),
 				ShelveExpiration: timestamppb.New(shelveExpiry),
-				ShelveMessage:   pointer("Known issue, shelved for 1h"),
+				ShelveMessage:    pointer("Known issue, shelved for 1h"),
 			},
 		}
 

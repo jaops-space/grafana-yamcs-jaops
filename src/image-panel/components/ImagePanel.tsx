@@ -1,4 +1,5 @@
 import { PanelProps } from '@grafana/data';
+import React from 'react';
 import ImageRenderer from 'static-image-panel/components/ImageRenderer';
 import { ImagePanelOptions } from 'static-image-panel/types';
 
@@ -16,5 +17,5 @@ export default function ImagePanel(props: PanelProps<ImagePanelOptions>) {
         });
     } catch (ignored) {}
 
-    return images.map((image) => ImageRenderer(options, image));
+    return <div data-testid="jaops-telemetric-image-panel">{images.map((image) => ImageRenderer(options, image))}</div>;
 }

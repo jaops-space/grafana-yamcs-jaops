@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -77,8 +76,9 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 
 		if err := host.Validate(y); err != nil {
 			details.Hosts[hostID] = errorStatus(err.Error())
-			details.ErrorHosts = append(details.ErrorHosts, hostDisplayName(hostID, host))
+			details.ErrorHosts = append(details.ErrorHosts, host.DisplayName())
 			hasValidationErrors = true
+			continue
 		}
 	}
 
@@ -87,28 +87,28 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 
 		if err := endpoint.Validate(y); err != nil {
 			details.Endpoints[endpointID] = errorStatus(err.Error())
-			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpoint))
+			details.ErrorEndpoints = append(details.ErrorEndpoints, endpoint.DisplayName())
 			hasValidationErrors = true
 			continue
 		}
 
 		if endpoint.Host == "" {
 			details.Endpoints[endpointID] = errorStatus("No host selected")
-			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpoint))
+			details.ErrorEndpoints = append(details.ErrorEndpoints, endpoint.DisplayName())
 			hasValidationErrors = true
 			continue
 		}
 
 		if _, exists := y.Hosts[endpoint.Host]; !exists {
 			details.Endpoints[endpointID] = errorStatus(fmt.Sprintf("References unknown host '%s'", endpoint.Host))
-			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpoint))
+			details.ErrorEndpoints = append(details.ErrorEndpoints, endpoint.DisplayName())
 			hasValidationErrors = true
 			continue
 		}
 
 		if hostStatus, exists := details.Hosts[endpoint.Host]; exists && hostStatus.Status == "error" {
 			details.Endpoints[endpointID] = errorStatus("Host configuration is invalid")
-			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpoint))
+			details.ErrorEndpoints = append(details.ErrorEndpoints, endpoint.DisplayName())
 			hasValidationErrors = true
 			continue
 		}
@@ -118,105 +118,180 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 }
 
 func (d *Datasource) applyConnectivityChecks(
-	y *config.YamcsPluginConfiguration,
-	secure *config.YamcsSecureConfiguration,
+	ctx context.Context,
+	cfg *config.YamcsPluginConfiguration,
+	seccfg *config.YamcsSecureConfiguration,
 	details *HealthDetails,
-) {
-	testMux := source.NewMultiplexer(y)
-	testMux.Secure = secure
-
-	backend.Logger.Debug("Testing Host Connectivity")
-
-	for hostID, hostConfig := range y.Hosts {
-		if details.Hosts[hostID].Status != "ok" {
-			continue
-		}
-
-		if err := testMux.SetupHost(hostID); err != nil {
-			details.Hosts[hostID] = errorStatus(err.Error())
-			details.ErrorHosts = append(details.ErrorHosts, hostDisplayName(hostID, hostConfig))
-		}
+) error {
+	connectivityCfg := &config.YamcsPluginConfiguration{
+		Hosts:     map[string]*config.YamcsHostConfiguration{},
+		Endpoints: map[string]*config.YamcsEndpointConfiguration{},
 	}
 
-	backend.Logger.Debug("Testing Endpoint Connectivity")
+	for hostID, host := range cfg.Hosts {
+		connectivityCfg.Hosts[hostID] = host
+	}
 
-	for endpointID, endpointConfig := range y.Endpoints {
-		if details.Endpoints[endpointID].Status != "ok" {
+	for epID, ep := range cfg.Endpoints {
+		hostStatus, hostConfigured := details.Hosts[ep.Host]
+		if !hostConfigured {
+			details.Endpoints[epID] = errorStatus("Host configuration not found")
+			details.ErrorEndpoints = append(details.ErrorEndpoints, ep.DisplayName())
 			continue
 		}
 
-		hostStatus, hostExists := details.Hosts[endpointConfig.Host]
-		if !hostExists {
-			details.Endpoints[endpointID] = errorStatus("Host configuration not found")
-			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpointConfig))
+		if hostStatus.Status != "ok" {
+			details.Endpoints[epID] = warningStatus("Skipped because host is unavailable")
+			details.WarningEndpoints = append(details.WarningEndpoints, ep.DisplayName())
 			continue
 		}
 
-		if hostStatus.Status == "error" || hostStatus.Status == "warning" {
-			details.Endpoints[endpointID] = warningStatus("Skipped because host is unavailable")
-			details.WarningEndpoints = append(details.WarningEndpoints, endpointDisplayName(endpointID, endpointConfig))
+		connectivityCfg.Endpoints[epID] = ep
+	}
+
+	if len(connectivityCfg.Endpoints) == 0 {
+		return nil
+	}
+
+	testMux, err := source.NewMultiplexer(connectivityCfg, seccfg)
+	if err != nil {
+		return err
+	}
+
+	hostErrors, epsErrors := testMux.Connect(ctx, false)
+
+	for hostID, host := range cfg.Hosts {
+		if current, exists := details.Hosts[hostID]; exists && current.Status != "ok" {
 			continue
 		}
 
-		if _, err := testMux.GetEndpoint(endpointID); err != nil {
-			details.Endpoints[endpointID] = errorStatus(err.Error())
-			details.ErrorEndpoints = append(details.ErrorEndpoints, endpointDisplayName(endpointID, endpointConfig))
+		if err, hasError := hostErrors[hostID]; hasError {
+			details.Hosts[hostID] = errorStatus(err.Error())
+			details.ErrorHosts = append(details.ErrorHosts, host.DisplayName())
+			continue
 		}
+		details.Hosts[hostID] = okStatus()
+	}
+
+	for epID, ep := range connectivityCfg.Endpoints {
+		if _, hostHasError := hostErrors[ep.Host]; hostHasError {
+			details.Endpoints[epID] = warningStatus("skipped because host has an error")
+			details.WarningEndpoints = append(details.WarningEndpoints, ep.DisplayName())
+			continue
+		}
+		if err, hasError := epsErrors[epID]; hasError {
+			details.Endpoints[epID] = errorStatus(err.Error())
+			details.ErrorEndpoints = append(details.ErrorEndpoints, ep.DisplayName())
+			continue
+		}
+		details.Endpoints[epID] = okStatus()
 	}
 
 	testMux.Dispose()
+
+	return nil
 }
 
-func (d *Datasource) evaluateHealth(
-	y *config.YamcsPluginConfiguration,
-	secure *config.YamcsSecureConfiguration,
-) (backend.HealthStatus, string, json.RawMessage, error) {
-	details, hasValidationErrors, err := d.validateConfigItems(y)
-	if err != nil {
-		jsonBytes, marshalErr := json.Marshal(details)
-		if marshalErr != nil {
-			return backend.HealthStatusError, "", nil, marshalErr
-		}
+func (d *Datasource) refreshHealthDetails(ctx context.Context) (*HealthDetails, error) {
+	if d.multiplexer == nil || d.multiplexer.Config == nil {
+		return nil, exception.New("could not find multiplexer configuration", "REFRESH_HEALTH_NO_CONFIG")
+	}
 
-		return backend.HealthStatusError, err.Error(), jsonBytes, nil
+	secure := d.multiplexer.Secure
+	if secure == nil {
+		secure = &config.YamcsSecureConfiguration{Hosts: map[string]*config.YamcsSecureHost{}}
+	}
+
+	details, hasValidationErrors, err := d.validateConfigItems(d.multiplexer.Config)
+	if err != nil {
+		return nil, err
 	}
 
 	if !hasValidationErrors {
-		d.applyConnectivityChecks(y, secure, details)
+		if err := d.applyConnectivityChecks(ctx, d.multiplexer.Config, secure, details); err != nil {
+			return nil, err
+		}
 	}
 
-	jsonBytes, err := json.Marshal(details)
+	d.healthMutex.Lock()
+	d.lastHealthDetails = details
+	d.healthMutex.Unlock()
+
+	return details, nil
+}
+
+func (d *Datasource) evaluateHealth(
+	ctx context.Context,
+	y *config.YamcsPluginConfiguration,
+	secure *config.YamcsSecureConfiguration,
+) (backend.HealthStatus, string, *HealthDetails, error) {
+	details, hasValidationErrors, err := d.validateConfigItems(y)
 	if err != nil {
-		return backend.HealthStatusError, "", nil, err
+		return backend.HealthStatusError, err.Error(), details, nil
+	}
+
+	if !hasValidationErrors {
+		err = d.applyConnectivityChecks(ctx, y, secure, details)
+		if err != nil {
+			return backend.HealthStatusError, "health connectivity check failed", details, err
+		}
 	}
 
 	status, message := buildHealthSummary(details)
 
-	return status, message, jsonBytes, nil
+	return status, message, details, nil
 }
 
 func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	settings := req.PluginContext.DataSourceInstanceSettings
+	if settings == nil {
+		return nil, exception.New("Datasource instance settings are nil", "HEALTH_SETTINGS_NIL")
+	}
 
 	cfg, secure, err := config.ExtractConfig(*settings)
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
 
-	status, message, jsonDetails, err := d.evaluateHealth(cfg, secure)
+	status, message, details, err := d.evaluateHealth(ctx, cfg, secure)
 	if err != nil {
 		return nil, err
 	}
 
 	d.healthMutex.Lock()
-	d.lastHealthDetails = jsonDetails
+	d.lastHealthDetails = details
 	d.healthMutex.Unlock()
 
-	// save details and return only status and message
 	return &backend.CheckHealthResult{
 		Status:  status,
 		Message: message,
 	}, nil
+}
+
+func healthStatusCounts(details *HealthDetails) (hostOK, hostWarn, hostErr, endpointOK, endpointWarn, endpointErr int) {
+	for _, status := range details.Hosts {
+		switch status.Status {
+		case "ok":
+			hostOK++
+		case "warning":
+			hostWarn++
+		case "error":
+			hostErr++
+		}
+	}
+
+	for _, status := range details.Endpoints {
+		switch status.Status {
+		case "ok":
+			endpointOK++
+		case "warning":
+			endpointWarn++
+		case "error":
+			endpointErr++
+		}
+	}
+
+	return hostOK, hostWarn, hostErr, endpointOK, endpointWarn, endpointErr
 }
 
 func buildHealthSummary(details *HealthDetails) (backend.HealthStatus, string) {
@@ -251,27 +326,7 @@ func buildHealthSummary(details *HealthDetails) (backend.HealthStatus, string) {
 	return backend.HealthStatusOk, "Successfully connected to all Yamcs hosts and endpoints"
 }
 
-func hostDisplayName(hostID string, host *config.YamcsHostConfiguration) string {
-	if host.Name != "" {
-		return host.Name
-	}
-
-	if host.Path != "" {
-		return host.Path
-	}
-
-	return hostID
-}
-
-func endpointDisplayName(endpointID string, endpoint *config.YamcsEndpointConfiguration) string {
-	if endpoint.Name != "" {
-		return endpoint.Name
-	}
-
-	return endpointID
-}
-
-func (d *Datasource) GetLastHealthDetails() (json.RawMessage, bool) {
+func (d *Datasource) GetLastHealthDetails() (*HealthDetails, bool) {
 	d.healthMutex.RLock()
 	defer d.healthMutex.RUnlock()
 
