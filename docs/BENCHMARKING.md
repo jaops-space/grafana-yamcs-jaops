@@ -22,13 +22,9 @@ For every value of `N`, the benchmark:
 6. Converts read values into Grafana data frames, matching the normal RunStream read/frame/send path.
 7. Records processing time, read/clear time, value freshness, memory, setup time, and RunStream per-tick wall time.
 
-The default workload is intentionally aligned:
-
 - Yamcs simulator rate: `1 Hz`
 - Grafana stream read ticker: `1s`
 - Freshness window: `1s`
-
-A value counts as fresh when Grafana reads it from a stream buffer before the next 1 second simulator update.
 
 ## Outputs
 
@@ -48,85 +44,59 @@ A value counts as fresh when Grafana reads it from a stream buffer before the ne
 
 ## Metrics
 
-### Average Read and Clear Time
-
-Internal key: `avg_read_clear`
+### Average read and clear time
 
 The average wall-clock time for one Grafana stream goroutine to call `GetAndClearParameterStreamBuffer`, convert the returned values into a Grafana data frame, and finish that read/send unit of work.
 
 This is a per-stream operation average. It should stay small as `N` grows.
 
-### Average Yamcs Listener Processing Time
-
-Internal key: `avg_process`
+### Average Yamcs listener processing time
 
 The average time spent in the Yamcs parameter listener when a Yamcs parameter update is received and copied into the active Grafana stream buffers that requested that parameter.
 
 This measures the backend fan-out cost of incoming Yamcs data.
 
-### Live Memory Used During Run
-
-Internal key: `live_memory_growth_bytes`
+### Live memory used during run
 
 The difference in live heap allocation between the start and end of the measured scenario.
 
 This is the memory still retained after the scenario, not the total amount allocated over time.
 
-### Total Memory Allocated During Run
-
-Internal key: `total_allocated_bytes`
+### Total memory allocated during the run
 
 The total bytes allocated during the measured scenario according to Go runtime memory stats.
 
 This can grow even when live memory stays flat, because short-lived allocations are counted too.
 
-### Values Read Per Second From Buffers
-
-Internal key: `values_read_per_sec`
+### Values read per second from buffers
 
 The number of parameter values read from all Grafana stream buffers per second.
 
 The plot title is:
-
 `Values read per second from buffers by N Grafana streams`
 
 Because the default simulator runs at `1 Hz`, this value should scale with the number of active streams until backend work starts delaying stream reads.
 
-### Values Read Within The Same 1s Tick
-
-Internal key: `values_read_fresh_pct`
+### Values read within the same 1s tick
 
 The percentage of values read before the next 1 second simulator update.
 
 This is the main stalling signal. If this drops, Grafana stream reads are falling behind the 1 Hz Yamcs simulator cadence.
 
-### Average Value Age When Read
-
-Internal key: `avg_value_read_age`
+### Average value age when read
 
 The average age of values when a Grafana stream reads them from its buffer.
 
-The plot title is:
-
-`Average age of values when Grafana stream reads them`
-
 Lower is better. Values near or above `1s` mean reads are close to missing the simulator tick in which the value arrived.
+But high doesn't mean lower performance, it might just be de-sync with Yamcs simulator ticks, but it should never be above `1s`.
 
-### Average RunStream Wall Time Per 1s Tick
-
-Internal key: `avg_tick_runstream`
+### Average RunStream wall time Per 1s Tick
 
 For each 1 second stream ticker interval, the benchmark measures the wall-clock span from the first RunStream read/frame/send unit starting to the last RunStream read/frame/send unit finishing across all streams.
 
-The plot title is:
+Ideally it stays below `1s`, otherwise it might be falling behind. This might highly depend on hardware because Grafana streams are concurrent and their wall-clock span might depend on how parallel they run. 
 
-`Average RunStream wall time with N Grafana streams on 1s tickers`
-
-This is intentionally not the sum of all goroutine work. It is elapsed wall time across concurrent RunStream work in that tick. Ideally it stays below `1s`.
-
-### Stream Setup Time
-
-Internal key: `setup`
+### Stream setup time
 
 The time to create the Grafana stream demand state and Yamcs subscriptions for `N` streams before the measured run begins.
 
