@@ -174,7 +174,7 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 	if message.GetType() == "parameters" {
 		parameterData := &processing.SubscribeParametersData{}
 		if err := message.Data.UnmarshalTo(parameterData); err != nil {
-			backend.Logger.Error(exception.Wrap("unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err).Error())
+			backend.Logger.Error("Error unmarshalling parameter subscription message", "error", exception.Wrap("unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
 			return
 		}
 
@@ -261,6 +261,6 @@ func (subscription *ParameterSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(context.Background(), message)
+	subscription.client.WebSocket.Send(message)
 
 }

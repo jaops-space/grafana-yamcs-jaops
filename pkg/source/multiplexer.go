@@ -218,7 +218,7 @@ func (mux *Multiplexer) Connect(ctx context.Context, subscribe bool) (map[string
 			continue
 		}
 
-		prosub, err := cli.CreateProcessorSubscription(instance, processor)
+		prosub, err := cli.CreateProcessorSubscription(ctx, instance, processor)
 		if err != nil {
 			endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not subscribe to updates on processor %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
 			continue
@@ -242,7 +242,7 @@ func (mux *Multiplexer) Connect(ctx context.Context, subscribe bool) (map[string
 func (mux *Multiplexer) Dispose() {
 	for _, host := range mux.Hosts {
 		if host.Client != nil {
-			host.Client.CloseWebSocketConnection()
+			host.Client.Close()
 		}
 	}
 	mux.Hosts = make(map[string]*YamcsHost)

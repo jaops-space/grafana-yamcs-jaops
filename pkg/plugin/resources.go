@@ -7,10 +7,17 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+func resourceError(w http.ResponseWriter, status int, publicMessage string, logMessage string, err error, args ...any) {
+	if err != nil {
+		backend.Logger.Error(logMessage, append(args, "error", err)...)
+	}
+	http.Error(w, publicMessage, status)
+}
 
 // handleFetchSources handles incoming requests to check endpoint statuses.
 func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request) {
@@ -21,7 +28,7 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 
 	details, err := d.refreshHealthDetails(req.Context())
 	if err != nil {
-		http.Error(w, exception.Wrap("could not refresh endpoint health", "FETCH_ENDPOINTS_REFRESH", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "could not refresh endpoint health", "could not refresh endpoint health", err)
 		return
 	}
 
@@ -34,7 +41,8 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 
 		cli, err := endpoint.GetClient()
 		if err != nil {
-			object["error"] = err.Error()
+			object["error"] = "endpoint unavailable"
+			backend.Logger.Error("Failed to retrieve Yamcs client", "endpointID", endpointID, "error", err)
 		} else {
 			connected := cli.IsWebSocketConnected()
 			status := ItemStatus{Status: "ok"}
@@ -74,18 +82,18 @@ func (d *Datasource) handleSearchParameters(w http.ResponseWriter, req *http.Req
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "SEARCH_PARAMETERS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "SEARCH_PARAMETERS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	reqIterator := client.SearchParameters(req.Context(), endpoint.GetInstanceName(), query)
 	results, err := reqIterator.Next()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "parameter search failed", "Parameter search failed", err, "endpointID", endpointID, "query", query)
 		return
 	}
 
@@ -116,19 +124,19 @@ func (d *Datasource) handleSearchCommands(w http.ResponseWriter, req *http.Reque
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "SEARCH_COMMANDS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "SEARCH_COMMANDS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 
 	reqIterator := client.SearchCommandInfo(req.Context(), endpoint.GetInstanceName(), query)
 	results, err := reqIterator.Next()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "command search failed", "Command search failed", err, "endpointID", endpointID, "query", query)
 		return
 	}
 
@@ -250,25 +258,25 @@ func (d *Datasource) handleGetCommandInfo(w http.ResponseWriter, req *http.Reque
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "COMMAND_INFO_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "COMMAND_INFO_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 
 	commandInfo, err := client.GetCommandInfo(req.Context(), endpoint.GetInstanceName(), commandName)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "command info lookup failed", "Command info lookup failed", err, "endpointID", endpointID, "command", commandName)
 		return
 	}
 
 	marshalled, err := protojson.Marshal(commandInfo)
 	if err != nil {
-		http.Error(w, exception.Wrap("could not marshal command info", "COMMAND_INFO_MARSHAL", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "could not marshal command info", "Could not marshal command info", err, "endpointID", endpointID, "command", commandName)
 		return
 	}
 
@@ -288,28 +296,28 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 	body := &CommandIssueBody{}
 	err := decodeJSONBody(w, req, &body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid command request body", err, "endpointID", endpointID)
 		return
 	}
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "EXECUTE_COMMAND_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "EXECUTE_COMMAND_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	response, err := client.IssueCommandWithComment(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.Arguments, body.Comment)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "command execution failed", "Command execution failed", err, "endpointID", endpointID, "command", body.Name)
 		return
 	}
 	marshalled, err := protojson.Marshal(response)
 	if err != nil {
-		http.Error(w, exception.Wrap("could not marshal command response", "EXECUTE_COMMAND_MARSHAL", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "could not marshal command response", "Could not marshal command response", err, "endpointID", endpointID, "command", body.Name)
 		return
 	}
 	responseJSON := json.RawMessage(marshalled)
@@ -338,7 +346,7 @@ func (d *Datasource) handleAcknowledgeAlarm(w http.ResponseWriter, req *http.Req
 	var body AlarmActionBody
 	err := decodeJSONBody(w, req, &body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid acknowledge alarm request body", err, "endpointID", endpointID)
 		return
 	}
 	if body.Name == "" {
@@ -348,17 +356,17 @@ func (d *Datasource) handleAcknowledgeAlarm(w http.ResponseWriter, req *http.Req
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "ACK_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "ACK_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	err = client.AcknowledgeAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum, body.Comment)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "alarm acknowledge failed", "Alarm acknowledge failed", err, "endpointID", endpointID, "alarm", body.Name)
 		return
 	}
 
@@ -378,7 +386,7 @@ func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) 
 	body := AlarmActionBody{}
 	err := decodeJSONBody(w, req, &body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid clear alarm request body", err, "endpointID", endpointID)
 		return
 	}
 	if body.Name == "" {
@@ -388,17 +396,17 @@ func (d *Datasource) handleClearAlarm(w http.ResponseWriter, req *http.Request) 
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "CLEAR_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "CLEAR_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	err = client.ClearAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum, body.Comment)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "alarm clear failed", "Alarm clear failed", err, "endpointID", endpointID, "alarm", body.Name)
 		return
 	}
 
@@ -418,7 +426,7 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 	body := AlarmActionBody{}
 	err := decodeJSONBody(w, req, &body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid shelve alarm request body", err, "endpointID", endpointID)
 		return
 	}
 	if body.Name == "" {
@@ -428,17 +436,17 @@ func (d *Datasource) handleShelveAlarm(w http.ResponseWriter, req *http.Request)
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "SHELVE_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "SHELVE_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	err = client.ShelveAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum, body.Comment, body.ShelveDuration)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "alarm shelve failed", "Alarm shelve failed", err, "endpointID", endpointID, "alarm", body.Name)
 		return
 	}
 
@@ -458,7 +466,7 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 	body := AlarmActionBody{}
 	err := decodeJSONBody(w, req, &body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid unshelve alarm request body", err, "endpointID", endpointID)
 		return
 	}
 	if body.Name == "" {
@@ -468,17 +476,17 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "UNSHELVE_ALARM_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "UNSHELVE_ALARM_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	err = client.UnshelveAlarm(req.Context(), endpoint.GetInstanceName(), endpoint.GetProcessorName(), body.Name, body.SeqNum)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "alarm unshelve failed", "Alarm unshelve failed", err, "endpointID", endpointID, "alarm", body.Name)
 		return
 	}
 
@@ -522,18 +530,18 @@ func (d *Datasource) handleListLinks(w http.ResponseWriter, req *http.Request) {
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "LIST_LINKS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "LIST_LINKS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	links, err := client.ListLinks(req.Context(), endpoint.GetInstanceName())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "link list failed", "Link list failed", err, "endpointID", endpointID)
 		return
 	}
 
@@ -559,18 +567,18 @@ func (d *Datasource) handleGetLink(w http.ResponseWriter, req *http.Request) {
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "GET_LINK_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "GET_LINK_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	link, err := client.GetLink(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "link lookup failed", "Link lookup failed", err, "endpointID", endpointID, "link", linkName)
 		return
 	}
 
@@ -593,18 +601,18 @@ func (d *Datasource) handleEnableLink(w http.ResponseWriter, req *http.Request) 
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "ENABLE_LINK_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "ENABLE_LINK_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	link, err := client.EnableLink(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "link enable failed", "Link enable failed", err, "endpointID", endpointID, "link", linkName)
 		return
 	}
 
@@ -627,18 +635,18 @@ func (d *Datasource) handleDisableLink(w http.ResponseWriter, req *http.Request)
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "DISABLE_LINK_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "DISABLE_LINK_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	link, err := client.DisableLink(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "link disable failed", "Link disable failed", err, "endpointID", endpointID, "link", linkName)
 		return
 	}
 
@@ -661,18 +669,18 @@ func (d *Datasource) handleResetLinkCounters(w http.ResponseWriter, req *http.Re
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "RESET_LINK_COUNTERS_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "RESET_LINK_COUNTERS_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	link, err := client.ResetLinkCounters(req.Context(), endpoint.GetInstanceName(), linkName)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "link reset failed", "Link reset failed", err, "endpointID", endpointID, "link", linkName)
 		return
 	}
 
@@ -701,7 +709,7 @@ func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Reques
 
 	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
 	if err != nil {
-		http.Error(w, exception.Wrap("endpoint not found", "RUN_LINK_ACTION_NO_ENDPOINT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
 		return
 	}
 
@@ -709,19 +717,19 @@ func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Reques
 	var body LinkActionBody
 	if req.Body != nil {
 		if err := decodeOptionalJSONBody(w, req, &body); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid link action request body", err, "endpointID", endpointID, "link", linkName, "action", actionID)
 			return
 		}
 	}
 
 	client, err := endpoint.GetClient()
 	if err != nil {
-		http.Error(w, exception.Wrap("client not found", "RUN_LINK_ACTION_NO_CLIENT", err).Error(), http.StatusInternalServerError)
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
 		return
 	}
 	response, err := client.RunLinkAction(req.Context(), endpoint.GetInstanceName(), linkName, actionID, body.Message)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		resourceError(w, http.StatusBadRequest, "link action failed", "Link action failed", err, "endpointID", endpointID, "link", linkName, "action", actionID)
 		return
 	}
 

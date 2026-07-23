@@ -1,4 +1,5 @@
-import { getTemplateSrv } from '@grafana/runtime';
+import { AppEvents } from '@grafana/data';
+import { getAppEvents, getTemplateSrv } from '@grafana/runtime';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QueryEditorModelProps, QueryProps } from './constants';
@@ -70,8 +71,11 @@ export function QueryEditor(props: QueryProps) {
                 ...queryRef.current,
                 endpoint: keys.length === 1 ? keys[0] : (queryRef.current.endpoint ?? ''),
             });
-        } catch (error) {
-            console.error('Failed to fetch endpoints', error);
+        } catch {
+            getAppEvents().publish({
+                type: AppEvents.alertError.name,
+                payload: ['Failed to fetch Yamcs endpoints.'],
+            });
         } finally {
             setLoading(false);
         }

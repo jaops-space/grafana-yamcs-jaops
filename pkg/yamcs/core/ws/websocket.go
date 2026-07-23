@@ -128,12 +128,12 @@ func (ws *WebSocketHandler) Listen() {
 		message := &api.ServerMessage{}
 		if ws.useProtobuf {
 			if err = proto.Unmarshal(data, message); err != nil {
-				backend.Logger.Error("error unmarshalling message: ", err)
+				backend.Logger.Error("error unmarshalling message", "error", err)
 				continue
 			}
 		} else {
 			if err = protojson.Unmarshal(data, message); err != nil {
-				backend.Logger.Error("error unmarshalling message: ", err)
+				backend.Logger.Error("error unmarshalling message", "error", err)
 				continue
 			}
 		}
@@ -141,7 +141,7 @@ func (ws *WebSocketHandler) Listen() {
 		if message.GetType() == "reply" {
 			reply := api.Reply{}
 			if err = message.Data.UnmarshalTo(&reply); err != nil {
-				backend.Logger.Error("error unmarshalling reply: ", err)
+				backend.Logger.Error("error unmarshalling reply", "error", err)
 				continue
 			}
 			ws.mu.Lock()
@@ -340,7 +340,7 @@ func (ws *WebSocketHandler) GetState(timeout time.Duration) (*api.State, error) 
 func (ws *WebSocketHandler) handleStateMessage(message *api.ServerMessage) {
 	state := &api.State{}
 	if err := message.Data.UnmarshalTo(state); err != nil {
-		backend.Logger.Error("error unmarshalling websocket state: ", err)
+		backend.Logger.Error("error unmarshalling websocket state", "error", err)
 		return
 	}
 	fmt.Printf("received websocket state: %s\n", state.String())

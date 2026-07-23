@@ -110,6 +110,8 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const pathParts = [query.endpoint, pathName];
                 if (query.type === QueryType.PLOT) {
                     pathParts.push(formatRangePath(request), `${request.maxDataPoints ?? 1000}`, formatGraphFieldsPath(query));
+                } else if (query.type === QueryType.COMMAND_HISTORY) {
+                    pathParts.push(formatRangePath(request));
                 }
 
                 return getGrafanaLiveSrv().getDataStream({

@@ -1,3 +1,5 @@
+import { css } from '@emotion/css';
+import { useStyles2 } from '@grafana/ui';
 import React, { useState } from 'react';
 import { CommandForms } from './types';
 import { useLocationService } from '@grafana/runtime';
@@ -16,7 +18,21 @@ import { getCommandKey } from './utils/commandKeys';
 import { getEditorCardsStyle, getRuntimeButtonWrapperStyle, getRuntimeLayoutStyle } from './utils/layout';
 import { setArgumentError, validateCommandArgument } from './utils/validation';
 
+const getStyles = () => ({
+    panel: css`
+        width: 100%;
+        height: 100%;
+    `,
+    editingPanel: css`
+        overflow: auto;
+    `,
+    runtimePanel: css`
+        overflow: hidden;
+    `,
+});
+
 export default function CommandingPanel({ variableMode = false, ...props }: CommandingPanelProps) {
+    const styles = useStyles2(getStyles);
     const { data, options, onOptionsChange } = props;
     const location = useLocationService().getLocation();
     const editing = location.search.includes('editPanel=');
@@ -134,7 +150,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
         <div
             data-testid={variableMode ? 'jaops-variable-setting-panel' : 'jaops-commanding-panel'}
             data-command-count={commandInfos.length}
-            style={{ width: '100%', height: '100%', overflow: editing ? 'auto' : 'hidden' }}
+            className={`${styles.panel} ${editing ? styles.editingPanel : styles.runtimePanel}`}
         >
             {editing && commandInfos.length > 1 && (
                 <>

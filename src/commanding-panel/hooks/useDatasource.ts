@@ -13,7 +13,7 @@ export function useDatasource(datasourceUid?: string) {
         getDataSourceSrv()
             .get(datasourceUid)
             .then((ds) => setDatasource(ds as DataSourceWithBackend))
-            .catch(console.error);
+            .catch(() => setDatasource(null));
     }, [datasourceUid]);
 
     return datasource;

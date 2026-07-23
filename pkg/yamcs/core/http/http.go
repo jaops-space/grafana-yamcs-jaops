@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
@@ -26,6 +27,7 @@ type HTTPManager struct {
 	OnTokenUpdate func(Credentials)
 
 	RefreshStop chan struct{} // Channel to stop the refresh ticker
+	refreshMu   sync.Mutex
 }
 
 // NewHTTPManager initializes a new Yamcs HTTPManager.
@@ -46,16 +48,19 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 	authRoot = fmt.Sprintf("%s://%s/auth", scheme, address)
 	apiRoot = fmt.Sprintf("%s://%s/api", scheme, address)
 
-	opts := httpclient.Options{}
-	if tlsConfig.Enabled {
-		opts.TLS = &httpclient.TLSOptions{
-			InsecureSkipVerify: !tlsConfig.Verification,
+	httpClient := existingClient
+	if httpClient == nil {
+		opts := httpclient.Options{}
+		if tlsConfig.Enabled {
+			opts.TLS = &httpclient.TLSOptions{
+				InsecureSkipVerify: !tlsConfig.Verification,
+			}
 		}
-	}
-	var err error
-	httpClient, err := httpclient.New(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+		var err error
+		httpClient, err = httpclient.New(opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+		}
 	}
 
 	manager := &HTTPManager{

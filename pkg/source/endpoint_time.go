@@ -17,7 +17,7 @@ func (ep *YamcsEndpoint) RequestTime(ctx context.Context) error {
 	subscription, found := client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName())
 	if !found {
 		var err error
-		subscription, err = client.CreateTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName())
+		subscription, err = client.CreateTimeSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
 		if err != nil {
 			return err
 		}

@@ -23,9 +23,9 @@ type TimeSubscription struct {
 	client         *YamcsClient
 }
 
-func (client *YamcsClient) CreateTimeSubscription(instance string, processor string) (*TimeSubscription, error) {
+func (client *YamcsClient) CreateTimeSubscription(ctx context.Context, instance string, processor string) (*TimeSubscription, error) {
 
-	subscription, err := NewTimeSubscription(client, instance, processor)
+	subscription, err := client.newTimeSubscription(ctx, instance, processor)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func (client *YamcsClient) CreateTimeSubscription(instance string, processor str
 }
 
 // SubscribeTime subscribes to time updates from a specific instance and processor.
-func NewTimeSubscription(client *YamcsClient, instance string, processor string) (*TimeSubscription, error) {
+func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance string, processor string) (*TimeSubscription, error) {
 
 	// Create the subscription request for time updates
 	subscribeTimeRequest := &ptime.SubscribeTimeRequest{
@@ -57,7 +57,7 @@ func NewTimeSubscription(client *YamcsClient, instance string, processor string)
 		Options: anyMessage, // Attach the Any message containing the subscription request
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(context.Background(), message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 	if message.GetType() == "time" {
 		timestamp := &timestamppb.Timestamp{}
 		if err := message.Data.UnmarshalTo(timestamp); err != nil {
-			backend.Logger.Error(exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err).Error())
+			backend.Logger.Error("Error unmarshalling time subscription message", "error", exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
 			return
 		}
 

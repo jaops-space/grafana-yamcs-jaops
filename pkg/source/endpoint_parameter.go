@@ -103,9 +103,8 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 		subscription.Add(name)
 	}
 
-	backend.Logger.Debug("Current subscriptions", "subscriptions")
 	for name := range subscription.ActiveSubscriptions {
-		backend.Logger.Debug(name)
+		backend.Logger.Debug("Current subscription", "parameter", name)
 	}
 
 	return nil

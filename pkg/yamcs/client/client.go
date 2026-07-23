@@ -137,6 +137,18 @@ func (client *YamcsClient) CloseWebSocketConnection() error {
 	return client.WebSocket.Disconnect()
 }
 
+func (client *YamcsClient) Close() error {
+	var err error
+	if client.WebSocket != nil {
+		err = client.WebSocket.Disconnect()
+	}
+	if client.HTTP != nil {
+		client.HTTP.Dispose()
+	}
+	client.clearAllSubscriptions()
+	return err
+}
+
 func (client *YamcsClient) IsWebSocketConnected() bool {
 	return client.WebSocket.IsConnected()
 }

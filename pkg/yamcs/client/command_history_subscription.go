@@ -23,8 +23,8 @@ type CommandHistorySubscription struct {
 }
 
 // CreateCommandHistorySubscription creates a new command history subscription.
-func (client *YamcsClient) CreateCommandHistorySubscription(instance string, processor string) (*CommandHistorySubscription, error) {
-	subscription, err := client.newCommandHistorySubscription(instance, processor)
+func (client *YamcsClient) CreateCommandHistorySubscription(ctx context.Context, instance string, processor string) (*CommandHistorySubscription, error) {
+	subscription, err := client.newCommandHistorySubscription(ctx, instance, processor)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (client *YamcsClient) CreateCommandHistorySubscription(instance string, pro
 }
 
 // newCommandHistorySubscription initializes and subscribes to command history.
-func (client *YamcsClient) newCommandHistorySubscription(instance, processor string) (*CommandHistorySubscription, error) {
+func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, instance, processor string) (*CommandHistorySubscription, error) {
 	subscription := &CommandHistorySubscription{
 		client:              client,
 		Instance:            instance,
@@ -58,7 +58,7 @@ func (client *YamcsClient) newCommandHistorySubscription(instance, processor str
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(context.Background(), message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}

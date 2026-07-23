@@ -297,7 +297,28 @@ func (a *APIKeyCredentials) BeforeRequest(req *http.Request) error {
 	return nil
 }
 
+func credentialsCanExpire(credentials Credentials) bool {
+	switch creds := credentials.(type) {
+	case *BearerCredentials:
+		return !creds.Expiry.IsZero()
+	case *ServiceAccountCredentials:
+		return !creds.Expiry.IsZero()
+	default:
+		return false
+	}
+}
+
 func (m *HTTPManager) StartAutoRefresh() {
+	m.StopAutoRefresh()
+	if m.Credentials == nil || !credentialsCanExpire(m.Credentials) {
+		return
+	}
+
+	stop := make(chan struct{})
+	m.refreshMu.Lock()
+	m.RefreshStop = stop
+	m.refreshMu.Unlock()
+
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		defer ticker.Stop()
@@ -309,9 +330,28 @@ func (m *HTTPManager) StartAutoRefresh() {
 						backend.Logger.Error("failed to refresh token", "error", err)
 					}
 				}
-			case <-m.RefreshStop:
+			case <-stop:
 				return
 			}
 		}
 	}()
+}
+
+func (m *HTTPManager) StopAutoRefresh() {
+	m.refreshMu.Lock()
+	defer m.refreshMu.Unlock()
+
+	if m.RefreshStop == nil {
+		return
+	}
+
+	close(m.RefreshStop)
+	m.RefreshStop = nil
+}
+
+func (m *HTTPManager) Dispose() {
+	m.StopAutoRefresh()
+	if m.Client != nil {
+		m.Client.CloseIdleConnections()
+	}
 }

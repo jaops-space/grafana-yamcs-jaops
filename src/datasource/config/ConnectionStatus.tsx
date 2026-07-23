@@ -135,9 +135,7 @@ export default function ConnectionStatus({ datasourceUid, onStatusChange }: Conn
             });
 
             onStatusChange?.(details);
-        } catch (error) {
-            console.error('Failed to retrieve health details', error);
-
+        } catch {
             setResult({
                 status: 'error',
                 message: 'Failed to retrieve health details',

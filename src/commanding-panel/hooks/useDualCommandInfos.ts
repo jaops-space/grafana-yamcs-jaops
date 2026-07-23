@@ -23,8 +23,12 @@ export function useDualCommandInfos(datasource: DataSourceWithBackend | null) {
                 const info = await datasource.getResource(`endpoint/${endpoint}/command/info`, { name: commandName });
                 setDualCommandInfos((prev) => ({ ...prev, [infoKey]: info }));
                 lastFetchedRef.current[infoKey] = fetchKey;
-            } catch (err) {
-                console.error('Failed to fetch dual command info', err);
+            } catch {
+                setDualCommandInfos((prev) => {
+                    const next = { ...prev };
+                    delete next[infoKey];
+                    return next;
+                });
             }
         },
         [datasource]

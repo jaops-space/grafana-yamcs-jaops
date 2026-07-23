@@ -225,7 +225,7 @@ func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, inst
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := c.WebSocket.SendSync(context.Background(), message)
+	_, callID, _, err := c.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}

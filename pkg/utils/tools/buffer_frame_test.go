@@ -263,6 +263,24 @@ func TestConvertCommandListToFrame(t *testing.T) {
 			wantLen: 1,
 		},
 		{
+			name: "Command without id uses command id fallback",
+			commands: []*commanding.CommandHistoryEntry{
+				{
+					CommandName:    pointer("test_cmd"),
+					GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
+					CommandId: &commanding.CommandId{
+						Origin:         pointer("grafana"),
+						SequenceNumber: pointer[int32](42),
+						GenerationTime: pointer[int64](123456789),
+						CommandName:    pointer("test_cmd"),
+					},
+					Assignments: []*commanding.CommandAssignment{},
+					Attr:        []*commanding.CommandHistoryAttribute{},
+				},
+			},
+			wantLen: 1,
+		},
+		{
 			name: "Invalid JSON marshal (but skip)",
 			commands: []*commanding.CommandHistoryEntry{
 				{

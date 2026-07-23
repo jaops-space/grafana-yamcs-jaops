@@ -23,8 +23,8 @@ type ProcessorSubscription struct {
 }
 
 // CreateProcessorSubscription creates a new processor subscription.
-func (client *YamcsClient) CreateProcessorSubscription(instance Instance, processor Processor) (*ProcessorSubscription, error) {
-	subscription, err := client.newProcessorSubscription(instance.GetName(), processor.GetName())
+func (client *YamcsClient) CreateProcessorSubscription(ctx context.Context, instance Instance, processor Processor) (*ProcessorSubscription, error) {
+	subscription, err := client.newProcessorSubscription(ctx, instance.GetName(), processor.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -34,8 +34,8 @@ func (client *YamcsClient) CreateProcessorSubscription(instance Instance, proces
 }
 
 // CreateProcessorSubscriptionByNames creates a processor subscription using plain names.
-func (client *YamcsClient) CreateProcessorSubscriptionByNames(instance string, processor string) (*ProcessorSubscription, error) {
-	subscription, err := client.newProcessorSubscription(instance, processor)
+func (client *YamcsClient) CreateProcessorSubscriptionByNames(ctx context.Context, instance string, processor string) (*ProcessorSubscription, error) {
+	subscription, err := client.newProcessorSubscription(ctx, instance, processor)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (client *YamcsClient) CreateProcessorSubscriptionByNames(instance string, p
 	return subscription, nil
 }
 
-func (client *YamcsClient) newProcessorSubscription(instance string, processor string) (*ProcessorSubscription, error) {
+func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instance string, processor string) (*ProcessorSubscription, error) {
 	subscription := &ProcessorSubscription{
 		client:    client,
 		Instance:  instance,
@@ -66,7 +66,7 @@ func (client *YamcsClient) newProcessorSubscription(instance string, processor s
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(context.Background(), message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}

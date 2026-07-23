@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
@@ -241,6 +242,25 @@ func prepend[T any](s []T, v T) []T {
 	return append([]T{v}, s...)
 }
 
+func commandHistoryEntryID(command *commanding.CommandHistoryEntry) string {
+	if command.GetId() != "" {
+		return command.GetId()
+	}
+
+	commandID := command.GetCommandId()
+	if commandID == nil {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"%s/%d/%d/%s",
+		commandID.GetOrigin(),
+		commandID.GetSequenceNumber(),
+		commandID.GetGenerationTime(),
+		commandID.GetCommandName(),
+	)
+}
+
 func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
 
 	commandList := make([]json.RawMessage, 0)
@@ -248,7 +268,7 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 	for _, command := range commands {
 
 		commandEntry := &CommandEntry{
-			Id:                    command.GetId(),
+			Id:                    commandHistoryEntryID(command),
 			Time:                  command.GetGenerationTime().AsTime(),
 			Command:               command.GetCommandName(),
 			Comment:               nil,
@@ -275,10 +295,13 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				var ack **CommandAck
 				switch {
 				case nameHasPrefix(name, "Acknowledge_Queued"):
+					backend.Logger.Debug("received queued!")
 					ack = &commandEntry.Queued
 				case nameHasPrefix(name, "Acknowledge_Released"):
+					backend.Logger.Debug("received released!")
 					ack = &commandEntry.Released
 				case nameHasPrefix(name, "Acknowledge_Sent"):
+					backend.Logger.Debug("received sent!")
 					ack = &commandEntry.Sent
 				}
 
