@@ -23,8 +23,7 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 		"endpoint", q.EndpointID,
 		"parameter", q.Parameter,
 		"from", q.From,
-		"to", q.To,
-		"realtime", q.Realtime)
+		"to", q.To)
 
 	yamcs, err := endpoint.GetClient()
 
@@ -34,21 +33,13 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 	start := time.Unix(int64(q.From), 0)
 	end := time.Unix(int64(q.To), 0)
 
-	aggregatePath := ""
-
-	if len(q.AggregatePath) > 0 {
-		aggregatePath = "." + q.AggregatePath
-	}
-
 	backend.Logger.Debug("Requesting parameter samples",
 		"parameter", q.Parameter,
-		"aggregatePath", aggregatePath,
 		"startTime", start,
 		"endTime", end,
 		"yamcsFilter", q.YamcsFilter)
 
-	// Include aggregatePath in the API call to get the correct value type (Position.X returns INTEGER instead of AGGREGATE)
-	samples, err := yamcs.GetParameterSamplesInProcessorByNames(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), q.Parameter+aggregatePath, start, end)
+	samples, err := yamcs.GetParameterSamplesInProcessorByNames(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), q.Parameter, start, end)
 
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter samples", "error", err)
@@ -59,7 +50,6 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 
 	backend.Logger.Debug("Received parameter samples",
 		"parameter", q.Parameter,
-		"aggregatePath", aggregatePath,
 		"pointCount", pointCount)
 
 	var getMin bool = false
@@ -70,7 +60,7 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 		getMax = getMax || (getField == "max")
 	}
 
-	frame := tools.ConvertSampleBufferToFrame(samples, q.Parameter+aggregatePath, getMin, getMax)
+	frame := tools.ConvertSampleBufferToFrame(samples, q.Parameter, getMin, getMax)
 
 	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
 	return frame, nil
@@ -82,11 +72,6 @@ func DatasourceSingleValueFrame(ctx context.Context, endpoint *source.YamcsEndpo
 	if err != nil {
 		return nil, err
 	}
-	aggregatePath := ""
-	if len(q.AggregatePath) > 0 {
-		aggregatePath = "." + q.AggregatePath
-	}
-
 	// TODO: Pass filter parameters to YAMCS when server-side filtering is implemented
 	lastValue, err := yamcs.GetParameterValueByName(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), q.Parameter)
 
@@ -96,7 +81,7 @@ func DatasourceSingleValueFrame(ctx context.Context, endpoint *source.YamcsEndpo
 
 	buffer := []client.ParameterValue{lastValue}
 
-	frame := tools.ConvertBufferToFrame(buffer, q.Parameter+aggregatePath, false, false, aggregatePath, false)
+	frame := tools.ConvertBufferToFrame(buffer, q.Parameter, false, false, false)
 	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
 	return frame, nil
 
@@ -110,11 +95,6 @@ func DatasourceDiscreteValueFrame(ctx context.Context, endpoint *source.YamcsEnd
 	}
 
 	start, end := time.Unix(int64(q.From), 0), time.Unix(int64(q.To), 0)
-	aggregatePath := ""
-	if len(q.AggregatePath) > 0 {
-		aggregatePath = "." + q.AggregatePath
-	}
-
 	minRange := fmt.Sprint(int(end.Sub(start).Milliseconds()) / q.MaxPoints)
 
 	ranges, err := yamcs.GetParameterRangesByQueryWithTimeByNames(
@@ -133,7 +113,7 @@ func DatasourceDiscreteValueFrame(ctx context.Context, endpoint *source.YamcsEnd
 		return nil, err
 	}
 
-	frame := tools.ConvertRangesToFrame(ranges, q.Parameter+aggregatePath, aggregatePath)
+	frame := tools.ConvertRangesToFrame(ranges, q.Parameter)
 	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
 	return frame, nil
 

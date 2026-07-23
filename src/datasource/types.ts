@@ -9,7 +9,6 @@ export interface Query extends DataQuery {
     endpoint?: string;
     parameter: string;
     command: string;
-    aggregatePath: string;
     fields: QueryField[];
     asVariable: boolean;
     customVariableString: boolean;
@@ -56,7 +55,6 @@ export type QueryField = 'max' | 'min';
 export const DEFAULT_QUERY: Partial<Query> = {
     type: undefined,
     endpoint: undefined,
-    aggregatePath: '',
 };
 
 /**

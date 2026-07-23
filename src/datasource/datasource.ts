@@ -13,6 +13,21 @@ import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafa
 import { Observable, merge } from 'rxjs';
 import { Configuration, DEFAULT_QUERY as DefaultQuery, Query, QueryType } from './types';
 
+function formatRangePath(request: DataQueryRequest<Query>): string {
+    const fromUnix = request.range.from.unix();
+    const toUnix = request.range.to.unix();
+    let formattedRange = `${request.range.raw.from}-${request.range.raw.to}`;
+    if (!formattedRange.includes('now')) {
+        formattedRange = `${fromUnix}-${toUnix}`;
+    }
+    return formattedRange;
+}
+
+function formatGraphFieldsPath(query: Query): string {
+    const fields = [...(query.fields ?? [])].filter((field) => field === 'min' || field === 'max').sort();
+    return fields.length > 0 ? `fields=${fields.join('-')}` : 'fields=none';
+}
+
 /**
  * Custom Grafana DataSource for retrieving and streaming data.
  */
@@ -86,7 +101,6 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const templateSrv = getTemplateSrv();
 
                 pathName = templateSrv.replace(pathName, request.scopedVars);
-                query.aggregatePath = templateSrv.replace(query.aggregatePath, request.scopedVars);
                 query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
                 query.command = templateSrv.replace(query.command, request.scopedVars);
 
@@ -97,7 +111,10 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const fromUnix = request.range.from.unix();
                 const toUnix = request.range.to.unix();
 
-                const formattedRange = `${request.range.raw.from}-${request.range.raw.to}`;
+                const pathParts = ['req', query.endpoint, pathName];
+                if (query.type === QueryType.PLOT) {
+                    pathParts.push(formatRangePath(request), `${request.maxDataPoints ?? 1000}`, formatGraphFieldsPath(query));
+                }
 
                 return getGrafanaLiveSrv().getDataStream({
                     buffer: {
@@ -107,7 +124,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     addr: {
                         scope: LiveChannelScope.DataSource,
                         stream: this.uid,
-                        path: `req/${query.endpoint}/${pathName}/${formattedRange}-${request.maxDataPoints ?? 1000}`,
+                        path: pathParts.join('/'),
                         data: {
                             ...query,
                             from: fromUnix,

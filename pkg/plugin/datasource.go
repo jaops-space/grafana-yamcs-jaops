@@ -121,7 +121,8 @@ func (d *Datasource) PublishStream(context.Context, *backend.PublishStreamReques
 // Unlike a shared stream, this stream is user-specific because the data depends on
 // user-configurable parameters such as time interval and number of data points.
 //
-// The streaming frequency is determined by: `timeInterval / maxDataPoints`.
+// Graph stream frequency is determined by `timeInterval / maxDataPoints`, with
+// a minimum interval of 200ms.
 //
 // If the parameter stream buffer has accumulated too much data, rather than sending
 // every single data point, it calculates an average (for numeric values) or the most
@@ -134,7 +135,7 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	var q PluginQuery
 
 	// Parse the query from the request payload
-	if err := json.Unmarshal(req.Data, &q); err != nil {	
+	if err := json.Unmarshal(req.Data, &q); err != nil {
 		return err
 	}
 

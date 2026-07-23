@@ -263,10 +263,10 @@ func runScenario(address string, instance string, processor string, parameters [
 					}
 					if len(values) > 0 {
 						if len(values) > 3 {
-							frame := tools.ConvertBufferToAverageFrame(values, req.parameter, false, false, "", false)
+							frame := tools.ConvertBufferToAverageFrame(values, req.parameter, false, false, false)
 							runtime.KeepAlive(frame)
 						} else {
-							frame := tools.ConvertBufferToFrame(values, req.parameter, false, false, "", false)
+							frame := tools.ConvertBufferToFrame(values, req.parameter, false, false, false)
 							runtime.KeepAlive(frame)
 						}
 					}

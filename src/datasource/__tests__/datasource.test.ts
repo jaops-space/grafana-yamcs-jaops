@@ -43,7 +43,6 @@ describe('DataSource.query', () => {
         endpoint: 'myproject_realtime',
         type,
         parameter: '/sim/temperature',
-        aggregatePath: '',
         command: '',
         asVariable: false,
         ...extra,
@@ -67,7 +66,7 @@ describe('DataSource.query', () => {
     expect(getDataStreamMock).not.toHaveBeenCalled();
   });
 
-  it('uses replace action for demands stream and builds expected live path', async () => {
+  it('uses replace action for demands stream and omits range and max data points from live path', async () => {
     const ds = buildDatasource();
 
     await firstValueFrom(ds.query(buildRequest(QueryType.DEMANDS) as any));
@@ -79,7 +78,7 @@ describe('DataSource.query', () => {
     expect(streamArg.buffer.maxLength).toBe(123);
     expect(streamArg.addr.scope).toBe(LiveChannelScope.DataSource);
     expect(streamArg.addr.stream).toBe('jaops-yamcs-main');
-    expect(streamArg.addr.path).toContain('req/myproject_realtime/-sim-temperature/now-5m-now-321');
+    expect(streamArg.addr.path).toBe('req/myproject_realtime/-sim-temperature');
     expect(streamArg.addr.data.from).toBe(1000);
     expect(streamArg.addr.data.to).toBe(2000);
     expect(streamArg.addr.data.realtime).toBe(true);
@@ -94,15 +93,33 @@ describe('DataSource.query', () => {
     expect(streamArg.buffer.action).toBe(StreamingFrameAction.Append);
   });
 
+  it('includes range, max data points, and sorted min/max fields in plot live path', async () => {
+    const ds = buildDatasource();
+
+    await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: ['max', 'min'] }) as any));
+
+    const streamArg = getDataStreamMock.mock.calls[0][0];
+    expect(streamArg.addr.path).toBe('req/myproject_realtime/-sim-temperature/now-5m-now/321/fields=max-min');
+  });
+
+  it('uses a stable field segment for plot queries without min or max', async () => {
+    const ds = buildDatasource();
+
+    await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: [] }) as any));
+
+    const streamArg = getDataStreamMock.mock.calls[0][0];
+    expect(streamArg.addr.path).toBe('req/myproject_realtime/-sim-temperature/now-5m-now/321/fields=none');
+  });
+
   it('maps core query types to expected stream paths and buffering actions', async () => {
     const ds = buildDatasource();
-    const cases: Array<{ type: QueryType; expectedPathSegment: string; expectedAction: StreamingFrameAction }> = [
-      { type: QueryType.EVENTS, expectedPathSegment: '/events/', expectedAction: StreamingFrameAction.Append },
-      { type: QueryType.DEMANDS, expectedPathSegment: '/demands/', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.SUBSCRIPTIONS, expectedPathSegment: '/subscriptions/', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.COMMAND_HISTORY, expectedPathSegment: '/commands/', expectedAction: StreamingFrameAction.Append },
-      { type: QueryType.ALARMS, expectedPathSegment: '/alarms/', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.LINKS, expectedPathSegment: '/links/', expectedAction: StreamingFrameAction.Replace },
+    const cases: Array<{ type: QueryType; expectedPath: string; expectedAction: StreamingFrameAction }> = [
+      { type: QueryType.EVENTS, expectedPath: 'req/myproject_realtime/events', expectedAction: StreamingFrameAction.Append },
+      { type: QueryType.DEMANDS, expectedPath: 'req/myproject_realtime/demands', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.SUBSCRIPTIONS, expectedPath: 'req/myproject_realtime/subscriptions', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.COMMAND_HISTORY, expectedPath: 'req/myproject_realtime/commands', expectedAction: StreamingFrameAction.Append },
+      { type: QueryType.ALARMS, expectedPath: 'req/myproject_realtime/alarms', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.LINKS, expectedPath: 'req/myproject_realtime/links', expectedAction: StreamingFrameAction.Replace },
     ];
 
     for (const tc of cases) {
@@ -110,7 +127,7 @@ describe('DataSource.query', () => {
       await firstValueFrom(ds.query(buildRequest(tc.type, { parameter: '' }) as any));
 
       const streamArg = getDataStreamMock.mock.calls[0][0];
-      expect(streamArg.addr.path).toContain(tc.expectedPathSegment);
+      expect(streamArg.addr.path).toBe(tc.expectedPath);
       expect(streamArg.buffer.action).toBe(tc.expectedAction);
     }
   });
@@ -120,8 +137,8 @@ describe('DataSource.query', () => {
     const request = {
       ...buildRequest(QueryType.PLOT),
       targets: [
-        { refId: 'A', endpoint: '', type: QueryType.PLOT, parameter: '', aggregatePath: '', command: '', asVariable: false },
-        { refId: 'B', endpoint: 'myproject_realtime', type: QueryType.PLOT, parameter: '/sim/temperature', aggregatePath: '', command: '', asVariable: false },
+        { refId: 'A', endpoint: '', type: QueryType.PLOT, parameter: '', command: '', asVariable: false },
+        { refId: 'B', endpoint: 'myproject_realtime', type: QueryType.PLOT, parameter: '/sim/temperature', command: '', asVariable: false },
       ],
     };
 

@@ -29,8 +29,6 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
         [updateQuery]
     );
 
-    //const isAggregate = Boolean(query.aggregatePath);
-
     const fetchOptions = useCallback(
         async (inputValue: string): Promise<ComboboxOption[]> => {
             if (!endpoint) {
@@ -56,36 +54,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
                             onChange={handleParameterChange}
                             value={query.parameter ?? null}
                             createCustomValue
-                            customValueDescription="Use custom aggregate parameter expression"
+                            customValueDescription="Use custom parameter expression"
                             data-testid="jaops-parameter-select"
                         />
                     </InlineField>
-
-                    {/* TODO: to be removed and use inline custom aggregate
-                    isAggregate && (
-                        <InlineField label="." grow>
-                            <Input
-                                marginWidth={0}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                    updateQuery({ aggregatePath: e.target.value });
-                                }}
-                                placeholder="Path to value (case sensitive)"
-                                value={query.aggregatePath || ''}
-                            />
-                        </InlineField>
-                    )*/}
                 </Stack>
-
-                {/*<InlineField>
-                    <Checkbox
-                        checked={isAggregate}
-                        onChange={(e) => {
-                            const newState = e.currentTarget.checked;
-                            updateQuery({ aggregatePath: newState ? query.aggregatePath || '.' : '' });
-                        }}
-                        label="Aggregate"
-                    />
-                </InlineField>*/}
             </Stack>
 
             {additionalFields && (

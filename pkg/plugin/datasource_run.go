@@ -14,20 +14,25 @@ import (
 
 func getStreamTickerInterval(q PluginQuery, fallback time.Duration) time.Duration {
 	if q.MaxPoints <= 0 || q.To <= q.From {
-		return fallback
+		return minStreamTickerInterval(fallback)
 	}
 
 	timeWindow := time.Duration(q.To-q.From) * time.Second
 	if timeWindow <= 0 {
-		return fallback
+		return minStreamTickerInterval(fallback)
 	}
 
 	interval := timeWindow / time.Duration(q.MaxPoints)
-	if interval < 200*time.Millisecond {
-		return 200 * time.Millisecond
-	}
+	interval = minStreamTickerInterval(interval)
 	if interval > 30*time.Second {
 		return 30 * time.Second
+	}
+	return interval
+}
+
+func minStreamTickerInterval(interval time.Duration) time.Duration {
+	if interval < 200*time.Millisecond {
+		return 200 * time.Millisecond
 	}
 	return interval
 }
@@ -48,7 +53,7 @@ func scaleTickerIntervalByReplay(endpoint *source.YamcsEndpoint, baseInterval ti
 
 	scaled := time.Duration(float64(baseInterval) / multiplier)
 
-	return scaled
+	return minStreamTickerInterval(scaled)
 }
 
 func RunParameterStream(ctx context.Context,
@@ -106,9 +111,9 @@ func RunParameterStream(ctx context.Context,
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter, getMin, getMax, "", false)
+				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter, getMin, getMax, false)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter, getMin, getMax, "", false)
+				frame = tools.ConvertBufferToFrame(buffer, q.Parameter, getMin, getMax, false)
 			}
 
 			sender.SendFrame(

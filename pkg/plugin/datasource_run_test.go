@@ -137,6 +137,15 @@ func TestGetStreamTickerInterval(t *testing.T) {
 	}
 }
 
+func TestMinStreamTickerInterval(t *testing.T) {
+	if got := minStreamTickerInterval(50 * time.Millisecond); got != 200*time.Millisecond {
+		t.Fatalf("expected 200ms floor, got %v", got)
+	}
+	if got := minStreamTickerInterval(250 * time.Millisecond); got != 250*time.Millisecond {
+		t.Fatalf("expected interval above floor to pass through, got %v", got)
+	}
+}
+
 func TestRunDemandsStream_ContextCancelExits(t *testing.T) {
 	endpoint := buildTestEndpointWithClient(false)
 	packetSender := &testStreamPacketSender{}
