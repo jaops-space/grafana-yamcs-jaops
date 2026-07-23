@@ -16,11 +16,7 @@ import { Configuration, DEFAULT_QUERY as DefaultQuery, Query, QueryType } from '
 function formatRangePath(request: DataQueryRequest<Query>): string {
     const fromUnix = request.range.from.unix();
     const toUnix = request.range.to.unix();
-    let formattedRange = `${request.range.raw.from}-${request.range.raw.to}`;
-    if (!formattedRange.includes('now')) {
-        formattedRange = `${fromUnix}-${toUnix}`;
-    }
-    return formattedRange;
+    return `${fromUnix}-${toUnix}`;
 }
 
 function formatGraphFieldsPath(query: Query): string {
@@ -111,7 +107,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const fromUnix = request.range.from.unix();
                 const toUnix = request.range.to.unix();
 
-                const pathParts = ['req', query.endpoint, pathName];
+                const pathParts = [query.endpoint, pathName];
                 if (query.type === QueryType.PLOT) {
                     pathParts.push(formatRangePath(request), `${request.maxDataPoints ?? 1000}`, formatGraphFieldsPath(query));
                 }
