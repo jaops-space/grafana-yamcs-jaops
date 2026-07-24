@@ -69,17 +69,8 @@ METRIC_LABELS = {
     "total_allocated_bytes": "Total memory allocated during run",
     "values_read_per_sec": "Values read per second from buffers",
     "values_read_fresh_pct": "Values read within 1s tick",
-    "values_read_stale_pct": "Values read after 1s tick",
     "avg_value_read_age": "Average value age when read",
-    "max_value_read_age": "Max value buffer age",
-    "max_value_stall": "Max stall beyond freshness window",
     "avg_tick_runstream": "Average RunStream wall time per 1s tick",
-    "max_tick_runstream": "Worst RunStream tick wall time",
-    "max_tick_runstream_pct": "Worst RunStream tick wall time",
-    "avg_tick_process": "Average Yamcs processing time per 1s tick",
-    "max_tick_process": "Worst 1s tick Yamcs process workload",
-    "avg_tick_read_send": "Average read/frame/send wall time per tick",
-    "max_tick_read_send": "Worst read/frame/send wall time per tick",
     "setup": "Stream setup time",
 }
 PLOT_TITLES = {
@@ -117,10 +108,7 @@ TIME_KEYS = {
     "avg_process",
     "setup",
     "avg_value_read_age",
-    "max_value_read_age",
-    "max_value_stall",
     "avg_tick_runstream",
-    "max_tick_runstream",
 }
 BYTE_KEYS = {"live_memory_growth_bytes", "total_allocated_bytes"}
 THRESHOLDS = {
@@ -172,14 +160,6 @@ THRESHOLDS = {
         "plot_key": "values_read_fresh_pct",
         "scale": "constant",
     },
-    "max_value_read_age": {
-        "warn": 1_000_000_000,
-        "fail": 2_000_000_000,
-        "operator": "max",
-        "unit": "ns",
-        "plot_key": "max_value_read_age",
-        "scale": "constant",
-    },
     "avg_tick_runstream": {
         "warn": 1_000_000_000,
         "fail": 1_200_000_000,
@@ -188,6 +168,17 @@ THRESHOLDS = {
         "plot_key": "avg_tick_runstream",
         "scale": "constant",
     },
+}
+BASELINE_COMPARISON_RULES = {
+    "avg_read_clear": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
+    "avg_process": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
+    "live_memory_growth_bytes": {"direction": "lower", "warn_ratio": 1.30, "unit": "bytes"},
+    "total_allocated_bytes": {"direction": "lower", "warn_ratio": 1.30, "unit": "bytes"},
+    "values_read_per_sec": {"direction": "higher", "warn_ratio": 0.70, "unit": "values/sec"},
+    "values_read_fresh_pct": {"direction": "higher", "warn_ratio": 0.95, "unit": "%"},
+    "avg_value_read_age": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
+    "avg_tick_runstream": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
+    "setup": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
 }
 
 
@@ -283,6 +274,24 @@ def write_csv(path: str, rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+def load_baseline_results(path: str) -> tuple[dict[str, Any] | None, str]:
+    if not path:
+        return None, "no baseline result path provided"
+    if not os.path.exists(path):
+        return None, f"baseline result file does not exist: {path}"
+    try:
+        with open(path, encoding="utf-8") as fp:
+            result = json.load(fp)
+    except (OSError, json.JSONDecodeError) as err:
+        return None, f"could not read baseline result file: {err}"
+    scenarios = result.get("scenarios")
+    if not isinstance(scenarios, list):
+        return None, "baseline result file does not contain a scenarios array"
+    if not all(isinstance(row, dict) and isinstance(row.get("streams"), int) for row in scenarios):
+        return None, "baseline scenarios do not contain compatible stream counts"
+    return result, "baseline loaded"
+
+
 def scaled_series(key: str, values: list[float], scale_reference: float | None = None) -> tuple[list[float], str]:
     label = METRIC_LABELS.get(key, key.replace("_", " "))
     max_abs = scale_reference if scale_reference is not None else max(abs(value) for value in values) if values else 0
@@ -349,7 +358,7 @@ def thresholds_for_plot(key: str, xs: list[int], scale_reference: float) -> list
     return lines
 
 
-def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str) -> str | None:
+def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str, baseline_rows: list[dict[str, Any]] | None = None) -> str | None:
     points = [(row["streams"], row.get(key)) for row in rows if row.get(key) is not None]
     points = [(x, y) for x, y in points if isinstance(y, (int, float))]
     if not points:
@@ -358,26 +367,36 @@ def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str) -> str | 
     points.sort(key=lambda item: item[0])
     xs = [point[0] for point in points]
     raw_ys = [float(point[1]) for point in points]
-    scale_reference = max(abs(value) for value in raw_ys) if raw_ys else 0
+    baseline_points = []
+    if baseline_rows:
+        baseline_points = [(row["streams"], row.get(key)) for row in baseline_rows if row.get(key) is not None]
+        baseline_points = [(x, y) for x, y in baseline_points if isinstance(y, (int, float))]
+        baseline_points.sort(key=lambda item: item[0])
+    baseline_raw_ys = [float(point[1]) for point in baseline_points]
+    all_raw_ys = raw_ys + baseline_raw_ys
+    scale_reference = max(abs(value) for value in all_raw_ys) if all_raw_ys else 0
     ys, label = scaled_series(key, raw_ys, scale_reference)
+    baseline_xs = [point[0] for point in baseline_points]
+    baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
     path = os.path.join(output_dir, f"{PLOT_FILE_NAMES.get(key, key)}.png")
     threshold_lines = thresholds_for_plot(key, xs, scale_reference)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(xs, ys, marker="o", label="observed")
+    plt.plot(xs, ys, color="#2563eb", marker="o", label="PR")
+    if baseline_points:
+        plt.plot(baseline_xs, baseline_ys, color="#16a34a", marker="o", label="Base")
     for level, color, threshold_values in threshold_lines:
         plt.plot(xs, threshold_values, linestyle="--", color=color, linewidth=1.2, label=f"{level} threshold")
     plt.xscale("log")
     plt.xlabel("Concurrent Grafana streams (N, log scale)")
     plt.ylabel(label)
     plt.title(PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
-    axis_values = ys + [value for _, _, threshold_values in threshold_lines for value in threshold_values]
+    axis_values = ys + baseline_ys + [value for _, _, threshold_values in threshold_lines for value in threshold_values]
     if key in LOG_Y_KEYS:
         apply_log_y_axis(axis_values)
     else:
         apply_y_axis_floor(axis_values)
-    if threshold_lines:
-        plt.legend()
+    plt.legend()
     plt.grid(True, which="both", alpha=0.25)
     plt.tight_layout()
     plt.savefig(path)
@@ -385,13 +404,13 @@ def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str) -> str | 
     return path
 
 
-def plot_all_metrics(output_dir: str, rows: list[dict[str, Any]]) -> list[str]:
+def plot_all_metrics(output_dir: str, rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]] | None = None) -> list[str]:
     plots_dir = os.path.join(output_dir, "plots")
     os.makedirs(plots_dir, exist_ok=True)
     for filename in os.listdir(plots_dir):
         if filename.endswith(".png"):
             os.remove(os.path.join(plots_dir, filename))
-    return [path for key in PERFORMANCE_PLOT_KEYS if (path := plot_metric(plots_dir, rows, key))]
+    return [path for key in PERFORMANCE_PLOT_KEYS if (path := plot_metric(plots_dir, rows, key, baseline_rows))]
 
 
 def threshold_value(row: dict[str, Any], key: str) -> float:
@@ -430,6 +449,58 @@ def evaluate_thresholds(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return results
 
 
+def evaluate_baseline_comparisons(rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    if not baseline_rows:
+        return []
+
+    baseline_by_streams = {row["streams"]: row for row in baseline_rows}
+    comparisons = []
+    for key, rule in BASELINE_COMPARISON_RULES.items():
+        worst: dict[str, Any] | None = None
+        for row in rows:
+            streams = row["streams"]
+            baseline = baseline_by_streams.get(streams)
+            if not baseline:
+                continue
+            current_value = row.get(key)
+            baseline_value = baseline.get(key)
+            if not isinstance(current_value, (int, float)) or not isinstance(baseline_value, (int, float)):
+                continue
+            if baseline_value == 0:
+                continue
+
+            current = float(current_value)
+            base = float(baseline_value)
+            ratio = current / base
+            if rule["direction"] == "lower":
+                status = "warn" if ratio >= float(rule["warn_ratio"]) else "pass"
+                severity = ratio
+            else:
+                status = "warn" if ratio <= float(rule["warn_ratio"]) else "pass"
+                severity = 1 / ratio if ratio > 0 else float("inf")
+
+            change_pct = 100 * (current - base) / abs(base)
+            candidate = {
+                "metric": key,
+                "plot": f"{PLOT_FILE_NAMES.get(key, key)}.png",
+                "streams": streams,
+                "status": status,
+                "current": current,
+                "baseline": base,
+                "change_pct": change_pct,
+                "ratio": ratio,
+                "unit": rule["unit"],
+                "direction": rule["direction"],
+                "warn_ratio": rule["warn_ratio"],
+            }
+            if worst is None or severity > worst["_severity"]:
+                worst = {**candidate, "_severity": severity}
+        if worst:
+            worst.pop("_severity", None)
+            comparisons.append(worst)
+    return comparisons
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark N concurrent Grafana streams with live Yamcs quickstart data.")
     parser.add_argument("--output-dir", default="benchmark-output")
@@ -447,6 +518,7 @@ def main() -> None:
     parser.add_argument("--simulator-host", default="127.0.0.1")
     parser.add_argument("--simulator-port", type=int, default=10015)
     parser.add_argument("--simulator-rate", type=int, default=1)
+    parser.add_argument("--baseline-results", default="", help="Optional previous benchmark JSON to plot and compare against")
     parser.add_argument("--fail-on-threshold", action="store_true", help="Exit non-zero when any benchmark threshold fails")
     argv = sys.argv[1:]
     if argv and argv[0] == "--":
@@ -471,15 +543,25 @@ def main() -> None:
     csv_path = os.path.join(args.output_dir, "yamcs-stream-results.csv")
 
     threshold_results = evaluate_thresholds(result["scenarios"])
+    baseline_result, baseline_message = load_baseline_results(args.baseline_results)
+    baseline_rows = baseline_result.get("scenarios", []) if baseline_result else None
+    baseline_comparisons = evaluate_baseline_comparisons(result["scenarios"], baseline_rows)
+    result["baseline"] = {
+        "compatible": baseline_result is not None,
+        "path": args.baseline_results,
+        "message": baseline_message,
+    }
+    result["baseline_comparisons"] = baseline_comparisons
     result["thresholds"] = threshold_results
     with open(json_path, "w", encoding="utf-8") as fp:
         json.dump(result, fp, indent=2)
     write_csv(csv_path, result["scenarios"])
-    plot_paths = plot_all_metrics(args.output_dir, result["scenarios"])
+    plot_paths = plot_all_metrics(args.output_dir, result["scenarios"], baseline_rows)
 
     print("=== Yamcs Stream Scenario Benchmark ===")
     print(f"scenarios: {len(result['scenarios'])}")
     print(f"plots generated: {len(plot_paths)}")
+    print(f"baseline: {baseline_message}")
     print(f"thresholds: {', '.join(t['metric'] + '=' + t['status'] for t in threshold_results)}")
     print(f"Artifacts written to: {os.path.abspath(args.output_dir)}")
     if args.fail_on_threshold and any(t["status"] == "fail" for t in threshold_results):

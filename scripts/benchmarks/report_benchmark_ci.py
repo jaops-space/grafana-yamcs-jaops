@@ -10,10 +10,15 @@ COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
 METRIC_NAMES = {
     "avg_read_clear": "Average read and clear time",
     "avg_process": "Average Yamcs listener processing time",
+    "setup": "Stream setup time",
     "setup_per_stream": "Setup time per stream",
+    "live_memory_growth_bytes": "Live memory used during run",
     "live_memory_growth_bytes_per_stream": "Live memory per stream",
+    "total_allocated_bytes": "Total memory allocated during run",
+    "values_read_per_sec": "Values read per second from buffers",
     "values_read_per_sec_per_stream": "Values read per second from buffers per stream",
     "values_read_fresh_pct": "Values read within the same 1s tick",
+    "avg_value_read_age": "Average value age when read",
     "avg_tick_runstream": "Average RunStream wall time per 1s tick",
 }
 METRIC_DETAILS = {
@@ -28,10 +33,15 @@ METRIC_DETAILS = {
 THRESHOLD_TO_PLOT = {
     "avg_read_clear": "avg_read_clear.png",
     "avg_process": "avg_process.png",
+    "setup": "setup.png",
     "setup_per_stream": "setup.png",
+    "live_memory_growth_bytes": "live_memory_growth_bytes.png",
     "live_memory_growth_bytes_per_stream": "live_memory_growth_bytes.png",
+    "total_allocated_bytes": "total_allocated_bytes.png",
+    "values_read_per_sec": "values_read_per_sec.png",
     "values_read_per_sec_per_stream": "values_read_per_sec.png",
     "values_read_fresh_pct": "values_read_fresh_pct.png",
+    "avg_value_read_age": "avg_value_read_age.png",
     "avg_tick_runstream": "avg_tick_runstream.png",
 }
 
@@ -46,20 +56,22 @@ def format_value(value: float, unit: str) -> str:
         if abs(value) >= 1_000:
             return f"{value / 1_000:.2f} us{suffix}"
         return f"{value:.2f} ns{suffix}"
-    if unit == "bytes/stream":
+    if unit in {"bytes", "bytes/stream"}:
+        suffix = "/stream" if unit.endswith("/stream") else ""
         if abs(value) >= 1024 * 1024:
-            return f"{value / (1024 * 1024):.2f} MiB/stream"
+            return f"{value / (1024 * 1024):.2f} MiB{suffix}"
         if abs(value) >= 1024:
-            return f"{value / 1024:.2f} KiB/stream"
+            return f"{value / 1024:.2f} KiB{suffix}"
+        return f"{value:.2f} bytes{suffix}"
     if unit == "%":
         return f"{value:.2f}%"
     return f"{value:.2f} {unit}"
 
 
-def status_for(thresholds: list[dict[str, Any]]) -> str:
+def status_for(thresholds: list[dict[str, Any]], comparisons: list[dict[str, Any]] | None = None) -> str:
     if any(t["status"] == "fail" for t in thresholds):
         return "fail"
-    if any(t["status"] == "warn" for t in thresholds):
+    if any(t["status"] == "warn" for t in thresholds) or any(c["status"] == "warn" for c in comparisons or []):
         return "warn"
     return "pass"
 
@@ -72,7 +84,7 @@ def metric_name(metric: str) -> str:
     return METRIC_NAMES.get(metric, metric.replace("_", " "))
 
 
-def copy_relevant_plots(output_dir: str, thresholds: list[dict[str, Any]]) -> list[tuple[str, str]]:
+def copy_relevant_plots(output_dir: str, thresholds: list[dict[str, Any]], comparisons: list[dict[str, Any]]) -> list[tuple[str, str]]:
     plots_dir = os.path.join(output_dir, "plots")
     selected_dir = os.path.join(output_dir, "regression-plots")
     if os.path.isdir(selected_dir):
@@ -94,6 +106,19 @@ def copy_relevant_plots(output_dir: str, thresholds: list[dict[str, Any]]) -> li
         shutil.copy2(source, destination)
         copied.append((threshold["metric"], plot_name))
         seen.add(plot_name)
+    for comparison in comparisons:
+        if comparison["status"] == "pass":
+            continue
+        plot_name = comparison.get("plot") or THRESHOLD_TO_PLOT.get(comparison["metric"])
+        if not plot_name or plot_name in seen:
+            continue
+        source = os.path.join(plots_dir, plot_name)
+        if not os.path.exists(source):
+            continue
+        destination = os.path.join(selected_dir, plot_name)
+        shutil.copy2(source, destination)
+        copied.append((comparison["metric"], plot_name))
+        seen.add(plot_name)
     return copied
 
 
@@ -110,18 +135,22 @@ def status_sentence(status: str) -> str:
     if status == "fail":
         return "At least one benchmark metric crossed a failure threshold. This job should block the PR until the regression is understood or the threshold is intentionally updated."
     if status == "warn":
-        return "One or more benchmark metrics crossed a warning threshold. The job stays green, but the metrics below need attention."
+        return "One or more benchmark metrics crossed a warning threshold or changed significantly from the PR base. The job stays green, but the metrics below need attention."
     return "All benchmark thresholds passed."
 
 
 def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copied_plots: list[tuple[str, str]], args: argparse.Namespace) -> str:
-    status = status_for(thresholds)
+    comparisons = result.get("baseline_comparisons", [])
+    status = status_for(thresholds, comparisons)
     interesting = [t for t in thresholds if t["status"] != "pass"]
+    interesting_comparisons = [c for c in comparisons if c["status"] != "pass"]
     threshold_by_metric = {t["metric"]: t for t in thresholds}
+    comparison_by_metric = {c["metric"]: c for c in comparisons}
     scenarios = result.get("scenarios", [])
     streams = [str(s["streams"]) for s in scenarios]
     parameters = result.get("parameters", [])
     system = result.get("system", {})
+    baseline = result.get("baseline", {})
     system_arch = "unknown"
     if system:
         os_name = system.get("os", "unknown")
@@ -156,6 +185,7 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         f"| Yamcs | `{result.get('yamcs_address', 'unknown')}` |",
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
         f"| System architecture | `{system_arch}` |",
+        f"| Baseline comparison | `{baseline.get('message', 'not requested')}` |",
     ]
     if args.run_url:
         lines.append(f"| Workflow run | [open run]({args.run_url}) |")
@@ -185,15 +215,39 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
                 )
             )
 
-        if copied_plots:
-            lines.extend(["", "### Relevant Plots", ""])
-            for metric, plot_name in copied_plots:
-                threshold = threshold_by_metric.get(metric, {})
-                image_url = plot_url(args, plot_name)
+    if interesting_comparisons:
+        lines.extend(
+            [
+                "",
+                "### Baseline Changes Needing Attention",
+                "",
+                "Blue is the PR result. Green is the base commit before the PR changes.",
+                "",
+                "| Metric | Streams | PR | Base | Change |",
+                "|---|---:|---:|---:|---:|",
+            ]
+        )
+        for comparison in interesting_comparisons:
+            lines.append(
+                "| {metric} | {streams} | {current} | {baseline} | {change:+.1f}% |".format(
+                    metric=metric_name(comparison["metric"]),
+                    streams=comparison["streams"],
+                    current=format_value(float(comparison["current"]), comparison["unit"]),
+                    baseline=format_value(float(comparison["baseline"]), comparison["unit"]),
+                    change=float(comparison["change_pct"]),
+                )
+            )
+
+    if copied_plots:
+        lines.extend(["", "### Relevant Plots", ""])
+        for metric, plot_name in copied_plots:
+            threshold = threshold_by_metric.get(metric)
+            comparison = comparison_by_metric.get(metric)
+            image_url = plot_url(args, plot_name)
+            lines.extend([f"#### {metric_name(metric)}", ""])
+            if threshold:
                 lines.extend(
                     [
-                        f"#### {metric_name(metric)}",
-                        "",
                         "| Status | Observed | Warning threshold | Failure threshold |",
                         "|---|---:|---:|---:|",
                         "| {status} | {observed} | {warn} | {fail} |".format(
@@ -203,16 +257,29 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
                             fail=format_value(float(threshold.get("fail", 0)), threshold.get("unit", "")),
                         ),
                         "",
-                        f"[Open plot]({image_url})",
-                        "",
-                        f"![{metric_name(metric)}]({image_url})",
+                    ]
+                )
+            if comparison:
+                lines.extend(
+                    [
+                        "| Streams | PR | Base | Change |",
+                        "|---:|---:|---:|---:|",
+                        "| {streams} | {current} | {baseline} | {change:+.1f}% |".format(
+                            streams=comparison["streams"],
+                            current=format_value(float(comparison["current"]), comparison["unit"]),
+                            baseline=format_value(float(comparison["baseline"]), comparison["unit"]),
+                            change=float(comparison["change_pct"]),
+                        ),
                         "",
                     ]
                 )
-            if not args.plots_base_url:
-                lines.append("_If GitHub does not render artifact images inline, use the full artifact link above and open `regression-plots/`._")
-    else:
+            lines.extend([f"[Open plot]({image_url})", "", f"![{metric_name(metric)}]({image_url})", ""])
+        if not args.plots_base_url:
+            lines.append("_If GitHub does not render artifact images inline, use the full artifact link above and open `regression-plots/`._")
+    elif not interesting and not interesting_comparisons:
         lines.extend(["", "All benchmark thresholds passed."])
+    else:
+        lines.extend(["", "No benchmark plots were selected for this warning."])
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -233,8 +300,9 @@ def main() -> None:
         result = json.load(fp)
 
     thresholds = result.get("thresholds", [])
-    status = status_for(thresholds)
-    copied_plots = copy_relevant_plots(args.output_dir, thresholds)
+    comparisons = result.get("baseline_comparisons", [])
+    status = status_for(thresholds, comparisons)
+    copied_plots = copy_relevant_plots(args.output_dir, thresholds, comparisons)
     comment = build_comment(result, thresholds, copied_plots, args)
 
     with open(os.path.join(args.output_dir, "benchmark-comment.md"), "w", encoding="utf-8") as fp:

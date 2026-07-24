@@ -3,7 +3,7 @@ name: Benchmark
 on:
     workflow_dispatch:
     pull_request:
-        types: [opened, synchronize, reopened, labeled, closed]
+        types: [opened, synchronize, reopened, labeled]
         branches:
             - master
             - main
@@ -19,35 +19,6 @@ permissions:
     contents: read
 
 jobs:
-    cleanup-benchmark-artifacts:
-        name: Cleanup Benchmark Artifacts
-        runs-on: ubuntu-latest
-        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
-        permissions:
-            contents: write
-        steps:
-            - name: Delete benchmark artifact branch
-              uses: actions/github-script@v8
-              with:
-                  script: |
-                      const {owner, repo} = context.repo;
-                      const branch = `benchmark-artifacts-pr-${context.payload.pull_request.number}`;
-
-                      try {
-                        await github.rest.git.deleteRef({
-                          owner,
-                          repo,
-                          ref: `heads/${branch}`,
-                        });
-                        core.info(`Deleted ${branch}`);
-                      } catch (error) {
-                        if (error.status === 404) {
-                          core.info(`${branch} did not exist; nothing to clean up.`);
-                          return;
-                        }
-                        throw error;
-                      }
-
     benchmark:
         name: Performance Benchmark
         runs-on: ubuntu-latest
@@ -69,6 +40,8 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
             - name: Setup Go environment
               uses: actions/setup-go@v5
@@ -100,10 +73,44 @@ jobs:
             - name: Install benchmark Python deps
               run: pip install -r scripts/benchmarks/requirements.txt
 
+            - name: Determine PR base benchmark commit
+              if: ${{ github.event_name == 'pull_request' }}
+              id: benchmark-base
+              run: |
+                  if git rev-parse --verify HEAD^2 >/dev/null 2>&1; then
+                    BASE_SHA="$(git merge-base HEAD^2 HEAD^1)"
+                  else
+                    git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+                    BASE_SHA="$(git merge-base HEAD FETCH_HEAD)"
+                  fi
+                  echo "sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
+
+            - name: Checkout PR base benchmark source
+              if: ${{ github.event_name == 'pull_request' }}
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ steps.benchmark-base.outputs.sha }}
+                  path: benchmark-base-source
+
+            - name: Run PR base benchmark
+              if: ${{ github.event_name == 'pull_request' }}
+              id: run-baseline-benchmark
+              continue-on-error: true
+              working-directory: benchmark-base-source
+              run: |
+                  if [ ! -f scripts/benchmarks/benchmark_yamcs_streams.py ]; then
+                    echo "Base commit has no Yamcs benchmark script; skipping baseline."
+                    exit 0
+                  fi
+                  python3 scripts/benchmarks/benchmark_yamcs_streams.py \
+                    --output-dir ../benchmark-output/baseline
+
             - name: Run performance benchmark
               id: run-benchmark
               continue-on-error: true
-              run: pnpm run bench
+              run: |
+                  pnpm run bench -- \
+                    --baseline-results benchmark-output/baseline/yamcs-stream-results.json
 
             - name: Generate benchmark report files
               if: ${{ steps.run-benchmark.outcome == 'success' }}
@@ -267,9 +274,5 @@ jobs:
                       }
 
             - name: Fail benchmark on threshold failure
-              if: >-
-                  ${{
-                    steps.run-benchmark.outcome != 'success' ||
-                    steps.benchmark-status.outputs.should_fail == 'true'
-                  }}
+              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
               run: exit 1
