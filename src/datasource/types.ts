@@ -53,7 +53,7 @@ export type QueryField = 'max' | 'min';
  * Default values for a query.
  */
 export const DEFAULT_QUERY: Partial<Query> = {
-    type: undefined,
+    type: QueryType.PLOT,
     endpoint: undefined,
 };
 

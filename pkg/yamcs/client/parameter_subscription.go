@@ -171,40 +171,38 @@ func (sub *ParameterSubscription) updateSubscription(action processing.Subscribe
 // HandleParameterMessage handles incoming parameter updates from the server and invokes the listener.
 func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 
-	if message.GetType() == "parameters" {
-		parameterData := &processing.SubscribeParametersData{}
-		if err := message.Data.UnmarshalTo(parameterData); err != nil {
-			backend.Logger.Error("Error unmarshalling parameter subscription message", "error", exception.Wrap("unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
-			return
-		}
+	parameterData := &processing.SubscribeParametersData{}
+	if err := message.Data.UnmarshalTo(parameterData); err != nil {
+		backend.Logger.Error("Error unmarshalling parameter subscription message", "error", exception.Wrap("unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
+		return
+	}
 
-		// Retrieve the subscription by call ID
-		callID := message.GetCall()
-		subscription, found := client.ParameterSubscriptions[callID]
-		if !found {
-			return
-		}
+	// Retrieve the subscription by call ID
+	callID := message.GetCall()
+	subscription, found := client.ParameterSubscriptions[callID]
+	if !found {
+		return
+	}
 
-		// Map parameter IDs to names
-		if parameterData.Mapping != nil {
-			for key, param := range parameterData.GetMapping() {
-				subscription.parameterIDToName[int(key)] = param.GetName()
-			}
-			for _, invalidParam := range parameterData.GetInvalid() {
-				backend.Logger.Warn("Invalid subscription parameter ID", "id", invalidParam)
-			}
+	// Map parameter IDs to names
+	if parameterData.Mapping != nil {
+		for key, param := range parameterData.GetMapping() {
+			subscription.parameterIDToName[int(key)] = param.GetName()
 		}
+		for _, invalidParam := range parameterData.GetInvalid() {
+			backend.Logger.Warn("Invalid subscription parameter ID", "id", invalidParam)
+		}
+	}
 
-		// Invoke the listener for each parameter value
-		if subscription.valueChangeListener != nil {
-			for _, value := range parameterData.GetValues() {
-				paramName, found := subscription.parameterIDToName[int(value.GetNumericId())]
-				if !found {
-					backend.Logger.Warn("Unknown parameter ID", "id", value.GetNumericId())
-					continue
-				}
-				subscription.valueChangeListener(paramName, value)
+	// Invoke the listener for each parameter value
+	if subscription.valueChangeListener != nil {
+		for _, value := range parameterData.GetValues() {
+			paramName, found := subscription.parameterIDToName[int(value.GetNumericId())]
+			if !found {
+				backend.Logger.Warn("Unknown parameter ID", "id", value.GetNumericId())
+				continue
 			}
+			subscription.valueChangeListener(paramName, value)
 		}
 	}
 }

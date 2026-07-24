@@ -312,10 +312,6 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
         return deduped;
     }, [data]);
 
-    if (!deduped.length) {
-        return <div data-testid="jaops-command-history-panel-empty">No data</div>;
-    }
-
     return (
         <div
             data-testid="jaops-command-history-panel"

@@ -69,18 +69,16 @@ func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, in
 
 // HandleCommandMessage processes incoming WebSocket messages for command history.
 func (client *YamcsClient) HandleCommandMessage(message *api.ServerMessage) {
-	if message.GetType() == "commands" {
-		entry := &commanding.CommandHistoryEntry{}
-		if err := message.Data.UnmarshalTo(entry); err != nil {
-			backend.Logger.Debug("Error unmarshalling command history data", "error", err)
-			return
-		}
+	entry := &commanding.CommandHistoryEntry{}
+	if err := message.Data.UnmarshalTo(entry); err != nil {
+		backend.Logger.Debug("Error unmarshalling command history data", "error", err)
+		return
+	}
 
-		callID := message.GetCall()
-		subscription, found := client.CommandHistorySubscriptions[callID]
-		if found && subscription.commandListener != nil {
-			subscription.commandListener(entry)
-		}
+	callID := message.GetCall()
+	subscription, found := client.CommandHistorySubscriptions[callID]
+	if found && subscription.commandListener != nil {
+		subscription.commandListener(entry)
 	}
 }
 

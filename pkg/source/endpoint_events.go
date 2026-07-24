@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
@@ -16,6 +17,7 @@ func (endpoint *YamcsEndpoint) getEventListener() func(event *events.Event) {
 			select {
 			case channel <- event:
 			default:
+				backend.Logger.Warn("dropping event because stream buffer is full", "message", event.GetMessage())
 			}
 		}
 	}
@@ -31,11 +33,26 @@ func (ep *YamcsEndpoint) RequestEventsStream(ctx context.Context, path string) (
 		return nil, err
 	}
 	ep.mu.Lock()
-	ep.Events[path] = make(chan *events.Event)
+	ep.Events[path] = make(chan *events.Event, StreamSignalBufferSize)
 	ep.mu.Unlock()
 
 	return ep.Events[path], nil
 
+}
+
+func (ep *YamcsEndpoint) DrainEventsSignal(first *events.Event, signal <-chan *events.Event) []*events.Event {
+	drained := []*events.Event{first}
+	for {
+		select {
+		case event, ok := <-signal:
+			if !ok {
+				return drained
+			}
+			drained = append(drained, event)
+		default:
+			return drained
+		}
+	}
 }
 
 func (ep *YamcsEndpoint) getOrCreateEventsSubscription(ctx context.Context) (*client.EventSubscription, error) {

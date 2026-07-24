@@ -3,12 +3,12 @@ package ws
 type ListenerID string
 
 const (
-	ParameterListenerID      ListenerID = "PARAMETER_LISTENER"
-	EventListenerID          ListenerID = "EVENT_LISTENER"
-	AlarmListenerID          ListenerID = "ALARM_LISTENER"
-	GlobalStatusListenerID   ListenerID = "GLOBAL_STATUS_LISTENER"
-	CommandHistoryLisernerID ListenerID = "COMMAND_HISTORY_LISTENER"
-	TimeListenerID           ListenerID = "TIME_LISTENER"
-	LinksListenerID          ListenerID = "LINKS_LISTENER"
-	ProcessorListenerID      ListenerID = "PROCESSOR_LISTENER"
+	ParameterListenerID      ListenerID = "parameters"
+	EventListenerID          ListenerID = "events"
+	AlarmListenerID          ListenerID = "alarms"
+	GlobalStatusListenerID   ListenerID = "global-alarm-status"
+	CommandHistoryLisernerID ListenerID = "commands"
+	TimeListenerID           ListenerID = "time"
+	LinksListenerID          ListenerID = "links"
+	ProcessorListenerID      ListenerID = "processors"
 )

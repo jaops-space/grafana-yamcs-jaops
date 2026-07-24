@@ -63,9 +63,6 @@ func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance str
 
 // HandleLinkMessage processes incoming websocket messages for links updates.
 func (client *YamcsClient) HandleLinkMessage(message *api.ServerMessage) {
-	if message.GetType() != "links" {
-		return
-	}
 
 	event := &links.LinkEvent{}
 	if err := message.Data.UnmarshalTo(event); err != nil {

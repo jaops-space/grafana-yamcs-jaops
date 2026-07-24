@@ -7,22 +7,19 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/mdb"
 )
 
-func ptrFloat64(v float64) *float64 {
-	return &v
-}
-
-func ptrAlarmLevel(v mdb.AlarmLevelType) *mdb.AlarmLevelType {
-	return &v
-}
-
 func TestConvertAlarmInfoToThresholds_HandlesInclusiveExclusiveAndMissingSides(t *testing.T) {
+	maxInclusive := new(10.0)
+	maxExclusive := new(20.0)
+	minInclusive := new(30.0)
+	minExclusive := new(40.0)
+
 	alarmInfo := &mdb.AlarmInfo{
-		DefaultLevel: ptrAlarmLevel(mdb.AlarmLevelType_NORMAL),
+		DefaultLevel: mdb.AlarmLevelType_NORMAL.Enum(),
 		StaticAlarmRanges: []*mdb.AlarmRange{
-			{Level: ptrAlarmLevel(mdb.AlarmLevelType_WARNING), MaxInclusive: ptrFloat64(10)},
-			{Level: ptrAlarmLevel(mdb.AlarmLevelType_CRITICAL), MaxExclusive: ptrFloat64(20)},
-			{Level: ptrAlarmLevel(mdb.AlarmLevelType_DISTRESS), MinInclusive: ptrFloat64(30)},
-			{Level: ptrAlarmLevel(mdb.AlarmLevelType_SEVERE), MinExclusive: ptrFloat64(40)},
+			{Level: mdb.AlarmLevelType_WARNING.Enum(), MaxInclusive: maxInclusive},
+			{Level: mdb.AlarmLevelType_CRITICAL.Enum(), MaxExclusive: maxExclusive},
+			{Level: mdb.AlarmLevelType_DISTRESS.Enum(), MinInclusive: minInclusive},
+			{Level: mdb.AlarmLevelType_SEVERE.Enum(), MinExclusive: minExclusive},
 		},
 	}
 
@@ -57,18 +54,23 @@ func TestConvertAlarmInfoToThresholds_HandlesInclusiveExclusiveAndMissingSides(t
 }
 
 func TestConvertAlarmInfoToThresholds_PrefersStricterWhenBothBoundsExist(t *testing.T) {
+	lowerInclusive := new(5.0)
+	lowerExclusive := new(5.0)
+	upperInclusive := new(9.0)
+	upperExclusive := new(9.0)
+
 	alarmInfo := &mdb.AlarmInfo{
-		DefaultLevel: ptrAlarmLevel(mdb.AlarmLevelType_WARNING),
+		DefaultLevel: mdb.AlarmLevelType_WARNING.Enum(),
 		StaticAlarmRanges: []*mdb.AlarmRange{
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_CRITICAL),
-				MinInclusive: ptrFloat64(5),
-				MinExclusive: ptrFloat64(5),
+				Level:        mdb.AlarmLevelType_CRITICAL.Enum(),
+				MinInclusive: lowerInclusive,
+				MinExclusive: lowerExclusive,
 			},
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_DISTRESS),
-				MaxInclusive: ptrFloat64(9),
-				MaxExclusive: ptrFloat64(9),
+				Level:        mdb.AlarmLevelType_DISTRESS.Enum(),
+				MaxInclusive: upperInclusive,
+				MaxExclusive: upperExclusive,
 			},
 		},
 	}
@@ -95,13 +97,16 @@ func TestConvertAlarmInfoToThresholds_PrefersStricterWhenBothBoundsExist(t *test
 }
 
 func TestConvertAlarmInfoToThresholds_BoundedRangeUsesInvertedSemantics(t *testing.T) {
+	minInclusive := new(1.0)
+	maxInclusive := new(5.0)
+
 	alarmInfo := &mdb.AlarmInfo{
-		DefaultLevel: ptrAlarmLevel(mdb.AlarmLevelType_NORMAL),
+		DefaultLevel: mdb.AlarmLevelType_NORMAL.Enum(),
 		StaticAlarmRanges: []*mdb.AlarmRange{
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_WARNING),
-				MinInclusive: ptrFloat64(1),
-				MaxInclusive: ptrFloat64(5),
+				Level:        mdb.AlarmLevelType_WARNING.Enum(),
+				MinInclusive: minInclusive,
+				MaxInclusive: maxInclusive,
 			},
 		},
 	}
@@ -126,12 +131,14 @@ func TestConvertAlarmInfoToThresholds_BoundedRangeUsesInvertedSemantics(t *testi
 }
 
 func TestConvertAlarmInfoToThresholds_NoUpperTransparentTailWhenUnboundedUpper(t *testing.T) {
+	minInclusive := new(2.0)
+
 	alarmInfo := &mdb.AlarmInfo{
-		DefaultLevel: ptrAlarmLevel(mdb.AlarmLevelType_NORMAL),
+		DefaultLevel: mdb.AlarmLevelType_NORMAL.Enum(),
 		StaticAlarmRanges: []*mdb.AlarmRange{
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_WARNING),
-				MinInclusive: ptrFloat64(2),
+				Level:        mdb.AlarmLevelType_WARNING.Enum(),
+				MinInclusive: minInclusive,
 			},
 		},
 	}
@@ -151,13 +158,16 @@ func TestConvertAlarmInfoToThresholds_NoUpperTransparentTailWhenUnboundedUpper(t
 }
 
 func TestConvertAlarmInfoToThresholds_InvertedSingleRange(t *testing.T) {
+	minInclusive := new(9.0)
+	maxInclusive := new(15.0)
+
 	alarmInfo := &mdb.AlarmInfo{
-		DefaultLevel: ptrAlarmLevel(mdb.AlarmLevelType_NORMAL),
+		DefaultLevel: mdb.AlarmLevelType_NORMAL.Enum(),
 		StaticAlarmRanges: []*mdb.AlarmRange{
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_CRITICAL),
-				MinInclusive: ptrFloat64(9),
-				MaxInclusive: ptrFloat64(15),
+				Level:        mdb.AlarmLevelType_CRITICAL.Enum(),
+				MinInclusive: minInclusive,
+				MaxInclusive: maxInclusive,
 			},
 		},
 	}
@@ -181,18 +191,23 @@ func TestConvertAlarmInfoToThresholds_InvertedSingleRange(t *testing.T) {
 }
 
 func TestConvertAlarmInfoToThresholds_MultipleInvertedRanges(t *testing.T) {
+	warningMin := new(10.0)
+	warningMax := new(20.0)
+	criticalMin := new(5.0)
+	criticalMax := new(25.0)
+
 	alarmInfo := &mdb.AlarmInfo{
-		DefaultLevel: ptrAlarmLevel(mdb.AlarmLevelType_NORMAL),
+		DefaultLevel: mdb.AlarmLevelType_NORMAL.Enum(),
 		StaticAlarmRanges: []*mdb.AlarmRange{
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_WARNING),
-				MinInclusive: ptrFloat64(10),
-				MaxInclusive: ptrFloat64(20),
+				Level:        mdb.AlarmLevelType_WARNING.Enum(),
+				MinInclusive: warningMin,
+				MaxInclusive: warningMax,
 			},
 			{
-				Level:        ptrAlarmLevel(mdb.AlarmLevelType_CRITICAL),
-				MinInclusive: ptrFloat64(5),
-				MaxInclusive: ptrFloat64(25),
+				Level:        mdb.AlarmLevelType_CRITICAL.Enum(),
+				MinInclusive: criticalMin,
+				MaxInclusive: criticalMax,
 			},
 		},
 	}

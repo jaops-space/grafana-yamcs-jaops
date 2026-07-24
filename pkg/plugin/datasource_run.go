@@ -6,8 +6,6 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 )
@@ -150,13 +148,16 @@ func RunEventStream(ctx context.Context,
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case event := <-signal:
+		case event, ok := <-signal:
+			if !ok {
+				return nil
+			}
 
 			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
-			frame := tools.ConvertEventsToFrame([]*events.Event{event})
+			frame := tools.ConvertEventsToFrame(endpoint.DrainEventsSignal(event, signal))
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,
@@ -188,12 +189,14 @@ func RunCommandHistoryStream(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case command := <-signal:
+		case command, ok := <-signal:
+			if !ok {
+				return nil
+			}
 			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
-			// TODO: remove array overhead
-			frame := tools.ConvertCommandListToFrame([]*commanding.CommandHistoryEntry{command})
+			frame := tools.ConvertCommandListToFrame(endpoint.DrainCommandHistorySignal(command, signal))
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,
@@ -288,10 +291,14 @@ func RunAlarmsStream(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-signal:
+		case _, ok := <-signal:
+			if !ok {
+				return nil
+			}
 			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
+			endpoint.DrainAlarmsSignal(signal)
 
 			buffer := endpoint.GetAlarmsStream(req.Path)
 			frame := tools.ConvertAlarmListToFrame(buffer)
@@ -352,12 +359,18 @@ func RunLinksStream(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case link := <-signal:
+		case link, ok := <-signal:
+			if !ok {
+				return nil
+			}
 			if !yamcs.IsWebSocketConnected() {
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
-			frame, err := buildLinksFrame(link.GetLinks())
+			linksEvents := endpoint.DrainLinksSignal(link, signal)
+			latestLink := linksEvents[len(linksEvents)-1]
+
+			frame, err := buildLinksFrame(latestLink.GetLinks())
 			if err != nil {
 				return err
 			}

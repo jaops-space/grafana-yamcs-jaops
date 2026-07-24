@@ -77,9 +77,6 @@ func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instanc
 
 // HandleProcessorMessage processes incoming websocket messages for processor updates.
 func (client *YamcsClient) HandleProcessorMessage(message *api.ServerMessage) {
-	if message.GetType() != "processors" {
-		return
-	}
 
 	processor := &yamcsManagement.ProcessorInfo{}
 	if err := message.Data.UnmarshalTo(processor); err != nil {

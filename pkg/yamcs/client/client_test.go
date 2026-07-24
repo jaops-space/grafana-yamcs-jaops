@@ -45,8 +45,7 @@ func TestClient(t *testing.T) {
 	}
 
 	someProcessor := &yamcsManagement.ProcessorInfo{}
-	someProcessor.Name = new(string)
-	*someProcessor.Name = "someprocessor"
+	someProcessor.Name = new("someprocessor")
 	instance.Processors = []Processor{someProcessor}
 
 	_, err = client.GetProcessor(instance, "someprocessor")

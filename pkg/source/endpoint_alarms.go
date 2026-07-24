@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
@@ -16,7 +17,7 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) e
 	ep.getOrCreateAlarmsSubscription(ctx)
 	ep.getOrCreateGlobalAlarmStatusSubscription(ctx)
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
-	ep.AlarmSignals[path] = make(chan struct{}, 1)
+	ep.AlarmSignals[path] = make(chan struct{}, StreamSignalBufferSize)
 	ep.mu.Unlock()
 
 	// Load initial alarms into cache if cache is empty
@@ -145,6 +146,7 @@ func (ep *YamcsEndpoint) NotifyAlarmsStream(path string) {
 		select {
 		case signal <- struct{}{}:
 		default:
+			backend.Logger.Warn("dropping alarm notification because stream buffer is full", "path", path)
 		}
 	}
 }
@@ -153,6 +155,19 @@ func (ep *YamcsEndpoint) GetAlarmsSignal(path string) <-chan struct{} {
 	ep.mu.RLock()
 	defer ep.mu.RUnlock()
 	return ep.AlarmSignals[path]
+}
+
+func (ep *YamcsEndpoint) DrainAlarmsSignal(signal <-chan struct{}) {
+	for {
+		select {
+		case _, ok := <-signal:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
 }
 
 func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) error {

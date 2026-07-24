@@ -104,14 +104,14 @@ func NewYamcsClient(
 	client.WebSocket = ws.NewWebSocketHandler(wsURL, client.UseProtobuf)
 	client.WebSocket.Credentials = credentials
 
-	client.WebSocket.AddListener(ws.ParameterListenerID, client.HandleParameterMessage)
-	client.WebSocket.AddListener(ws.EventListenerID, client.HandleEventMessage)
-	client.WebSocket.AddListener(ws.AlarmListenerID, client.HandleAlarmMessage)
-	client.WebSocket.AddListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
-	client.WebSocket.AddListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
-	client.WebSocket.AddListener(ws.TimeListenerID, client.HandleTimeMessage)
-	client.WebSocket.AddListener(ws.LinksListenerID, client.HandleLinkMessage)
-	client.WebSocket.AddListener(ws.ProcessorListenerID, client.HandleProcessorMessage)
+	client.WebSocket.SetListener(ws.ParameterListenerID, client.HandleParameterMessage)
+	client.WebSocket.SetListener(ws.EventListenerID, client.HandleEventMessage)
+	client.WebSocket.SetListener(ws.AlarmListenerID, client.HandleAlarmMessage)
+	client.WebSocket.SetListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
+	client.WebSocket.SetListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
+	client.WebSocket.SetListener(ws.TimeListenerID, client.HandleTimeMessage)
+	client.WebSocket.SetListener(ws.LinksListenerID, client.HandleLinkMessage)
+	client.WebSocket.SetListener(ws.ProcessorListenerID, client.HandleProcessorMessage)
 
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {

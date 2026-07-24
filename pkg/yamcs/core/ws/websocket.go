@@ -156,7 +156,7 @@ func (ws *WebSocketHandler) Listen() {
 			ws.handleStateMessage(message)
 		}
 
-		for _, listener := range ws.listenersSnapshot() {
+		if listener, ok := ws.getListener(ListenerID(message.GetType())); ok {
 			listener(message)
 		}
 	}
@@ -369,8 +369,8 @@ func (ws *WebSocketHandler) drainStateChannel() {
 	}
 }
 
-// AddListener registers a listener for a specific message type.
-func (ws *WebSocketHandler) AddListener(name ListenerID, listener MessageListener) {
+// SetListener registers a listener for a specific message type.
+func (ws *WebSocketHandler) SetListener(name ListenerID, listener MessageListener) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	ws.messageListeners[name] = listener
@@ -383,15 +383,11 @@ func (ws *WebSocketHandler) RemoveListener(name ListenerID) {
 	delete(ws.messageListeners, name)
 }
 
-func (ws *WebSocketHandler) listenersSnapshot() []MessageListener {
+func (ws *WebSocketHandler) getListener(listenerFor ListenerID) (MessageListener, bool) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
-
-	listeners := make([]MessageListener, 0, len(ws.messageListeners))
-	for _, listener := range ws.messageListeners {
-		listeners = append(listeners, listener)
-	}
-	return listeners
+	listener, found := ws.messageListeners[listenerFor]
+	return listener, found
 }
 
 // SetDisconnectHandler sets the callback function to be called on disconnection.

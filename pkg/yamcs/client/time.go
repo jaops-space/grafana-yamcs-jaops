@@ -98,23 +98,20 @@ func (subscription *TimeSubscription) Halt() {
 
 func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 
-	if message.GetType() == "time" {
-		timestamp := &timestamppb.Timestamp{}
-		if err := message.Data.UnmarshalTo(timestamp); err != nil {
-			backend.Logger.Error("Error unmarshalling time subscription message", "error", exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
-			return
-		}
-
-		// Retrieve the subscription by call ID
-		callID := message.GetCall()
-		subscription, found := client.TimeSubscriptions[callID]
-		if !found {
-			return
-		}
-
-		subscription.notifyListeners(timestamp.AsTime())
+	timestamp := &timestamppb.Timestamp{}
+	if err := message.Data.UnmarshalTo(timestamp); err != nil {
+		backend.Logger.Error("Error unmarshalling time subscription message", "error", exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
+		return
 	}
 
+	// Retrieve the subscription by call ID
+	callID := message.GetCall()
+	subscription, found := client.TimeSubscriptions[callID]
+	if !found {
+		return
+	}
+
+	subscription.notifyListeners(timestamp.AsTime())
 }
 
 func (subscription *TimeSubscription) SetTimeListener(listener TimeListener) {

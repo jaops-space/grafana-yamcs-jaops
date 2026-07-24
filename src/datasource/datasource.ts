@@ -55,7 +55,10 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
         const observables = request.targets
             .map((query) => {
                 if ((!query.endpoint && !query.asVariable) || !query.type) {
-                    return undefined; // Skip invalid queries
+                    return new Observable<DataQueryResponse>((subscriber) => {
+                        subscriber.next({ data: [], state: LoadingState.NotStarted });
+                        subscriber.complete();
+                    });
                 }
 
                 // Commanding query type doesn't need streaming.
@@ -127,7 +130,6 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                             ...query,
                             from: fromUnix,
                             to: toUnix,
-                            realtime: request.range.raw.to === 'now',
                             points: request.maxDataPoints ?? 1000,
                         },
                     },

@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
@@ -18,6 +19,7 @@ func (ep *YamcsEndpoint) getCommandHistoryListener() client.CommandHistoryListen
 			select {
 			case sig <- entry:
 			default:
+				backend.Logger.Warn("dropping command history entry because stream buffer is full", "commandId", entry.GetId())
 			}
 		}
 		return nil
@@ -33,10 +35,25 @@ func (ep *YamcsEndpoint) RequestCommandHistoryStream(ctx context.Context, path s
 		return err
 	}
 	ep.mu.Lock()
-	ep.CommandHistorySignals[path] = make(chan *commanding.CommandHistoryEntry)
+	ep.CommandHistorySignals[path] = make(chan *commanding.CommandHistoryEntry, StreamSignalBufferSize)
 	ep.mu.Unlock()
 	return nil
 
+}
+
+func (ep *YamcsEndpoint) DrainCommandHistorySignal(first *commanding.CommandHistoryEntry, signal <-chan *commanding.CommandHistoryEntry) []*commanding.CommandHistoryEntry {
+	drained := []*commanding.CommandHistoryEntry{first}
+	for {
+		select {
+		case command, ok := <-signal:
+			if !ok {
+				return drained
+			}
+			drained = append(drained, command)
+		default:
+			return drained
+		}
+	}
 }
 
 func (ep *YamcsEndpoint) getOrCreateCommandHistorySubscription(ctx context.Context) (*client.CommandHistorySubscription, error) {

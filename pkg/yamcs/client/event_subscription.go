@@ -70,23 +70,20 @@ func (client *YamcsClient) newEventSubscription(ctx context.Context, instance st
 
 // HandleEventMessage processes incoming server messages related to events.
 func (client *YamcsClient) HandleEventMessage(message *api.ServerMessage) {
-	// Check if the message type is "events"
-	if message.GetType() == "events" {
-		event := &events.Event{}
-		// Attempt to unmarshal the event data
-		err := message.Data.UnmarshalTo(event)
-		if err != nil {
-			backend.Logger.Debug("Error unmarshalling event data", "error", err)
-			return
-		}
+	event := &events.Event{}
+	// Attempt to unmarshal the event data
+	err := message.Data.UnmarshalTo(event)
+	if err != nil {
+		backend.Logger.Debug("Error unmarshalling event data", "error", err)
+		return
+	}
 
-		// Retrieve the subscription using the call ID from the message
-		callID := message.GetCall()
-		subscription, found := client.EventSubscriptions[callID]
-		if found && subscription.eventListener != nil {
-			// Invoke the listener with the unmarshalled event data
-			subscription.eventListener(event)
-		}
+	// Retrieve the subscription using the call ID from the message
+	callID := message.GetCall()
+	subscription, found := client.EventSubscriptions[callID]
+	if found && subscription.eventListener != nil {
+		// Invoke the listener with the unmarshalled event data
+		subscription.eventListener(event)
 	}
 }
 
