@@ -1,6 +1,5 @@
 //go:build integration
 // +build integration
-
 package integration_test
 
 import "testing"
@@ -106,7 +105,7 @@ func TestIntegrationYamcs_WebSocketStateVerifiesAllSubscriptionKinds(t *testing.
 		t.Fatalf("create event subscription: %v", err)
 	}
 	eventCall := onlyKey(t, client.EventSubscriptions)
-	commandSub, err := client.CreateCommandHistorySubscription(instanceName, processorName)
+	commandSub, err := client.CreateCommandHistorySubscription(ctx, instanceName, processorName)
 	if err != nil {
 		t.Fatalf("create command history subscription: %v", err)
 	}
@@ -121,7 +120,7 @@ func TestIntegrationYamcs_WebSocketStateVerifiesAllSubscriptionKinds(t *testing.
 		t.Fatalf("create global alarm status subscription: %v", err)
 	}
 	globalAlarmCall := onlyKey(t, client.GlobalAlarmStatusSubscriptions)
-	timeSub, err := client.CreateTimeSubscription(instanceName, processorName)
+	timeSub, err := client.CreateTimeSubscription(ctx, instanceName, processorName)
 	if err != nil {
 		t.Fatalf("create time subscription: %v", err)
 	}
@@ -131,7 +130,7 @@ func TestIntegrationYamcs_WebSocketStateVerifiesAllSubscriptionKinds(t *testing.
 		t.Fatalf("create link subscription: %v", err)
 	}
 	linkCall := onlyKey(t, client.LinkSubscriptions)
-	processorSub, err := client.CreateProcessorSubscriptionByNames(instanceName, processorName)
+	processorSub, err := client.CreateProcessorSubscriptionByNames(ctx, instanceName, processorName)
 	if err != nil {
 		t.Fatalf("create processor subscription: %v", err)
 	}
