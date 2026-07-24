@@ -78,7 +78,7 @@ describe('DataSource.query', () => {
     expect(streamArg.buffer.maxLength).toBe(123);
     expect(streamArg.addr.scope).toBe(LiveChannelScope.DataSource);
     expect(streamArg.addr.stream).toBe('jaops-yamcs-main');
-    expect(streamArg.addr.path).toBe('req/myproject_realtime/-sim-temperature');
+    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature');
     expect(streamArg.addr.data.from).toBe(1000);
     expect(streamArg.addr.data.to).toBe(2000);
     expect(streamArg.addr.data.realtime).toBe(true);
@@ -99,7 +99,7 @@ describe('DataSource.query', () => {
     await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: ['max', 'min'] }) as any));
 
     const streamArg = getDataStreamMock.mock.calls[0][0];
-    expect(streamArg.addr.path).toBe('req/myproject_realtime/-sim-temperature/now-5m-now/321/fields=max-min');
+    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/321/fields=max-min');
   });
 
   it('uses a stable field segment for plot queries without min or max', async () => {
@@ -108,18 +108,18 @@ describe('DataSource.query', () => {
     await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: [] }) as any));
 
     const streamArg = getDataStreamMock.mock.calls[0][0];
-    expect(streamArg.addr.path).toBe('req/myproject_realtime/-sim-temperature/now-5m-now/321/fields=none');
+    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/321/fields=none');
   });
 
   it('maps core query types to expected stream paths and buffering actions', async () => {
     const ds = buildDatasource();
     const cases: Array<{ type: QueryType; expectedPath: string; expectedAction: StreamingFrameAction }> = [
-      { type: QueryType.EVENTS, expectedPath: 'req/myproject_realtime/events', expectedAction: StreamingFrameAction.Append },
-      { type: QueryType.DEMANDS, expectedPath: 'req/myproject_realtime/demands', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.SUBSCRIPTIONS, expectedPath: 'req/myproject_realtime/subscriptions', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.COMMAND_HISTORY, expectedPath: 'req/myproject_realtime/commands', expectedAction: StreamingFrameAction.Append },
-      { type: QueryType.ALARMS, expectedPath: 'req/myproject_realtime/alarms', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.LINKS, expectedPath: 'req/myproject_realtime/links', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.EVENTS, expectedPath: 'myproject_realtime/events', expectedAction: StreamingFrameAction.Append },
+      { type: QueryType.DEMANDS, expectedPath: 'myproject_realtime/demands', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.SUBSCRIPTIONS, expectedPath: 'myproject_realtime/subscriptions', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.COMMAND_HISTORY, expectedPath: 'myproject_realtime/commands', expectedAction: StreamingFrameAction.Append },
+      { type: QueryType.ALARMS, expectedPath: 'myproject_realtime/alarms', expectedAction: StreamingFrameAction.Replace },
+      { type: QueryType.LINKS, expectedPath: 'myproject_realtime/links', expectedAction: StreamingFrameAction.Replace },
     ];
 
     for (const tc of cases) {
@@ -161,6 +161,6 @@ describe('DataSource.query', () => {
     );
 
     const streamArg = getDataStreamMock.mock.calls[0][0];
-    expect(streamArg.addr.path).toContain('req/myproject_realtime/');
+    expect(streamArg.addr.path).toContain('myproject_realtime/');
   });
 });
