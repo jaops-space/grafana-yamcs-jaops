@@ -93,13 +93,13 @@ describe('DataSource.query', () => {
     expect(streamArg.buffer.action).toBe(StreamingFrameAction.Append);
   });
 
-  it('includes range, max data points, and sorted min/max fields in plot live path', async () => {
+  it('includes raw Unix range, max data points, and sorted min/max fields in plot live path', async () => {
     const ds = buildDatasource();
 
     await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: ['max', 'min'] }) as any));
 
     const streamArg = getDataStreamMock.mock.calls[0][0];
-    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/321/fields=max-min');
+    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/1000-2000/321/fields=max-min');
   });
 
   it('uses a stable field segment for plot queries without min or max', async () => {
@@ -108,7 +108,7 @@ describe('DataSource.query', () => {
     await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: [] }) as any));
 
     const streamArg = getDataStreamMock.mock.calls[0][0];
-    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/321/fields=none');
+    expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/1000-2000/321/fields=none');
   });
 
   it('maps core query types to expected stream paths and buffering actions', async () => {
@@ -117,7 +117,7 @@ describe('DataSource.query', () => {
       { type: QueryType.EVENTS, expectedPath: 'myproject_realtime/events', expectedAction: StreamingFrameAction.Append },
       { type: QueryType.DEMANDS, expectedPath: 'myproject_realtime/demands', expectedAction: StreamingFrameAction.Replace },
       { type: QueryType.SUBSCRIPTIONS, expectedPath: 'myproject_realtime/subscriptions', expectedAction: StreamingFrameAction.Replace },
-      { type: QueryType.COMMAND_HISTORY, expectedPath: 'myproject_realtime/commands', expectedAction: StreamingFrameAction.Append },
+      { type: QueryType.COMMAND_HISTORY, expectedPath: 'myproject_realtime/commands/1000-2000', expectedAction: StreamingFrameAction.Append },
       { type: QueryType.ALARMS, expectedPath: 'myproject_realtime/alarms', expectedAction: StreamingFrameAction.Replace },
       { type: QueryType.LINKS, expectedPath: 'myproject_realtime/links', expectedAction: StreamingFrameAction.Replace },
     ];
