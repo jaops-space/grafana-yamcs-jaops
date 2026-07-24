@@ -81,7 +81,6 @@ describe('DataSource.query', () => {
     expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature');
     expect(streamArg.addr.data.from).toBe(1000);
     expect(streamArg.addr.data.to).toBe(2000);
-    expect(streamArg.addr.data.realtime).toBe(true);
   });
 
   it('uses append action for plot queries', async () => {

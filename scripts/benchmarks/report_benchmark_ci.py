@@ -167,6 +167,8 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         "",
         "**Scenario:** Yamcs quickstart simulator at 1 Hz with Grafana streams reading buffers on 1s tickers.",
         "",
+        "_This comment is updated when benchmark results change and deleted when the latest benchmark no longer needs attention._",
+        "",
         status_sentence(status),
         "",
         "<details>",

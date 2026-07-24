@@ -256,6 +256,8 @@ jobs:
             echo
             echo "This PR introduced findings in automated security checks."
             echo
+            echo "_This comment is updated when security results change and deleted when the latest security checks are clean._"
+            echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
             echo "| gosec (HIGH/CRITICAL policy) | ${gosec_findings} |"
