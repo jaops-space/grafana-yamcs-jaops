@@ -301,7 +301,7 @@ jobs:
 
       - name: Post PR security comment
         if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('node:fs');
@@ -335,7 +335,7 @@ jobs:
 
       - name: Delete PR security comment when clean
         if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const marker = '<!-- security-checks-comment -->';

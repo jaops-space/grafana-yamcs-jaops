@@ -313,7 +313,7 @@ jobs:
 
       - name: Post audit comment on audit PR
         if: always() && steps.evaluate.outputs.failed == 'true' && steps.create-pr.outputs.pull-request-number != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('node:fs');
