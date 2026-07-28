@@ -300,15 +300,12 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				case nameHasPrefix(name, "Acknowledge_Queued"):
 					backend.Logger.Debug("received queued!")
 					ack = &commandEntry.Queued
-					break
 				case nameHasPrefix(name, "Acknowledge_Released"):
 					backend.Logger.Debug("received released!")
 					ack = &commandEntry.Released
-					break
 				case nameHasPrefix(name, "Acknowledge_Sent"):
 					backend.Logger.Debug("received sent!")
 					ack = &commandEntry.Sent
-					break
 				}
 
 				if *ack == nil {
@@ -318,15 +315,11 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				switch {
 				case nameHasSuffix(name, "Status"):
 					(*ack).Status = value.GetStringValue()
-					break
 				case nameHasSuffix(name, "Time"):
 					(*ack).Time = value.GetStringValue()
-					break
 				case nameHasSuffix(name, "Message"):
 					(*ack).Message = value.GetStringValue()
-					break
 				}
-				break
 
 			default:
 				// Handle Verifier_* attributes
@@ -346,13 +339,10 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 						switch field {
 						case "Status":
 							ack.Status = value.GetStringValue()
-							break
 						case "Time":
 							ack.Time = value.GetStringValue()
-							break
 						case "Message":
 							ack.Message = value.GetStringValue()
-							break
 						}
 					}
 				}
@@ -366,16 +356,12 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 					switch {
 					case nameHasSuffix(name, "Status"):
 						commandEntry.Completion.Status = value.GetStringValue()
-						break
 					case nameHasSuffix(name, "Time"):
 						commandEntry.Completion.Time = value.GetStringValue()
-						break
 					case nameHasSuffix(name, "Message"):
 						commandEntry.Completion.Message = value.GetStringValue()
-						break
 					}
 				}
-				break
 			}
 		}
 
