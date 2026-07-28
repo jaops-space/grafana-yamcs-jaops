@@ -56,6 +56,9 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	if err := json.Unmarshal(req.Data, &q); err != nil {
 		return nil, err
 	}
+	if err := q.Validate(); err != nil {
+		return nil, err
+	}
 
 	// Retrieve the endpoint associated with the requested stream
 	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
@@ -136,6 +139,9 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 
 	// Parse the query from the request payload
 	if err := json.Unmarshal(req.Data, &q); err != nil {
+		return err
+	}
+	if err := q.Validate(); err != nil {
 		return err
 	}
 

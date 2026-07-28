@@ -111,9 +111,9 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const toUnix = request.range.to.unix();
 
                 const pathParts = [query.endpoint, pathName];
-                if (query.type === QueryType.PLOT) {
+                if (query.type === QueryType.PLOT || query.type === QueryType.DISCRETE) {
                     pathParts.push(formatRangePath(request), `${request.maxDataPoints ?? 1000}`, formatGraphFieldsPath(query));
-                } else if (query.type === QueryType.COMMAND_HISTORY) {
+                } else if (query.type === QueryType.COMMAND_HISTORY || query.type === QueryType.SINGLE) {
                     pathParts.push(formatRangePath(request));
                 }
 

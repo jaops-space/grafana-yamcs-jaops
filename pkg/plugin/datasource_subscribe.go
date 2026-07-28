@@ -26,9 +26,9 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 		"to", q.To)
 
 	yamcs, err := endpoint.GetClient()
-
-	// TODO: sample count as direct parameter of yamcs client
-	yamcs.SetSamplePointCount(q.MaxPoints)
+	if err != nil {
+		return nil, err
+	}
 
 	start := time.Unix(int64(q.From), 0)
 	end := time.Unix(int64(q.To), 0)
@@ -39,7 +39,7 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 		"endTime", end,
 		"yamcsFilter", q.YamcsFilter)
 
-	samples, err := yamcs.GetParameterSamplesInProcessorByNames(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), q.Parameter, start, end)
+	samples, err := yamcs.GetParameterSamplesInProcessorByNames(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), q.Parameter, start, end, q.MaxPoints)
 
 	if err != nil {
 		backend.Logger.Error("Error requesting parameter samples", "error", err)

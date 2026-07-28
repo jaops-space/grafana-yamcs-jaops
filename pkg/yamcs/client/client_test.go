@@ -68,7 +68,7 @@ func TestClient(t *testing.T) {
 		t.Fatalf("Failed to get parameter ranges: %v", err)
 	}
 
-	_, err = client.GetParameterSamples(ctx, instance, parameter, time.Now(), time.Now())
+	_, err = client.GetParameterSamples(ctx, instance, parameter, time.Now(), time.Now(), 100)
 	if err != nil {
 		t.Fatalf("Failed to get parameter samples: %v", err)
 	}

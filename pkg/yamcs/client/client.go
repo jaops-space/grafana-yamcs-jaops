@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/ws"
 )
@@ -54,9 +53,6 @@ type YamcsClient struct {
 	TimeSubscriptions              map[int32]*TimeSubscription
 	LinkSubscriptions              map[int32]*LinkSubscription
 	ProcessorSubscriptions         map[int32]*ProcessorSubscription
-
-	// Sample Point Count for Sample endpoints
-	SamplePointCount *types.Optional[int]
 }
 
 // NewYamcsClient constructs a new YamcsClient.
@@ -82,7 +78,6 @@ func NewYamcsClient(
 		TimeSubscriptions:              make(map[int32]*TimeSubscription),
 		LinkSubscriptions:              make(map[int32]*LinkSubscription),
 		ProcessorSubscriptions:         make(map[int32]*ProcessorSubscription),
-		SamplePointCount:               types.OptionalOfNil[int](),
 	}
 
 	// WebSocket URL based on whether TLS is enabled
