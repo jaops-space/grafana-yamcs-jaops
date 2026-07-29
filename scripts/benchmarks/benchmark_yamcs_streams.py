@@ -102,7 +102,16 @@ PERFORMANCE_PLOT_KEYS = [
     "avg_tick_runstream",
     "setup",
 ]
-LOG_Y_KEYS = {"values_read_per_sec"}
+LOG_Y_KEYS = {
+    "avg_read_clear",
+    "avg_process",
+    "avg_value_read_age",
+    "avg_tick_runstream",
+    "setup",
+    "live_memory_growth_bytes",
+    "total_allocated_bytes",
+    "values_read_per_sec",
+}
 TIME_KEYS = {
     "avg_read_clear",
     "avg_process",
