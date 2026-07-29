@@ -18,7 +18,7 @@
             "url": "https://jaops.com"
         },
         "logos": {
-            "small": "img/logo.png",
+            "small": "img/logo-small.png",
             "large": "img/logo.png"
         },
         "keywords": ["plugin", "yamcs", "jaops"],
