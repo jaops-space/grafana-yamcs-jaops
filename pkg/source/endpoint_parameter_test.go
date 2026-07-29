@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 )
@@ -160,5 +161,54 @@ func TestWithdrawUnknownParameterStreamIsNoop(t *testing.T) {
 
 	if err := endpoint.WithdrawParameterStreamRequest(context.Background(), "/SIM/TEMP", "req/sim/temp"); err != nil {
 		t.Fatalf("expected withdrawing unknown stream to be a no-op, got %v", err)
+	}
+}
+
+func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
+	okThreshold := data.NewThreshold(0, "green", "")
+	warnThreshold := data.NewThreshold(50, "red", "")
+	endpoint := &YamcsEndpoint{
+		Parameters: map[string]*ParameterDemand{
+			"/SIM/TEMP": {
+				Name: "/SIM/TEMP",
+				Unit: "degC",
+				Thresholds: []*data.Threshold{
+					&okThreshold,
+					&warnThreshold,
+				},
+			},
+		},
+	}
+	frame := data.NewFrame("response",
+		data.NewField("time", nil, []time.Time{time.Unix(0, 0)}),
+		data.NewField("/SIM/TEMP", nil, []float64{42}),
+		data.NewField("min(/SIM/TEMP)", nil, []float64{40}),
+		data.NewField("max(/SIM/TEMP)", nil, []float64{44}),
+	)
+
+	endpoint.SetUnitAndThresholds(context.Background(), "/SIM/TEMP", frame)
+
+	if frame.Fields[0].Config != nil {
+		t.Fatalf("expected time field config to stay nil, got %#v", frame.Fields[0].Config)
+	}
+	if frame.Fields[2].Config != nil {
+		t.Fatalf("expected min field config to stay nil, got %#v", frame.Fields[2].Config)
+	}
+	if frame.Fields[3].Config != nil {
+		t.Fatalf("expected max field config to stay nil, got %#v", frame.Fields[3].Config)
+	}
+
+	valueConfig := frame.Fields[1].Config
+	if valueConfig == nil {
+		t.Fatalf("expected parameter field config")
+	}
+	if valueConfig.Unit != "degC" {
+		t.Fatalf("expected unit degC, got %q", valueConfig.Unit)
+	}
+	if valueConfig.Thresholds == nil {
+		t.Fatalf("expected thresholds config")
+	}
+	if got := len(valueConfig.Thresholds.Steps); got != 2 {
+		t.Fatalf("expected 2 thresholds, got %d", got)
 	}
 }

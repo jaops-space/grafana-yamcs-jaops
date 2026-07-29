@@ -137,7 +137,6 @@ func DatasourceEventsFrame(ctx context.Context, endpoint *source.YamcsEndpoint, 
 		events = append(events, currentEvents...)
 	}
 	frame := tools.ConvertEventsToFrame(events)
-	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisTypeTable}
 	return frame, nil
 }
 
@@ -157,11 +156,12 @@ func DatasourceCommandFrame(ctx context.Context, endpoint *source.YamcsEndpoint,
 	}
 	commandRawJSON := json.RawMessage(commandJSON)
 
-	return data.NewFrame(
+	frame := data.NewFrame(
 		"command",
 		data.NewField("info", nil, []json.RawMessage{commandRawJSON}),
 		data.NewField("endpoint", nil, []string{q.EndpointID}),
-	), nil
+	)
+	return frame, nil
 }
 
 func DatasourceCommandHistoryFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
@@ -182,7 +182,6 @@ func DatasourceCommandHistoryFrame(ctx context.Context, endpoint *source.YamcsEn
 	}
 
 	frame := tools.ConvertCommandListToFrame(commandList)
-	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisTypeTable}
 
 	return frame, nil
 }
@@ -190,21 +189,23 @@ func DatasourceCommandHistoryFrame(ctx context.Context, endpoint *source.YamcsEn
 func DatasourceTimeFrame(_ context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 	currentTime, ok := endpoint.GetCurrentTimeIfFresh(15 * time.Second)
 	if !ok {
-		return data.NewFrame(
+		frame := data.NewFrame(
 			"response",
 			data.NewField("time", nil, []time.Time{}),
 			data.NewField("speed", nil, []float64{}),
-		), nil
+		)
+		return frame, nil
 	}
 	replaySpeedMultiplier, err := endpoint.GetReplaySpeedMultiplier()
 	if err != nil {
 		return nil, err
 	}
 
-	return data.NewFrame("response",
+	frame := data.NewFrame("response",
 		data.NewField("time", nil, []time.Time{currentTime}),
 		data.NewField("speed", nil, []float64{replaySpeedMultiplier}),
-	), nil
+	)
+	return frame, nil
 }
 
 func DatasourceAlarmsFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
@@ -219,8 +220,6 @@ func DatasourceAlarmsFrame(ctx context.Context, endpoint *source.YamcsEndpoint, 
 	}
 
 	frame := tools.ConvertAlarmListToFrame(alarmList)
-	frame.Meta = &data.FrameMeta{}
-	frame.Meta.PreferredVisualization = data.VisTypeTable
 	return frame, nil
 
 }
@@ -253,7 +252,7 @@ func buildLinksFrame(items []*links.LinkInfo) (*data.Frame, error) {
 		"links",
 		data.NewField("linksJson", nil, []string{string(payload)}),
 	)
-	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisTypeTable}
+	setPreferredVisualization(frame, Links)
 
 	return frame, nil
 }

@@ -232,19 +232,20 @@ func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, paramet
 		return
 	}
 
-	frame.Meta = &data.FrameMeta{PreferredVisualization: data.VisTypeGraph}
-
-	for _, field := range frame.Fields {
-		if field.Config == nil {
-			field.Config = &data.FieldConfig{}
-		}
-		field.Config.Unit = parameterDemand.Unit
-		field.Config.Thresholds = &data.ThresholdsConfig{
-			Mode:  data.ThresholdsModeAbsolute,
-			Steps: make([]data.Threshold, 0, len(parameterDemand.Thresholds)),
-		}
-		for _, t := range parameterDemand.Thresholds {
-			field.Config.Thresholds.Steps = append(field.Config.Thresholds.Steps, *t)
-		}
+	field, _ := frame.FieldByName(parameter)
+	if field == nil {
+		backend.Logger.Debug("could not set units and thresholds; parameter field not found", "parameter", parameter)
+		return
+	}
+	if field.Config == nil {
+		field.Config = &data.FieldConfig{}
+	}
+	field.Config.Unit = parameterDemand.Unit
+	field.Config.Thresholds = &data.ThresholdsConfig{
+		Mode:  data.ThresholdsModeAbsolute,
+		Steps: make([]data.Threshold, 0, len(parameterDemand.Thresholds)),
+	}
+	for _, t := range parameterDemand.Thresholds {
+		field.Config.Thresholds.Steps = append(field.Config.Thresholds.Steps, *t)
 	}
 }

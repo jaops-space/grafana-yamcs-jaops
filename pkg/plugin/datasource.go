@@ -98,6 +98,7 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	if err != nil {
 		return nil, err
 	}
+	setPreferredVisualization(frame, q.Type)
 
 	// Convert the data frame into an initial response format for Grafana
 	initialData, err := backend.NewInitialFrame(frame, data.IncludeAll)

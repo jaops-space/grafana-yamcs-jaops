@@ -317,6 +317,7 @@ func TestConvertRangesToFrame(t *testing.T) {
 			assert.Equal(t, tt.wantLen, got.Fields[0].Len())
 			if tt.wantLen > 0 {
 				assert.Equal(t, "val1", got.Fields[1].At(0))
+				assert.Nil(t, got.Fields[0].Config)
 				require.NotNil(t, got.Fields[1].Config)
 				require.Len(t, got.Fields[1].Config.Mappings, 1)
 				mapping := got.Fields[1].Config.Mappings[0].(data.ValueMapper)
@@ -337,6 +338,7 @@ func TestConvertRangesToFrame_AutomaticColors(t *testing.T) {
 
 	assert.Equal(t, "RUNNING", frame.Fields[1].At(0))
 	assert.Equal(t, "true", frame.Fields[1].At(1))
+	assert.Nil(t, frame.Fields[0].Config)
 	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
 	assert.Equal(t, "RUNNING", mapping["RUNNING"].Text)
 	assert.Regexp(t, "^#[0-9A-F]{6}$", mapping["RUNNING"].Color)
@@ -354,6 +356,7 @@ func TestConvertRangesToFrame_BooleanValues(t *testing.T) {
 
 	assert.Equal(t, false, frame.Fields[1].At(0))
 	assert.Equal(t, true, frame.Fields[1].At(1))
+	assert.Nil(t, frame.Fields[0].Config)
 	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
 	assert.Equal(t, "FALSE", mapping["false"].Text)
 	assert.Equal(t, "#D72638", mapping["false"].Color)
@@ -375,6 +378,7 @@ func TestConvertDiscreteBufferToFrame_MatchesRangeMappingShape(t *testing.T) {
 	require.Len(t, frame.Fields, 2)
 	assert.Equal(t, generationTime, frame.Fields[0].At(0))
 	assert.Equal(t, "RUNNING", frame.Fields[1].At(0))
+	assert.Nil(t, frame.Fields[0].Config)
 	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
 	assert.Equal(t, "RUNNING", mapping["RUNNING"].Text)
 	assert.Regexp(t, "^#[0-9A-F]{6}$", mapping["RUNNING"].Color)
