@@ -26,6 +26,7 @@ type PluginQuery struct {
 	Realtime            bool            `json:"realtime"`
 	MaxPoints           int             `json:"points"`
 	FrontendShiftedTime bool            `json:"frontendShiftedTime,omitempty"`
+	AutomaticColors     bool            `json:"automaticColors,omitempty"`
 
 	// user-chosen split time from Grafana
 	SplitAt int `json:"splitAt,omitempty"`

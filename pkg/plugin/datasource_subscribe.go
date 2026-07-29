@@ -113,7 +113,7 @@ func DatasourceDiscreteValueFrame(ctx context.Context, endpoint *source.YamcsEnd
 		return nil, err
 	}
 
-	frame := tools.ConvertRangesToFrame(ranges, q.Parameter)
+	frame := tools.ConvertRangesToFrame(ranges, q.Parameter, q.AutomaticColors)
 	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
 	return frame, nil
 

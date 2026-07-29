@@ -88,90 +88,6 @@ func TestConvertEventsToFrame(t *testing.T) {
 	}
 }
 
-// TestNameHasPrefix tests the nameHasPrefix helper.
-func TestNameHasPrefix(t *testing.T) {
-	tests := []struct {
-		name   string
-		s      string
-		prefix string
-		want   bool
-	}{
-		{"Exact match", "prefix", "prefix", true},
-		{"Has prefix", "prefixabc", "prefix", true},
-		{"No prefix", "abc", "prefix", false},
-		{"Shorter string", "pre", "prefix", false},
-		{"Empty prefix", "abc", "", true},
-		{"Empty string", "", "prefix", false},
-		{"Empty both", "", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, nameHasPrefix(tt.s, tt.prefix))
-		})
-	}
-}
-
-// TestNameHasSuffix tests the nameHasSuffix helper.
-func TestNameHasSuffix(t *testing.T) {
-	tests := []struct {
-		name   string
-		s      string
-		suffix string
-		want   bool
-	}{
-		{"Exact match", "suffix", "suffix", true},
-		{"Has suffix", "abcsuffix", "suffix", true},
-		{"No suffix", "abc", "suffix", false},
-		{"Shorter string", "suf", "suffix", false},
-		{"Empty suffix", "abc", "", true},
-		{"Empty string", "", "suffix", false},
-		{"Empty both", "", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, nameHasSuffix(tt.s, tt.suffix))
-		})
-	}
-}
-
-// TestPrepend tests the prepend helper.
-func TestPrepend(t *testing.T) {
-	tests := []struct {
-		name string
-		s    []int
-		v    int
-		want []int
-	}{
-		{"Empty slice", []int{}, 1, []int{1}},
-		{"Non-empty", []int{2, 3}, 1, []int{1, 2, 3}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, prepend(tt.s, tt.v))
-		})
-	}
-
-	// Test with strings
-	strTests := []struct {
-		name string
-		s    []string
-		v    string
-		want []string
-	}{
-		{"Empty slice", []string{}, "a", []string{"a"}},
-		{"Non-empty", []string{"b", "c"}, "a", []string{"a", "b", "c"}},
-	}
-
-	for _, tt := range strTests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, prepend(tt.s, tt.v))
-		})
-	}
-}
-
 // TestConvertCommandListToFrame tests the ConvertCommandListToFrame function.
 func TestConvertCommandListToFrame(t *testing.T) {
 	tests := []struct {
@@ -348,34 +264,6 @@ func TestConvertSampleBufferToFrame(t *testing.T) {
 	}
 }
 
-// TestConvertSampleBufferToFrameWithOffset tests the ConvertSampleBufferToFrameWithOffset function.
-func TestConvertSampleBufferToFrameWithOffset(t *testing.T) {
-	offset := time.Hour
-	tests := []struct {
-		name       string
-		buffer     []*pvalue.TimeSeries_Sample
-		parameter  string
-		includeMin bool
-		includeMax bool
-		wantLen    int
-	}{
-		{"Empty", []*pvalue.TimeSeries_Sample{}, "param", false, false, 0},
-		{"With offset", []*pvalue.TimeSeries_Sample{
-			{Time: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), Avg: new(1.0), N: new(int32(1))},
-		}, "param", false, false, 1},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ConvertSampleBufferToFrameWithOffset(tt.buffer, tt.parameter, tt.includeMin, tt.includeMax, offset)
-			assert.Equal(t, tt.wantLen, got.Fields[0].Len())
-			if tt.wantLen > 0 {
-				assert.Equal(t, time.Date(2023, 1, 1, 1, 0, 0, 0, time.UTC), got.Fields[0].At(0).(time.Time))
-			}
-		})
-	}
-}
-
 // TestConvertBufferToFrame tests the ConvertBufferToFrame function.
 func TestConvertBufferToFrame(t *testing.T) {
 	tests := []struct {
@@ -425,13 +313,71 @@ func TestConvertRangesToFrame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ConvertRangesToFrame(tt.ranges, tt.parameter)
+			got := ConvertRangesToFrame(tt.ranges, tt.parameter, false)
 			assert.Equal(t, tt.wantLen, got.Fields[0].Len())
 			if tt.wantLen > 0 {
-				assert.NotNil(t, got.Fields[1].Config)
+				assert.Equal(t, "val1", got.Fields[1].At(0))
+				require.NotNil(t, got.Fields[1].Config)
+				require.Len(t, got.Fields[1].Config.Mappings, 1)
+				mapping := got.Fields[1].Config.Mappings[0].(data.ValueMapper)
+				assert.Equal(t, "val1", mapping["val1"].Text)
+				assert.Empty(t, mapping["val1"].Color)
 			}
 		})
 	}
+}
+
+func TestConvertRangesToFrame_AutomaticColors(t *testing.T) {
+	ranges := &pvalue.Ranges{Range: []*pvalue.Ranges_Range{
+		{Start: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{{Type: protobuf.Value_ENUMERATED.Enum(), StringValue: new("RUNNING")}}},
+		{Start: timestamppb.New(time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: new(true)}}},
+	}}
+
+	frame := ConvertRangesToFrame(ranges, "state", true)
+
+	assert.Equal(t, "RUNNING", frame.Fields[1].At(0))
+	assert.Equal(t, "true", frame.Fields[1].At(1))
+	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
+	assert.Equal(t, "RUNNING", mapping["RUNNING"].Text)
+	assert.Regexp(t, "^#[0-9A-F]{6}$", mapping["RUNNING"].Color)
+	assert.Equal(t, "TRUE", mapping["true"].Text)
+	assert.Equal(t, "#3AAB58", mapping["true"].Color)
+}
+
+func TestConvertRangesToFrame_BooleanValues(t *testing.T) {
+	ranges := &pvalue.Ranges{Range: []*pvalue.Ranges_Range{
+		{Start: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: new(false)}}},
+		{Start: timestamppb.New(time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)), EngValues: []*protobuf.Value{{Type: protobuf.Value_BOOLEAN.Enum(), BooleanValue: new(true)}}},
+	}}
+
+	frame := ConvertRangesToFrame(ranges, "state", true)
+
+	assert.Equal(t, false, frame.Fields[1].At(0))
+	assert.Equal(t, true, frame.Fields[1].At(1))
+	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
+	assert.Equal(t, "FALSE", mapping["false"].Text)
+	assert.Equal(t, "#D72638", mapping["false"].Color)
+	assert.Equal(t, "TRUE", mapping["true"].Text)
+	assert.Equal(t, "#3AAB58", mapping["true"].Color)
+}
+
+func TestConvertDiscreteBufferToFrame_MatchesRangeMappingShape(t *testing.T) {
+	generationTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	buffer := []*pvalue.ParameterValue{
+		{
+			GenerationTime: timestamppb.New(generationTime),
+			EngValue:       &protobuf.Value{Type: protobuf.Value_ENUMERATED.Enum(), StringValue: new("RUNNING")},
+		},
+	}
+
+	frame := ConvertDiscreteBufferToFrame(buffer, "state", true, false)
+
+	require.Len(t, frame.Fields, 2)
+	assert.Equal(t, generationTime, frame.Fields[0].At(0))
+	assert.Equal(t, "RUNNING", frame.Fields[1].At(0))
+	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
+	assert.Equal(t, "RUNNING", mapping["RUNNING"].Text)
+	assert.Regexp(t, "^#[0-9A-F]{6}$", mapping["RUNNING"].Color)
 }
 
 // TestConvertBufferToAverageFrame tests the ConvertBufferToAverageFrame function.
@@ -568,46 +514,7 @@ func TestCreateValueField(t *testing.T) {
 	}
 }
 
-// TestConvertSlice tests the ConvertSlice function.
-func TestConvertSlice(t *testing.T) {
-	tests := []struct {
-		name   string
-		values []interface{}
-		want   []int
-	}{
-		{"Empty", []interface{}{}, []int{}},
-		{"Ints", []interface{}{1, 2}, []int{1, 2}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, ConvertSlice[int](tt.values))
-		})
-	}
-
-	// Test panic on wrong type
-	assert.Panics(t, func() { ConvertSlice[int]([]interface{}{"a"}) })
-}
-
-// TestConvert tests the convert function (similar to ConvertSlice).
-func TestConvert(t *testing.T) {
-	tests := []struct {
-		name   string
-		values []interface{}
-		want   []float64
-	}{
-		{"Empty", []interface{}{}, []float64{}},
-		{"Floats", []interface{}{1.0, 2.0}, []float64{1.0, 2.0}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, convert[float64](tt.values))
-		})
-	}
-}
-
-// TestCalculateStats tests the CalculateStats function.
+// TestCalculateStats tests the calculateStats helper.
 func TestCalculateStats(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -628,7 +535,7 @@ func TestCalculateStats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			avg, min, max := CalculateStats(tt.values, tt.parameter)
+			avg, min, max := calculateStats(tt.values, tt.parameter)
 			if len(tt.values) > 0 && reflect.TypeOf(tt.values[0]).Kind() != reflect.String {
 				assert.Equal(t, tt.wantAvg, avg.At(0).(float64))
 				if min != nil {
@@ -681,7 +588,7 @@ func TestSum(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, Sum(tt.values))
+			assert.Equal(t, tt.want, sum(tt.values))
 		})
 	}
 
@@ -695,7 +602,7 @@ func TestSum(t *testing.T) {
 	}
 	for _, tt := range floatTests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, Sum(tt.values))
+			assert.Equal(t, tt.want, sum(tt.values))
 		})
 	}
 }
@@ -715,7 +622,7 @@ func TestMinMax(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			min, max := MinMax(tt.values)
+			min, max := minMax(tt.values)
 			assert.Equal(t, tt.wantMin, min)
 			assert.Equal(t, tt.wantMax, max)
 		})
@@ -738,9 +645,9 @@ func TestMostFrequent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if len(tt.values) == 0 {
-				assert.Equal(t, "", MostFrequent(tt.values))
+				assert.Equal(t, "", mostFrequent(tt.values))
 			} else {
-				assert.Equal(t, tt.want, MostFrequent(tt.values))
+				assert.Equal(t, tt.want, mostFrequent(tt.values))
 			}
 		})
 	}
@@ -764,7 +671,7 @@ func TestHashString(t *testing.T) {
 	}
 }
 
-// TestHashToRGB tests the HashToRGB function.
+// TestHashToRGB tests the hashToRGB helper.
 func TestHashToRGB(t *testing.T) {
 	tests := []struct {
 		name string
@@ -776,7 +683,7 @@ func TestHashToRGB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HashToRGB(tt.s)
+			got := hashToRGB(tt.s)
 			assert.Regexp(t, "^#[0-9A-F]{6}$", got)
 		})
 	}

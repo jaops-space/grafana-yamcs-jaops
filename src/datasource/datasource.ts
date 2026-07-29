@@ -24,6 +24,10 @@ function formatGraphFieldsPath(query: Query): string {
     return fields.length > 0 ? `fields=${fields.join('-')}` : 'fields=none';
 }
 
+function formatDiscreteOptionsPath(query: Query): string {
+    return query.automaticColors ? 'colors=auto' : 'colors=none';
+}
+
 /**
  * Custom Grafana DataSource for retrieving and streaming data.
  */
@@ -111,8 +115,18 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 const toUnix = request.range.to.unix();
 
                 const pathParts = [query.endpoint, pathName];
-                if (query.type === QueryType.PLOT || query.type === QueryType.DISCRETE) {
-                    pathParts.push(formatRangePath(request), `${request.maxDataPoints ?? 1000}`, formatGraphFieldsPath(query));
+                if (query.type === QueryType.PLOT) {
+                    pathParts.push(
+                        formatRangePath(request),
+                        `${request.maxDataPoints ?? 1000}`,
+                        formatGraphFieldsPath(query)
+                    );
+                } else if (query.type === QueryType.DISCRETE) {
+                    pathParts.push(
+                        formatRangePath(request),
+                        `${request.maxDataPoints ?? 1000}`,
+                        formatDiscreteOptionsPath(query)
+                    );
                 } else if (query.type === QueryType.COMMAND_HISTORY || query.type === QueryType.SINGLE) {
                     pathParts.push(formatRangePath(request));
                 }

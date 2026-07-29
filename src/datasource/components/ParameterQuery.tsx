@@ -1,8 +1,13 @@
 import { SelectableValue } from '@grafana/data';
-import { Combobox, ComboboxOption, InlineField, MultiSelect, Stack } from '@grafana/ui';
+import { Combobox, ComboboxOption, InlineField, MultiSelect, RadioButtonGroup, Stack } from '@grafana/ui';
 import React, { useCallback } from 'react';
-import { Query, QueryField } from '../types';
+import { Query, QueryField, QueryType } from '../types';
 import { FieldsOptions, QueryEditorModelProps, QueryOptions } from './constants';
+
+const ColorOptions: Array<SelectableValue<boolean>> = [
+    { label: 'None', value: false },
+    { label: 'Automatic', value: true },
+];
 
 export function ParameterQuery({ query, onChange, datasource }: QueryEditorModelProps) {
     const { endpoint } = query;
@@ -70,6 +75,19 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
                                 updateQuery({ fields: arr.map((v) => v.value).filter(Boolean) as QueryField[] });
                             }}
                             value={selectedFields}
+                        />
+                    </InlineField>
+                </Stack>
+            )}
+
+            {query.type === QueryType.DISCRETE && (
+                <Stack direction="row">
+                    <InlineField label="Value colors">
+                        <RadioButtonGroup
+                            options={ColorOptions}
+                            value={Boolean(query.automaticColors)}
+                            onChange={(value) => updateQuery({ automaticColors: value })}
+                            data-testid="jaops-discrete-automatic-colors"
                         />
                     </InlineField>
                 </Stack>

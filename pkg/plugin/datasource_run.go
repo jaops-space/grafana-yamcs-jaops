@@ -106,6 +106,15 @@ func RunParameterStream(ctx context.Context,
 				continue
 			}
 
+			if q.Type == DiscreteValue {
+				frame := tools.ConvertDiscreteBufferToFrame(buffer, q.Parameter, q.AutomaticColors, false)
+				sender.SendFrame(
+					frame,
+					data.IncludeDataOnly,
+				)
+				continue
+			}
+
 			average := len(buffer) > 3
 			var frame *data.Frame
 			if average {

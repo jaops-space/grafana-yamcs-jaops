@@ -14,6 +14,7 @@ export interface Query extends DataQuery {
     customVariableString: boolean;
     endpointVariable: string;
     frontendShiftedTime?: boolean;
+    automaticColors?: boolean;
 
     // YAMCS parameter filter configuration
     yamcsFilter?: {
