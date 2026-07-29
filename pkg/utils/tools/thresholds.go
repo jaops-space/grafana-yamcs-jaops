@@ -17,10 +17,8 @@ type alarmRangeRule struct {
 	Level          mdb.AlarmLevelType
 	HasMin         bool
 	MinValue       float64
-	MinInclusive   bool
 	HasMax         bool
 	MaxValue       float64
-	MaxInclusive   bool
 	InvertedBounds bool
 }
 
@@ -39,21 +37,17 @@ func parseAlarmRangeRule(alarmRange *mdb.AlarmRange) alarmRangeRule {
 	if alarmRange.MinExclusive != nil {
 		rule.HasMin = true
 		rule.MinValue = *alarmRange.MinExclusive
-		rule.MinInclusive = false
 	} else if alarmRange.MinInclusive != nil {
 		rule.HasMin = true
 		rule.MinValue = *alarmRange.MinInclusive
-		rule.MinInclusive = true
 	}
 
 	if alarmRange.MaxExclusive != nil {
 		rule.HasMax = true
 		rule.MaxValue = *alarmRange.MaxExclusive
-		rule.MaxInclusive = false
 	} else if alarmRange.MaxInclusive != nil {
 		rule.HasMax = true
 		rule.MaxValue = *alarmRange.MaxInclusive
-		rule.MaxInclusive = true
 	}
 
 	rule.InvertedBounds = rule.HasMin && rule.HasMax
@@ -65,19 +59,29 @@ func (r alarmRangeRule) matches(x float64) bool {
 	inside := true
 
 	if r.HasMin {
-		if r.MinInclusive {
-			inside = inside && x >= r.MinValue
-		} else {
-			inside = inside && x > r.MinValue
-		}
+		inside = inside && x >= r.MinValue
 	}
 
 	if r.HasMax {
-		if r.MaxInclusive {
-			inside = inside && x <= r.MaxValue
-		} else {
-			inside = inside && x < r.MaxValue
-		}
+		inside = inside && x <= r.MaxValue
+	}
+
+	if r.InvertedBounds {
+		return !inside
+	}
+
+	return inside
+}
+
+func (r alarmRangeRule) matchesAfterBoundary(x float64) bool {
+	inside := true
+
+	if r.HasMin {
+		inside = inside && x >= r.MinValue
+	}
+
+	if r.HasMax {
+		inside = inside && x < r.MaxValue
 	}
 
 	if r.InvertedBounds {
@@ -116,24 +120,32 @@ func levelAtPoint(rules []alarmRangeRule, x float64, baseLevel mdb.AlarmLevelTyp
 	return highestAlarmLevel(active, baseLevel)
 }
 
+func levelAfterBoundary(rules []alarmRangeRule, x float64, baseLevel mdb.AlarmLevelType) mdb.AlarmLevelType {
+	active := make([]mdb.AlarmLevelType, 0, len(rules))
+	for _, rule := range rules {
+		if rule.matchesAfterBoundary(x) {
+			active = append(active, rule.Level)
+		}
+	}
+
+	return highestAlarmLevel(active, baseLevel)
+}
+
+func newThreshold(value float64, color string) *data.Threshold {
+	threshold := data.NewThreshold(value, color, "")
+	return &threshold
+}
+
 func rangeChangePoints(rules []alarmRangeRule) []float64 {
 	points := make([]float64, 0, len(rules)*2)
 
 	for _, rule := range rules {
 		if rule.HasMin {
-			if rule.MinInclusive {
-				points = append(points, rule.MinValue)
-			} else {
-				points = append(points, math.Nextafter(rule.MinValue, math.Inf(1)))
-			}
+			points = append(points, rule.MinValue)
 		}
 
 		if rule.HasMax {
-			if rule.MaxInclusive {
-				points = append(points, math.Nextafter(rule.MaxValue, math.Inf(1)))
-			} else {
-				points = append(points, rule.MaxValue)
-			}
+			points = append(points, rule.MaxValue)
 		}
 	}
 
@@ -163,11 +175,10 @@ func convertInvertedRangesToThresholds(alarmInfo *mdb.AlarmInfo) []*data.Thresho
 	if !ok {
 		firstColor = "gray"
 	}
-	first := data.NewThreshold(math.Inf(-1), firstColor, "")
-	levels = append(levels, &first)
+	levels = append(levels, newThreshold(math.Inf(-1), firstColor))
 
 	for _, point := range rangeChangePoints(rules) {
-		lvl := levelAtPoint(rules, point, baseLevel)
+		lvl := levelAfterBoundary(rules, point, baseLevel)
 		if lvl == current {
 			continue
 		}
@@ -176,8 +187,7 @@ func convertInvertedRangesToThresholds(alarmInfo *mdb.AlarmInfo) []*data.Thresho
 		if !exists {
 			color = "gray"
 		}
-		threshold := data.NewThreshold(point, color, "")
-		levels = append(levels, &threshold)
+		levels = append(levels, newThreshold(point, color))
 		current = lvl
 	}
 
@@ -190,7 +200,7 @@ func upperTransparentStart(alarmRange *mdb.AlarmRange) (float64, bool) {
 	}
 
 	if alarmRange.MaxInclusive != nil {
-		return math.Nextafter(*alarmRange.MaxInclusive, math.Inf(1)), true
+		return *alarmRange.MaxInclusive, true
 	}
 
 	if alarmRange.MaxExclusive != nil {
@@ -214,9 +224,8 @@ func normalizeLowerBoundary(alarmRange *mdb.AlarmRange) (float64, bool) {
 	}
 
 	if alarmRange.MinExclusive != nil {
-		strictLower := math.Nextafter(*alarmRange.MinExclusive, math.Inf(1))
-		if !hasLower || strictLower > lower {
-			lower = strictLower
+		if !hasLower || *alarmRange.MinExclusive > lower {
+			lower = *alarmRange.MinExclusive
 			hasLower = true
 		}
 	}
@@ -238,9 +247,8 @@ func normalizeUpperBoundary(alarmRange *mdb.AlarmRange) (float64, bool) {
 	}
 
 	if alarmRange.MaxExclusive != nil {
-		strictUpper := math.Nextafter(*alarmRange.MaxExclusive, math.Inf(-1))
-		if !hasUpper || strictUpper < upper {
-			upper = strictUpper
+		if !hasUpper || *alarmRange.MaxExclusive < upper {
+			upper = *alarmRange.MaxExclusive
 			hasUpper = true
 		}
 	}
@@ -321,8 +329,7 @@ func ConvertAlarmInfoToThresholds(alarmInfo *mdb.AlarmInfo) []*data.Threshold {
 	if len(ranges) > 0 && !hasUnboundedLower {
 		baseColor = "transparent"
 	}
-	base := data.NewThreshold(math.Inf(-1), baseColor, "")
-	thresholds = append(thresholds, &base)
+	thresholds = append(thresholds, newThreshold(math.Inf(-1), baseColor))
 
 	// Convert to Grafana thresholds
 	for _, r := range ranges {
@@ -330,14 +337,12 @@ func ConvertAlarmInfoToThresholds(alarmInfo *mdb.AlarmInfo) []*data.Threshold {
 		if !exists {
 			color = "gray" // Default color for unknown levels
 		}
-		threshold := data.NewThreshold(r.Value, color, "")
-		thresholds = append(thresholds, &threshold)
+		thresholds = append(thresholds, newThreshold(r.Value, color))
 	}
 
 	// add transparent upper tail if no alarm range covers +Infinity.
 	if len(ranges) > 0 && !hasUnboundedUpper && hasUpperTailStart {
-		threshold := data.NewThreshold(upperTailStart, "transparent", "")
-		thresholds = append(thresholds, &threshold)
+		thresholds = append(thresholds, newThreshold(upperTailStart, "transparent"))
 	}
 
 	return thresholds

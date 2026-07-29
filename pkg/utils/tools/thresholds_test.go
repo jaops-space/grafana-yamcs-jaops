@@ -41,9 +41,9 @@ func TestConvertAlarmInfoToThresholds_HandlesInclusiveExclusiveAndMissingSides(t
 
 	wantValues := []float64{
 		10,
-		math.Nextafter(20, math.Inf(-1)),
+		20,
 		30,
-		math.Nextafter(40, math.Inf(1)),
+		40,
 	}
 
 	for i := range wantValues {
@@ -84,8 +84,8 @@ func TestConvertAlarmInfoToThresholds_PrefersStricterWhenBothBoundsExist(t *test
 		t.Fatalf("expected first threshold at -Inf for non-normal default level")
 	}
 
-	upper := math.Nextafter(9, math.Inf(-1))
-	lower := math.Nextafter(5, math.Inf(1))
+	upper := 9.0
+	lower := 5.0
 
 	if float64(thresholds[1].Value) != lower {
 		t.Fatalf("expected stricter lower bound %v, got %v", lower, float64(thresholds[1].Value))
@@ -124,9 +124,8 @@ func TestConvertAlarmInfoToThresholds_BoundedRangeUsesInvertedSemantics(t *testi
 		t.Fatalf("expected normal start at 1")
 	}
 
-	wantUpperWarning := math.Nextafter(5, math.Inf(1))
-	if float64(thresholds[2].Value) != wantUpperWarning || thresholds[2].Color != "yellow" {
-		t.Fatalf("expected warning restart at %v, got value=%v color=%q", wantUpperWarning, float64(thresholds[2].Value), thresholds[2].Color)
+	if float64(thresholds[2].Value) != 5 || thresholds[2].Color != "yellow" {
+		t.Fatalf("expected warning restart at 5")
 	}
 }
 
@@ -185,8 +184,8 @@ func TestConvertAlarmInfoToThresholds_InvertedSingleRange(t *testing.T) {
 		t.Fatalf("expected normal start at 9")
 	}
 
-	if float64(thresholds[2].Value) != math.Nextafter(15, math.Inf(1)) || thresholds[2].Color != "red" {
-		t.Fatalf("expected critical restart just above 15")
+	if float64(thresholds[2].Value) != 15 || thresholds[2].Color != "red" {
+		t.Fatalf("expected critical restart at 15")
 	}
 }
 
@@ -229,11 +228,11 @@ func TestConvertAlarmInfoToThresholds_MultipleInvertedRanges(t *testing.T) {
 		t.Fatalf("expected normal at 10")
 	}
 
-	if float64(thresholds[3].Value) != math.Nextafter(20, math.Inf(1)) || thresholds[3].Color != "yellow" {
-		t.Fatalf("expected warning after 20")
+	if float64(thresholds[3].Value) != 20 || thresholds[3].Color != "yellow" {
+		t.Fatalf("expected warning at 20")
 	}
 
-	if float64(thresholds[4].Value) != math.Nextafter(25, math.Inf(1)) || thresholds[4].Color != "red" {
-		t.Fatalf("expected critical after 25")
+	if float64(thresholds[4].Value) != 25 || thresholds[4].Color != "red" {
+		t.Fatalf("expected critical at 25")
 	}
 }
