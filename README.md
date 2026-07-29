@@ -29,14 +29,13 @@ The current version has already been tested in real-world deployments but active
 
 Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
 They are made to use data from the [Yamcs quickstart](https://github.com/jaops-space/yamcs-quickstart).
-After cloning the repository, run in two separate terminals:
+After cloning the repository, run in three separate terminals:
 
 ```bash
-./mvnw yamcs:run
-python3 simulator.py
+./mvn yamcs:run
+python3 simulator.sh
+python3 simulator/images/generate_images.py
 ```
-
-The quickstart also includes an optional image simulator for the demo image panels. When Yamcs quickstart runs in Docker instead of with Maven, mount `/tmp/images` into the Yamcs container before using that optional image simulator.
 
 ![Screenshot of Demo Dashboard](./screenshots/full_demo_dash.png)
 
