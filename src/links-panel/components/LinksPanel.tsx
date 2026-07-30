@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppEvents, LoadingState, PanelProps, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents, getBackendSrv, getTemplateSrv } from '@grafana/runtime';
-import { Button, Badge, Alert, Spinner, useStyles2, Tooltip } from '@grafana/ui';
+import { Button, Badge, Alert, Spinner, useStyles2, Tooltip, Link } from '@grafana/ui';
 import { css } from '@emotion/css';
 import { PanelOptions, LinkInfo } from '../types';
+import { prefixRoute } from 'utils/utils.routing';
+import { ROUTES } from '../../constants';
 
 interface Props extends PanelProps<PanelOptions> {}
 
@@ -71,6 +73,10 @@ const getStyles = (theme: GrafanaTheme2) => ({
         align-items: center;
         height: 100%;
         gap: ${theme.spacing(1)};
+    `,
+    configSteps: css`
+        margin-top: ${theme.spacing(1)};
+        padding-left: ${theme.spacing(2.5)};
     `,
 });
 
@@ -226,11 +232,14 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             <div className={styles.container} data-testid="jaops-links-panel">
                 <Alert severity="info" title="Configuration Required">
                     Please configure this panel with a Links query:
-                    <ol style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                    <ol className={styles.configSteps}>
                         <li>Select the Yamcs datasource</li>
                         <li>Select an endpoint (or use a variable)</li>
                         <li>Set Query Type to &quot;Links&quot;</li>
                     </ol>
+                    <Link href={prefixRoute(ROUTES.HowToUse)} color="primary">
+                        Open query setup guide
+                    </Link>
                 </Alert>
             </div>
         );
@@ -256,6 +265,10 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             {!loading && links.length === 0 && (
                 <Alert severity="info" title="No Links">
                     Waiting for link updates for endpoint &quot;{endpoint}&quot;.
+                    <br />
+                    <Link href={prefixRoute(ROUTES.HowToUse)} color="primary">
+                        Open query setup guide
+                    </Link>
                 </Alert>
             )}
 

@@ -1,9 +1,20 @@
+import { css } from '@emotion/css';
+import { GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
-import { Card, Alert, Text } from '@grafana/ui';
+import { Card, Alert, Text, useStyles2 } from '@grafana/ui';
 import React from 'react';
 import CommandingImage from '../img/how-to-use/commanding.png';
 
+const getStyles = (theme: GrafanaTheme2) => ({
+    image: css`
+        display: block;
+        margin: ${theme.spacing(2.5)} auto;
+    `,
+});
+
 function CommandingPanelSetup() {
+    const styles = useStyles2(getStyles);
+
     return (
         <PluginPage>
             <p>
@@ -19,7 +30,7 @@ function CommandingPanelSetup() {
                 </Card.Description>
             </Card>
 
-            <img src={CommandingImage} width={1200} style={{ display: 'block', margin: '20px auto' }} />
+            <img src={CommandingImage} width={1200} className={styles.image} />
 
             <Card>
                 <Card.Heading>
@@ -37,6 +48,14 @@ function CommandingPanelSetup() {
                     Once you{"'"}ve selected your command, choose <Text color="primary">Yamcs Commanding Panel</Text>{' '}
                     as the visualization type. You will be presented with a form to configure the button and appearance
                     of your panel.
+                </Card.Description>
+            </Card>
+
+            <Card>
+                <Card.Heading>Step 4: Review Before Sending</Card.Heading>
+                <Card.Description>
+                    Check the selected endpoint, command name, arguments, and comment before pressing the command
+                    button. Use dual-button mode for paired on/off commands where the current state should stay visible.
                 </Card.Description>
             </Card>
 

@@ -215,7 +215,7 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                             />
                         </Field>
 
-                        <Field label="Host" description="Corresponding host." required>
+                        <Field label="Host" description="Configured Yamcs server used by this endpoint." required>
                             <Combobox
                                 options={Object.keys(hosts).map((id) => ({
                                     label: hosts[id].name || hosts[id].path || 'Unnamed Host',
@@ -228,7 +228,7 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
 
                         <Field
                             label="Yamcs Instance"
-                            description="Corresponding instance on the Yamcs server."
+                            description="Yamcs instance name, for example myproject in the quickstart."
                             required
                         >
                             <Input
@@ -241,7 +241,10 @@ export default function ConfigEndpoint({ index, endpoint, hosts, onChange, remov
                             />
                         </Field>
 
-                        <Field label="Yamcs Processor" description="Leave empty for the default instance processor.">
+                        <Field
+                            label="Yamcs Processor"
+                            description="Processor name, for example realtime or replay. Leave empty for the default instance processor."
+                        >
                             <Input
                                 value={endpoint.processor || ''}
                                 placeholder="realtime"

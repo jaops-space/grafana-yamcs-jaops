@@ -7,7 +7,7 @@ export const plugin = new PanelPlugin<PanelOptions>(LinksPanel).setPanelOptions(
         .addBooleanSwitch({
             path: 'showDetails',
             name: 'Show details',
-            description: 'Show detailed link information (type, class, data counts)',
+            description: 'Show detailed link information. Use this panel with a Links query.',
             defaultValue: true,
         })
         .addTextInput({

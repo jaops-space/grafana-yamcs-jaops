@@ -48,22 +48,28 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
         [datasource, endpoint]
     );
 
-    const tooltip = <>
-        To query aggregate values, you might directly input the aggregate formula, e.g:
-        <br/>
-        <Text variant='code'>/myproject/Position.x</Text><br/>or<br/><Text variant='code'>/myproject/Aggregate[0].member</Text>
-
-        <br/><br/>
-        Alarm thresholds are provided automatically, to be able to visualize them (on a Time Series panel for example), navigate to <b>Thresholds</b> on panel options on the right, and modify <b>Show Thresholds</b>, you might need to set a manual minimum and maximum for your panel to view them. 
-    </>
+    const tooltip = (
+        <>
+            Select a Yamcs parameter, or type a custom parameter expression directly.
+            <br />
+            <br />
+            Aggregate examples:
+            <br />
+            <Text variant="code">/myproject/Position.x</Text>
+            <br />
+            <Text variant="code">/myproject/Aggregate[0].member</Text>
+            <br />
+            <br />
+            Alarm thresholds are provided automatically on the parameter value field. In a Time series panel, enable
+            threshold display in panel options and set manual min/max if needed.
+        </>
+    );
 
     return (
         <>
             <Stack direction="row" alignItems="center">
                 <Stack direction="row" alignItems="center" gap={0} grow={1}>
-                    <InlineField label="Parameter to query" 
-                        tooltip={tooltip}
-                    grow>
+                    <InlineField label="Parameter to query" tooltip={tooltip} grow>
                         <Combobox
                             key={`parameter-select-${endpoint ?? 'none'}`}
                             options={fetchOptions}
@@ -79,7 +85,11 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
 
             {additionalFields && (
                 <Stack direction="row">
-                    <InlineField label="Additional fields" grow>
+                    <InlineField
+                        label="Additional fields"
+                        tooltip="Graph queries can include min and max fields. Other parameter query types ignore these fields."
+                        grow
+                    >
                         <MultiCombobox
                             options={FieldsOptions}
                             onChange={(arr: Array<ComboboxOption<QueryField>>) => {
@@ -93,8 +103,10 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
 
             {query.type === QueryType.DISCRETE && (
                 <Stack direction="row">
-                    <InlineField label="Value colors"
-                    tooltip="Automatically set value mappings with generated colors">
+                    <InlineField
+                        label="Value colors"
+                        tooltip="Automatic colors add deterministic value mappings for strings, enums, and integers. Booleans use green for true and red for false."
+                    >
                         <RadioButtonGroup
                             options={ColorOptions}
                             value={Boolean(query.automaticColors)}

@@ -107,6 +107,13 @@ const getStyles = (theme: GrafanaTheme2) => ({
         padding-left: ${theme.spacing(2.5)};
         margin-top: ${theme.spacing(0.125)};
     `,
+    emptyCard: css`
+        padding: ${theme.spacing(1.5)};
+        border: 1px dashed ${theme.colors.border.weak};
+        border-radius: ${theme.shape.radius.default};
+        color: ${theme.colors.text.secondary};
+        background: ${theme.colors.background.secondary};
+    `,
 });
 
 // ------------------
@@ -337,6 +344,7 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
                     // Don't pass pageSize at all
                 />
             )}
+            {!deduped.length && <div className={styles.emptyCard}>No command history in the selected time range.</div>}
         </div>
     );
 };

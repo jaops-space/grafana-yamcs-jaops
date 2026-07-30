@@ -1,6 +1,8 @@
 import { css } from '@emotion/css';
-import { useStyles2 } from '@grafana/ui';
+import { GrafanaTheme2 } from '@grafana/data';
+import { Alert, Link, useStyles2 } from '@grafana/ui';
 import React, { useState } from 'react';
+import { ROUTES } from '../constants';
 import { CommandForms } from './types';
 import { useLocationService } from '@grafana/runtime';
 import { ButtonGroupPreview } from './components/ButtonGroupPreview';
@@ -17,8 +19,9 @@ import { CommandErrors, CommandingPanelProps } from './types';
 import { getCommandKey } from './utils/commandKeys';
 import { getEditorCardsStyle, getRuntimeButtonWrapperStyle, getRuntimeLayoutStyle } from './utils/layout';
 import { setArgumentError, validateCommandArgument } from './utils/validation';
+import { prefixRoute } from 'utils/utils.routing';
 
-const getStyles = () => ({
+const getStyles = (theme: GrafanaTheme2) => ({
     panel: css`
         width: 100%;
         height: 100%;
@@ -28,6 +31,9 @@ const getStyles = () => ({
     `,
     runtimePanel: css`
         overflow: hidden;
+    `,
+    emptyState: css`
+        padding: ${theme.spacing(2)};
     `,
 });
 
@@ -152,6 +158,18 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
             data-command-count={commandInfos.length}
             className={`${styles.panel} ${editing ? styles.editingPanel : styles.runtimePanel}`}
         >
+            {commandInfos.length === 0 && (
+                <div className={styles.emptyState}>
+                    <Alert severity="info" title={variableMode ? 'No variable command configured' : 'No command configured'}>
+                        Select a Commanding query and choose a Yamcs command for this panel.
+                        <br />
+                        <Link href={prefixRoute(ROUTES.Commanding)} color="primary">
+                            Open Commanding setup
+                        </Link>
+                    </Alert>
+                </div>
+            )}
+
             {editing && commandInfos.length > 1 && (
                 <>
                     <ButtonGroupPreview options={options}>

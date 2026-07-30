@@ -7,16 +7,19 @@ export const plugin = new PanelPlugin<PanelOptions>(TimeSyncPanel).setNoPadding(
         .addBooleanSwitch({
             path: 'enabled',
             name: 'Enable Yamcs time sync',
+            description: 'Use this panel with a Time query to align Grafana dashboard time with Yamcs processor time.',
             defaultValue: defaultPanelOptions.enabled,
         })
         .addBooleanSwitch({
             path: 'showStatus',
             name: 'Show status card',
+            description: 'Show whether the dashboard is synchronized with Yamcs time.',
             defaultValue: defaultPanelOptions.showStatus,
         })
         .addBooleanSwitch({
             path: 'onlyWhenRelativeRange',
             name: 'Only apply when range is relative (contains now)',
+            description: 'Avoid rewriting absolute dashboard ranges.',
             defaultValue: defaultPanelOptions.onlyWhenRelativeRange,
         })
         .addNumberInput({

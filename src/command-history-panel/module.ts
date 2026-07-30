@@ -15,7 +15,7 @@ export const plugin = new PanelPlugin<CommandHistoryOptions>(CommandHistoryPanel
         .addMultiSelect({
             path: 'visibleFields',
             name: 'Visible Columns',
-            description: 'Select which fields to display in the table',
+            description: 'Select which command-history fields to display. Use this panel with a Command History query.',
             defaultValue: allFields,
             settings: {
                 options: allFields.map((field) => ({
@@ -27,6 +27,7 @@ export const plugin = new PanelPlugin<CommandHistoryOptions>(CommandHistoryPanel
         .addBooleanSwitch({
             path: 'showArguments',
             name: 'Show Arguments on Expand',
+            description: 'Show command arguments in the expanded row.',
             defaultValue: true,
         })
         .addBooleanSwitch({

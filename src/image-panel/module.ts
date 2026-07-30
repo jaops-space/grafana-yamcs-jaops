@@ -8,7 +8,7 @@ export const plugin = new PanelPlugin<ImagePanelOptions>(ImagePanel).setPanelOpt
             name: 'Image URL',
             path: 'imageUrl',
             category: ['Image Source'],
-            description: 'URL of the image to display',
+            description: 'Fallback image URL. Use this panel with an Image query to display Yamcs image values.',
         })
         .addSelect({
             name: 'Object Fit',
@@ -29,7 +29,7 @@ export const plugin = new PanelPlugin<ImagePanelOptions>(ImagePanel).setPanelOpt
             name: 'Transform',
             path: 'transform',
             category: ['Transforms'],
-            description: 'CSS transform string (e.g., translate(10px,20px) rotate(45deg) scale(1.2))',
+            description: 'CSS transform for the image, for example translate(10px, 20px) rotate(45deg) scale(1.2).',
             defaultValue: '',
         });
 });

@@ -1,6 +1,6 @@
 import { AppEvents } from '@grafana/data';
 import { getAppEvents, getTemplateSrv } from '@grafana/runtime';
-import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
+import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack, Tooltip } from '@grafana/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QueryEditorModelProps, QueryProps } from './constants';
 import { QueryTypeEditor } from './QueryTypeEditor';
@@ -188,6 +188,11 @@ export function QueryEditor(props: QueryProps) {
             <Stack direction="row" alignItems="center">
                 <InlineField
                     label={query.asVariable ? 'Endpoint Variable' : 'Endpoint'}
+                    tooltip={
+                        query.asVariable
+                            ? 'Grafana variable that resolves to a configured endpoint.'
+                            : 'Configured Yamcs instance and processor pair. Use Fetch endpoints after changing datasource settings.'
+                    }
                     disabled={!query.asVariable && Object.keys(endpoints).length <= 1}
                     loading={loading}
                     grow
@@ -196,19 +201,23 @@ export function QueryEditor(props: QueryProps) {
                 </InlineField>
                 {query.asVariable && (
                     <InlineField>
-                        <Checkbox
-                            label="Custom string"
-                            checked={Boolean(query.customVariableString)}
-                            onChange={(e) => setCustomVariableString(e.currentTarget.checked)}
-                        />
+                        <Tooltip content="Type the endpoint variable expression manually.">
+                            <Checkbox
+                                label="Custom string"
+                                checked={Boolean(query.customVariableString)}
+                                onChange={(e) => setCustomVariableString(e.currentTarget.checked)}
+                            />
+                        </Tooltip>
                     </InlineField>
                 )}
                 <InlineField>
-                    <Checkbox
-                        label="As variable"
-                        checked={Boolean(query.asVariable)}
-                        onChange={(e) => setAsVariable(e.currentTarget.checked)}
-                    />
+                    <Tooltip content="Use a Grafana variable instead of a fixed endpoint.">
+                        <Checkbox
+                            label="As variable"
+                            checked={Boolean(query.asVariable)}
+                            onChange={(e) => setAsVariable(e.currentTarget.checked)}
+                        />
+                    </Tooltip>
                 </InlineField>
                 <Button
                     onClick={fetchEndpoints}

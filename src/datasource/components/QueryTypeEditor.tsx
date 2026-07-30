@@ -1,9 +1,10 @@
-import { InlineField, Select, Stack } from '@grafana/ui';
+import { InlineField, Select, Stack, Tooltip } from '@grafana/ui';
 import { QueryType } from '../types';
 import React, { useEffect } from 'react';
 import { QueryCategory, QueryEditorModelProps, QueryOptions } from './constants';
 import { ParameterQuery } from './ParameterQuery';
 import { QueryCategoryBadge } from './QueryCategoryBadge';
+import { queryHelp } from './queryHelp';
 
 export function QueryTypeEditor(props: QueryEditorModelProps) {
     const { query, onChange, datasource } = props;
@@ -25,6 +26,20 @@ export function QueryTypeEditor(props: QueryEditorModelProps) {
         ? QueryOptions
         : QueryOptions.filter((o) => o.category !== QueryCategory.DEBUG);
     const selectedQueryTypeOption = queryOptions.find((o) => o.value === (query.type ?? QueryType.PLOT));
+    const getTooltip = (type: QueryType, fallback?: string) => {
+        const help = queryHelp[type];
+        if (!help) {
+            return fallback ?? '';
+        }
+
+        return (
+            <>
+                {help.tooltip}
+                <br />
+                Recommended panel: {help.recommendedPanel}
+            </>
+        );
+    };
 
     return (
         <>
@@ -39,7 +54,9 @@ export function QueryTypeEditor(props: QueryEditorModelProps) {
                         getOptionLabel={(value: any) => value.label ?? ''}
                         formatOptionLabel={(value: any) => (
                             <Stack direction="row" justifyContent="space-between">
-                                <span>{value.label}</span>
+                                <Tooltip content={getTooltip(value.value as QueryType, value.description)}>
+                                    <span>{value.label}</span>
+                                </Tooltip>
                                 <span style={{ zIndex: 212 }}>{<QueryCategoryBadge category={value.category} />}</span>
                             </Stack>
                         )}
