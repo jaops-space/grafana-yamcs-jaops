@@ -158,7 +158,7 @@ That's it, you should have a grafana instance running at port `3000`, head insid
     pnpm run test:ci
     ```
 
-5. Run the E2E tests (using Cypress)
+5. Run the E2E tests (using Playwright)
 
     ```bash
     # Spins up a Grafana instance first that we tests against

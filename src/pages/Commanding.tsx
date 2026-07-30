@@ -26,7 +26,7 @@ function CommandingPanelSetup() {
                     <span data-testid="jaops-setup-page-commanding">Step 2: Choose Commanding Query Type</span>
                 </Card.Heading>
                 <Card.Description>
-                    In the panel&quot;s query settings, select <Text color="primary">Commanding</Text> as the query
+                    In the panel{"'"}s query settings, select <Text color="primary">Commanding</Text> as the query
                     type. Then, search for your desired command.
                 </Card.Description>
             </Card>
@@ -34,7 +34,7 @@ function CommandingPanelSetup() {
             <Card>
                 <Card.Heading>Step 3: Configure the Commanding Panel</Card.Heading>
                 <Card.Description>
-                    Once you&quot;ve selected your command, choose <Text color="primary">Yamcs Commanding Panel</Text>{' '}
+                    Once you{"'"}ve selected your command, choose <Text color="primary">Yamcs Commanding Panel</Text>{' '}
                     as the visualization type. You will be presented with a form to configure the button and appearance
                     of your panel.
                 </Card.Description>

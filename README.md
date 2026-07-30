@@ -15,7 +15,7 @@
 <h1 align="center">Grafana Plugin for the Yamcs Mission Control Software</h1>
 
 <p align="center">
-  A Grafana plugin to directly connect to the Yamcs server, display telemetry and send commands.
+  A comprehensive Grafana plugin to connect to <a href="https://yamcs.org/">Yamcs</a> servers for real-time telemetry visualization and commanding capabilities. Designed for mission control centers, aerospace applications and beyond.
 </p>
 
 <p align="center">

@@ -3,8 +3,8 @@
   "kind": "Dashboard",
   "metadata": {
     "name": "0708823c-c106-407b-9861-f64283746167",
-    "generation": 11,
-    "creationTimestamp": "2026-07-01T09:15:45Z",
+    "generation": 6,
+    "creationTimestamp": "2026-07-01T10:45:40Z",
     "labels": {},
     "annotations": {}
   },
@@ -17,10 +17,7 @@
             "kind": "DataQuery",
             "group": "grafana",
             "version": "v0",
-            "spec": {},
-            "labels": {
-              "grafana.app/export-label": "grafana-1"
-            }
+            "spec": {}
           },
           "enable": true,
           "hide": true,
@@ -58,9 +55,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Battery1_Voltage",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -81,9 +75,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Battery2_Voltage",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "B",
@@ -201,9 +192,6 @@
                         "endpoint": "myproject_realtime",
                         "endpointVariable": "$endpoint",
                         "type": "commanding"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -265,9 +253,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Position.x",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -287,9 +272,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Position.y",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "B",
@@ -421,9 +403,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Gyro.x",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -443,9 +422,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Gyro.y",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "B",
@@ -465,9 +441,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Gyro.z",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "C",
@@ -584,9 +557,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Battery1_Temp",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -606,9 +576,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Battery2_Temp",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "B",
@@ -628,9 +595,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Detector_Temp",
                         "type": "plot"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "C",
@@ -776,9 +740,7 @@
                       "group": "jaops-yamcs-datasource",
                       "version": "v0",
                       "spec": {
-                        "asVariable": true,
                         "endpoint": "myproject_realtime",
-                        "endpointVariable": "$endpoint",
                         "parameter": "/images/url_full",
                         "type": "image"
                       },
@@ -792,9 +754,7 @@
                 }
               ],
               "transformations": [],
-              "queryOptions": {
-                "maxDataPoints": 10000
-              }
+              "queryOptions": {}
             }
           },
           "vizConfig": {
@@ -838,9 +798,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/images/url_full",
                         "type": "image"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -978,9 +935,6 @@
                         "endpoint": "myproject_realtime",
                         "endpointVariable": "$endpoint",
                         "type": "command-history"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1046,9 +1000,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Mode_Day",
                         "type": "discrete"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1068,9 +1019,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Mode_Night",
                         "type": "discrete"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "B",
@@ -1090,9 +1038,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Mode_Payload",
                         "type": "discrete"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "C",
@@ -1112,9 +1057,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Mode_Safe",
                         "type": "discrete"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "D",
@@ -1134,9 +1076,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Mode_SBand",
                         "type": "discrete"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "E",
@@ -1156,9 +1095,6 @@
                         "endpointVariable": "$endpoint",
                         "parameter": "/myproject/Mode_XBand",
                         "type": "discrete"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "F",
@@ -1253,9 +1189,6 @@
                         "endpoint": "myproject_realtime",
                         "endpointVariable": "$endpoint",
                         "type": "time"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1345,9 +1278,6 @@
                         "endpoint": "myproject_realtime",
                         "endpointVariable": "$endpoint",
                         "type": "commanding"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1470,9 +1400,6 @@
                         "endpoint": "new-endpoint-0",
                         "endpointVariable": "$endpoint",
                         "type": "alarms"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1535,9 +1462,6 @@
                         "endpoint": "",
                         "endpointVariable": "$endpoint",
                         "type": "links"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1590,9 +1514,6 @@
                         "endpoint": "",
                         "endpointVariable": "$endpoint",
                         "type": "time"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1732,9 +1653,6 @@
                         "endpoint": "myproject_realtime",
                         "endpointVariable": "$endpoint",
                         "type": "commanding"
-                      },
-                      "labels": {
-                        "grafana.app/export-label": "jaops-yamcs-datasource-1"
                       }
                     },
                     "refId": "A",
@@ -1758,7 +1676,7 @@
                       "Solar_Panel_Id": 1
                     },
                     "color": "rgba(255, 222, 0, 1)",
-                    "commandName": "/Rover/system/deploy_solar_panel",
+                    "commandName": "/myproject/DeploySolarPanel",
                     "icon": "layers",
                     "label": "Deploy Solar Panel #1",
                     "shape": "bean",
@@ -2008,7 +1926,7 @@
                         "x": 0,
                         "y": 0,
                         "width": 3,
-                        "height": 4,
+                        "height": 7,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-14"
@@ -2020,8 +1938,8 @@
                       "spec": {
                         "x": 3,
                         "y": 0,
-                        "width": 6,
-                        "height": 7,
+                        "width": 5,
+                        "height": 9,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-15"
@@ -2031,10 +1949,10 @@
                     {
                       "kind": "GridLayoutItem",
                       "spec": {
-                        "x": 14,
+                        "x": 15,
                         "y": 0,
-                        "width": 6,
-                        "height": 7,
+                        "width": 5,
+                        "height": 9,
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-16"

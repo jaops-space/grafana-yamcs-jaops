@@ -1,7 +1,7 @@
 {
     "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
     "type": "datasource",
-    "name": "Yamcs Datasource",
+    "name": "JAOPS Yamcs Datasource",
     "id": "jaops-yamcs-datasource",
     "streaming": true,
     "backend": true,
@@ -12,7 +12,7 @@
     "preload": true,
     "autoEnabled": true,
     "info": {
-        "description": "Datasource for Jaops Yamcs plugin",
+        "description": "Datasource for JAOPS' Yamcs-Grafana integration, this is the core component through which all configurations and queries are done.",
         "author": {
             "name": "JAOPS",
             "url": "https://jaops.com"
