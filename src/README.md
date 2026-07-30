@@ -66,47 +66,47 @@ Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/datasource/img/logo-small.png" alt="Datasource icon" width="42" height="42"></td>
-    <td><strong>Yamcs Datasource</strong><br><code>jaops-yamcs-datasource</code></td>
+    <td><strong>Yamcs Datasource</strong></td>
     <td>Connects Grafana to Yamcs endpoints, queries telemetry, streams realtime values, exposes backend resources, and reports endpoint health.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/commanding-panel/img/logo-small.png" alt="Commanding icon" width="42" height="42"></td>
-    <td><strong>Commanding Panel</strong><br><code>jaops-commanding-panel</code></td>
+    <td><strong>Commanding Panel</strong></td>
     <td>Issues commands via a Grafana panel with fully customizable buttons, supporting arguments, comments, and endpoint targeting.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/command-history-panel/img/logo-small.png" alt="Command history icon" width="42" height="42"></td>
-    <td><strong>Command History Panel</strong><br><code>jaops-commandhistory-panel</code></td>
+    <td><strong>Command History Panel</strong></td>
     <td>Keeps track of commands sent, arguments, acknowledgements, and command execution state.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/image-panel/img/logo-small.png" alt="Telemetric image icon" width="42" height="42"></td>
-    <td><strong>Telemetric Image Panel</strong><br><code>jaops-telemetricimage-panel</code></td>
+    <td><strong>Telemetric Image Panel</strong></td>
     <td>Visualizes realtime image data from Yamcs telemetry.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/static-image-panel/img/logo-small.png" alt="Static image icon" width="42" height="42"></td>
-    <td><strong>Static Image Panel</strong><br><code>jaops-staticimage-panel</code></td>
+    <td><strong>Static Image Panel</strong></td>
     <td>Overlays telemetry data on static images such as spacecraft layouts, maps, or operator schematics.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/variable-setting-panel/img/logo-small.png" alt="Variables icon" width="42" height="42"></td>
-    <td><strong>Variable Setting Panel</strong><br><code>jaops-variables-panel</code></td>
+    <td><strong>Variable Setting Panel</strong></td>
     <td>Provides operator-friendly dashboard variable controls for commanding and filtering workflows.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/alarms-panel/img/logo-small.png" alt="Alarms icon" width="42" height="42"></td>
-    <td><strong>Alarms Panel</strong><br><code>jaops-alarms-panel</code></td>
+    <td><strong>Alarms Panel</strong></td>
     <td>Displays active Yamcs alarms and supports alarm-focused operations from Grafana.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/links-panel/img/logo-small.png" alt="Links icon" width="42" height="42"></td>
-    <td><strong>Links Panel</strong><br><code>jaops-links-panel</code></td>
+    <td><strong>Links Panel</strong></td>
     <td>Displays Yamcs data links and lets operators enable or disable them from Grafana.</td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/src/time-sync-panel/img/logo-small.png" alt="Time sync icon" width="42" height="42"></td>
-    <td><strong>Yamcs Time Sync</strong><br><code>jaops-timesync-panel</code></td>
+    <td><strong>Yamcs Time Sync</strong></td>
     <td>Visualizes replays and future simulations through synchronization between Grafana and the Yamcs clock.</td>
   </tr>
 </table>
@@ -135,9 +135,9 @@ Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control
 
 ## Example Grafana Dashboard Connected to Yamcs
 
-Demo Dashboards showcase the main capabilities of the plugin. They are made to use data from the Yamcs quickstart.
+Demo Dashboards showcase the main capabilities of the plugin. They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
 
-To try the demo locally, clone the Yamcs quickstart repository and run the Yamcs server, simulator, and optional image simulator as described in the setup instructions.
+To try the demo locally, clone the Yamcs quickstart repository and run the Yamcs server, simulator, and optional image simulator as described in the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/setup_instructions.md).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">
@@ -152,4 +152,4 @@ Since October 2024, the plugin has been tested and improved with feedback from t
 Check out the open-source [GitHub repository](https://github.com/jaops-space/grafana-yamcs-jaops) for the latest features and documentation. 
 Community feedback and contributions are very welcome!
 
-If you find a bug, have a feature request, or want to improve the project, feel free to open an issue or submit a pull request.
+If you find a bug, have a feature request, or want to improve the project, feel free to [open an issue](https://github.com/jaops-space/grafana-yamcs-jaops/issues) or submit a pull request.
