@@ -342,7 +342,7 @@ func TestConvertRangesToFrame_AutomaticColors(t *testing.T) {
 	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
 	assert.Equal(t, "RUNNING", mapping["RUNNING"].Text)
 	assert.Regexp(t, "^#[0-9A-F]{6}$", mapping["RUNNING"].Color)
-	assert.Equal(t, "TRUE", mapping["true"].Text)
+	assert.Equal(t, "true", mapping["true"].Text)
 	assert.Equal(t, "#3AAB58", mapping["true"].Color)
 }
 
@@ -358,9 +358,9 @@ func TestConvertRangesToFrame_BooleanValues(t *testing.T) {
 	assert.Equal(t, true, frame.Fields[1].At(1))
 	assert.Nil(t, frame.Fields[0].Config)
 	mapping := frame.Fields[1].Config.Mappings[0].(data.ValueMapper)
-	assert.Equal(t, "FALSE", mapping["false"].Text)
+	assert.Equal(t, "false", mapping["false"].Text)
 	assert.Equal(t, "#D72638", mapping["false"].Color)
-	assert.Equal(t, "TRUE", mapping["true"].Text)
+	assert.Equal(t, "true", mapping["true"].Text)
 	assert.Equal(t, "#3AAB58", mapping["true"].Color)
 }
 

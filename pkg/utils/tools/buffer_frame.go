@@ -578,7 +578,8 @@ func discreteFrameValueAndLabel(v *protobuf.Value) (interface{}, string) {
 		return value, value
 	case protobuf.Value_BOOLEAN:
 		value := v.GetBooleanValue()
-		return value, strings.ToUpper(strconv.FormatBool(value))
+		label := strconv.FormatBool(value)
+		return value, label
 	case protobuf.Value_UINT32:
 		value := v.GetUint32Value()
 		return value, strconv.FormatUint(uint64(value), 10)
