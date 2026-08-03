@@ -55,7 +55,7 @@ export const plugin = new PanelPlugin<AlarmsOptions>(AlarmsPanel).setPanelOption
         .addMultiSelect({
             path: 'visibleFields',
             name: 'Visible Columns',
-            description: 'Select which fields to display in the table',
+            description: 'Select which alarm fields to display. Use this panel with an Alarms query.',
             defaultValue: defaultVisibleFields,
             settings: {
                 options: allFields.map((field) => ({
@@ -67,6 +67,7 @@ export const plugin = new PanelPlugin<AlarmsOptions>(AlarmsPanel).setPanelOption
         .addBooleanSwitch({
             path: 'showDetails',
             name: 'Show Details on Expand',
+            description: 'Show detailed alarm values, trigger information, and acknowledgement state in the expanded row.',
             defaultValue: true,
         })
         .addBooleanSwitch({

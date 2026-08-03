@@ -24,7 +24,7 @@
             "url": "https://www.jaops.com"
         },
         "logos": {
-            "small": "img/logo.png",
+            "small": "img/logo-small.png",
             "large": "img/logo.png"
         },
         "screenshots": [
@@ -99,7 +99,7 @@
         },
         {
             "type": "datasource",
-            "name": "Yamcs Datasource",
+            "name": "JAOPS Yamcs Datasource",
             "id": "jaops-yamcs-datasource",
             "path": "datasource/plugin.json"
         },
