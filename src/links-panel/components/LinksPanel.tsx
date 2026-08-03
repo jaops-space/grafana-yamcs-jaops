@@ -223,7 +223,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
     // Show configuration message if not properly set up
     if (!dsUid || !endpoint) {
         return (
-            <div className={styles.container}>
+            <div className={styles.container} data-testid="jaops-links-panel">
                 <Alert severity="info" title="Configuration Required">
                     Please configure this panel with a Links query:
                     <ol style={{ marginTop: '8px', paddingLeft: '20px' }}>
@@ -237,7 +237,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
     }
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} data-testid="jaops-links-panel" data-link-count={links.length}>
             {/* Messages */}
             {error && (
                 <Alert severity="error" title="Error" onRemove={() => setError(null)}>
@@ -263,6 +263,7 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
             {links.map((link) => (
                 <div
                     key={link.name}
+                    data-testid="jaops-links-panel-row"
                     className={`${styles.linkRow} ${activeLinks.has(link.name) ? styles.linkRowActive : ''}`}
                 >
                     <div className={styles.linkInfo}>

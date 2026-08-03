@@ -1,0 +1,35 @@
+name: Benchmark Cleanup
+
+on:
+    pull_request:
+        types: [closed]
+
+permissions:
+    contents: write
+
+jobs:
+    cleanup-benchmark-artifacts:
+        name: Cleanup Benchmark Artifacts
+        runs-on: ubuntu-latest
+        steps:
+            - name: Delete benchmark artifact branch
+              uses: actions/github-script@v8
+              with:
+                  script: |
+                      const {owner, repo} = context.repo;
+                      const branch = `benchmark-artifacts-pr-${context.payload.pull_request.number}`;
+
+                      try {
+                        await github.rest.git.deleteRef({
+                          owner,
+                          repo,
+                          ref: `heads/${branch}`,
+                        });
+                        core.info(`Deleted ${branch}`);
+                      } catch (error) {
+                        if (error.status === 404) {
+                          core.info(`${branch} did not exist; nothing to clean up.`);
+                          return;
+                        }
+                        throw error;
+                      }

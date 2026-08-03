@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
@@ -12,7 +14,7 @@ import (
 )
 
 // ParameterListener is a callback function that is invoked when a parameter's value changes.
-type ParameterListener func(parameter string, newValue *pvalue.ParameterValue)
+type ParameterListener func(parameter string, newValue *pvalue.ParameterValue) error
 
 // ParameterSubscription manages a subscription to a set of parameters from a Yamcs instance and processor.
 type ParameterSubscription struct {
@@ -26,7 +28,7 @@ type ParameterSubscription struct {
 }
 
 // NewParameterSubscription creates a new ParameterSubscription for an instance and processor with initial parameters.
-func NewParameterSubscription(client *YamcsClient, instanceName, processorName string, initialParameters ...string) (*ParameterSubscription, error) {
+func newParameterSubscription(ctx context.Context, client *YamcsClient, instanceName, processorName string, initialParameters ...string) (*ParameterSubscription, error) {
 	subscription := &ParameterSubscription{
 		client:              client,
 		Instance:            instanceName,
@@ -59,7 +61,7 @@ func NewParameterSubscription(client *YamcsClient, instanceName, processorName s
 		Type:    "parameters",
 		Options: anyMessage,
 	}
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -169,51 +171,50 @@ func (sub *ParameterSubscription) updateSubscription(action processing.Subscribe
 // HandleParameterMessage handles incoming parameter updates from the server and invokes the listener.
 func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 
-	if message.GetType() == "parameters" {
-		parameterData := &processing.SubscribeParametersData{}
-		if err := message.Data.UnmarshalTo(parameterData); err != nil {
-			panic(exception.Wrap("Unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
-		}
+	parameterData := &processing.SubscribeParametersData{}
+	if err := message.Data.UnmarshalTo(parameterData); err != nil {
+		backend.Logger.Error("Error unmarshalling parameter subscription message", "error", exception.Wrap("unmarshal error", "SUBSCRIPTION_UNMARSHALL_ERROR", err))
+		return
+	}
 
-		// Retrieve the subscription by call ID
-		callID := message.GetCall()
-		subscription, found := client.ParameterSubscriptions[callID]
-		if !found {
-			return
-		}
+	// Retrieve the subscription by call ID
+	callID := message.GetCall()
+	subscription, found := client.ParameterSubscriptions[callID]
+	if !found {
+		return
+	}
 
-		// Map parameter IDs to names
-		if parameterData.Mapping != nil {
-			for key, param := range parameterData.GetMapping() {
-				subscription.parameterIDToName[int(key)] = param.GetName()
-			}
-			for _, invalidParam := range parameterData.GetInvalid() {
-				backend.Logger.Warn("Invalid subscription parameter ID", "id", invalidParam)
-			}
+	// Map parameter IDs to names
+	if parameterData.Mapping != nil {
+		for key, param := range parameterData.GetMapping() {
+			subscription.parameterIDToName[int(key)] = param.GetName()
 		}
+		for _, invalidParam := range parameterData.GetInvalid() {
+			backend.Logger.Warn("Invalid subscription parameter ID", "id", invalidParam)
+		}
+	}
 
-		// Invoke the listener for each parameter value
-		if subscription.valueChangeListener != nil {
-			for _, value := range parameterData.GetValues() {
-				paramName, found := subscription.parameterIDToName[int(value.GetNumericId())]
-				if !found {
-					backend.Logger.Warn("Unknown parameter ID", "id", value.GetNumericId())
-					continue
-				}
-				subscription.valueChangeListener(paramName, value)
+	// Invoke the listener for each parameter value
+	if subscription.valueChangeListener != nil {
+		for _, value := range parameterData.GetValues() {
+			paramName, found := subscription.parameterIDToName[int(value.GetNumericId())]
+			if !found {
+				backend.Logger.Warn("Unknown parameter ID", "id", value.GetNumericId())
+				continue
 			}
+			subscription.valueChangeListener(paramName, value)
 		}
 	}
 }
 
 // CreateParameterSubscription creates a new subscription for a set of parameters and adds it to the client's subscription registry.
-func (client *YamcsClient) CreateParameterSubscription(instance Instance, processor Processor, initialParameters ...Parameter) (*ParameterSubscription, error) {
+func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, instance Instance, processor Processor, initialParameters ...Parameter) (*ParameterSubscription, error) {
 	parameterNames := make([]string, len(initialParameters))
 	for i, param := range initialParameters {
 		parameterNames[i] = param.GetQualifiedName()
 	}
 
-	subscription, err := NewParameterSubscription(client, instance.GetName(), processor.GetName(), parameterNames...)
+	subscription, err := newParameterSubscription(ctx, client, instance.GetName(), processor.GetName(), parameterNames...)
 	if err != nil {
 		return nil, err
 	}
@@ -223,9 +224,9 @@ func (client *YamcsClient) CreateParameterSubscription(instance Instance, proces
 }
 
 // CreateParameterSubscription creates a new subscription for a set of parameters and adds it to the client's subscription registry.
-func (client *YamcsClient) CreateParameterSubscriptionByNames(instance Instance, processor Processor, initialParameters ...string) (*ParameterSubscription, error) {
+func (client *YamcsClient) CreateParameterSubscriptionByNames(ctx context.Context, instance string, processor string, initialParameters ...string) (*ParameterSubscription, error) {
 
-	subscription, err := NewParameterSubscription(client, instance.GetName(), processor.GetName(), initialParameters...)
+	subscription, err := newParameterSubscription(ctx, client, instance, processor, initialParameters...)
 	if err != nil {
 		return nil, err
 	}
@@ -258,6 +259,6 @@ func (subscription *ParameterSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 
 }

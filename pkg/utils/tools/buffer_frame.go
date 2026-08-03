@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
@@ -17,6 +17,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"golang.org/x/exp/constraints"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ConvertEventsToFrame converts a list of Yamcs events into a Grafana data frame.
@@ -32,6 +33,7 @@ func ConvertEventsToFrame(events []*events.Event) *data.Frame {
 	}
 
 	return data.NewFrame("response", timeField, messageField, severityField)
+
 }
 
 // AlarmEntry represents a processed alarm for the frontend
@@ -229,17 +231,23 @@ type CommandEntry struct {
 	Completion            *CommandAck            `json:"completion"`
 }
 
-// Helpers
-func nameHasPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
-}
+func commandHistoryEntryID(command *commanding.CommandHistoryEntry) string {
+	if command.GetId() != "" {
+		return command.GetId()
+	}
 
-func nameHasSuffix(s, suffix string) bool {
-	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
-}
+	commandID := command.GetCommandId()
+	if commandID == nil {
+		return ""
+	}
 
-func prepend[T any](s []T, v T) []T {
-	return append([]T{v}, s...)
+	return fmt.Sprintf(
+		"%s/%d/%d/%s",
+		commandID.GetOrigin(),
+		commandID.GetSequenceNumber(),
+		commandID.GetGenerationTime(),
+		commandID.GetCommandName(),
+	)
 }
 
 func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data.Frame {
@@ -247,9 +255,10 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 	commandList := make([]json.RawMessage, 0)
 
 	for _, command := range commands {
+		backend.Logger.Info("received command history entry", "entry", protojson.Format(command))
 
 		commandEntry := &CommandEntry{
-			Id:                    command.GetId(),
+			Id:                    commandHistoryEntryID(command),
 			Time:                  command.GetGenerationTime().AsTime(),
 			Command:               command.GetCommandName(),
 			Comment:               nil,
@@ -275,11 +284,14 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 
 				var ack **CommandAck
 				switch {
-				case nameHasPrefix(name, "Acknowledge_Queued"):
+				case strings.HasPrefix(name, "Acknowledge_Queued"):
+					backend.Logger.Debug("received queued!")
 					ack = &commandEntry.Queued
-				case nameHasPrefix(name, "Acknowledge_Released"):
+				case strings.HasPrefix(name, "Acknowledge_Released"):
+					backend.Logger.Debug("received released!")
 					ack = &commandEntry.Released
-				case nameHasPrefix(name, "Acknowledge_Sent"):
+				case strings.HasPrefix(name, "Acknowledge_Sent"):
+					backend.Logger.Debug("received sent!")
 					ack = &commandEntry.Sent
 				}
 
@@ -288,17 +300,17 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				}
 
 				switch {
-				case nameHasSuffix(name, "Status"):
+				case strings.HasSuffix(name, "Status"):
 					(*ack).Status = value.GetStringValue()
-				case nameHasSuffix(name, "Time"):
+				case strings.HasSuffix(name, "Time"):
 					(*ack).Time = value.GetStringValue()
-				case nameHasSuffix(name, "Message"):
+				case strings.HasSuffix(name, "Message"):
 					(*ack).Message = value.GetStringValue()
 				}
 
 			default:
 				// Handle Verifier_* attributes
-				if nameHasPrefix(name, "Verifier_") {
+				if strings.HasPrefix(name, "Verifier_") {
 					rest := strings.TrimPrefix(name, "Verifier_")
 					underscoreIndex := strings.LastIndex(rest, "_")
 					if underscoreIndex > 0 {
@@ -323,17 +335,17 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				}
 
 				// Handle CommandComplete_* attributes
-				if nameHasPrefix(name, "CommandComplete_") {
+				if strings.HasPrefix(name, "CommandComplete_") {
 					if commandEntry.Completion == nil {
 						commandEntry.Completion = &CommandAck{}
 					}
 
 					switch {
-					case nameHasSuffix(name, "Status"):
+					case strings.HasSuffix(name, "Status"):
 						commandEntry.Completion.Status = value.GetStringValue()
-					case nameHasSuffix(name, "Time"):
+					case strings.HasSuffix(name, "Time"):
 						commandEntry.Completion.Time = value.GetStringValue()
-					case nameHasSuffix(name, "Message"):
+					case strings.HasSuffix(name, "Message"):
 						commandEntry.Completion.Message = value.GetStringValue()
 					}
 				}
@@ -355,7 +367,11 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 		if err != nil {
 			continue
 		}
-		commandList = prepend(commandList, rawJson)
+		commandList = append(commandList, rawJson)
+	}
+
+	for i, j := 0, len(commandList)-1; i < j; i, j = i+1, j-1 {
+		commandList[i], commandList[j] = commandList[j], commandList[i]
 	}
 
 	return data.NewFrame("response", data.NewField("commands", nil, commandList))
@@ -401,55 +417,18 @@ func ConvertSampleBufferToFrame(buffer []*pvalue.TimeSeries_Sample, parameter st
 	return frame
 }
 
-func ConvertSampleBufferToFrameWithOffset(buffer []*pvalue.TimeSeries_Sample,
-	parameter string, includeMin, includeMax bool, offset time.Duration) *data.Frame {
-
-	valueField := data.NewField(parameter, nil, []*float64{})
-	minField := data.NewField("min("+parameter+")", nil, []*float64{})
-	maxField := data.NewField("max("+parameter+")", nil, []*float64{})
-	timeField := data.NewField("time", nil, []time.Time{})
-
-	lastWasNull := false
-
-	for _, item := range buffer {
-		timeField.Append(item.Time.AsTime().Add(offset))
-
-		if item.GetN() == 0 && !lastWasNull && valueField.Len() > 0 {
-			lastWasNull = true
-			valueField.Append(nil)
-			minField.Append(nil)
-			maxField.Append(nil)
-			continue
-		}
-		lastWasNull = false
-
-		valueField.Append(item.Avg)
-		minField.Append(item.Min)
-		maxField.Append(item.Max)
-	}
-
-	frame := data.NewFrame("response", timeField, valueField)
-	if includeMin {
-		frame.Fields = append(frame.Fields, minField)
-	}
-	if includeMax {
-		frame.Fields = append(frame.Fields, maxField)
-	}
-	return frame
-}
-
 // ConvertBufferToFrame converts a parameter value buffer into a data frame.
-func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, aggregatePath string, realtime bool) *data.Frame {
+func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int32{}))
 	}
 
-	values, times := extractParameterValues(buffer, aggregatePath, realtime)
+	values, times := extractParameterValues(buffer, realtime)
 	valueField := CreateValueField(values, parameter)
 
 	frame := data.NewFrame("response", data.NewField("time", nil, times), valueField)
 	if includeMin || includeMax {
-		_, minField, maxField := CalculateStats(values, parameter)
+		_, minField, maxField := calculateStats(values, parameter)
 		if includeMin {
 			frame.Fields = append(frame.Fields, minField)
 		}
@@ -461,50 +440,71 @@ func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, inc
 }
 
 // ConvertRangesToFrame converts a range of parameter values into a Grafana data frame.
-func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, aggregatePath string) *data.Frame {
-
+func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, automaticColors bool) *data.Frame {
 	times := []time.Time{}
 	values := []interface{}{}
-	labels := data.Labels{}
 	valueMapping := data.ValueMapper{}
-	valueMapping["true"] = data.ValueMappingResult{
-		Text:  "TRUE",
-		Color: "#3AAB58",
-	}
-	valueMapping["false"] = data.ValueMappingResult{
-		Text:  "FALSE",
-		Color: "#D72638",
-	}
 
 	for _, valueRange := range ranges.GetRange() {
-		if len(valueRange.GetEngValues()) > 0 {
-			val := extractValue(valueRange.GetEngValues()[0], aggregatePath)
-			label := fmt.Sprint(val)
-			labels[label] = label
-			valueMapping[label] = data.ValueMappingResult{
-				Color: HashToRGB(label),
-			}
-			values = append(values, val)
-			times = append(times, valueRange.GetStart().AsTime())
+		if len(valueRange.GetEngValues()) == 0 {
+			continue
+		}
+
+		value := valueRange.GetEngValues()[0]
+		frameValue, label := discreteFrameValueAndLabel(value)
+		values = append(values, frameValue)
+		times = append(times, valueRange.GetStart().AsTime())
+
+		mappingKey := valueMappingKey(frameValue)
+		if _, exists := valueMapping[mappingKey]; !exists {
+			valueMapping[mappingKey] = discreteValueMapping(label, value.GetType(), automaticColors)
 		}
 	}
 
 	valueField := CreateValueField(values, parameter)
-	valueField.Config = &data.FieldConfig{}
-	valueField.Config.Mappings = []data.ValueMapping{valueMapping}
-	timeField := data.NewField("time", labels, times)
+	valueField.Config = &data.FieldConfig{Mappings: []data.ValueMapping{valueMapping}}
+	timeField := data.NewField("time", nil, times)
+	return data.NewFrame("response", timeField, valueField)
+}
+
+// ConvertDiscreteBufferToFrame converts realtime parameter values to the same
+// discrete field/value-mapping shape used by historical range frames.
+func ConvertDiscreteBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, automaticColors bool, realtime bool) *data.Frame {
+	times := []time.Time{}
+	values := []interface{}{}
+	valueMapping := data.ValueMapper{}
+
+	for _, item := range buffer {
+		value := item.GetEngValue()
+		frameValue, label := discreteFrameValueAndLabel(value)
+		values = append(values, frameValue)
+		if realtime {
+			times = append(times, time.Now())
+		} else {
+			times = append(times, item.GetGenerationTime().AsTime())
+		}
+
+		mappingKey := valueMappingKey(frameValue)
+		if _, exists := valueMapping[mappingKey]; !exists {
+			valueMapping[mappingKey] = discreteValueMapping(label, value.GetType(), automaticColors)
+		}
+	}
+
+	valueField := CreateValueField(values, parameter)
+	valueField.Config = &data.FieldConfig{Mappings: []data.ValueMapping{valueMapping}}
+	timeField := data.NewField("time", nil, times)
 	return data.NewFrame("response", timeField, valueField)
 }
 
 // ConvertBufferToAverageFrame extracts statistics from the parameter buffer and returns a data frame.
 func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
-	parameter string, getMin, getMax bool, aggregatePath string, realtime bool) *data.Frame {
+	parameter string, getMin, getMax bool, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}))
 	}
 
-	values, times := extractParameterValues(buffer, aggregatePath, realtime)
-	avg, min, max := CalculateStats(values, parameter)
+	values, times := extractParameterValues(buffer, realtime)
+	avg, min, max := calculateStats(values, parameter)
 
 	timeField := data.NewField("time", nil, []time.Time{times[len(times)-1]})
 	if realtime {
@@ -523,12 +523,12 @@ func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
 }
 
 // extractParameterValues extracts values and timestamps from a parameter buffer.
-func extractParameterValues(buffer []*pvalue.ParameterValue, aggregatePath string, realtime bool) ([]interface{}, []time.Time) {
+func extractParameterValues(buffer []*pvalue.ParameterValue, realtime bool) ([]interface{}, []time.Time) {
 	var values []interface{}
 	var times []time.Time
 
 	for _, item := range buffer {
-		values = append(values, extractValue(item.GetEngValue(), aggregatePath))
+		values = append(values, extractValue(item.GetEngValue()))
 		if realtime {
 			times = append(times, time.Now())
 		} else {
@@ -540,7 +540,7 @@ func extractParameterValues(buffer []*pvalue.ParameterValue, aggregatePath strin
 }
 
 // extractValue extracts the correct value type from a Yamcs parameter value.
-func extractValue(v *protobuf.Value, aggregatePath string) interface{} {
+func extractValue(v *protobuf.Value) interface{} {
 	switch v.GetType() {
 	case protobuf.Value_DOUBLE:
 		return v.GetDoubleValue()
@@ -561,60 +561,65 @@ func extractValue(v *protobuf.Value, aggregatePath string) interface{} {
 	case protobuf.Value_BOOLEAN:
 		return strconv.FormatBool(v.GetBooleanValue())
 	case protobuf.Value_AGGREGATE:
-		return extractValue(aggregateExtractFromPath(v, aggregatePath), "")
+		return v.String()
 	default:
 		return v.GetStringValue()
 	}
 }
 
-// splitPath splits a path like ".x[0].y[2]" into its components.
-func splitPath(path string) []string {
-	re := regexp.MustCompile(`\.?([a-zA-Z_]\w*|\[\d+\])`)
-	matches := re.FindAllString(path, -1)
-	for i, match := range matches {
-		matches[i] = strings.TrimPrefix(match, ".")
+func discreteFrameValueAndLabel(v *protobuf.Value) (interface{}, string) {
+	if v == nil {
+		return "", ""
 	}
-	return matches
+
+	switch v.GetType() {
+	case protobuf.Value_STRING, protobuf.Value_ENUMERATED:
+		value := v.GetStringValue()
+		return value, value
+	case protobuf.Value_BOOLEAN:
+		value := v.GetBooleanValue()
+		label := strconv.FormatBool(value)
+		return value, label
+	case protobuf.Value_UINT32:
+		value := v.GetUint32Value()
+		return value, strconv.FormatUint(uint64(value), 10)
+	case protobuf.Value_SINT32:
+		value := v.GetSint32Value()
+		return value, strconv.FormatInt(int64(value), 10)
+	case protobuf.Value_UINT64:
+		value := v.GetUint64Value()
+		return value, strconv.FormatUint(value, 10)
+	case protobuf.Value_SINT64:
+		value := v.GetSint64Value()
+		return value, strconv.FormatInt(value, 10)
+	default:
+		value := extractValue(v)
+		return value, fmt.Sprint(value)
+	}
 }
 
-func aggregateExtractFromPath(value *protobuf.Value, path string) *protobuf.Value {
+func valueMappingKey(value interface{}) string {
+	return fmt.Sprint(value)
+}
 
-	defaultValue := &protobuf.Value{Type: protobuf.Value_SINT64.Enum(), Sint64Value: new(int64)}
-
-	if path == "" {
-		return defaultValue
+func discreteValueMapping(label string, valueType protobuf.Value_Type, automaticColors bool) data.ValueMappingResult {
+	result := data.ValueMappingResult{Text: label}
+	if !automaticColors {
+		return result
 	}
 
-	paths := splitPath(path)
-	for _, p := range paths {
-		if value.GetType() == protobuf.Value_ARRAY && strings.HasPrefix(p, "[") && strings.HasSuffix(p, "]") {
-			indexStr := p[1 : len(p)-1]
-			index, err := strconv.Atoi(indexStr)
-			if err != nil {
-				return defaultValue
-			}
-			arrayValue := value.GetArrayValue()
-			if index < len(arrayValue) {
-				value = arrayValue[index]
-			} else {
-				return defaultValue
-			}
-		} else if value.GetType() == protobuf.Value_AGGREGATE {
-			found := false
-			aggregateValue := value.GetAggregateValue()
-			for i, name := range aggregateValue.GetName() {
-				if strings.EqualFold(name, p) {
-					value = aggregateValue.GetValue()[i]
-					found = true
-					break
-				}
-			}
-			if !found {
-				return defaultValue
-			}
+	if valueType == protobuf.Value_BOOLEAN {
+		switch strings.ToLower(label) {
+		case "true":
+			result.Color = "#3AAB58"
+		case "false":
+			result.Color = "#D72638"
 		}
+		return result
 	}
-	return value
+
+	result.Color = hashToRGB(label)
+	return result
 }
 
 // formatBinary converts a binary value into a readable string.
@@ -637,24 +642,24 @@ func CreateValueField(values []interface{}, parameter string) *data.Field {
 
 	switch values[0].(type) {
 	case int64:
-		return data.NewField(parameter, nil, ConvertSlice[int64](values))
+		return data.NewField(parameter, nil, convertSliceOrString[int64](values))
 	case uint64:
-		return data.NewField(parameter, nil, ConvertSlice[uint64](values))
+		return data.NewField(parameter, nil, convertSliceOrString[uint64](values))
 	case int32:
-		return data.NewField(parameter, nil, ConvertSlice[int32](values))
+		return data.NewField(parameter, nil, convertSliceOrString[int32](values))
 	case uint32:
-		return data.NewField(parameter, nil, ConvertSlice[uint32](values))
+		return data.NewField(parameter, nil, convertSliceOrString[uint32](values))
 	case float64:
-		return data.NewField(parameter, nil, ConvertSlice[float64](values))
+		return data.NewField(parameter, nil, convertSliceOrString[float64](values))
 	case bool:
-		return data.NewField(parameter, nil, ConvertSlice[bool](values))
+		return data.NewField(parameter, nil, convertSliceOrString[bool](values))
 	default:
-		return data.NewField(parameter, nil, ConvertSlice[string](values))
+		return data.NewField(parameter, nil, stringifySlice(values))
 	}
 }
 
-// ConvertSlice is a generic function to convert []interface{} to []T.
-func ConvertSlice[T any](values []interface{}) []T {
+// convertSlice converts []interface{} to []T.
+func convertSlice[T any](values []interface{}) []T {
 	result := make([]T, len(values))
 	for i, v := range values {
 		result[i] = v.(T)
@@ -662,16 +667,28 @@ func ConvertSlice[T any](values []interface{}) []T {
 	return result
 }
 
-func convert[T any](values []interface{}) []T {
+func convertSliceOrString[T any](values []interface{}) interface{} {
 	result := make([]T, len(values))
 	for i, v := range values {
-		result[i] = v.(T)
+		typed, ok := v.(T)
+		if !ok {
+			return stringifySlice(values)
+		}
+		result[i] = typed
 	}
 	return result
 }
 
-// CalculateStats computes the average, min, and max values based on type.
-func CalculateStats(values []interface{}, parameter string) (*data.Field, *data.Field, *data.Field) {
+func stringifySlice(values []interface{}) []string {
+	result := make([]string, len(values))
+	for i, v := range values {
+		result[i] = fmt.Sprint(v)
+	}
+	return result
+}
+
+// calculateStats computes the average, min, and max values based on type.
+func calculateStats(values []interface{}, parameter string) (*data.Field, *data.Field, *data.Field) {
 
 	if len(values) == 0 {
 		return data.NewField(parameter, nil, []float64{}),
@@ -681,46 +698,32 @@ func CalculateStats(values []interface{}, parameter string) (*data.Field, *data.
 
 	switch values[0].(type) {
 	case int64:
-		vals := convert[int64](values)
-		min, max := MinMax(vals)
-		return createStatFields(parameter, vals, Sum(vals), min, max)
+		vals := convertSlice[int64](values)
+		min, max := minMax(vals)
+		return createStatFields(parameter, vals, sum(vals), min, max)
 	case uint64:
-		vals := convert[uint64](values)
-		min, max := MinMax(vals)
-		return createStatFields(parameter, vals, Sum(vals), min, max)
+		vals := convertSlice[uint64](values)
+		min, max := minMax(vals)
+		return createStatFields(parameter, vals, sum(vals), min, max)
 	case int32:
-		vals := convert[int32](values)
-		min, max := MinMax(vals)
-		return createStatFields(parameter, vals, Sum(vals), min, max)
+		vals := convertSlice[int32](values)
+		min, max := minMax(vals)
+		return createStatFields(parameter, vals, sum(vals), min, max)
 	case uint32:
-		vals := convert[uint32](values)
-		min, max := MinMax(vals)
-		return createStatFields(parameter, vals, Sum(vals), min, max)
+		vals := convertSlice[uint32](values)
+		min, max := minMax(vals)
+		return createStatFields(parameter, vals, sum(vals), min, max)
 	case float64:
-		vals := convert[float64](values)
-		min, max := MinMax(vals)
-		return createStatFields(parameter, vals, Sum(vals), min, max)
+		vals := convertSlice[float64](values)
+		min, max := minMax(vals)
+		return createStatFields(parameter, vals, sum(vals), min, max)
 	case string:
-		mostFrequent := MostFrequent(values).(string)
+		mostFrequent := mostFrequent(values).(string)
 		labels := data.Labels{}
 		labels[mostFrequent] = mostFrequent
 		valueField := data.NewField(parameter, labels, []string{mostFrequent})
 		valueField.Config = &data.FieldConfig{}
-		valueMapping := data.ValueMapper{}
-		if (mostFrequent == "true") || (mostFrequent == "false") {
-			valueMapping["true"] = data.ValueMappingResult{
-				Text:  "TRUE",
-				Color: "#3AAB58",
-			}
-			valueMapping["false"] = data.ValueMappingResult{
-				Text:  "FALSE",
-				Color: "#D72638",
-			}
-		}
-		valueMapping[mostFrequent] = data.ValueMappingResult{
-			Color: HashToRGB(mostFrequent),
-		}
-		valueField.Config.Mappings = []data.ValueMapping{valueMapping}
+		valueField.Config.Mappings = []data.ValueMapping{coloredValueMapping(mostFrequent)}
 		return valueField, nil, nil
 	default:
 		return data.NewField(parameter, nil, []float64{}),
@@ -736,7 +739,7 @@ func createStatFields[T constraints.Float | constraints.Integer](param string, v
 		data.NewField("max("+param+")", nil, []T{max})
 }
 
-func Sum[T constraints.Float | constraints.Integer](values []T) T {
+func sum[T constraints.Float | constraints.Integer](values []T) T {
 	var sum T
 	for _, v := range values {
 		sum += v
@@ -744,7 +747,7 @@ func Sum[T constraints.Float | constraints.Integer](values []T) T {
 	return sum
 }
 
-func MinMax[T constraints.Float | constraints.Integer](values []T) (T, T) {
+func minMax[T constraints.Float | constraints.Integer](values []T) (T, T) {
 	min, max := values[0], values[0]
 	for _, v := range values[1:] {
 		if v < min {
@@ -757,8 +760,8 @@ func MinMax[T constraints.Float | constraints.Integer](values []T) (T, T) {
 	return min, max
 }
 
-// MostFrequent finds the most frequent value in a slice.
-func MostFrequent[T comparable](values []T) T {
+// mostFrequent finds the most frequent value in a slice.
+func mostFrequent[T comparable](values []T) T {
 	freq := make(map[T]int)
 	var maxCount int
 	var mostFrequent T
@@ -808,11 +811,22 @@ func hslToRgb(h, s, l float64) (int, int, int) {
 }
 
 // hashToRGB generates a deterministic RGB color from a string
-func HashToRGB(name string) string {
+func hashToRGB(name string) string {
 	hash := hashString(name)
 	hue := float64(hash % 360) // Generate a hue between 0-360
 	r, g, b := hslToRgb(hue, 70, 50)
 	return fmt.Sprintf("#%02X%02X%02X", r, g, b) // Format as hex string
+}
+
+func coloredValueMapping(label string) data.ValueMapper {
+	valueMapping := data.ValueMapper{
+		label: {Color: hashToRGB(label)},
+	}
+	if label == "true" || label == "false" {
+		valueMapping["true"] = data.ValueMappingResult{Text: "true", Color: "#3AAB58"}
+		valueMapping["false"] = data.ValueMappingResult{Text: "false", Color: "#D72638"}
+	}
+	return valueMapping
 }
 
 // convertParameterValueToMap converts a ParameterValue protobuf to a JSON-serializable map
@@ -951,4 +965,3 @@ func convertParameterInfoToMap(pi interface{}) map[string]interface{} {
 
 	return result
 }
-

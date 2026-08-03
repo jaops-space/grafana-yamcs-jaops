@@ -1,10 +1,12 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/ws"
 )
@@ -51,9 +53,6 @@ type YamcsClient struct {
 	TimeSubscriptions              map[int32]*TimeSubscription
 	LinkSubscriptions              map[int32]*LinkSubscription
 	ProcessorSubscriptions         map[int32]*ProcessorSubscription
-
-	// Sample Point Count for Sample endpoints
-	SamplePointCount *types.Optional[int]
 }
 
 // NewYamcsClient constructs a new YamcsClient.
@@ -79,7 +78,6 @@ func NewYamcsClient(
 		TimeSubscriptions:              make(map[int32]*TimeSubscription),
 		LinkSubscriptions:              make(map[int32]*LinkSubscription),
 		ProcessorSubscriptions:         make(map[int32]*ProcessorSubscription),
-		SamplePointCount:               types.OptionalOfNil[int](),
 	}
 
 	// WebSocket URL based on whether TLS is enabled
@@ -101,14 +99,14 @@ func NewYamcsClient(
 	client.WebSocket = ws.NewWebSocketHandler(wsURL, client.UseProtobuf)
 	client.WebSocket.Credentials = credentials
 
-	client.WebSocket.AddListener(ws.ParameterListenerID, client.HandleParameterMessage)
-	client.WebSocket.AddListener(ws.EventListenerID, client.HandleEventMessage)
-	client.WebSocket.AddListener(ws.AlarmListenerID, client.HandleAlarmMessage)
-	client.WebSocket.AddListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
-	client.WebSocket.AddListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
-	client.WebSocket.AddListener(ws.TimeListenerID, client.HandleTimeMessage)
-	client.WebSocket.AddListener(ws.LinksListenerID, client.HandleLinkMessage)
-	client.WebSocket.AddListener(ws.ProcessorListenerID, client.HandleProcessorMessage)
+	client.WebSocket.SetListener(ws.ParameterListenerID, client.HandleParameterMessage)
+	client.WebSocket.SetListener(ws.EventListenerID, client.HandleEventMessage)
+	client.WebSocket.SetListener(ws.AlarmListenerID, client.HandleAlarmMessage)
+	client.WebSocket.SetListener(ws.GlobalStatusListenerID, client.HandleGlobalStatusMessage)
+	client.WebSocket.SetListener(ws.CommandHistoryLisernerID, client.HandleCommandMessage)
+	client.WebSocket.SetListener(ws.TimeListenerID, client.HandleTimeMessage)
+	client.WebSocket.SetListener(ws.LinksListenerID, client.HandleLinkMessage)
+	client.WebSocket.SetListener(ws.ProcessorListenerID, client.HandleProcessorMessage)
 
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {
@@ -118,11 +116,11 @@ func NewYamcsClient(
 	return client, nil
 }
 
-func (client *YamcsClient) EstablishWebSocketConnection() error {
+func (client *YamcsClient) EstablishWebSocketConnection(ctx context.Context) error {
 	if client.IsWebSocketConnected() {
 		return nil
 	}
-	err := client.WebSocket.Connect()
+	err := client.WebSocket.Connect(ctx)
 	if err == nil {
 		client.clearAllSubscriptions()
 		go client.WebSocket.Listen()
@@ -134,8 +132,30 @@ func (client *YamcsClient) CloseWebSocketConnection() error {
 	return client.WebSocket.Disconnect()
 }
 
+func (client *YamcsClient) Close() error {
+	var err error
+	if client.WebSocket != nil {
+		err = client.WebSocket.Disconnect()
+	}
+	if client.HTTP != nil {
+		client.HTTP.Dispose()
+	}
+	client.clearAllSubscriptions()
+	return err
+}
+
 func (client *YamcsClient) IsWebSocketConnected() bool {
 	return client.WebSocket.IsConnected()
+}
+
+func (client *YamcsClient) WebSocketState(ctx context.Context) (*api.State, error) {
+	timeout := 10 * time.Second
+	if ctx != nil {
+		if deadline, ok := ctx.Deadline(); ok {
+			timeout = time.Until(deadline)
+		}
+	}
+	return client.WebSocket.GetState(timeout)
 }
 
 // OptionSetUserAgent allows overriding the default User-Agent.

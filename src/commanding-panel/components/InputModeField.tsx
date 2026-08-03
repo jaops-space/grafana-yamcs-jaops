@@ -128,6 +128,7 @@ export default function InputModeField({
                 </span>
             )}
             <Input
+                data-testid="jaops-variable-setting-input"
                 type="text"
                 disabled={loading}
                 value={inputValue}

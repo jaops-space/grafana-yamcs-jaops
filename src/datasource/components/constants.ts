@@ -1,6 +1,7 @@
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { QueryField, QueryType, Query, Configuration } from '../types';
+import { ComboboxOption } from '@grafana/ui';
 
 export type QueryProps = QueryEditorProps<DataSource, Query, Configuration>;
 export type QueryEditorModelProps = Pick<QueryProps, 'query' | 'onChange' | 'datasource'>;
@@ -102,7 +103,7 @@ export const QueryOptions: Array<SelectableValue<QueryType>> = [
     },
 ];
 
-export const FieldsOptions: Array<SelectableValue<QueryField>> = [
+export const FieldsOptions: Array<ComboboxOption<QueryField>> = [
     {
         label: 'Maximum',
         value: 'max',

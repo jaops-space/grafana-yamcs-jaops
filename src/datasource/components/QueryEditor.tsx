@@ -1,4 +1,5 @@
-import { getTemplateSrv } from '@grafana/runtime';
+import { AppEvents } from '@grafana/data';
+import { getAppEvents, getTemplateSrv } from '@grafana/runtime';
 import { Box, Button, Checkbox, Combobox, ComboboxOption, InlineField, Input, Stack } from '@grafana/ui';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QueryEditorModelProps, QueryProps } from './constants';
@@ -70,8 +71,11 @@ export function QueryEditor(props: QueryProps) {
                 ...queryRef.current,
                 endpoint: keys.length === 1 ? keys[0] : (queryRef.current.endpoint ?? ''),
             });
-        } catch (error) {
-            console.error('Failed to fetch endpoints', error);
+        } catch {
+            getAppEvents().publish({
+                type: AppEvents.alertError.name,
+                payload: ['Failed to fetch Yamcs endpoints.'],
+            });
         } finally {
             setLoading(false);
         }
@@ -180,7 +184,7 @@ export function QueryEditor(props: QueryProps) {
     };
 
     return (
-        <Box backgroundColor="primary" borderColor="weak" data-testid="query-type-editor">
+        <Box backgroundColor="primary" borderColor="weak" data-testid="jaops-query-editor">
             <Stack direction="row" alignItems="center">
                 <InlineField
                     label={query.asVariable ? 'Endpoint Variable' : 'Endpoint'}
@@ -206,7 +210,12 @@ export function QueryEditor(props: QueryProps) {
                         onChange={(e) => setAsVariable(e.currentTarget.checked)}
                     />
                 </InlineField>
-                <Button onClick={fetchEndpoints} disabled={loading} size="sm" data-testid="fetch-endpoints-button">
+                <Button
+                    onClick={fetchEndpoints}
+                    disabled={loading}
+                    size="sm"
+                    data-testid="jaops-query-editor-fetch-endpoints"
+                >
                     Fetch endpoints
                 </Button>
                 <Button
@@ -214,7 +223,7 @@ export function QueryEditor(props: QueryProps) {
                     disabled={loading}
                     size="sm"
                     variant="success"
-                    data-testid="fetch-endpoints-button"
+                    data-testid="jaops-query-editor-run-query"
                 >
                     Query
                 </Button>
@@ -222,5 +231,4 @@ export function QueryEditor(props: QueryProps) {
             <QueryTypeEditor {...queryEditorModelProps} />
         </Box>
     );
-
 }

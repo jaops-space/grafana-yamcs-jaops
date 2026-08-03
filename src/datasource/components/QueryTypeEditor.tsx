@@ -65,13 +65,12 @@ export function QueryTypeEditor(props: QueryEditorModelProps) {
                                 <span style={{ zIndex: 212 }}>{getBadgeCategory(value.category)}</span>
                             </Stack>
                         )}
-                        data-testid="select"
+                        data-testid="jaops-query-type-select"
                     />
                 </InlineField>
             </Stack>
-            {(queryTypeInfo?.category === QueryCategory.PARAMETER || queryTypeInfo?.category === QueryCategory.IMAGE) && (
-                <ParameterQuery {...queryEditorModelProps} />
-            )}
+            {(queryTypeInfo?.category === QueryCategory.PARAMETER ||
+                queryTypeInfo?.category === QueryCategory.IMAGE) && <ParameterQuery {...queryEditorModelProps} />}
         </>
     );
 }

@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -25,8 +24,7 @@ type Datasource struct {
 	backend.StreamHandler
 	instancemgmt.InstanceDisposer
 	multiplexer *source.Multiplexer
-	querier     *source.Querier
 
-	lastHealthDetails json.RawMessage
+	lastHealthDetails *HealthDetails
 	healthMutex       sync.RWMutex
 }

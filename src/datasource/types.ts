@@ -9,12 +9,12 @@ export interface Query extends DataQuery {
     endpoint?: string;
     parameter: string;
     command: string;
-    aggregatePath: string;
     fields: QueryField[];
     asVariable: boolean;
     customVariableString: boolean;
     endpointVariable: string;
     frontendShiftedTime?: boolean;
+    automaticColors?: boolean;
 
     // YAMCS parameter filter configuration
     yamcsFilter?: {
@@ -54,9 +54,8 @@ export type QueryField = 'max' | 'min';
  * Default values for a query.
  */
 export const DEFAULT_QUERY: Partial<Query> = {
-    type: undefined,
+    type: QueryType.PLOT,
     endpoint: undefined,
-    aggregatePath: '',
 };
 
 /**

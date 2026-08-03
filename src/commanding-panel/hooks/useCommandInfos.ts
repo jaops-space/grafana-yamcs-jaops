@@ -83,8 +83,7 @@ export function useCommandInfos(params: {
                     const info = await datasource.getResource(`endpoint/${endpoint}/command/info`, { name: command });
                     infoCacheRef.current[cacheKey] = info;
                     return { command: info, endpoint };
-                } catch (err) {
-                    console.error('Failed to fetch command info', err);
+                } catch {
                     return {
                         command: { name: command, qualifiedName: command, argument: [] },
                         endpoint,

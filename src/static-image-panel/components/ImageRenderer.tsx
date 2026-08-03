@@ -4,12 +4,13 @@ import { ImagePanelOptions } from 'static-image-panel/types';
 import React from 'react';
 
 export default function ImageRenderer(options: ImagePanelOptions, url: string) {
-    
     const templateSrv = getTemplateSrv();
 
     let imageUrl = DOMPurify.sanitize(templateSrv.replace(url || '')).trim();
-    const transform = templateSrv.replace(options.transform || '');
-    const objectFit = templateSrv.replace(options.objectFit || 'contain') as React.CSSProperties['objectFit'];
+    const transform = DOMPurify.sanitize(templateSrv.replace(options.transform || '')).trim();
+    const objectFitValue = DOMPurify.sanitize(templateSrv.replace(options.objectFit || 'contain')).trim();
+    const allowedObjectFit = new Set(['contain', 'cover', 'fill', 'none', 'scale-down']);
+    const objectFit = (allowedObjectFit.has(objectFitValue) ? objectFitValue : 'contain') as React.CSSProperties['objectFit'];
 
     if (!imageUrl) {
         return <div>No image URL provided</div>;
@@ -35,11 +36,8 @@ export default function ImageRenderer(options: ImagePanelOptions, url: string) {
             transition: 'all 0.3s ease',
         };
 
-        return <img src={parsed.href} alt="Image" style={style} />;
-
+        return <img src={parsed.href} alt="Image" style={style} data-testid="jaops-image-panel-image" />;
     } catch {
-        
         return <div>Invalid image URL</div>;
-    
     }
 }

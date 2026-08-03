@@ -17,7 +17,11 @@ function VariablePanelSetup() {
             <Stack direction="row" justifyContent="space-around" alignItems="flex-start">
                 <Stack direction="column" width="60%" gap={2}>
                     <Card>
-                        <Card.Heading>Step 1: Create Variables in Dashboard Settings</Card.Heading>
+                        <Card.Heading>
+                            <span data-testid="jaops-setup-page-variable">
+                                Step 1: Create Variables in Dashboard Settings
+                            </span>
+                        </Card.Heading>
                         <Card.Description>
                             Navigate to your Grafana dashboard, click <Text color="info">Settings</Text> in the
                             top-right corner, and select <Text color="primary">Variables</Text>. Click{' '}

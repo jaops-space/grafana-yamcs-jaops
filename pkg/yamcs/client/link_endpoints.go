@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
@@ -8,11 +9,11 @@ import (
 )
 
 // ListLinks retrieves all links for a given Yamcs instance.
-func (c *YamcsClient) ListLinks(instance Instance) ([]*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s", instance.GetName())
+func (c *YamcsClient) ListLinks(ctx context.Context, instance string) ([]*links.LinkInfo, error) {
+	url := fmt.Sprintf("/links/%s", instance)
 
 	response := &links.ListLinksResponse{}
-	err := c.HTTP.GetProto(url, response)
+	err := c.HTTP.GetProto(ctx, url, response)
 	if err != nil {
 		return nil, err
 	}
@@ -21,11 +22,11 @@ func (c *YamcsClient) ListLinks(instance Instance) ([]*links.LinkInfo, error) {
 }
 
 // GetLink retrieves a specific link by name for a given Yamcs instance.
-func (c *YamcsClient) GetLink(instance Instance, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s", instance.GetName(), linkName)
+func (c *YamcsClient) GetLink(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
+	url := fmt.Sprintf("/links/%s/%s", instance, linkName)
 
 	response := &links.LinkInfo{}
-	err := c.HTTP.GetProto(url, response)
+	err := c.HTTP.GetProto(ctx, url, response)
 	if err != nil {
 		return nil, err
 	}
@@ -34,12 +35,12 @@ func (c *YamcsClient) GetLink(instance Instance, linkName string) (*links.LinkIn
 }
 
 // EnableLink enables a link in a given Yamcs instance.
-func (c *YamcsClient) EnableLink(instance Instance, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s:enable", instance.GetName(), linkName)
+func (c *YamcsClient) EnableLink(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
+	url := fmt.Sprintf("/links/%s/%s:enable", instance, linkName)
 
 	request := &links.EnableLinkRequest{}
 	response := &links.LinkInfo{}
-	err := c.HTTP.PostProto(url, request, response)
+	err := c.HTTP.PostProto(ctx, url, request, response)
 	if err != nil {
 		return nil, err
 	}
@@ -48,12 +49,12 @@ func (c *YamcsClient) EnableLink(instance Instance, linkName string) (*links.Lin
 }
 
 // DisableLink disables a link in a given Yamcs instance.
-func (c *YamcsClient) DisableLink(instance Instance, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s:disable", instance.GetName(), linkName)
+func (c *YamcsClient) DisableLink(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
+	url := fmt.Sprintf("/links/%s/%s:disable", instance, linkName)
 
 	request := &links.DisableLinkRequest{}
 	response := &links.LinkInfo{}
-	err := c.HTTP.PostProto(url, request, response)
+	err := c.HTTP.PostProto(ctx, url, request, response)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +63,12 @@ func (c *YamcsClient) DisableLink(instance Instance, linkName string) (*links.Li
 }
 
 // ResetLinkCounters resets the data in/out counters for a link.
-func (c *YamcsClient) ResetLinkCounters(instance Instance, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s:resetCounters", instance.GetName(), linkName)
+func (c *YamcsClient) ResetLinkCounters(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
+	url := fmt.Sprintf("/links/%s/%s:resetCounters", instance, linkName)
 
 	request := &links.ResetLinkCountersRequest{}
 	response := &links.LinkInfo{}
-	err := c.HTTP.PostProto(url, request, response)
+	err := c.HTTP.PostProto(ctx, url, request, response)
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +77,8 @@ func (c *YamcsClient) ResetLinkCounters(instance Instance, linkName string) (*li
 }
 
 // RunLinkAction runs a link-specific action with an optional message payload.
-func (c *YamcsClient) RunLinkAction(instance Instance, linkName string, actionID string, message map[string]any) (*structpb.Struct, error) {
-	url := fmt.Sprintf("/links/%s/%s/actions/%s", instance.GetName(), linkName, actionID)
+func (c *YamcsClient) RunLinkAction(ctx context.Context, instance string, linkName string, actionID string, message map[string]any) (*structpb.Struct, error) {
+	url := fmt.Sprintf("/links/%s/%s/actions/%s", instance, linkName, actionID)
 
 	// Convert message map to structpb.Struct
 	var messageStruct *structpb.Struct
@@ -94,7 +95,7 @@ func (c *YamcsClient) RunLinkAction(instance Instance, linkName string, actionID
 	}
 
 	response := &structpb.Struct{}
-	err := c.HTTP.PostProto(url, request, response)
+	err := c.HTTP.PostProto(ctx, url, request, response)
 	if err != nil {
 		return nil, err
 	}

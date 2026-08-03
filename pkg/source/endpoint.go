@@ -1,607 +1,101 @@
 package source
 
 import (
-	"fmt"
-	"sort"
-	"strings"
+	"errors"
 	"sync"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
-	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
 // YamcsEndpoint represents an endpoint for Yamcs communication.
 type YamcsEndpoint struct {
 	Multiplexer *Multiplexer
+	Host        *YamcsHost
 
-	mu sync.RWMutex // guards AlarmCache and GlobalAlarmStatus
+	mu sync.RWMutex
 
-	ID                string
-	Instance          client.Instance
-	Processor         client.Processor
-	Parameters        map[string]*ParameterDemand
-	Events            map[string][]*events.Event
-	CommandHistory    map[string][]*commanding.CommandHistoryEntry
-	CommandSignals    map[string]chan struct{}
-	Alarms            map[string][]*alarms.AlarmData
-	AlarmSignals      map[string]chan struct{}
-	Links             map[string][]*links.LinkInfo
-	AlarmCache        map[string]*alarms.AlarmData // Cache of all active alarms by ID
-	GlobalAlarmStatus *alarms.GlobalAlarmStatus
+	ID                    string
+	Parameters            map[string]*ParameterDemand
+	Events                map[string]chan *events.Event
+	CommandHistorySignals map[string]CommandHistorySignal
+	Alarms                map[string][]*alarms.AlarmData
+	AlarmSignals          map[string]chan struct{}
+	LinkSignals           map[string]LinkSignal
+	AlarmCache            map[string]*alarms.AlarmData // Cache of all active alarms by ID
+	GlobalAlarmStatus     *alarms.GlobalAlarmStatus
 
-	CurrentTime            time.Time
-	CurrentTimeUpdatedAt   time.Time
-	timeListenerRegistered bool
+	CurrentTime          time.Time
+	CurrentTimeUpdatedAt time.Time
+
+	ParameterProcessObserver func(parameter string, streamCount int, elapsed time.Duration)
+	ParameterBufferObserver  func(parameter string, path string, receivedAt time.Time)
+
+	Configuration *config.YamcsEndpointConfiguration
 }
 
-// ParameterDemand represents a demand for a specific parameter.
-type ParameterDemand struct {
-	endpoint *YamcsEndpoint
-
-	LastReceived time.Time
-	Name         string
-	Unit         string
-	Thresholds   []*data.Threshold
-	Streams      map[string]*ParameterStreamDemand
+func (endpoint *YamcsEndpoint) Name() string {
+	return endpoint.Configuration.DisplayName()
 }
 
-// ParameterStreamDemand represents a demand for a specific parameter stream.
-type ParameterStreamDemand struct {
-	parameter *ParameterDemand
-
-	Path   string
-	Buffer []client.ParameterValue
+// GetHost grabs endpoint's host
+func (ep *YamcsEndpoint) GetHost() *YamcsHost {
+	return ep.Host
 }
 
-func parameterStreamFamily(path string) string {
-	parts := strings.Split(path, "-")
-	if len(parts) < 4 {
-		return path
+// GetClient attemps to grab host and its client, returns an error if either failed
+func (ep *YamcsEndpoint) GetClient() (*client.YamcsClient, error) {
+
+	host := ep.GetHost()
+	if host == nil {
+		return nil, errors.New("host not found")
 	}
 
-	// Paths from datasource are: req/<query-key>-<from>-<to>-<points>
-	// Family strips volatile range/points suffix so only one active stream survives.
-	return strings.Join(parts[:len(parts)-3], "-")
+	cli := host.GetClient()
+	if cli == nil {
+		return nil, errors.New("client not found")
+	}
+	return cli, nil
+
 }
 
-func (ep *YamcsEndpoint) RequestTime() {
-	client := ep.GetClient()
-	subscription, found := client.GetTimeSubscriptionFor(ep.Instance, ep.Processor)
-	if !found {
-		var err error
-		subscription, err = client.CreateTimeSubscription(ep.Instance, ep.Processor)
-		if err != nil {
-			backend.Logger.Error(err.Error())
-			return
-		}
-		ep.timeListenerRegistered = false
+func (ep *YamcsEndpoint) GetInstance() (client.Instance, error) {
+
+	host := ep.GetHost()
+	if host == nil {
+		return nil, errors.New("host not found")
+	}
+	hInstance := host.Instances[ep.Configuration.Instance]
+	if hInstance == nil || hInstance.Instance == nil {
+		return nil, errors.New("instance not found")
 	}
 
-	if ep.timeListenerRegistered {
-		return
+	return hInstance.Instance, nil
+}
+
+func (ep *YamcsEndpoint) GetProcessor() (client.Processor, error) {
+
+	host := ep.GetHost()
+	if host == nil {
+		return nil, errors.New("host not found")
 	}
-
-	subscription.AddTimeListener(ep.GetTimeHandler())
-	ep.timeListenerRegistered = true
-}
-
-func (ep *YamcsEndpoint) GetTimeHandler() func(t time.Time) {
-	return func(currentTime time.Time) {
-		ep.SetCurrentTime(currentTime)
-		backend.Logger.Debug("Updating time", "time", currentTime)
+	hInstance := host.Instances[ep.Configuration.Instance]
+	if hInstance == nil {
+		return nil, errors.New("instance not found")
 	}
-}
-
-func (ep *YamcsEndpoint) SetCurrentTime(currentTime time.Time) {
-	ep.mu.Lock()
-	defer ep.mu.Unlock()
-
-	ep.CurrentTime = currentTime
-	ep.CurrentTimeUpdatedAt = time.Now()
-}
-
-func (ep *YamcsEndpoint) GetCurrentTime() (time.Time, time.Time, bool) {
-	ep.mu.RLock()
-	defer ep.mu.RUnlock()
-
-	if ep.CurrentTime.IsZero() || ep.CurrentTimeUpdatedAt.IsZero() {
-		return time.Time{}, time.Time{}, false
+	processor := hInstance.Processors[ep.Configuration.Processor]
+	if processor == nil {
+		return nil, errors.New("processor not found")
 	}
-
-	return ep.CurrentTime, ep.CurrentTimeUpdatedAt, true
+	return processor, nil
 }
 
-func (ep *YamcsEndpoint) GetCurrentTimeIfFresh(maxAge time.Duration) (time.Time, bool) {
-	currentTime, updatedAt, ok := ep.GetCurrentTime()
-	if !ok {
-		return time.Time{}, false
-	}
-
-	if maxAge > 0 && time.Since(updatedAt) > maxAge {
-		return time.Time{}, false
-	}
-
-	return currentTime, true
+func (ep *YamcsEndpoint) GetInstanceName() string {
+	return ep.Configuration.Instance
 }
-
-// GetReplaySpeedMultiplier returns the processor replay speed multiplier for this endpoint.
-func (ep *YamcsEndpoint) GetReplaySpeedMultiplier() float64 {
-	if ep == nil || ep.Multiplexer == nil || ep.Instance == nil || ep.Processor == nil {
-		return 1
-	}
-
-	return ep.Multiplexer.GetReplaySpeedMultiplier(ep.Instance.GetName(), ep.Processor.GetName())
-}
-
-// GetHostConfiguration retrieves the host configuration for the endpoint.
-func (ep *YamcsEndpoint) GetHostConfiguration(name string) *config.YamcsHostConfiguration {
-	return ep.Multiplexer.Configuration.Hosts[ep.Multiplexer.Configuration.Endpoints[ep.ID].Host]
-}
-
-// GetConfiguration retrieves the source configuration for the endpoint.
-func (ep *YamcsEndpoint) GetConfiguration() *config.YamcsEndpointConfiguration {
-	return ep.Multiplexer.Configuration.Endpoints[ep.ID]
-}
-
-// GetParameterDemand retrieves or initializes a ParameterDemand.
-func (ep *YamcsEndpoint) GetParameterDemand(parameter string) *ParameterDemand {
-
-	if ep.Parameters[parameter] == nil {
-		client := ep.GetClient()
-		unit := ""
-		thresholds := make([]*data.Threshold, 0)
-
-		paramInfo, err := client.GetParameter(ep.Instance, parameter)
-		if err == nil {
-			paramType := paramInfo.GetType()
-			unitSet := paramType.GetUnitSet()
-			thresholds = tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
-			if len(unitSet) > 0 {
-				unit = unitSet[0].GetUnit()
-			}
-		}
-
-		ep.Parameters[parameter] = &ParameterDemand{
-			endpoint:   ep,
-			Name:       parameter,
-			Unit:       unit,
-			Thresholds: thresholds,
-			Streams:    make(map[string]*ParameterStreamDemand),
-		}
-	}
-	return ep.Parameters[parameter]
-}
-
-// GetChannelParameterListener returns a function to listen for parameter updates.
-func (ep *YamcsEndpoint) GetChannelParameterListener() func(parameter string, value *pvalue.ParameterValue) {
-	return func(parameter string, value *pvalue.ParameterValue) {
-
-		paramDemand := ep.GetParameterDemand(parameter)
-		streamDemands := paramDemand.Streams
-		paramDemand.LastReceived = time.Now()
-
-		if value.GetAcquisitionStatus() != pvalue.AcquisitionStatus_ACQUIRED {
-			backend.Logger.Debug("Ignoring parameter value", "parameter", parameter, "status", value.GetAcquisitionStatus())
-			return
-		}
-
-		for _, streamDemand := range streamDemands {
-			streamDemand.Buffer = append(streamDemand.Buffer, value)
-		}
-
-	}
-}
-
-// RequestNewParameterStream adds a new parameter stream to the endpoint.
-func (ep *YamcsEndpoint) RequestNewParameterStream(name string, path string) error {
-
-	ep.GetParameterDemand(name)
-
-	family := parameterStreamFamily(path)
-	for existingPath := range ep.Parameters[name].Streams {
-		if existingPath == path {
-			continue
-		}
-		if parameterStreamFamily(existingPath) == family {
-			delete(ep.Parameters[name].Streams, existingPath)
-		}
-	}
-
-	ep.Parameters[name].Streams[path] = &ParameterStreamDemand{
-		parameter: ep.Parameters[name],
-		Path:      path,
-		Buffer:    make([]*pvalue.ParameterValue, 0),
-	}
-
-	subscription, err := ep.GetParameterSubscription()
-	if err != nil {
-		backend.Logger.Error("Error getting parameter subscription", "error", err)
-		return err
-	}
-
-	if !subscription.Has(name) {
-		backend.Logger.Debug("Adding parameter to subscription", "parameter", name)
-		subscription.Add(name)
-	}
-	backend.Logger.Debug("Current subscriptions", "subscriptions")
-	for name := range subscription.ActiveSubscriptions {
-		backend.Logger.Debug(name)
-	}
-
-	return nil
-}
-
-// GetParameterStreamBuffer retrieves the buffer for a specific parameter stream.
-func (ep *YamcsEndpoint) GetParameterStreamBuffer(parameter string, path string) []client.ParameterValue {
-	if ep.Parameters[parameter] == nil || ep.Parameters[parameter].Streams[path] == nil {
-		return nil
-	}
-	return ep.Parameters[parameter].Streams[path].Buffer
-}
-
-// ClearParameterStream clears the buffer for a specific parameter stream.
-func (ep *YamcsEndpoint) ClearParameterStream(parameter string, path string) {
-	if ep.Parameters[parameter] == nil || ep.Parameters[parameter].Streams[path] == nil {
-		return
-	}
-	ep.Parameters[parameter].Streams[path].Buffer = make([]client.ParameterValue, 0)
-}
-
-// WithdrawParameterStreamRequest removes a parameter stream request.
-func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(name string, path string) error {
-
-	ep.GetParameterDemand(name)
-	client := ep.GetClient()
-
-	delete(ep.Parameters[name].Streams, path)
-	if len(ep.Parameters[name].Streams) == 0 && client != nil && client.IsWebSocketConnected() {
-		subscription, err := ep.GetParameterSubscription()
-		if err != nil {
-			return err
-		}
-		subscription.Remove(name)
-	}
-	return nil
-}
-
-// GetClient retrieves the Yamcs client for this endpoint.
-func (ep *YamcsEndpoint) GetClient() *client.YamcsClient {
-	return ep.Multiplexer.Hosts[ep.GetConfiguration().Host].Client
-}
-
-// GetParameterSubscription retrieves or creates a parameter subscription.
-func (ep *YamcsEndpoint) GetParameterSubscription() (*client.ParameterSubscription, error) {
-	client := ep.GetClient()
-	for _, subscription := range client.ParameterSubscriptions {
-		if subscription.Instance == ep.Instance.GetName() && subscription.Processor == ep.Processor.GetName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := client.CreateParameterSubscription(ep.Instance, ep.Processor)
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(ep.GetChannelParameterListener())
-	return subscription, nil
-}
-
-// RequestEventsStream initiates an event stream subscription.
-func (ep *YamcsEndpoint) RequestEventsStream(path string) {
-	ep.GetEventsSubscription()
-	ep.Events[path] = make([]*events.Event, 0)
-}
-
-func (ep *YamcsEndpoint) GetEventsSubscription() (*client.EventSubscription, error) {
-
-	client := ep.GetClient()
-	for _, subscription := range client.EventSubscriptions {
-		if subscription.Instance == ep.Instance.GetName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := client.CreateEventSubscription(ep.Instance)
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(ep.Multiplexer.GetEventListener(ep.Instance))
-	return subscription, nil
-
-}
-
-func (ep *YamcsEndpoint) GetEventsStream(path string) []*events.Event {
-
-	return ep.Events[path]
-
-}
-
-func (ep *YamcsEndpoint) ClearEventsStream(path string) {
-
-	ep.Events[path] = make([]*events.Event, 0)
-
-}
-
-// WithdrawEventsStreamRequest stops an event stream subscription.
-func (ep *YamcsEndpoint) WithdrawEventsStreamRequest(path string) {
-
-	delete(ep.Events, path)
-	if len(ep.Events) == 0 {
-		client := ep.GetClient()
-		for _, subscription := range client.EventSubscriptions {
-			if subscription.Instance == ep.Instance.GetName() {
-				subscription.Halt()
-			}
-		}
-	}
-}
-
-/**
-
-COMMAND HISTORY
-
-**/
-
-func (ep *YamcsEndpoint) RequestCommandHistoryStream(path string) {
-	ep.GetCommandHistorySubscription()
-	ep.CommandHistory[path] = make([]*commanding.CommandHistoryEntry, 0)
-	ep.CommandSignals[path] = make(chan struct{}, 1)
-}
-
-func (ep *YamcsEndpoint) GetCommandHistorySubscription() (*client.CommandHistorySubscription, error) {
-	client := ep.GetClient()
-	for _, subscription := range client.CommandHistorySubscriptions {
-		if subscription.Instance == ep.Instance.GetName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := client.CreateCommandHistorySubscription(ep.Instance, ep.Processor)
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(ep.Multiplexer.GetCommandHistoryListener(ep.Instance))
-	return subscription, nil
-}
-
-func (ep *YamcsEndpoint) GetCommandHistoryStream(path string) []*commanding.CommandHistoryEntry {
-	return ep.CommandHistory[path]
-}
-
-func (ep *YamcsEndpoint) ClearCommandHistoryStream(path string) {
-	ep.CommandHistory[path] = make([]*commanding.CommandHistoryEntry, 0)
-}
-
-func (ep *YamcsEndpoint) NotifyCommandHistoryStream(path string) {
-	if signal, ok := ep.CommandSignals[path]; ok {
-		select {
-		case signal <- struct{}{}:
-		default:
-		}
-	}
-}
-
-func (ep *YamcsEndpoint) GetCommandHistorySignal(path string) <-chan struct{} {
-	return ep.CommandSignals[path]
-}
-
-func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) {
-	delete(ep.CommandHistory, path)
-	if signal, ok := ep.CommandSignals[path]; ok {
-		close(signal)
-		delete(ep.CommandSignals, path)
-	}
-	if len(ep.CommandHistory) == 0 {
-		client := ep.GetClient()
-		for _, subscription := range client.CommandHistorySubscriptions {
-			if subscription.Instance == ep.Instance.GetName() {
-				subscription.Halt()
-			}
-		}
-	}
-}
-
-/**
-
-LINKS
-
-**/
-
-func (ep *YamcsEndpoint) RequestLinksStream(path string) {
-	ep.GetLinksSubscription()
-	ep.Links[path] = make([]*links.LinkInfo, 0)
-}
-
-func (ep *YamcsEndpoint) GetLinksSubscription() (*client.LinkSubscription, error) {
-	c := ep.GetClient()
-	for _, subscription := range c.LinkSubscriptions {
-		if subscription.Instance == ep.Instance.GetName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := c.CreateLinkSubscription(ep.Instance)
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(ep.Multiplexer.GetLinksListener(ep.Instance))
-	return subscription, nil
-}
-
-func (ep *YamcsEndpoint) GetLinksStream(path string) []*links.LinkInfo {
-	return ep.Links[path]
-}
-
-func (ep *YamcsEndpoint) ClearLinksStream(path string) {
-	ep.Links[path] = make([]*links.LinkInfo, 0)
-}
-
-func (ep *YamcsEndpoint) WithdrawLinksStreamRequest(path string) {
-	delete(ep.Links, path)
-	if len(ep.Links) == 0 {
-		c := ep.GetClient()
-		for _, subscription := range c.LinkSubscriptions {
-			if subscription.Instance == ep.Instance.GetName() {
-				subscription.Halt()
-			}
-		}
-	}
-}
-
-/**
-
-Alarms
-
-**/
-
-func (ep *YamcsEndpoint) RequestAlarmsStream(path string) {
-	ep.GetAlarmsSubscription()
-	ep.GetGlobalAlarmStatusSubscription()
-	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
-	ep.AlarmSignals[path] = make(chan struct{}, 1)
-
-	// Load initial alarms into cache if cache is empty
-	ep.mu.Lock()
-	cacheEmpty := len(ep.AlarmCache) == 0
-	ep.mu.Unlock()
-	if cacheEmpty {
-		yamcs := ep.GetClient()
-		alarmList, err := yamcs.ListProcessorAlarms(ep.Instance, ep.Processor)
-		if err == nil {
-			ep.mu.Lock()
-			for _, alarm := range alarmList {
-				// Skip cleared alarms when loading initial cache
-				if alarm.GetClearInfo() != nil {
-					continue
-				}
-				qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
-				alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
-				ep.AlarmCache[alarmID] = alarm
-			}
-			ep.mu.Unlock()
-		}
-	}
-}
-
-func (ep *YamcsEndpoint) GetAlarmsSubscription() (*client.AlarmSubscription, error) {
-	c := ep.GetClient()
-	for _, subscription := range c.AlarmSubscriptions {
-		if subscription.GetInstance() == ep.Instance.GetName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := c.CreateAlarmSubscription(ep.Instance, ep.Processor)
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(ep.Multiplexer.GetAlarmsListener(ep.Instance))
-	return subscription, nil
-}
-
-func (ep *YamcsEndpoint) GetGlobalAlarmStatusSubscription() (*client.GlobalStatusSubscription, error) {
-	c := ep.GetClient()
-	for _, subscription := range c.GlobalAlarmStatusSubscriptions {
-		if subscription.GetInstance() == ep.Instance.GetName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := c.CreateGlobalAlarmStatusSubscription(ep.Instance, ep.Processor)
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(func(status *alarms.GlobalAlarmStatus) {
-		ep.mu.Lock()
-		ep.GlobalAlarmStatus = status
-		ep.mu.Unlock()
-
-		for path := range ep.Alarms {
-			ep.NotifyAlarmsStream(path)
-		}
-	})
-	return subscription, nil
-}
-
-// GetGlobalAlarmStatus returns a consistent snapshot of GlobalAlarmStatus under the read lock.
-func (ep *YamcsEndpoint) GetGlobalAlarmStatus() *alarms.GlobalAlarmStatus {
-	ep.mu.RLock()
-	defer ep.mu.RUnlock()
-	return ep.GlobalAlarmStatus
-}
-
-func (ep *YamcsEndpoint) GetAlarmsStream(path string) []*alarms.AlarmData {
-	// Return all cached alarms (complete list of active alarms)
-	ep.mu.RLock()
-	result := make([]*alarms.AlarmData, 0, len(ep.AlarmCache))
-	for _, alarm := range ep.AlarmCache {
-		result = append(result, alarm)
-	}
-	ep.mu.RUnlock()
-
-	// Sort alarms consistently to prevent UI reordering
-	// Sort by: 1) Trigger time (newest first), 2) Qualified name, 3) SeqNum
-	sort.Slice(result, func(i, j int) bool {
-		timeI := result[i].GetTriggerTime().AsTime()
-		timeJ := result[j].GetTriggerTime().AsTime()
-
-		// Sort by trigger time (newest first)
-		if !timeI.Equal(timeJ) {
-			return timeI.After(timeJ)
-		}
-
-		// If same time, sort by qualified name
-		nameI := result[i].GetId().GetNamespace() + "/" + result[i].GetId().GetName()
-		nameJ := result[j].GetId().GetNamespace() + "/" + result[j].GetId().GetName()
-		if nameI != nameJ {
-			return nameI < nameJ
-		}
-
-		// If same name, sort by sequence number
-		return result[i].GetSeqNum() < result[j].GetSeqNum()
-	})
-
-	return result
-}
-
-func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
-	// Clear only the update buffer, not the cache
-	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
-}
-
-func (ep *YamcsEndpoint) NotifyAlarmsStream(path string) {
-	if signal, ok := ep.AlarmSignals[path]; ok {
-		select {
-		case signal <- struct{}{}:
-		default:
-		}
-	}
-}
-
-func (ep *YamcsEndpoint) GetAlarmsSignal(path string) <-chan struct{} {
-	return ep.AlarmSignals[path]
-}
-
-func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) {
-	delete(ep.Alarms, path)
-	if signal, ok := ep.AlarmSignals[path]; ok {
-		close(signal)
-		delete(ep.AlarmSignals, path)
-	}
-	if len(ep.Alarms) == 0 {
-		c := ep.GetClient()
-		for _, subscription := range c.AlarmSubscriptions {
-			if subscription.GetInstance() == ep.Instance.GetName() {
-				subscription.Halt()
-			}
-		}
-		for _, subscription := range c.GlobalAlarmStatusSubscriptions {
-			if subscription.GetInstance() == ep.Instance.GetName() {
-				subscription.Halt()
-			}
-		}
-	}
+func (ep *YamcsEndpoint) GetProcessorName() string {
+	return ep.Configuration.Processor
 }

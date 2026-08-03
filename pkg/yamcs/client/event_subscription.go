@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
@@ -22,8 +24,8 @@ type EventSubscription struct {
 }
 
 // CreateEventSubscription creates a new event subscription for a given instance.
-func (client *YamcsClient) CreateEventSubscription(instance Instance) (*EventSubscription, error) {
-	subscription, err := client.newEventSubscription(instance.GetName())
+func (client *YamcsClient) CreateEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
+	subscription, err := client.newEventSubscription(ctx, instance)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +35,7 @@ func (client *YamcsClient) CreateEventSubscription(instance Instance) (*EventSub
 }
 
 // NewEventSubscription initializes a new EventSubscription and subscribes to events.
-func (client *YamcsClient) newEventSubscription(instance string) (*EventSubscription, error) {
+func (client *YamcsClient) newEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
 	subscription := &EventSubscription{
 		client:              client,
 		Instance:            instance,
@@ -57,7 +59,7 @@ func (client *YamcsClient) newEventSubscription(instance string) (*EventSubscrip
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -68,23 +70,20 @@ func (client *YamcsClient) newEventSubscription(instance string) (*EventSubscrip
 
 // HandleEventMessage processes incoming server messages related to events.
 func (client *YamcsClient) HandleEventMessage(message *api.ServerMessage) {
-	// Check if the message type is "events"
-	if message.GetType() == "events" {
-		event := &events.Event{}
-		// Attempt to unmarshal the event data
-		err := message.Data.UnmarshalTo(event)
-		if err != nil {
-			backend.Logger.Debug("Error unmarshalling event data", "error", err)
-			return
-		}
+	event := &events.Event{}
+	// Attempt to unmarshal the event data
+	err := message.Data.UnmarshalTo(event)
+	if err != nil {
+		backend.Logger.Debug("Error unmarshalling event data", "error", err)
+		return
+	}
 
-		// Retrieve the subscription using the call ID from the message
-		callID := message.GetCall()
-		subscription, found := client.EventSubscriptions[callID]
-		if found && subscription.eventListener != nil {
-			// Invoke the listener with the unmarshalled event data
-			subscription.eventListener(event)
-		}
+	// Retrieve the subscription using the call ID from the message
+	callID := message.GetCall()
+	subscription, found := client.EventSubscriptions[callID]
+	if found && subscription.eventListener != nil {
+		// Invoke the listener with the unmarshalled event data
+		subscription.eventListener(event)
 	}
 }
 
@@ -111,6 +110,6 @@ func (subscription *EventSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 
 }

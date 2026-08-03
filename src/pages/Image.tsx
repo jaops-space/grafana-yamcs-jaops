@@ -19,7 +19,9 @@ function ImagePanelSetup() {
             </Card>
 
             <Card>
-                <Card.Heading>Step 2: Choose Image Query Type</Card.Heading>
+                <Card.Heading>
+                    <span data-testid="jaops-setup-page-image">Step 2: Choose Image Query Type</span>
+                </Card.Heading>
                 <Card.Description>
                     In the query settings, select <Text color="primary">Image</Text> as the query type.
                 </Card.Description>

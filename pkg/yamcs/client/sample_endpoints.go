@@ -1,22 +1,13 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 )
-
-// SetSamplePointCount sets the sample point count in the client.
-func (client *YamcsClient) SetSamplePointCount(count int) {
-	client.SamplePointCount.Set(count)
-}
-
-// ClearSamplePointCount clears the sample point count in the client.
-func (client *YamcsClient) ClearSamplePointCount() {
-	client.SamplePointCount.Clear()
-}
 
 // setTime sets the start and end times in the HTTP query parameters.
 func (client *YamcsClient) setTime(start time.Time, end time.Time) {
@@ -25,10 +16,10 @@ func (client *YamcsClient) setTime(start time.Time, end time.Time) {
 }
 
 // setTimeAndSampleCount sets both the time range and the sample point count in the HTTP query parameters.
-func (client *YamcsClient) setTimeAndSampleCount(start time.Time, end time.Time) {
+func (client *YamcsClient) setTimeAndSampleCount(start time.Time, end time.Time, sampleCount int) {
 	client.setTime(start, end)
-	if client.SamplePointCount.IsPresent() {
-		client.HTTP.Query["count"] = strconv.FormatInt(int64(client.SamplePointCount.Get()), 10)
+	if sampleCount > 0 {
+		client.HTTP.Query["count"] = strconv.FormatInt(int64(sampleCount), 10)
 	}
 }
 
@@ -51,11 +42,11 @@ func (client *YamcsClient) clearFilter() {
 }
 
 // GetParameterSamples retrieves parameter samples for a given instance and parameter within a time range.
-func (client *YamcsClient) GetParameterSamples(instance Instance, parameter Parameter, start time.Time, end time.Time) ([]Sample, error) {
-	client.setTimeAndSampleCount(start, end)
+func (client *YamcsClient) GetParameterSamples(ctx context.Context, instance Instance, parameter Parameter, start time.Time, end time.Time, sampleCount int) ([]Sample, error) {
+	client.setTimeAndSampleCount(start, end, sampleCount)
 
 	result := &pvalue.TimeSeries{}
-	err := client.HTTP.GetProto(fmt.Sprintf("/archive/%s/parameters/%s/samples", instance.GetName(), parameter.GetName()), result)
+	err := client.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/parameters/%s/samples", instance.GetName(), parameter.GetName()), result)
 	if err != nil {
 		return nil, err
 	}
@@ -64,11 +55,11 @@ func (client *YamcsClient) GetParameterSamples(instance Instance, parameter Para
 }
 
 // GetParameterSamplesByNames retrieves parameter samples for a given instance and parameter (by name) within a time range.
-func (client *YamcsClient) GetParameterSamplesByNames(instance Instance, parameter string, start time.Time, end time.Time) ([]Sample, error) {
-	client.setTimeAndSampleCount(start, end)
+func (client *YamcsClient) GetParameterSamplesByNames(ctx context.Context, instance Instance, parameter string, start time.Time, end time.Time, sampleCount int) ([]Sample, error) {
+	client.setTimeAndSampleCount(start, end, sampleCount)
 
 	result := &pvalue.TimeSeries{}
-	err := client.HTTP.GetProto(fmt.Sprintf("/archive/%s/parameters/%s/samples", instance.GetName(), parameter), result)
+	err := client.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/parameters/%s/samples", instance.GetName(), parameter), result)
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +68,11 @@ func (client *YamcsClient) GetParameterSamplesByNames(instance Instance, paramet
 }
 
 // GetParameterSamplesInProcessor retrieves parameter samples within a specified processor, instance, and parameter within a time range.
-func (client *YamcsClient) GetParameterSamplesInProcessor(instance Instance, processor Processor, parameter Parameter, start time.Time, end time.Time) ([]Sample, error) {
-	client.setTimeAndSampleCount(start, end)
+func (client *YamcsClient) GetParameterSamplesInProcessor(ctx context.Context, instance Instance, processor Processor, parameter Parameter, start time.Time, end time.Time, sampleCount int) ([]Sample, error) {
+	client.setTimeAndSampleCount(start, end, sampleCount)
 
 	result := &pvalue.TimeSeries{}
-	err := client.HTTP.GetProto(fmt.Sprintf("/archive/%s/parameters/%s/samples", instance.GetName(), parameter.GetName()), result)
+	err := client.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/parameters/%s/samples", instance.GetName(), parameter.GetName()), result)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +81,11 @@ func (client *YamcsClient) GetParameterSamplesInProcessor(instance Instance, pro
 }
 
 // GetParameterSamplesInProcessorByNames retrieves parameter samples within a specified processor, instance, and parameter (by name) within a time range.
-func (client *YamcsClient) GetParameterSamplesInProcessorByNames(instanceName string, processorName string, parameterName string, start time.Time, end time.Time) ([]Sample, error) {
-	client.setTimeAndSampleCount(start, end)
+func (client *YamcsClient) GetParameterSamplesInProcessorByNames(ctx context.Context, instanceName string, processorName string, parameterName string, start time.Time, end time.Time, sampleCount int) ([]Sample, error) {
+	client.setTimeAndSampleCount(start, end, sampleCount)
 
 	result := &pvalue.TimeSeries{}
-	err := client.HTTP.GetProto(fmt.Sprintf("/archive/%s/parameters/%s/samples", instanceName, parameterName), result)
+	err := client.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/parameters/%s/samples", instanceName, parameterName), result)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +97,7 @@ func (client *YamcsClient) GetParameterSamplesInProcessorByNames(instanceName st
 // If filterParamFqn and filterValue are provided, only returns samples where the filter parameter equals the filter value.
 // Example: Get Temperature samples filtered by vcid=1
 func (client *YamcsClient) GetParameterSamplesInProcessorByNamesWithFilter(
+	ctx context.Context,
 	instanceName string,
 	processorName string,
 	parameterName string,
@@ -113,13 +105,14 @@ func (client *YamcsClient) GetParameterSamplesInProcessorByNamesWithFilter(
 	end time.Time,
 	filterParamFqn string,
 	filterValue string,
+	sampleCount int,
 ) ([]Sample, error) {
-	client.setTimeAndSampleCount(start, end)
+	client.setTimeAndSampleCount(start, end, sampleCount)
 	client.setFilter(filterParamFqn, filterValue)
 	defer client.clearFilter() // Clean up filter params after request
 
 	result := &pvalue.TimeSeries{}
-	err := client.HTTP.GetProto(fmt.Sprintf("/archive/%s/parameters/%s/samples", instanceName, parameterName), result)
+	err := client.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/parameters/%s/samples", instanceName, parameterName), result)
 	if err != nil {
 		return nil, err
 	}

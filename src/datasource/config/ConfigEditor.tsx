@@ -2,7 +2,7 @@ import { css } from '@emotion/css';
 import { AppEvents, DataSourcePluginOptionsEditorProps, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents } from '@grafana/runtime';
 import { Button, Checkbox, Field, FileDropzone, InlineField, Input, Modal, Stack, Text, useStyles2 } from '@grafana/ui';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Configuration,
     DefaultConfiguration,
@@ -102,6 +102,8 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     const [isExportOpen, setExportOpen] = useState(false);
     const [configVersion, setConfigVersion] = useState(0);
     const [connectionDetails, setConnectionDetails] = useState<ConnectionDetails>({});
+    const exportLinkRef = useRef<HTMLAnchorElement | null>(null);
+    const exportUrlRef = useRef<string | null>(null);
 
     const updateOptionsJson = (nextConfig: Configuration) => {
         setConfig(nextConfig);
@@ -204,18 +206,19 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
     };
 
     const exportConfig = () => {
+        if (exportUrlRef.current) {
+            URL.revokeObjectURL(exportUrlRef.current);
+        }
+
         const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
+        exportUrlRef.current = url;
 
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.href = url;
-        downloadAnchorNode.download = 'YamcsGrafanaConfiguration.json';
-        downloadAnchorNode.target = '_blank';
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-
-        document.body.removeChild(downloadAnchorNode);
-        URL.revokeObjectURL(url);
+        const link = exportLinkRef.current;
+        if (link) {
+            link.href = url;
+            link.click();
+        }
     };
 
     const importConfig = (e: string | ArrayBuffer | null) => {
@@ -261,8 +264,26 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
         setConfigVersion((version) => version + 1);
     }, [options.jsonData]);
 
+    useEffect(() => {
+        return () => {
+            if (exportUrlRef.current) {
+                URL.revokeObjectURL(exportUrlRef.current);
+                exportUrlRef.current = null;
+            }
+        };
+    }, []);
+
     return (
-        <>
+        <div data-testid="jaops-datasource-config-editor">
+            <a
+                ref={exportLinkRef}
+                download="YamcsGrafanaConfiguration.json"
+                href="/"
+                style={{ display: 'none' }}
+                tabIndex={-1}
+            >
+                Export configuration
+            </a>
             <div className={styles.toolbar}>
                 <Button onClick={() => setExportOpen(true)} size="sm" variant="secondary">
                     Import / Export
@@ -376,6 +397,6 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
                     </Button>
                 </Stack>
             </Modal>
-        </>
+        </div>
     );
 }

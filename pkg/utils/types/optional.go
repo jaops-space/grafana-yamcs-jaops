@@ -26,7 +26,7 @@ func (optional *Optional[T]) IsPresent() bool {
 	return optional.hasValue
 }
 
-// Get retrieves the value if present. Returns the value and a boolean indicating presence.
+// Get retrieves the value if present. Returns zero value if not present
 func (optional *Optional[T]) Get() T {
 	var zeroValue T // zero value of type T
 	if optional.hasValue {
@@ -40,7 +40,7 @@ func (optional *Optional[T]) GetOrPanic() T {
 	if optional.hasValue {
 		return *optional.value
 	}
-	panic("Optional has no value")
+	panic("optional has no value")
 }
 
 // GetOr retrieves the value if present. Returns the fallback value if no value is set.

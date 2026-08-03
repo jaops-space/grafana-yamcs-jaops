@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
@@ -8,7 +10,7 @@ import (
 )
 
 // LinkListener defines a callback for incoming links updates.
-type LinkListener func(event *links.LinkEvent)
+type LinkListener func(event *links.LinkEvent) error
 
 // LinkSubscription manages a subscription to link status updates.
 type LinkSubscription struct {
@@ -19,8 +21,8 @@ type LinkSubscription struct {
 }
 
 // CreateLinkSubscription creates a new links subscription.
-func (client *YamcsClient) CreateLinkSubscription(instance Instance) (*LinkSubscription, error) {
-	subscription, err := client.newLinkSubscription(instance.GetName())
+func (client *YamcsClient) CreateLinkSubscription(ctx context.Context, instance string) (*LinkSubscription, error) {
+	subscription, err := client.newLinkSubscription(ctx, instance)
 	if err != nil {
 		return nil, err
 	}
@@ -30,14 +32,14 @@ func (client *YamcsClient) CreateLinkSubscription(instance Instance) (*LinkSubsc
 }
 
 // newLinkSubscription initializes and subscribes to links updates.
-func (client *YamcsClient) newLinkSubscription(instance string) (*LinkSubscription, error) {
+func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance string) (*LinkSubscription, error) {
 	subscription := &LinkSubscription{
 		client:   client,
 		Instance: instance,
 	}
 
 	subscribeRequest := &links.SubscribeLinksRequest{
-		Instance: &instance,
+		Instance: new(instance),
 	}
 
 	anyMessage, err := anypb.New(subscribeRequest)
@@ -50,7 +52,7 @@ func (client *YamcsClient) newLinkSubscription(instance string) (*LinkSubscripti
 		Options: anyMessage,
 	}
 
-	_, callID, _, err := client.WebSocket.SendSync(message)
+	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -61,9 +63,6 @@ func (client *YamcsClient) newLinkSubscription(instance string) (*LinkSubscripti
 
 // HandleLinkMessage processes incoming websocket messages for links updates.
 func (client *YamcsClient) HandleLinkMessage(message *api.ServerMessage) {
-	if message.GetType() != "links" {
-		return
-	}
 
 	event := &links.LinkEvent{}
 	if err := message.Data.UnmarshalTo(event); err != nil {
@@ -98,5 +97,5 @@ func (subscription *LinkSubscription) Halt() {
 		Options: anyMessage,
 	}
 
-	subscription.client.WebSocket.SendSync(message)
+	subscription.client.WebSocket.Send(message)
 }
