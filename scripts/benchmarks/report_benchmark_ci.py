@@ -44,6 +44,18 @@ THRESHOLD_TO_PLOT = {
     "avg_value_read_age": "avg_value_read_age.png",
     "avg_tick_runstream": "avg_tick_runstream.png",
 }
+PLOT_TO_METRIC = {
+    "avg_read_clear.png": "avg_read_clear",
+    "avg_process.png": "avg_process",
+    "live_memory_growth_bytes.png": "live_memory_growth_bytes",
+    "total_allocated_bytes.png": "total_allocated_bytes",
+    "values_read_per_sec.png": "values_read_per_sec",
+    "values_read_fresh_pct.png": "values_read_fresh_pct",
+    "avg_value_read_age.png": "avg_value_read_age",
+    "avg_tick_runstream.png": "avg_tick_runstream",
+    "setup.png": "setup",
+}
+PLOT_ORDER = list(PLOT_TO_METRIC.keys())
 
 
 def format_value(value: float, unit: str) -> str:
@@ -122,13 +134,22 @@ def copy_relevant_plots(output_dir: str, thresholds: list[dict[str, Any]], compa
     return copied
 
 
-def plot_url(args: argparse.Namespace, plot_name: str) -> str:
+def list_all_plots(output_dir: str) -> list[tuple[str, str]]:
+    plots_dir = os.path.join(output_dir, "plots")
+    if not os.path.isdir(plots_dir):
+        return []
+    names = [name for name in os.listdir(plots_dir) if name.endswith(".png")]
+    names.sort(key=lambda name: (PLOT_ORDER.index(name) if name in PLOT_ORDER else len(PLOT_ORDER), name))
+    return [(PLOT_TO_METRIC.get(name, os.path.splitext(name)[0]), name) for name in names]
+
+
+def plot_url(args: argparse.Namespace, plot_name: str, directory: str = "plots") -> str:
     if args.plots_base_url:
         return args.plots_base_url.rstrip("/") + f"/{plot_name}"
     artifact_url = args.artifact_url
     if not artifact_url:
-        return f"benchmark-output/regression-plots/{plot_name}"
-    return artifact_url.rstrip("/") + f"/regression-plots/{plot_name}"
+        return f"benchmark-output/{directory}/{plot_name}"
+    return artifact_url.rstrip("/") + f"/{directory}/{plot_name}"
 
 
 def status_sentence(status: str) -> str:
@@ -139,7 +160,13 @@ def status_sentence(status: str) -> str:
     return "All benchmark thresholds passed."
 
 
-def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copied_plots: list[tuple[str, str]], args: argparse.Namespace) -> str:
+def build_comment(
+    result: dict[str, Any],
+    thresholds: list[dict[str, Any]],
+    copied_plots: list[tuple[str, str]],
+    all_plots: list[tuple[str, str]],
+    args: argparse.Namespace,
+) -> str:
     comparisons = result.get("baseline_comparisons", [])
     status = status_for(thresholds, comparisons)
     interesting = [t for t in thresholds if t["status"] != "pass"]
@@ -151,6 +178,7 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
     parameters = result.get("parameters", [])
     system = result.get("system", {})
     baseline = result.get("baseline", {})
+    long_term_baseline = result.get("long_term_baseline", {})
     system_arch = "unknown"
     if system:
         os_name = system.get("os", "unknown")
@@ -167,7 +195,7 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         "",
         "**Scenario:** Yamcs quickstart simulator at 1 Hz with Grafana streams reading buffers on 1s tickers.",
         "",
-        "_This comment is updated when benchmark results change and deleted when the latest benchmark no longer needs attention._",
+        "_This comment is updated with the latest benchmark result._",
         "",
         status_sentence(status),
         "",
@@ -187,7 +215,8 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
         f"| Yamcs | `{result.get('yamcs_address', 'unknown')}` |",
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
         f"| System architecture | `{system_arch}` |",
-        f"| Baseline comparison | `{baseline.get('message', 'not requested')}` |",
+        f"| PR base baseline | `{baseline.get('message', 'not requested')}` |",
+        f"| Long-term baseline | `{long_term_baseline.get('message', 'not available')}` |",
     ]
     if args.run_url:
         lines.append(f"| Workflow run | [open run]({args.run_url}) |")
@@ -223,7 +252,7 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
                 "",
                 "### Baseline Changes Needing Attention",
                 "",
-                "Blue is the PR result. Green is the base commit before the PR changes.",
+                "Blue is the PR result. Green is the base commit before the PR changes. Orange is the checked-in long-term baseline when available.",
                 "",
                 "| Metric | Streams | PR | Base | Change |",
                 "|---|---:|---:|---:|---:|",
@@ -240,13 +269,23 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
                 )
             )
 
-    if copied_plots:
-        lines.extend(["", "### Relevant Plots", ""])
-        for metric, plot_name in copied_plots:
+    if all_plots:
+        relevant_plot_names = {plot_name for _, plot_name in copied_plots}
+        lines.extend(
+            [
+                "",
+                "### Benchmark Plots",
+                "",
+                "Blue is the PR result. Green is the base commit before the PR changes. Orange is the checked-in long-term baseline when available.",
+                "",
+            ]
+        )
+        for metric, plot_name in all_plots:
             threshold = threshold_by_metric.get(metric)
             comparison = comparison_by_metric.get(metric)
             image_url = plot_url(args, plot_name)
-            lines.extend([f"#### {metric_name(metric)}", ""])
+            marker = " - needs attention" if plot_name in relevant_plot_names else ""
+            lines.extend(["<details>", f"<summary>{metric_name(metric)}{marker}</summary>", ""])
             if threshold:
                 lines.extend(
                     [
@@ -275,9 +314,9 @@ def build_comment(result: dict[str, Any], thresholds: list[dict[str, Any]], copi
                         "",
                     ]
                 )
-            lines.extend([f"[Open plot]({image_url})", "", f"![{metric_name(metric)}]({image_url})", ""])
+            lines.extend([f"[Open plot]({image_url})", "", f"![{metric_name(metric)}]({image_url})", "", "</details>", ""])
         if not args.plots_base_url:
-            lines.append("_If GitHub does not render artifact images inline, use the full artifact link above and open `regression-plots/`._")
+            lines.append("_If GitHub does not render artifact images inline, use the full artifact link above and open `plots/`._")
     elif not interesting and not interesting_comparisons:
         lines.extend(["", "All benchmark thresholds passed."])
     else:
@@ -305,16 +344,18 @@ def main() -> None:
     comparisons = result.get("baseline_comparisons", [])
     status = status_for(thresholds, comparisons)
     copied_plots = copy_relevant_plots(args.output_dir, thresholds, comparisons)
-    comment = build_comment(result, thresholds, copied_plots, args)
+    all_plots = list_all_plots(args.output_dir)
+    comment = build_comment(result, thresholds, copied_plots, all_plots, args)
 
     with open(os.path.join(args.output_dir, "benchmark-comment.md"), "w", encoding="utf-8") as fp:
         fp.write(comment)
 
     status_payload = {
         "status": status,
-        "should_comment": status in {"warn", "fail"},
+        "should_comment": True,
         "should_fail": status == "fail",
         "regression_plots": [plot for _, plot in copied_plots],
+        "plots": [plot for _, plot in all_plots],
     }
     with open(os.path.join(args.output_dir, "benchmark-status.json"), "w", encoding="utf-8") as fp:
         json.dump(status_payload, fp, indent=2)

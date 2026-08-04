@@ -16,6 +16,9 @@ os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib.pyplot as plt
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LONG_TERM_BASELINE_DIR = os.path.join(SCRIPT_DIR, "baselines", "long-term")
+LONG_TERM_BASELINE_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "yamcs-stream-results.json")
 DEFAULT_STREAMS = "1,5,10,25,50,100,250,500,750,1000"
 DEFAULT_PARAMETERS = ",".join(
     [
@@ -367,7 +370,13 @@ def thresholds_for_plot(key: str, xs: list[int], scale_reference: float) -> list
     return lines
 
 
-def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str, baseline_rows: list[dict[str, Any]] | None = None) -> str | None:
+def plot_metric(
+    output_dir: str,
+    rows: list[dict[str, Any]],
+    key: str,
+    baseline_rows: list[dict[str, Any]] | None = None,
+    long_term_rows: list[dict[str, Any]] | None = None,
+) -> str | None:
     points = [(row["streams"], row.get(key)) for row in rows if row.get(key) is not None]
     points = [(x, y) for x, y in points if isinstance(y, (int, float))]
     if not points:
@@ -382,11 +391,19 @@ def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str, baseline_
         baseline_points = [(x, y) for x, y in baseline_points if isinstance(y, (int, float))]
         baseline_points.sort(key=lambda item: item[0])
     baseline_raw_ys = [float(point[1]) for point in baseline_points]
-    all_raw_ys = raw_ys + baseline_raw_ys
+    long_term_points = []
+    if long_term_rows:
+        long_term_points = [(row["streams"], row.get(key)) for row in long_term_rows if row.get(key) is not None]
+        long_term_points = [(x, y) for x, y in long_term_points if isinstance(y, (int, float))]
+        long_term_points.sort(key=lambda item: item[0])
+    long_term_raw_ys = [float(point[1]) for point in long_term_points]
+    all_raw_ys = raw_ys + baseline_raw_ys + long_term_raw_ys
     scale_reference = max(abs(value) for value in all_raw_ys) if all_raw_ys else 0
     ys, label = scaled_series(key, raw_ys, scale_reference)
     baseline_xs = [point[0] for point in baseline_points]
     baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
+    long_term_xs = [point[0] for point in long_term_points]
+    long_term_ys, _ = scaled_series(key, long_term_raw_ys, scale_reference)
     path = os.path.join(output_dir, f"{PLOT_FILE_NAMES.get(key, key)}.png")
     threshold_lines = thresholds_for_plot(key, xs, scale_reference)
 
@@ -394,13 +411,15 @@ def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str, baseline_
     plt.plot(xs, ys, color="#2563eb", marker="o", label="PR")
     if baseline_points:
         plt.plot(baseline_xs, baseline_ys, color="#16a34a", marker="o", label="Base")
+    if long_term_points:
+        plt.plot(long_term_xs, long_term_ys, color="#f97316", marker="o", label="Long-term baseline")
     for level, color, threshold_values in threshold_lines:
         plt.plot(xs, threshold_values, linestyle="--", color=color, linewidth=1.2, label=f"{level} threshold")
     plt.xscale("log")
     plt.xlabel("Concurrent Grafana streams (N, log scale)")
     plt.ylabel(label)
     plt.title(PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
-    axis_values = ys + baseline_ys + [value for _, _, threshold_values in threshold_lines for value in threshold_values]
+    axis_values = ys + baseline_ys + long_term_ys + [value for _, _, threshold_values in threshold_lines for value in threshold_values]
     if key in LOG_Y_KEYS:
         apply_log_y_axis(axis_values)
     else:
@@ -413,13 +432,18 @@ def plot_metric(output_dir: str, rows: list[dict[str, Any]], key: str, baseline_
     return path
 
 
-def plot_all_metrics(output_dir: str, rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]] | None = None) -> list[str]:
+def plot_all_metrics(
+    output_dir: str,
+    rows: list[dict[str, Any]],
+    baseline_rows: list[dict[str, Any]] | None = None,
+    long_term_rows: list[dict[str, Any]] | None = None,
+) -> list[str]:
     plots_dir = os.path.join(output_dir, "plots")
     os.makedirs(plots_dir, exist_ok=True)
     for filename in os.listdir(plots_dir):
         if filename.endswith(".png"):
             os.remove(os.path.join(plots_dir, filename))
-    return [path for key in PERFORMANCE_PLOT_KEYS if (path := plot_metric(plots_dir, rows, key, baseline_rows))]
+    return [path for key in PERFORMANCE_PLOT_KEYS if (path := plot_metric(plots_dir, rows, key, baseline_rows, long_term_rows))]
 
 
 def threshold_value(row: dict[str, Any], key: str) -> float:
@@ -554,23 +578,35 @@ def main() -> None:
     threshold_results = evaluate_thresholds(result["scenarios"])
     baseline_result, baseline_message = load_baseline_results(args.baseline_results)
     baseline_rows = baseline_result.get("scenarios", []) if baseline_result else None
+    if os.path.abspath(args.output_dir) == os.path.abspath(LONG_TERM_BASELINE_DIR):
+        long_term_result = None
+        long_term_message = "long-term baseline skipped while refreshing it"
+    else:
+        long_term_result, long_term_message = load_baseline_results(LONG_TERM_BASELINE_RESULTS)
+    long_term_rows = long_term_result.get("scenarios", []) if long_term_result else None
     baseline_comparisons = evaluate_baseline_comparisons(result["scenarios"], baseline_rows)
     result["baseline"] = {
         "compatible": baseline_result is not None,
         "path": args.baseline_results,
         "message": baseline_message,
     }
+    result["long_term_baseline"] = {
+        "compatible": long_term_result is not None,
+        "path": os.path.relpath(LONG_TERM_BASELINE_RESULTS, os.getcwd()),
+        "message": long_term_message,
+    }
     result["baseline_comparisons"] = baseline_comparisons
     result["thresholds"] = threshold_results
     with open(json_path, "w", encoding="utf-8") as fp:
         json.dump(result, fp, indent=2)
     write_csv(csv_path, result["scenarios"])
-    plot_paths = plot_all_metrics(args.output_dir, result["scenarios"], baseline_rows)
+    plot_paths = plot_all_metrics(args.output_dir, result["scenarios"], baseline_rows, long_term_rows)
 
     print("=== Yamcs Stream Scenario Benchmark ===")
     print(f"scenarios: {len(result['scenarios'])}")
     print(f"plots generated: {len(plot_paths)}")
     print(f"baseline: {baseline_message}")
+    print(f"long-term baseline: {long_term_message}")
     print(f"thresholds: {', '.join(t['metric'] + '=' + t['status'] for t in threshold_results)}")
     print(f"Artifacts written to: {os.path.abspath(args.output_dir)}")
     if args.fail_on_threshold and any(t["status"] == "fail" for t in threshold_results):

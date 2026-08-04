@@ -6,6 +6,12 @@ This repository has one Yamcs stream workload benchmark:
 pnpm run bench
 ```
 
+Refresh the checked-in long-term baseline with:
+
+```bash
+pnpm run bench:baseline
+```
+
 The benchmark assumes Yamcs quickstart is running on `localhost:8090`. By default it also starts `simulator.py` from `/tmp/yamcs-quickstart` at `1 Hz`.
 
 ## Scenario
@@ -40,7 +46,17 @@ For every value of `N`, the benchmark:
 - `benchmark-output/benchmark-comment.md`
 - `benchmark-output/regression-plots/*.png`
 
-`regression-plots/` contains only plots for metrics that crossed a warn or fail threshold. `plots/` contains all generated benchmark plots.
+`plots/` contains all generated benchmark plots. `regression-plots/` is retained as a small machine-readable subset for metrics that crossed a warn threshold, fail threshold, or PR-base regression rule.
+
+## Baselines
+
+Benchmark plots can show three curves:
+
+- Blue: the current benchmark result.
+- Green: the PR base commit before the PR changes, when CI can benchmark it.
+- Orange: the checked-in long-term baseline from `scripts/benchmarks/baselines/long-term/yamcs-stream-results.json`.
+
+The long-term baseline is intentionally committed to the repository so performance drift remains visible even when a PR base benchmark is unavailable or changes too often to be a useful historical reference. Its metadata lives next to the result file in `scripts/benchmarks/baselines/long-term/metadata.json`.
 
 ## Metrics
 
@@ -104,14 +120,15 @@ The threshold uses setup time per stream.
 
 ## CI Behavior
 
-The benchmark workflow is conditional. Add the `run-benchmark` label to a pull request to run it, or start it manually with `workflow_dispatch`.
+The benchmark workflow is conditional. Add the `run-benchmark` label to a pull request to run it and publish or update the benchmark PR comment, or start it manually with `workflow_dispatch`.
 
-When a warn or fail threshold is crossed:
+On pull requests with the `run-benchmark` label:
 
 - The workflow uploads the full `benchmark-output` artifact.
-- The workflow uploads all PNG plots to a PR artifact branch named `benchmark-artifacts-pr-<number>`.
-- The PR comment embeds only regression plots from `regression-plots/`.
+- The workflow creates or updates one benchmark PR comment on every run, including clean runs.
+- The PR comment includes all plots in collapsible sections.
 - Warn thresholds leave CI green.
 - Fail thresholds fail the benchmark job.
+- The workflow uploads all PNG plots to a PR artifact branch named `benchmark-artifacts-pr-<number>` so they can render in the comment.
 
 When the PR closes, the workflow deletes the `benchmark-artifacts-pr-<number>` branch. Missing branches are ignored.

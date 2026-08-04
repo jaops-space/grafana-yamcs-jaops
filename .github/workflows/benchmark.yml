@@ -3,17 +3,10 @@ name: Benchmark
 on:
     workflow_dispatch:
     pull_request:
-        types: [opened, synchronize, reopened, labeled]
+        types: [opened, synchronize, reopened, labeled, closed]
         branches:
             - master
             - main
-        paths:
-            - "pkg/source/**"
-            - "pkg/plugin/**"
-            - "pkg/yamcs/**"
-            - "scripts/benchmarks/**"
-            - ".github/workflows/benchmark.yml"
-            - "package.json"
 
 permissions:
     contents: read
@@ -156,7 +149,6 @@ jobs:
                       const fs = require('fs');
                       const path = require('path');
                       const status = JSON.parse(fs.readFileSync('benchmark-output/benchmark-status.json', 'utf8'));
-                      const regressionPlots = status.regression_plots || [];
                       const plotsDir = path.join('benchmark-output', 'plots');
                       const allPlots = fs.existsSync(plotsDir)
                         ? fs.readdirSync(plotsDir).filter((name) => name.endsWith('.png'))
@@ -220,10 +212,7 @@ jobs:
                         });
                       }
 
-                      const plotsBaseUrl = regressionPlots.length > 0
-                        ? `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`
-                        : '';
-                      core.setOutput('plots-base-url', plotsBaseUrl);
+                      core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
 
             - name: Add artifact link to benchmark PR comment
               if: ${{ steps.run-benchmark.outcome == 'success' }}
@@ -234,7 +223,7 @@ jobs:
                     --plots-base-url "${{ steps.publish-plots.outputs.plots-base-url }}" \
                     --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-            - name: Comment benchmark warnings or failures
+            - name: Comment benchmark result
               if: >-
                   ${{
                     github.event_name == 'pull_request' &&
@@ -273,35 +262,33 @@ jobs:
                         });
                       }
 
-            - name: Delete benchmark PR comment when clean
-              if: >-
-                  ${{
-                    github.event_name == 'pull_request' &&
-                    steps.run-benchmark.outcome == 'success' &&
-                    steps.benchmark-status.outputs.should_comment == 'false'
-                  }}
-              continue-on-error: true
-              uses: actions/github-script@v8
-              with:
-                  script: |
-                      const marker = '<!-- jaops-yamcs-benchmark-report -->';
-                      const {owner, repo} = context.repo;
-                      const issue_number = context.payload.pull_request.number;
-                      const comments = await github.paginate(github.rest.issues.listComments, {
-                        owner,
-                        repo,
-                        issue_number,
-                        per_page: 100,
-                      });
-                      const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
-                      if (existing) {
-                        await github.rest.issues.deleteComment({
-                          owner,
-                          repo,
-                          comment_id: existing.id,
-                        });
-                      }
-
             - name: Fail benchmark on threshold failure
               if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
               run: exit 1
+
+    cleanup-benchmark-artifacts:
+        name: Cleanup Benchmark Artifacts
+        runs-on: ubuntu-latest
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
+        permissions:
+            contents: write
+
+        steps:
+            - name: Delete benchmark artifact branch
+              uses: actions/github-script@v8
+              with:
+                  script: |
+                      const {owner, repo} = context.repo;
+                      const prNumber = context.payload.pull_request.number;
+                      const branch = `benchmark-artifacts-pr-${prNumber}`;
+                      try {
+                        await github.rest.git.deleteRef({
+                          owner,
+                          repo,
+                          ref: `heads/${branch}`,
+                        });
+                      } catch (error) {
+                        if (error.status !== 404) {
+                          throw error;
+                        }
+                      }

@@ -13,6 +13,7 @@
         "lint:fix": "pnpm run lint --fix && prettier --write --list-different .",
         "e2e": "playwright test",
         "bench": "python3 scripts/benchmarks/benchmark_yamcs_streams.py",
+        "bench:baseline": "python3 scripts/benchmarks/benchmark_yamcs_streams.py --output-dir scripts/benchmarks/baselines/long-term",
         "bench:report": "python3 scripts/benchmarks/report_benchmark_ci.py",
         "server": "docker compose up --build",
         "server:dev": "DEVELOPMENT=true docker compose up --build",
