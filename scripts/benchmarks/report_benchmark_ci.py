@@ -189,7 +189,7 @@ def build_comment(
 
     lines = [
         COMMENT_MARKER,
-        "## Yamcs Stream Benchmark",
+        "## Performance Benchmark",
         "",
         f"**Status:** {status_label(status)}",
         "",
@@ -306,7 +306,7 @@ def build_comment(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate CI status/comment files for Yamcs benchmark results.")
+    parser = argparse.ArgumentParser(description="Generate CI status/comment files for benchmark results.")
     parser.add_argument("--output-dir", default="benchmark-output")
     parser.add_argument("--plots-base-url", default="")
     parser.add_argument("--run-url", default="")

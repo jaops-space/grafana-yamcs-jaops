@@ -193,7 +193,7 @@ For deeper development and validation workflows:
 | Guide | Purpose |
 | --- | --- |
 | [Testing Guide](./docs/TESTING_GUIDE.md) | Local unit, integration, and end-to-end testing workflows. |
-| [Benchmarking](./docs/BENCHMARKING.md) | Yamcs stream benchmark setup, metrics, plots, and CI behavior. |
+| [Benchmarking](./docs/BENCHMARKING.md) | Benchmark setup, metrics, plots, and CI behavior. |
 | [Plugin Signing](./docs/PLUGIN_SIGNING.md) | Signing and release preparation notes. |
 | [GitHub Secrets Setup](./docs/GITHUB_SECRETS_SETUP.md) | CI secret configuration. |
 

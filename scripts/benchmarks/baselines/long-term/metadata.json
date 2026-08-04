@@ -1,6 +1,6 @@
 {
   "name": "long-term",
-  "description": "Checked-in Yamcs stream benchmark baseline used as a stable reference curve in benchmark plots.",
+  "description": "Checked-in benchmark baseline used as a stable reference curve in benchmark plots.",
   "created_from": "benchmark-output/yamcs-stream-results.json",
   "created_at": "2026-07-24T16:11:35.552418808Z",
   "yamcs_quickstart": "jaops-space/yamcs-quickstart",
