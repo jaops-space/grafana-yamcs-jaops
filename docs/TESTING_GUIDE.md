@@ -58,7 +58,7 @@ By default the benchmark matches Yamcs quickstart's simulator cadence: simulator
 
 See [BENCHMARKING.md](./BENCHMARKING.md) for the full scenario description, metric definitions, thresholds, and CI behavior.
 
-Invariant metrics such as goroutine count, stream goroutine count, unique parameter count, active Yamcs subscription count, paths per parameter, and scenario wall time remain in JSON/CSV for sanity checks, but are not plotted. Plots show the current result in blue, the PR base benchmark in green when available, and the checked-in long-term baseline in orange.
+Invariant metrics such as goroutine count, stream goroutine count, unique parameter count, active Yamcs subscription count, paths per parameter, and scenario wall time remain in JSON/CSV for sanity checks, but are not plotted. Plots show the current result in blue, the PR base benchmark in green when available, and the checked-in long-term baseline in orange. Baseline percentage changes are reported as average/min/max informational values and do not affect WARN or FAIL status.
 
 Thresholds are rendered directly on plots where they apply and are also included in the JSON output. Distant thresholds are hidden so plots can zoom into observed behavior. Use `--fail-on-threshold` to make failed thresholds exit non-zero:
 

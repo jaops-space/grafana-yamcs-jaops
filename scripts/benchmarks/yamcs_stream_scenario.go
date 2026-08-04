@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -52,10 +53,12 @@ type scenarioResult struct {
 }
 
 type systemInfo struct {
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
-	CPUs      int    `json:"cpus"`
-	GoVersion string `json:"go_version"`
+	OS              string  `json:"os"`
+	Arch            string  `json:"arch"`
+	CPUs            int     `json:"cpus"`
+	CPUModel        string  `json:"cpu_model,omitempty"`
+	CPUFrequencyMHz float64 `json:"cpu_frequency_mhz,omitempty"`
+	GoVersion       string  `json:"go_version"`
 }
 
 type streamRequest struct {
@@ -85,16 +88,11 @@ func main() {
 	}
 
 	result := scenarioResult{
-		StartedAt:    time.Now().UTC().Format(time.RFC3339Nano),
-		YamcsAddress: *address,
-		Instance:     *instance,
-		Processor:    *processor,
-		System: systemInfo{
-			OS:        runtime.GOOS,
-			Arch:      runtime.GOARCH,
-			CPUs:      runtime.NumCPU(),
-			GoVersion: runtime.Version(),
-		},
+		StartedAt:       time.Now().UTC().Format(time.RFC3339Nano),
+		YamcsAddress:    *address,
+		Instance:        *instance,
+		Processor:       *processor,
+		System:          collectSystemInfo(),
 		DurationSeconds: duration.Seconds(),
 		WarmupSeconds:   warmup.Seconds(),
 		ReadIntervalMS:  int(readInterval.Milliseconds()),
@@ -117,6 +115,50 @@ func main() {
 	if err := encoder.Encode(result); err != nil {
 		exitf("could not encode results: %v", err)
 	}
+}
+
+func collectSystemInfo() systemInfo {
+	model, frequencyMHz := readLinuxCPUInfo()
+	return systemInfo{
+		OS:              runtime.GOOS,
+		Arch:            runtime.GOARCH,
+		CPUs:            runtime.NumCPU(),
+		CPUModel:        model,
+		CPUFrequencyMHz: frequencyMHz,
+		GoVersion:       runtime.Version(),
+	}
+}
+
+func readLinuxCPUInfo() (string, float64) {
+	file, err := os.Open("/proc/cpuinfo")
+	if err != nil {
+		return "", 0
+	}
+	defer file.Close()
+
+	var model string
+	var frequencyMHz float64
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		key, value, ok := strings.Cut(scanner.Text(), ":")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if model == "" && (key == "model name" || key == "Hardware" || key == "Processor") {
+			model = value
+		}
+		if frequencyMHz == 0 && key == "cpu MHz" {
+			if _, err := fmt.Sscanf(value, "%f", &frequencyMHz); err != nil {
+				frequencyMHz = 0
+			}
+		}
+		if model != "" && frequencyMHz != 0 {
+			break
+		}
+	}
+	return model, frequencyMHz
 }
 
 func runScenario(address string, instance string, processor string, parameters []string, streams int, duration time.Duration, warmup time.Duration, readInterval time.Duration, freshnessWindow time.Duration) (scenarioMetric, error) {

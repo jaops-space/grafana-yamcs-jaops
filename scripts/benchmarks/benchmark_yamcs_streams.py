@@ -181,16 +181,16 @@ THRESHOLDS = {
         "scale": "constant",
     },
 }
-BASELINE_COMPARISON_RULES = {
-    "avg_read_clear": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
-    "avg_process": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
-    "live_memory_growth_bytes": {"direction": "lower", "warn_ratio": 1.30, "unit": "bytes"},
-    "total_allocated_bytes": {"direction": "lower", "warn_ratio": 1.30, "unit": "bytes"},
-    "values_read_per_sec": {"direction": "higher", "warn_ratio": 0.70, "unit": "values/sec"},
-    "values_read_fresh_pct": {"direction": "higher", "warn_ratio": 0.95, "unit": "%"},
-    "avg_value_read_age": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
-    "avg_tick_runstream": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
-    "setup": {"direction": "lower", "warn_ratio": 1.30, "unit": "ns"},
+METRIC_UNITS = {
+    "avg_read_clear": "ns",
+    "avg_process": "ns",
+    "live_memory_growth_bytes": "bytes",
+    "total_allocated_bytes": "bytes",
+    "values_read_per_sec": "values/sec",
+    "values_read_fresh_pct": "%",
+    "avg_value_read_age": "ns",
+    "avg_tick_runstream": "ns",
+    "setup": "ns",
 }
 
 
@@ -482,14 +482,18 @@ def evaluate_thresholds(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return results
 
 
-def evaluate_baseline_comparisons(rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def summarize_baseline_changes(
+    rows: list[dict[str, Any]],
+    baseline_rows: list[dict[str, Any]] | None,
+    label: str,
+) -> list[dict[str, Any]]:
     if not baseline_rows:
         return []
 
     baseline_by_streams = {row["streams"]: row for row in baseline_rows}
-    comparisons = []
-    for key, rule in BASELINE_COMPARISON_RULES.items():
-        worst: dict[str, Any] | None = None
+    summaries = []
+    for key in PERFORMANCE_PLOT_KEYS:
+        changes = []
         for row in rows:
             streams = row["streams"]
             baseline = baseline_by_streams.get(streams)
@@ -504,34 +508,20 @@ def evaluate_baseline_comparisons(rows: list[dict[str, Any]], baseline_rows: lis
 
             current = float(current_value)
             base = float(baseline_value)
-            ratio = current / base
-            if rule["direction"] == "lower":
-                status = "warn" if ratio >= float(rule["warn_ratio"]) else "pass"
-                severity = ratio
-            else:
-                status = "warn" if ratio <= float(rule["warn_ratio"]) else "pass"
-                severity = 1 / ratio if ratio > 0 else float("inf")
-
-            change_pct = 100 * (current - base) / abs(base)
-            candidate = {
-                "metric": key,
-                "plot": f"{PLOT_FILE_NAMES.get(key, key)}.png",
-                "streams": streams,
-                "status": status,
-                "current": current,
-                "baseline": base,
-                "change_pct": change_pct,
-                "ratio": ratio,
-                "unit": rule["unit"],
-                "direction": rule["direction"],
-                "warn_ratio": rule["warn_ratio"],
-            }
-            if worst is None or severity > worst["_severity"]:
-                worst = {**candidate, "_severity": severity}
-        if worst:
-            worst.pop("_severity", None)
-            comparisons.append(worst)
-    return comparisons
+            changes.append(100 * (current - base) / abs(base))
+        if changes:
+            summaries.append(
+                {
+                    "baseline": label,
+                    "metric": key,
+                    "samples": len(changes),
+                    "avg_change_pct": sum(changes) / len(changes),
+                    "min_change_pct": min(changes),
+                    "max_change_pct": max(changes),
+                    "unit": METRIC_UNITS.get(key, ""),
+                }
+            )
+    return summaries
 
 
 def main() -> None:
@@ -584,7 +574,8 @@ def main() -> None:
     else:
         long_term_result, long_term_message = load_baseline_results(LONG_TERM_BASELINE_RESULTS)
     long_term_rows = long_term_result.get("scenarios", []) if long_term_result else None
-    baseline_comparisons = evaluate_baseline_comparisons(result["scenarios"], baseline_rows)
+    baseline_change_summaries = summarize_baseline_changes(result["scenarios"], baseline_rows, "PR base")
+    baseline_change_summaries += summarize_baseline_changes(result["scenarios"], long_term_rows, "Long-term baseline")
     result["baseline"] = {
         "compatible": baseline_result is not None,
         "path": args.baseline_results,
@@ -595,7 +586,7 @@ def main() -> None:
         "path": os.path.relpath(LONG_TERM_BASELINE_RESULTS, os.getcwd()),
         "message": long_term_message,
     }
-    result["baseline_comparisons"] = baseline_comparisons
+    result["baseline_change_summaries"] = baseline_change_summaries
     result["thresholds"] = threshold_results
     with open(json_path, "w", encoding="utf-8") as fp:
         json.dump(result, fp, indent=2)

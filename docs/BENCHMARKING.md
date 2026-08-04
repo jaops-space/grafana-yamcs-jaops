@@ -46,7 +46,7 @@ For every value of `N`, the benchmark:
 - `benchmark-output/benchmark-comment.md`
 - `benchmark-output/regression-plots/*.png`
 
-`plots/` contains all generated benchmark plots. `regression-plots/` is retained as a small machine-readable subset for metrics that crossed a warn threshold, fail threshold, or PR-base regression rule.
+`plots/` contains all generated benchmark plots. `regression-plots/` is retained as a small machine-readable subset for metrics that crossed a warn or fail threshold.
 
 ## Baselines
 
@@ -57,6 +57,8 @@ Benchmark plots can show three curves:
 - Orange: the checked-in long-term baseline from `scripts/benchmarks/baselines/long-term/yamcs-stream-results.json`.
 
 The long-term baseline is intentionally committed to the repository so performance drift remains visible even when a PR base benchmark is unavailable or changes too often to be a useful historical reference. Its metadata lives next to the result file in `scripts/benchmarks/baselines/long-term/metadata.json`.
+
+The report also shows informational average, minimum, and maximum percentage change for each metric against each available baseline. These percentage changes do not affect WARN or FAIL status.
 
 ## Metrics
 
@@ -130,5 +132,3 @@ On pull requests with the `run-benchmark` label:
 - Warn thresholds leave CI green.
 - Fail thresholds fail the benchmark job.
 - The workflow uploads all PNG plots to a PR artifact branch named `benchmark-artifacts-pr-<number>` so they can render in the comment.
-
-When the PR closes, the workflow deletes the `benchmark-artifacts-pr-<number>` branch. Missing branches are ignored.
