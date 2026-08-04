@@ -11,12 +11,27 @@ import {
 import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafana/runtime';
 
 import { Observable, merge } from 'rxjs';
-import { Configuration, DEFAULT_QUERY as DefaultQuery, Query, QueryType } from './types';
+import { Configuration, DEFAULT_QUERY as DefaultQuery, DefaultConfiguration, Query, QueryType } from './types';
 
-function formatRangePath(request: DataQueryRequest<Query>): string {
+function formatAbsoluteRangePath(request: DataQueryRequest<Query>): string {
     const fromUnix = request.range.from.unix();
     const toUnix = request.range.to.unix();
     return `${fromUnix}-${toUnix}`;
+}
+
+function isRelativeTimeValue(value: unknown): value is string {
+    return typeof value === 'string' && value.startsWith('now');
+}
+
+function formatRangePath(request: DataQueryRequest<Query>): string {
+    const rawFrom = request.range.raw?.from;
+    const rawTo = request.range.raw?.to;
+
+    if (isRelativeTimeValue(rawFrom) && isRelativeTimeValue(rawTo)) {
+        return `${encodeURIComponent(rawFrom)}-${encodeURIComponent(rawTo)}`;
+    }
+
+    return formatAbsoluteRangePath(request);
 }
 
 function formatGraphFieldsPath(query: Query): string {
@@ -28,16 +43,26 @@ function formatDiscreteOptionsPath(query: Query): string {
     return query.automaticColors ? 'colors=auto' : 'colors=none';
 }
 
+function roundDataPoints(maxDataPoints: number, dataPointsRounding: number, bufferMaxLength: number): number {
+    const rounded = Math.round(maxDataPoints / dataPointsRounding) * dataPointsRounding;
+    return Math.min(rounded, bufferMaxLength);
+}
+
 /**
  * Custom Grafana DataSource for retrieving and streaming data.
  */
 export class DataSource extends DataSourceWithBackend<Query, Configuration> {
-    bufferMaxLength = 10000;
+    bufferMaxLength = DefaultConfiguration.bufferMaxLength;
+    dataPointsRounding = DefaultConfiguration.dataPointsRounding;
     debugMode = false;
 
     constructor(instanceSettings: DataSourceInstanceSettings<Configuration>) {
         super(instanceSettings);
         this.bufferMaxLength = instanceSettings.jsonData.bufferMaxLength ?? this.bufferMaxLength;
+        this.dataPointsRounding = Math.min(
+            instanceSettings.jsonData.dataPointsRounding ?? this.dataPointsRounding,
+            this.bufferMaxLength
+        );
         this.debugMode = instanceSettings.jsonData.debugMode ?? this.debugMode;
     }
 
@@ -113,18 +138,23 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
 
                 const fromUnix = request.range.from.unix();
                 const toUnix = request.range.to.unix();
+                const roundedMaxDataPoints = roundDataPoints(
+                    request.maxDataPoints ?? this.dataPointsRounding,
+                    this.dataPointsRounding,
+                    this.bufferMaxLength
+                );
 
                 const pathParts = [query.endpoint, pathName];
                 if (query.type === QueryType.PLOT) {
                     pathParts.push(
                         formatRangePath(request),
-                        `${request.maxDataPoints ?? 1000}`,
+                        `${roundedMaxDataPoints}`,
                         formatGraphFieldsPath(query)
                     );
                 } else if (query.type === QueryType.DISCRETE) {
                     pathParts.push(
                         formatRangePath(request),
-                        `${request.maxDataPoints ?? 1000}`,
+                        `${roundedMaxDataPoints}`,
                         formatDiscreteOptionsPath(query)
                     );
                 } else if (query.type === QueryType.COMMAND_HISTORY || query.type === QueryType.SINGLE) {
@@ -144,7 +174,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                             ...query,
                             from: fromUnix,
                             to: toUnix,
-                            points: request.maxDataPoints ?? 1000,
+                            points: roundedMaxDataPoints,
                         },
                     },
                 });

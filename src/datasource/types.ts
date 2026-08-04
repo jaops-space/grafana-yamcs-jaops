@@ -13,7 +13,6 @@ export interface Query extends DataQuery {
     asVariable: boolean;
     customVariableString: boolean;
     endpointVariable: string;
-    frontendShiftedTime?: boolean;
     automaticColors?: boolean;
 
     // YAMCS parameter filter configuration
@@ -93,6 +92,7 @@ export interface Configuration extends DataSourceJsonData {
     >;
 
     bufferMaxLength: number;
+    dataPointsRounding: number;
     debugMode: boolean;
 }
 
@@ -104,6 +104,7 @@ export const DefaultConfiguration = {
     hosts: {},
     endpoints: {},
     bufferMaxLength: 5000,
+    dataPointsRounding: 500,
     debugMode: false,
 } satisfies Configuration;
 
