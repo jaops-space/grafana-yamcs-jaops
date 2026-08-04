@@ -26,6 +26,12 @@ The current version has already been tested in real-world deployments but active
 
 Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control software, tools and training for spacecraft in orbit and rovers on the Moon!
 
+### Install and Try
+
+Install the signed plugin directly from the [Grafana Catalog](https://grafana.com/grafana/plugins/jaops-yamcs-app/) (**Plugins and data** > **Plugins** on your Grafana Instnace). After installation, configure a Yamcs host and endpoint in the datasource settings.
+
+The plugin includes helpful tutorials for each panel. Access them from the main navigation menu on the left side of Grafana.
+
 <table>
   <tr>
     <td><strong>Grafana Catalog</strong></td>
@@ -135,9 +141,27 @@ Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control
 
 ## Example Grafana Dashboard Connected to Yamcs
 
-Demo Dashboards showcase the main capabilities of the plugin. They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
+Demo dashboards showcase the main capabilities of the plugin. They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
 
-To try the demo locally, clone the Yamcs quickstart repository and run the Yamcs server, simulator, and optional image simulator as described in the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/setup_instructions.md).
+To try it with a local Yamcs demo, clone the [JAOPS Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart) repository and run:
+
+```bash
+./mvn yamcs:run
+```
+
+In another terminal, start the simulator:
+
+```bash
+python3 simulator.py
+```
+
+For image telemetry panels, you can also run the optional image simulator:
+
+```bash
+python3 simulator/images/generate_images.py
+```
+
+For local development with the repository demo dashboards, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">

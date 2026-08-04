@@ -41,6 +41,15 @@ The current version has already been tested in real-world deployments but active
 
 Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control software, tools and training for spacecraft in orbit and rovers on the Moon!
 
+### Install and Try
+
+There are two common ways to use the plugin:
+
+- **One-click catalog install:** install the signed release from the [Grafana Catalog](https://grafana.com/grafana/plugins/jaops-yamcs-app/) when you want the latest published version.
+- **Local development install:** follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) when you want to test unreleased changes, contribute, or run the local demo environment.
+
+For a quick Yamcs demo, use the [JAOPS Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart). The plugin also includes in-app tutorials for each panel, available from the main navigation menu in Grafana.
+
 <table>
   <tr>
     <td><strong>Grafana Catalog</strong></td>
@@ -157,14 +166,14 @@ Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control
 Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
 They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
 
-After cloning the repository, run in three separate terminals:
+After cloning the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart), run in separate terminals:
 
 ```bash
 ./mvn yamcs:run
 ```
 
 ```bash
-python3 simulator.sh
+python3 simulator.py
 ```
 
 ```bash
@@ -175,13 +184,9 @@ python3 simulator/images/generate_images.py
   <img src="./screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">
 </p>
 
-## Archive Database Configuration
-
-The plugin supports querying telemetry from live Yamcs data.
-
 ## Try Out the Plugin for Yourself
 
-Follow the [setup instruction](./setup_instructions.md) to get started in just a few minutes.
+Follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) to get started in just a few minutes.
 
 For deeper development and validation workflows:
 
