@@ -21,7 +21,7 @@
 <p align="center">
   <a href="https://grafana.com/grafana/plugins/jaops-yamcs-app/">Grafana Catalog</a>
   ·
-  <a href="./setup_instructions.md">Setup Instructions</a>
+  <a href="./docs/SETUP_INSTRUCTIONS.md">Setup Instructions</a>
   ·
   <a href="./docs/TESTING_GUIDE.md">Testing Guide</a>
   ·
