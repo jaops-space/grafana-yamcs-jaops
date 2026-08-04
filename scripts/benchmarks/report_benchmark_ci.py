@@ -195,8 +195,6 @@ def build_comment(
         "",
         "**Scenario:** Yamcs quickstart simulator at 1 Hz with Grafana streams reading buffers on 1s tickers.",
         "",
-        "_This comment is updated with the latest benchmark result._",
-        "",
         status_sentence(status),
         "",
         "<details>",
@@ -302,6 +300,7 @@ def build_comment(
     else:
         lines.extend(["", "No benchmark plots were selected for this warning."])
 
+    lines.extend(["", "_This comment is updated with the latest benchmark result._"])
     return "\n".join(lines).rstrip() + "\n"
 
 
