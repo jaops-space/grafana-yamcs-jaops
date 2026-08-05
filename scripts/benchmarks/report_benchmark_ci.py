@@ -239,8 +239,6 @@ def build_comment(
         f"| Parameters | `{len(parameters)}` |",
         f"| Duration | `{result.get('duration_seconds', 0):.2f}s` |",
         f"| Warmup | `{result.get('warmup_seconds', 0):.2f}s` |",
-        f"| Read interval | `{result.get('read_interval_ms', 0)}ms` |",
-        f"| Freshness window | `{result.get('freshness_ms', 0)}ms` |",
         f"| Simulator / stream ticker | `{result.get('simulator_rate', 'unknown')} Hz` / `{result.get('read_interval_ms', 0)}ms` |",
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
         f"| System architecture | `{system_arch}` |",
