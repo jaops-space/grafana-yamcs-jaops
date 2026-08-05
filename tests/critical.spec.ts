@@ -1,5 +1,5 @@
 import { expect, test } from '@grafana/plugin-e2e';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 const appPluginId = 'jaops-yamcs-app';
 const datasourcePluginId = 'jaops-yamcs-datasource';
@@ -21,75 +21,21 @@ const pluginIds = [
 ];
 
 const panelRenderChecks = [
-    { name: 'JAOPS Commanding Panel', type: 'jaops-commanding-panel', marker: 'jaops-commanding-panel' },
+    { name: 'JAOPS Commanding Panel', marker: 'jaops-commanding-panel' },
     {
         name: 'JAOPS Command History Panel',
-        type: 'jaops-commandhistory-panel',
         marker: 'jaops-command-history-panel',
     },
     {
         name: 'JAOPS Telemetric Image Panel',
-        type: 'jaops-telemetricimage-panel',
         marker: 'jaops-telemetric-image-panel',
     },
-    { name: 'JAOPS Static Image Panel', type: 'jaops-staticimage-panel', marker: 'jaops-static-image-panel' },
-    { name: 'JAOPS Variable Setting Panel', type: 'jaops-variables-panel', marker: 'jaops-variable-setting-panel' },
-    { name: 'JAOPS Alarms Panel', type: 'jaops-alarms-panel', marker: 'jaops-alarms-panel' },
-    { name: 'JAOPS Links Panel', type: 'jaops-links-panel', marker: 'jaops-links-panel' },
-    { name: 'JAOPS Yamcs Time Sync', type: 'jaops-timesync-panel', marker: 'jaops-time-sync-panel' },
+    { name: 'JAOPS Static Image Panel', marker: 'jaops-static-image-panel' },
+    { name: 'JAOPS Variable Setting Panel', marker: 'jaops-variable-setting-panel' },
+    { name: 'JAOPS Alarms Panel', marker: 'jaops-alarms-panel' },
+    { name: 'JAOPS Links Panel', marker: 'jaops-links-panel' },
+    { name: 'JAOPS Yamcs Time Sync', marker: 'jaops-time-sync-panel' },
 ];
-
-async function createPanelEditDashboard(
-    request: APIRequestContext,
-    {
-        uid,
-        title,
-        panelType,
-        targets = [],
-        datasource,
-    }: {
-        uid: string;
-        title: string;
-        panelType: string;
-        targets?: unknown[];
-        datasource?: { type: string; uid: string };
-    }
-) {
-    await request.delete(`/api/dashboards/uid/${uid}`);
-    const response = await request.post('/api/dashboards/db', {
-        data: {
-            dashboard: {
-                uid,
-                title,
-                schemaVersion: 40,
-                version: 0,
-                refresh: false,
-                time: { from: 'now-6h', to: 'now' },
-                panels: [
-                    {
-                        id: 1,
-                        title,
-                        type: panelType,
-                        datasource,
-                        targets,
-                        gridPos: { h: 8, w: 12, x: 0, y: 0 },
-                    },
-                ],
-            },
-            overwrite: true,
-        },
-    });
-    expect(response.ok(), `failed to create temporary dashboard ${uid}`).toBeTruthy();
-}
-
-async function gotoTemporaryPanelEditPage(page: Page, uid: string) {
-    await page.goto(`/d/${uid}/e2e?editPanel=1`);
-    await dismissGrafanaModals(page);
-}
-
-async function deleteTemporaryDashboard(request: APIRequestContext, uid: string) {
-    await request.delete(`/api/dashboards/uid/${uid}`);
-}
 
 async function dismissGrafanaModals(page: Page) {
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -250,77 +196,43 @@ test.describe('critical plugin paths', () => {
         }
     });
 
-    test('datasource query editor is configurable in a Grafana panel editor', async ({ page, request }) => {
+    test('datasource query editor is configurable in a Grafana panel editor', async ({ page, panelEditPage }) => {
         test.setTimeout(60000);
 
-        const uid = `jaops-e2e-query-editor-${Date.now()}`;
-        const datasource = { type: datasourcePluginId, uid: datasourceUid };
-        await createPanelEditDashboard(request, {
-            uid,
-            title: 'JAOPS E2E Query Editor',
-            panelType: 'timeseries',
-            datasource,
-            targets: [
-                {
-                    refId: 'A',
-                    datasource,
-                    type: 'plot',
-                    endpoint: quickstartEndpoint,
-                    parameter: '/myproject/Battery1_Voltage',
-                    command: '',
-                    fields: [],
-                    asVariable: false,
-                    customVariableString: false,
-                    endpointVariable: '',
-                },
-            ],
-        });
-        const queryEditor = page.getByTestId('jaops-query-editor').first();
-        try {
-            await gotoTemporaryPanelEditPage(page, uid);
-            await expect(queryEditor).toBeVisible({ timeout: 20000 });
-            await expect(queryEditor.getByTestId('jaops-query-type-select')).toBeVisible();
-            await expect(queryEditor.getByTestId('jaops-parameter-select')).toBeVisible();
+        await dismissGrafanaModals(page);
+        await panelEditPage.datasource.set(datasourceName);
 
-            const endpointsResponse = page.waitForResponse(
-                (response) => response.url().includes('/resources/fetch/endpoints') && response.ok(),
-                { timeout: 30000 }
-            );
-            await queryEditor.getByTestId('jaops-query-editor-fetch-endpoints').click();
-            await endpointsResponse;
+        const queryEditor = panelEditPage.getQueryEditorRow('A').getByTestId('jaops-query-editor');
+        await expect(queryEditor).toBeVisible({ timeout: 20000 });
+        await expect(queryEditor.getByTestId('jaops-query-type-select')).toBeVisible();
+        await expect(queryEditor.getByTestId('jaops-parameter-select')).toBeVisible();
 
-            await queryEditor.getByLabel('As variable').check({ force: true });
-            await expect(queryEditor.getByLabel('Custom string')).toBeVisible();
-            await queryEditor.getByLabel('Custom string').check({ force: true });
-            await expect(queryEditor.getByText('Endpoint Variable')).toBeVisible();
+        const endpointsResponse = page.waitForResponse(
+            (response) => response.url().includes('/resources/fetch/endpoints') && response.ok(),
+            { timeout: 30000 }
+        );
+        await queryEditor.getByTestId('jaops-query-editor-fetch-endpoints').click();
+        await endpointsResponse;
 
-            await queryEditor.getByTestId('jaops-query-editor-run-query').click();
-            await expect(queryEditor).toBeVisible();
-        } finally {
-            await deleteTemporaryDashboard(request, uid);
-        }
+        await queryEditor.getByLabel('As variable').check({ force: true });
+        await expect(queryEditor.getByLabel('Custom string')).toBeVisible();
+        await queryEditor.getByLabel('Custom string').check({ force: true });
+        await expect(queryEditor.getByText('Endpoint Variable')).toBeVisible();
+
+        await queryEditor.getByTestId('jaops-query-editor-run-query').click();
+        await expect(queryEditor).toBeVisible();
     });
 
     for (const panel of panelRenderChecks) {
-        test(`${panel.name} renders in Grafana panel editor`, async ({ page, request }) => {
+        test(`${panel.name} renders in Grafana panel editor`, async ({ page, panelEditPage }) => {
             test.setTimeout(60000);
 
-            const uid = `jaops-e2e-panel-${panel.type}-${Date.now()}`;
-            await createPanelEditDashboard(request, {
-                uid,
-                title: `${panel.name} E2E`,
-                panelType: panel.type,
-            });
-
-            try {
-                await gotoTemporaryPanelEditPage(page, uid);
-                await expect(page.getByTestId(panel.marker)).toBeVisible({ timeout: 20000 });
-                await expect(
-                    page.getByText(/Plugin unavailable|Panel plugin not found|Error loading panel/i)
-                ).toHaveCount(0);
-            } finally {
-                await deleteTemporaryDashboard(request, uid);
-            }
+            await dismissGrafanaModals(page);
+            await panelEditPage.setVisualization(panel.name);
+            await expect(page.getByTestId(panel.marker)).toBeVisible({ timeout: 20000 });
+            await expect(page.getByText(/Plugin unavailable|Panel plugin not found|Error loading panel/i)).toHaveCount(
+                0
+            );
         });
     }
 });
