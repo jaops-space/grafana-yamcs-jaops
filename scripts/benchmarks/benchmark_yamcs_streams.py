@@ -16,6 +16,7 @@ os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.ticker import FuncFormatter
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LONG_TERM_BASELINE_DIR = os.path.join(SCRIPT_DIR, "baselines", "long-term")
@@ -316,6 +317,15 @@ def load_baseline_results(path: str) -> tuple[dict[str, Any] | None, str]:
     return result, "baseline loaded"
 
 
+def load_json_file(path: str) -> dict[str, Any] | None:
+    try:
+        with open(path, encoding="utf-8") as fp:
+            value = json.load(fp)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def scaled_series(key: str, values: list[float], scale_reference: float | None = None) -> tuple[list[float], str]:
     label = METRIC_LABELS.get(key, key.replace("_", " "))
     max_abs = scale_reference if scale_reference is not None else max(abs(value) for value in values) if values else 0
@@ -333,7 +343,75 @@ def scaled_series(key: str, values: list[float], scale_reference: float | None =
         return values, f"{label} (bytes)"
     if key.endswith("_pct"):
         return values, f"{label} (%)"
+    if key in METRIC_UNITS:
+        return values, f"{label} ({METRIC_UNITS[key]})"
     return values, label
+
+
+def split_axis_label(label: str) -> tuple[str, str]:
+    if label.endswith(")") and " (" in label:
+        name, unit = label.rsplit(" (", 1)
+        return name, unit[:-1]
+    return label, ""
+
+
+def format_number(value: float) -> str:
+    abs_value = abs(value)
+    if abs_value == 0:
+        return "0"
+    if abs_value >= 100:
+        return f"{value:.0f}"
+    if abs_value >= 10:
+        return f"{value:.1f}".rstrip("0").rstrip(".")
+    if abs_value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def format_time_tick(value: float, axis_unit: str) -> str:
+    multipliers = {"ns": 1, "us": 1_000, "ms": 1_000_000, "s": 1_000_000_000}
+    ns = value * multipliers.get(axis_unit, 1)
+    abs_ns = abs(ns)
+    if abs_ns >= 1_000_000_000:
+        return f"{format_number(ns / 1_000_000_000)} s"
+    if abs_ns >= 1_000_000:
+        return f"{format_number(ns / 1_000_000)} ms"
+    if abs_ns >= 1_000:
+        return f"{format_number(ns / 1_000)} us"
+    return f"{format_number(ns)} ns"
+
+
+def format_byte_tick(value: float, axis_unit: str) -> str:
+    multipliers = {"bytes": 1, "KiB": 1024, "MiB": 1024 * 1024, "GiB": 1024 * 1024 * 1024}
+    bytes_value = value * multipliers.get(axis_unit, 1)
+    abs_bytes = abs(bytes_value)
+    if abs_bytes >= 1024 * 1024 * 1024:
+        return f"{format_number(bytes_value / (1024 * 1024 * 1024))} GiB"
+    if abs_bytes >= 1024 * 1024:
+        return f"{format_number(bytes_value / (1024 * 1024))} MiB"
+    if abs_bytes >= 1024:
+        return f"{format_number(bytes_value / 1024)} KiB"
+    return f"{format_number(bytes_value)} bytes"
+
+
+def format_rate_tick(value: float, axis_unit: str) -> str:
+    if axis_unit == "values/sec":
+        if abs(value) >= 1_000_000:
+            return f"{format_number(value / 1_000_000)}M values/s"
+        if abs(value) >= 1_000:
+            return f"{format_number(value / 1_000)}k values/s"
+        return f"{format_number(value)} values/s"
+    return f"{format_number(value)} {axis_unit}".rstrip()
+
+
+def format_axis_tick(value: float, axis_unit: str) -> str:
+    if axis_unit in {"ns", "us", "ms", "s"}:
+        return format_time_tick(value, axis_unit)
+    if axis_unit in {"bytes", "KiB", "MiB", "GiB"}:
+        return format_byte_tick(value, axis_unit)
+    if axis_unit == "%":
+        return f"{format_number(value)}%"
+    return format_rate_tick(value, axis_unit)
 
 
 def apply_y_axis_floor(values: list[float]) -> None:
@@ -418,6 +496,12 @@ def style_metric_axis(ax: Axes, title: str) -> None:
     ax.grid(True, which="minor", color=PLOT_COLORS["minor_grid"], alpha=0.9)
 
 
+def apply_y_tick_formatter(ax: Axes, axis_unit: str) -> None:
+    if not axis_unit:
+        return
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _position: format_axis_tick(value, axis_unit)))
+
+
 def add_threshold_regions(ax: Axes, threshold_lines: list[tuple[str, str, str, list[float]]]) -> None:
     warn = threshold_level(threshold_lines, "warn")
     fail = threshold_level(threshold_lines, "fail")
@@ -488,6 +572,7 @@ def plot_metric(
     all_raw_ys = raw_ys + baseline_raw_ys + long_term_raw_ys
     scale_reference = max(abs(value) for value in all_raw_ys) if all_raw_ys else 0
     ys, label = scaled_series(key, raw_ys, scale_reference)
+    y_label, y_unit = split_axis_label(label)
     baseline_xs = [point[0] for point in baseline_points]
     baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
     long_term_xs = [point[0] for point in long_term_points]
@@ -515,7 +600,7 @@ def plot_metric(
     for level, _operator, color, threshold_values in threshold_lines:
         ax.plot(xs, threshold_values, color=color, linewidth=1.25, alpha=0.95, zorder=2)
     ax.set_xscale("log")
-    ax.set_ylabel(label)
+    ax.set_ylabel(y_label)
     style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
     axis_values = ys + baseline_ys + long_term_ys + [value for _, _, _, threshold_values in threshold_lines for value in threshold_values]
     if key.endswith("_pct"):
@@ -527,6 +612,7 @@ def plot_metric(
     else:
         plt.sca(ax)
         apply_y_axis_floor(axis_values)
+    apply_y_tick_formatter(ax, y_unit)
     add_head_fill(ax, xs, ys, axis_values)
     add_threshold_regions(ax, threshold_lines)
     warn = threshold_level(threshold_lines, "warn")
@@ -652,6 +738,7 @@ def main() -> None:
     parser.add_argument("--simulator-port", type=int, default=10015)
     parser.add_argument("--simulator-rate", type=int, default=1)
     parser.add_argument("--baseline-results", default="", help="Optional previous benchmark JSON to plot and compare against")
+    parser.add_argument("--baseline-commit", default="", help="Commit hash used to produce the PR base benchmark")
     parser.add_argument("--fail-on-threshold", action="store_true", help="Exit non-zero when any benchmark threshold fails")
     argv = sys.argv[1:]
     if argv and argv[0] == "--":
@@ -689,11 +776,13 @@ def main() -> None:
     result["baseline"] = {
         "compatible": baseline_result is not None,
         "path": args.baseline_results,
+        "commit": args.baseline_commit,
         "message": baseline_message,
     }
     result["long_term_baseline"] = {
         "compatible": long_term_result is not None,
         "path": os.path.relpath(LONG_TERM_BASELINE_RESULTS, os.getcwd()),
+        "metadata": load_json_file(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json")) or {},
         "message": long_term_message,
     }
     result["baseline_change_summaries"] = baseline_change_summaries

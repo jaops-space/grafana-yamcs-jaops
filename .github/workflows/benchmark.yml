@@ -107,7 +107,8 @@ jobs:
               continue-on-error: true
               run: |
                   pnpm run bench -- \
-                    --baseline-results benchmark-output/baseline/yamcs-stream-results.json
+                    --baseline-results benchmark-output/baseline/yamcs-stream-results.json \
+                    --baseline-commit "${{ steps.benchmark-base.outputs.sha }}"
 
             - name: Generate benchmark report files
               if: ${{ steps.run-benchmark.outcome == 'success' }}

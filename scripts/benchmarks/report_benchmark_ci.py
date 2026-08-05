@@ -30,6 +30,11 @@ METRIC_DETAILS = {
     "values_read_fresh_pct": "Share of values read before the next 1 second simulator update.",
     "avg_tick_runstream": "Average wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
 }
+VALUE_AGE_NOTE = (
+    "Lower is usually better, and values near or above `1s` mean reads are close to missing the simulator tick in which "
+    "the value arrived. High value age does not always mean lower backend performance; it can also be caused by desync "
+    "with Yamcs simulator ticks, but it should never be above `1s`."
+)
 THRESHOLD_TO_PLOT = {
     "avg_read_clear": "avg_read_clear.png",
     "avg_process": "avg_process.png",
@@ -155,6 +160,34 @@ def average_change_title(summaries: list[dict[str, Any]]) -> str:
     return ""
 
 
+def format_commit(value: Any) -> str:
+    if not isinstance(value, str) or not value:
+        return "not available"
+    return value
+
+
+def format_long_term_baseline(value: dict[str, Any]) -> str:
+    metadata = value.get("metadata", {})
+    if not isinstance(metadata, dict) or not metadata:
+        return str(value.get("message", "not available"))
+
+    parts = []
+    created_at = metadata.get("created_at")
+    if isinstance(created_at, str) and created_at:
+        parts.append(created_at)
+    quickstart = metadata.get("yamcs_quickstart")
+    if isinstance(quickstart, str) and quickstart:
+        parts.append(quickstart)
+    simulator_rate = metadata.get("simulator_rate_hz")
+    stream_interval = metadata.get("stream_read_interval")
+    if simulator_rate or stream_interval:
+        parts.append(f"{simulator_rate or 'unknown'} Hz simulator / {stream_interval or 'unknown'} stream ticker")
+    parameter_count = metadata.get("parameter_count")
+    if isinstance(parameter_count, int):
+        parts.append(f"{parameter_count} parameters")
+    return "; ".join(parts) if parts else str(value.get("message", "not available"))
+
+
 def build_comment(
     result: dict[str, Any],
     thresholds: list[dict[str, Any]],
@@ -212,7 +245,8 @@ def build_comment(
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
         f"| System architecture | `{system_arch}` |",
         f"| PR base baseline | `{baseline.get('message', 'not requested')}` |",
-        f"| Long-term baseline | `{long_term_baseline.get('message', 'not available')}` |",
+        f"| PR base commit | `{format_commit(baseline.get('commit'))}` |",
+        f"| Long-term baseline | `{format_long_term_baseline(long_term_baseline)}` |",
     ]
     if args.run_url:
         lines.append(f"| Workflow run | [open run]({args.run_url}) |")
@@ -247,7 +281,7 @@ def build_comment(
                 "",
                 "### Benchmark Plots",
                 "",
-                "Blue is the PR result. Green is the base commit before the PR changes. Orange is the checked-in long-term baseline when available.",
+                "Blue is HEAD. Slate is the PR base commit before the PR changes. Green dashed is the checked-in long-term baseline when available.",
                 "",
             ]
         )
@@ -255,7 +289,7 @@ def build_comment(
             threshold = threshold_by_metric.get(metric)
             baseline_summaries = summaries_by_metric.get(metric, [])
             image_url = plot_url(args, plot_name)
-            average_change = average_change_title(baseline_summaries)
+            average_change = "" if metric == "avg_value_read_age" else average_change_title(baseline_summaries)
             marker = " - needs attention" if plot_name in relevant_plot_names else ""
             lines.extend(["<details>", f"<summary>{metric_name(metric)}{average_change}{marker}</summary>", ""])
             if threshold:
@@ -272,7 +306,9 @@ def build_comment(
                         "",
                     ]
                 )
-            if baseline_summaries:
+            if metric == "avg_value_read_age":
+                lines.extend([VALUE_AGE_NOTE, ""])
+            elif baseline_summaries:
                 lines.extend(
                     [
                         "| Reference | Samples | Average change | Min change | Max change |",
