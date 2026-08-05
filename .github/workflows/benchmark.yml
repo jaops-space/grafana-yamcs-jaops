@@ -158,6 +158,16 @@ jobs:
                       const runId = context.runId;
                       const branch = `benchmark-artifacts-pr-${prNumber}`;
                       const prefix = `benchmark/run-${runId}/plots`;
+                      let parentSha;
+                      try {
+                        const ref = await github.rest.git.getRef({owner, repo, ref: `heads/${branch}`});
+                        parentSha = ref.data.object.sha;
+                      } catch (error) {
+                        if (error.status !== 404) {
+                          throw error;
+                        }
+                      }
+
                       const treeEntries = [];
                       for (const plot of allPlots) {
                         const source = path.join(plotsDir, plot);
@@ -184,20 +194,16 @@ jobs:
                         repo,
                         message: `Add benchmark plots for run ${runId}`,
                         tree: tree.data.sha,
-                        parents: [],
+                        parents: parentSha ? [parentSha] : [],
                       });
-                      try {
+                      if (parentSha) {
                         await github.rest.git.updateRef({
                           owner,
                           repo,
                           ref: `heads/${branch}`,
                           sha: commit.data.sha,
-                          force: true,
                         });
-                      } catch (error) {
-                        if (error.status !== 404) {
-                          throw error;
-                        }
+                      } else {
                         await github.rest.git.createRef({
                           owner,
                           repo,

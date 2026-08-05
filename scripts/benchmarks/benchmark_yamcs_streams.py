@@ -15,6 +15,7 @@ os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "jaops
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LONG_TERM_BASELINE_DIR = os.path.join(SCRIPT_DIR, "baselines", "long-term")
@@ -192,6 +193,17 @@ METRIC_UNITS = {
     "avg_tick_runstream": "ns",
     "setup": "ns",
 }
+PLOT_COLORS = {
+    "head": "#1d4ed8",
+    "pr_base": "#64748b",
+    "long_term": "#16a34a",
+    "warn": "#f59e0b",
+    "warn_text": "#b45309",
+    "fail": "#ef4444",
+    "fail_text": "#b91c1c",
+    "grid": "#e2e8f0",
+    "minor_grid": "#f1f5f9",
+}
 
 
 def parse_streams(value: str) -> list[int]:
@@ -350,24 +362,100 @@ def apply_log_y_axis(values: list[float]) -> None:
     plt.ylim(bottom=min(positive) * 0.8, top=max(positive) * 1.2)
 
 
-def thresholds_for_plot(key: str, xs: list[int], scale_reference: float) -> list[tuple[str, str, list[float]]]:
+def apply_percentage_y_axis(values: list[float]) -> None:
+    if not values:
+        return
+    ymin = max(0, min(values) - 5)
+    ymax = min(105, max(values) + 2)
+    if ymax - ymin < 10:
+        midpoint = (ymin + ymax) / 2
+        ymin = max(0, midpoint - 5)
+        ymax = min(105, midpoint + 5)
+    plt.ylim(bottom=ymin, top=ymax)
+
+
+def thresholds_for_plot(key: str, xs: list[int], scale_reference: float) -> list[tuple[str, str, str, list[float]]]:
     lines = []
     for threshold in THRESHOLDS.values():
         if threshold.get("plot_key") != key:
             continue
-        for level, color in [("warn", "#c58a00"), ("fail", "#c53030")]:
+        operator = str(threshold.get("operator", "max"))
+        for level, color in [("warn", PLOT_COLORS["warn"]), ("fail", PLOT_COLORS["fail"])]:
             raw_value = float(threshold[level])
             if threshold.get("scale") == "per_stream":
                 values = [raw_value * x for x in xs]
             else:
                 values = [raw_value for _ in xs]
-            if threshold.get("operator") == "max" and max(values) > scale_reference * 5:
+            if operator == "max" and max(values) > scale_reference * 5:
                 continue
-            if threshold.get("operator") == "min" and max(values) < scale_reference / 5:
+            if operator == "min" and max(values) < scale_reference / 5:
                 continue
             scaled_values, _ = scaled_series(key, values, scale_reference)
-            lines.append((level, color, scaled_values))
+            lines.append((level, operator, color, scaled_values))
     return lines
+
+
+def threshold_level(threshold_lines: list[tuple[str, str, str, list[float]]], level: str) -> float | None:
+    for threshold_level_name, _operator, _color, values in threshold_lines:
+        if threshold_level_name == level and values and all(value == values[0] for value in values):
+            return float(values[0])
+    return None
+
+
+def threshold_operator(threshold_lines: list[tuple[str, str, str, list[float]]]) -> str:
+    for _level, operator, _color, _values in threshold_lines:
+        return operator
+    return "max"
+
+
+def style_metric_axis(ax: Axes, title: str) -> None:
+    ax.set_title(title, loc="left", fontsize=13, fontweight="normal", pad=18)
+    ax.set_xlabel("Concurrent Grafana streams (N)")
+    ax.spines[["top", "right"]].set_visible(False)
+    for spine in ax.spines.values():
+        spine.set_color(PLOT_COLORS["grid"])
+    ax.grid(True, which="major", color=PLOT_COLORS["grid"], alpha=0.78)
+    ax.grid(True, which="minor", color=PLOT_COLORS["minor_grid"], alpha=0.9)
+
+
+def add_threshold_regions(ax: Axes, threshold_lines: list[tuple[str, str, str, list[float]]]) -> None:
+    warn = threshold_level(threshold_lines, "warn")
+    fail = threshold_level(threshold_lines, "fail")
+    if warn is None or fail is None:
+        return
+
+    ymin, ymax = ax.get_ylim()
+    operator = threshold_operator(threshold_lines)
+    if operator == "min":
+        ax.axhspan(max(ymin, fail), min(ymax, warn), color=PLOT_COLORS["warn"], alpha=0.07, zorder=0)
+        ax.axhspan(ymin, min(ymax, fail), color=PLOT_COLORS["fail"], alpha=0.055, zorder=0)
+        return
+
+    ax.axhspan(max(ymin, warn), min(ymax, fail), color=PLOT_COLORS["warn"], alpha=0.07, zorder=0)
+    ax.axhspan(max(ymin, fail), ymax, color=PLOT_COLORS["fail"], alpha=0.055, zorder=0)
+
+
+def add_threshold_label(ax: Axes, label: str, value: float, color: str) -> None:
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    if not ymin <= value <= ymax:
+        return
+    text_y = value * 1.04 if ax.get_yscale() == "log" else value + (ymax - ymin) * 0.018
+    text_y = min(max(text_y, ymin), ymax)
+    ax.text(xmax, text_y, label, ha="right", va="bottom", color=color, fontsize=9)
+
+
+def add_head_fill(ax: Axes, xs: list[int], ys: list[float], axis_values: list[float]) -> None:
+    if not xs or not ys:
+        return
+    if ax.get_yscale() == "log":
+        positive = [value for value in axis_values if value > 0]
+        if not positive:
+            return
+        fill_bottom = min(positive) * 0.8
+    else:
+        fill_bottom = max(0, ax.get_ylim()[0])
+    ax.fill_between(xs, fill_bottom, ys, color=PLOT_COLORS["head"], alpha=0.045, zorder=1)
 
 
 def plot_metric(
@@ -407,27 +495,49 @@ def plot_metric(
     path = os.path.join(output_dir, f"{PLOT_FILE_NAMES.get(key, key)}.png")
     threshold_lines = thresholds_for_plot(key, xs, scale_reference)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(xs, ys, color="#2563eb", marker="o", label="PR")
+    fig, ax = plt.subplots(figsize=(9.6, 5.4))
+    fig.patch.set_facecolor("#f8fafc")
+    ax.set_facecolor("white")
+    ax.plot(xs, ys, color=PLOT_COLORS["head"], linewidth=3.0, label="HEAD", zorder=3)
+    ax.scatter(xs, ys, s=34, color=PLOT_COLORS["head"], edgecolor="white", linewidth=1.1, zorder=4)
     if baseline_points:
-        plt.plot(baseline_xs, baseline_ys, color="#16a34a", marker="o", label="Base")
+        ax.plot(baseline_xs, baseline_ys, color=PLOT_COLORS["pr_base"], linewidth=2.3, label="PR base", zorder=2)
     if long_term_points:
-        plt.plot(long_term_xs, long_term_ys, color="#f97316", marker="o", label="Long-term baseline")
-    for level, color, threshold_values in threshold_lines:
-        plt.plot(xs, threshold_values, linestyle="--", color=color, linewidth=1.2, label=f"{level} threshold")
-    plt.xscale("log")
-    plt.xlabel("Concurrent Grafana streams (N, log scale)")
-    plt.ylabel(label)
-    plt.title(PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
-    axis_values = ys + baseline_ys + long_term_ys + [value for _, _, threshold_values in threshold_lines for value in threshold_values]
-    if key in LOG_Y_KEYS:
+        ax.plot(
+            long_term_xs,
+            long_term_ys,
+            color=PLOT_COLORS["long_term"],
+            linewidth=2.1,
+            linestyle=(0, (5, 4)),
+            label="Long-term baseline",
+            zorder=2,
+        )
+    for level, _operator, color, threshold_values in threshold_lines:
+        ax.plot(xs, threshold_values, color=color, linewidth=1.25, alpha=0.95, zorder=2)
+    ax.set_xscale("log")
+    ax.set_ylabel(label)
+    style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
+    axis_values = ys + baseline_ys + long_term_ys + [value for _, _, _, threshold_values in threshold_lines for value in threshold_values]
+    if key.endswith("_pct"):
+        plt.sca(ax)
+        apply_percentage_y_axis(axis_values)
+    elif key in LOG_Y_KEYS:
+        plt.sca(ax)
         apply_log_y_axis(axis_values)
     else:
+        plt.sca(ax)
         apply_y_axis_floor(axis_values)
-    plt.legend()
-    plt.grid(True, which="both", alpha=0.25)
-    plt.tight_layout()
-    plt.savefig(path)
+    add_head_fill(ax, xs, ys, axis_values)
+    add_threshold_regions(ax, threshold_lines)
+    warn = threshold_level(threshold_lines, "warn")
+    fail = threshold_level(threshold_lines, "fail")
+    if warn is not None:
+        add_threshold_label(ax, "warn", warn, PLOT_COLORS["warn_text"])
+    if fail is not None:
+        add_threshold_label(ax, "fail", fail, PLOT_COLORS["fail_text"])
+    ax.legend(frameon=False, loc="upper left", ncols=3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=180, facecolor="white")
     plt.close()
     return path
 
