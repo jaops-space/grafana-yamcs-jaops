@@ -9,6 +9,19 @@
   "simulator_rate_hz": 1,
   "stream_read_interval": "1s",
   "freshness_window": "1s",
+  "system": {
+    "os": "linux",
+    "arch": "amd64",
+    "available_logical_cpus": 8,
+    "cpu_model": "Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz",
+    "cpu_frequency_mhz": 2496.008,
+    "go_version": "go1.26.4"
+  },
+  "environment": {
+    "yamcs_address": "172.26.224.1:8090",
+    "yamcs_instance": "myproject",
+    "yamcs_processor": "realtime"
+  },
   "streams": [1, 5, 10, 25, 50, 100, 250, 500, 750, 1000],
   "parameter_count": 41,
   "refresh_command": "pnpm run bench:baseline"

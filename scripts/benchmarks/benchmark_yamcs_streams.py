@@ -783,6 +783,12 @@ def main() -> None:
         "compatible": long_term_result is not None,
         "path": os.path.relpath(LONG_TERM_BASELINE_RESULTS, os.getcwd()),
         "metadata": load_json_file(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json")) or {},
+        "system": long_term_result.get("system", {}) if long_term_result else {},
+        "environment": {
+            "yamcs_address": long_term_result.get("yamcs_address", "") if long_term_result else "",
+            "instance": long_term_result.get("instance", "") if long_term_result else "",
+            "processor": long_term_result.get("processor", "") if long_term_result else "",
+        },
         "message": long_term_message,
     }
     result["baseline_change_summaries"] = baseline_change_summaries

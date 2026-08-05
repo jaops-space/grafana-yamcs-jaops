@@ -8,6 +8,9 @@
     "os": "linux",
     "arch": "amd64",
     "cpus": 8,
+    "available_logical_cpus": 8,
+    "cpu_model": "Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz",
+    "cpu_frequency_mhz": 2496.008,
     "go_version": "go1.26.4"
   },
   "duration_seconds": 10,

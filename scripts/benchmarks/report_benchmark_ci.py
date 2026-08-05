@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import sys
+from datetime import datetime
 from typing import Any
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
@@ -160,20 +161,50 @@ def average_change_title(summaries: list[dict[str, Any]]) -> str:
     return ""
 
 
-def format_commit(value: Any) -> str:
+def commit_link(value: Any) -> str:
     if not isinstance(value, str) or not value:
-        return "not available"
-    return value
+        return ""
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    if not repository:
+        return f"`{value}`"
+    return f"[`{value}`]({server_url}/{repository}/commit/{value})"
+
+
+def format_datetime(value: Any) -> str:
+    if not isinstance(value, str) or not value:
+        return ""
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return value
+    return parsed.strftime("%Y-%m-%d %H:%M UTC")
+
+
+def format_frequency(value: Any) -> str:
+    return f"{float(value) / 1000:.2f} GHz" if isinstance(value, (int, float)) and value > 0 else "unknown frequency"
+
+
+def format_system_arch(system: Any) -> str:
+    if not isinstance(system, dict) or not system:
+        return "unknown"
+    os_name = system.get("os", "unknown")
+    arch = system.get("arch", "unknown")
+    cpus = system.get("available_logical_cpus", system.get("cpus", "unknown"))
+    cpu_model = system.get("cpu_model") or "unknown CPU"
+    go_version = system.get("go_version", "unknown")
+    return f"{os_name}/{arch}, {cpus} available logical CPU(s), {cpu_model}, {format_frequency(system.get('cpu_frequency_mhz'))}, {go_version}"
 
 
 def format_long_term_baseline(value: dict[str, Any]) -> str:
     metadata = value.get("metadata", {})
-    if not isinstance(metadata, dict) or not metadata:
+    if not value.get("compatible") or not isinstance(metadata, dict) or not metadata:
         return str(value.get("message", "not available"))
 
     parts = []
-    created_at = metadata.get("created_at")
-    if isinstance(created_at, str) and created_at:
+    created_at = format_datetime(metadata.get("created_at"))
+    if created_at:
         parts.append(created_at)
     quickstart = metadata.get("yamcs_quickstart")
     if isinstance(quickstart, str) and quickstart:
@@ -185,6 +216,21 @@ def format_long_term_baseline(value: dict[str, Any]) -> str:
     parameter_count = metadata.get("parameter_count")
     if isinstance(parameter_count, int):
         parts.append(f"{parameter_count} parameters")
+    system = format_system_arch(value.get("system", {}))
+    if system != "unknown":
+        parts.append(system)
+    environment = value.get("environment", {})
+    if isinstance(environment, dict):
+        instance = environment.get("instance")
+        processor = environment.get("processor")
+        address = environment.get("yamcs_address")
+        env_parts = []
+        if instance or processor:
+            env_parts.append(f"{instance or 'unknown'}/{processor or 'unknown'}")
+        if address:
+            env_parts.append(str(address))
+        if env_parts:
+            parts.append("env: " + ", ".join(env_parts))
     return "; ".join(parts) if parts else str(value.get("message", "not available"))
 
 
@@ -206,19 +252,9 @@ def build_comment(
     scenarios = result.get("scenarios", [])
     streams = [str(s["streams"]) for s in scenarios]
     parameters = result.get("parameters", [])
-    system = result.get("system", {})
     baseline = result.get("baseline", {})
     long_term_baseline = result.get("long_term_baseline", {})
-    system_arch = "unknown"
-    if system:
-        os_name = system.get("os", "unknown")
-        arch = system.get("arch", "unknown")
-        cpus = system.get("cpus", "unknown")
-        cpu_model = system.get("cpu_model") or "unknown CPU"
-        cpu_frequency = system.get("cpu_frequency_mhz")
-        go_version = system.get("go_version", "unknown")
-        frequency_text = f"{float(cpu_frequency) / 1000:.2f} GHz" if isinstance(cpu_frequency, (int, float)) and cpu_frequency > 0 else "unknown frequency"
-        system_arch = f"{os_name}/{arch}, {cpus} CPU(s), {cpu_model}, {frequency_text}, {go_version}"
+    system_arch = format_system_arch(result.get("system", {}))
 
     lines = [
         COMMENT_MARKER,
@@ -242,10 +278,11 @@ def build_comment(
         f"| Simulator / stream ticker | `{result.get('simulator_rate', 'unknown')} Hz` / `{result.get('read_interval_ms', 0)}ms` |",
         f"| Instance / processor | `{result.get('instance', 'unknown')}` / `{result.get('processor', 'unknown')}` |",
         f"| System architecture | `{system_arch}` |",
-        f"| PR base baseline | `{baseline.get('message', 'not requested')}` |",
-        f"| PR base commit | `{format_commit(baseline.get('commit'))}` |",
-        f"| Long-term baseline | `{format_long_term_baseline(long_term_baseline)}` |",
     ]
+    if baseline.get("compatible") and baseline.get("commit"):
+        lines.append(f"| PR base commit | {commit_link(baseline.get('commit'))} |")
+    if long_term_baseline.get("compatible"):
+        lines.append(f"| Long-term baseline | `{format_long_term_baseline(long_term_baseline)}` |")
     if args.run_url:
         lines.append(f"| Workflow run | [open run]({args.run_url}) |")
     lines.extend(["", "</details>"])

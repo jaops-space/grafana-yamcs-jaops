@@ -53,12 +53,13 @@ type scenarioResult struct {
 }
 
 type systemInfo struct {
-	OS              string  `json:"os"`
-	Arch            string  `json:"arch"`
-	CPUs            int     `json:"cpus"`
-	CPUModel        string  `json:"cpu_model,omitempty"`
-	CPUFrequencyMHz float64 `json:"cpu_frequency_mhz,omitempty"`
-	GoVersion       string  `json:"go_version"`
+	OS                   string  `json:"os"`
+	Arch                 string  `json:"arch"`
+	CPUs                 int     `json:"cpus"`
+	AvailableLogicalCPUs int     `json:"available_logical_cpus"`
+	CPUModel             string  `json:"cpu_model,omitempty"`
+	CPUFrequencyMHz      float64 `json:"cpu_frequency_mhz,omitempty"`
+	GoVersion            string  `json:"go_version"`
 }
 
 type streamRequest struct {
@@ -120,12 +121,13 @@ func main() {
 func collectSystemInfo() systemInfo {
 	model, frequencyMHz := readLinuxCPUInfo()
 	return systemInfo{
-		OS:              runtime.GOOS,
-		Arch:            runtime.GOARCH,
-		CPUs:            runtime.NumCPU(),
-		CPUModel:        model,
-		CPUFrequencyMHz: frequencyMHz,
-		GoVersion:       runtime.Version(),
+		OS:                   runtime.GOOS,
+		Arch:                 runtime.GOARCH,
+		CPUs:                 runtime.NumCPU(),
+		AvailableLogicalCPUs: runtime.NumCPU(),
+		CPUModel:             model,
+		CPUFrequencyMHz:      frequencyMHz,
+		GoVersion:            runtime.Version(),
 	}
 }
 
