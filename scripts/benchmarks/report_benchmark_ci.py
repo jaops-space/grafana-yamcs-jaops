@@ -194,7 +194,11 @@ def format_system_arch(system: Any) -> str:
     cpus = system.get("available_logical_cpus", system.get("cpus", "unknown"))
     cpu_model = system.get("cpu_model") or "unknown CPU"
     go_version = system.get("go_version", "unknown")
-    return f"{os_name}/{arch}, {cpus} available logical CPU(s), {cpu_model}, {format_frequency(system.get('cpu_frequency_mhz'))}, {go_version}"
+    parts = [f"{os_name}/{arch}", f"{cpus} available logical CPU(s)", str(cpu_model)]
+    if "ghz" not in str(cpu_model).lower():
+        parts.append(format_frequency(system.get("cpu_frequency_mhz")))
+    parts.append(str(go_version))
+    return ", ".join(parts)
 
 
 def format_long_term_baseline(value: dict[str, Any]) -> str:
@@ -219,18 +223,6 @@ def format_long_term_baseline(value: dict[str, Any]) -> str:
     system = format_system_arch(value.get("system", {}))
     if system != "unknown":
         parts.append(system)
-    environment = value.get("environment", {})
-    if isinstance(environment, dict):
-        instance = environment.get("instance")
-        processor = environment.get("processor")
-        address = environment.get("yamcs_address")
-        env_parts = []
-        if instance or processor:
-            env_parts.append(f"{instance or 'unknown'}/{processor or 'unknown'}")
-        if address:
-            env_parts.append(str(address))
-        if env_parts:
-            parts.append("env: " + ", ".join(env_parts))
     return "; ".join(parts) if parts else str(value.get("message", "not available"))
 
 
