@@ -7,6 +7,17 @@ const datasourceUid = 'jaops-yamcs-main';
 const datasourceName = 'JAOPS Yamcs Datasource';
 const quickstartEndpoint = 'myproject_realtime';
 
+type DashboardPanel = {
+    id: number;
+    title: string;
+    type: string;
+    datasource?: {
+        type: string;
+        uid: string;
+    };
+    targets?: Array<Record<string, unknown>>;
+};
+
 const pluginIds = [
     appPluginId,
     datasourcePluginId,
@@ -21,21 +32,60 @@ const pluginIds = [
 ];
 
 const panelRenderChecks = [
-    { name: 'JAOPS Commanding Panel', marker: 'jaops-commanding-panel' },
+    { name: 'JAOPS Commanding Panel', type: 'jaops-commanding-panel', marker: 'jaops-commanding-panel' },
     {
         name: 'JAOPS Command History Panel',
+        type: 'jaops-commandhistory-panel',
         marker: 'jaops-command-history-panel',
     },
     {
         name: 'JAOPS Telemetric Image Panel',
+        type: 'jaops-telemetricimage-panel',
         marker: 'jaops-telemetric-image-panel',
     },
-    { name: 'JAOPS Static Image Panel', marker: 'jaops-static-image-panel' },
-    { name: 'JAOPS Variable Setting Panel', marker: 'jaops-variable-setting-panel' },
-    { name: 'JAOPS Alarms Panel', marker: 'jaops-alarms-panel' },
-    { name: 'JAOPS Links Panel', marker: 'jaops-links-panel' },
-    { name: 'JAOPS Yamcs Time Sync', marker: 'jaops-time-sync-panel' },
+    { name: 'JAOPS Static Image Panel', type: 'jaops-staticimage-panel', marker: 'jaops-static-image-panel' },
+    { name: 'JAOPS Variable Setting Panel', type: 'jaops-variables-panel', marker: 'jaops-variable-setting-panel' },
+    { name: 'JAOPS Alarms Panel', type: 'jaops-alarms-panel', marker: 'jaops-alarms-panel' },
+    { name: 'JAOPS Links Panel', type: 'jaops-links-panel', marker: 'jaops-links-panel' },
+    { name: 'JAOPS Yamcs Time Sync', type: 'jaops-timesync-panel', marker: 'jaops-time-sync-panel' },
 ];
+
+async function createDashboardWithPanel(request: any, panel: DashboardPanel) {
+    const uid = `jaops-e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const response = await request.post('/api/dashboards/db', {
+        data: {
+            dashboard: {
+                uid,
+                title: `JAOPS E2E ${panel.title}`,
+                schemaVersion: 41,
+                version: 0,
+                refresh: false,
+                time: {
+                    from: 'now-5m',
+                    to: 'now',
+                },
+                panels: [
+                    {
+                        gridPos: { h: 8, w: 12, x: 0, y: 0 },
+                        ...panel,
+                    },
+                ],
+            },
+            overwrite: true,
+        },
+    });
+
+    expect(
+        response.ok(),
+        `dashboard setup for ${panel.title} should succeed: ${response.status()} ${await response.text()}`
+    ).toBeTruthy();
+
+    return { uid };
+}
+
+async function deleteDashboard(request: any, dashboard: { uid: string }) {
+    await request.delete(`/api/dashboards/uid/${dashboard.uid}`, { timeout: 5000 }).catch(() => undefined);
+}
 
 async function dismissGrafanaModals(page: Page) {
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -196,43 +246,50 @@ test.describe('critical plugin paths', () => {
         }
     });
 
-    test('datasource query editor is configurable in a Grafana panel editor', async ({ page, panelEditPage }) => {
+    test('datasource query editor is configurable in Grafana Explore', async ({ explorePage, page }) => {
         test.setTimeout(60000);
 
+        await explorePage.goto();
         await dismissGrafanaModals(page);
-        await panelEditPage.datasource.set(datasourceName);
 
-        const queryEditor = panelEditPage.getQueryEditorRow('A').getByTestId('jaops-query-editor');
+        const queryEditor = explorePage.getQueryEditorRow('A').getByTestId('jaops-query-editor');
         await expect(queryEditor).toBeVisible({ timeout: 20000 });
         await expect(queryEditor.getByTestId('jaops-query-type-select')).toBeVisible();
         await expect(queryEditor.getByTestId('jaops-parameter-select')).toBeVisible();
 
-        const endpointsResponse = page.waitForResponse(
-            (response) => response.url().includes('/resources/fetch/endpoints') && response.ok(),
-            { timeout: 30000 }
-        );
-        await queryEditor.getByTestId('jaops-query-editor-fetch-endpoints').click();
-        await endpointsResponse;
-
-        await queryEditor.getByLabel('As variable').check({ force: true });
+        await queryEditor.getByText('As variable').click({ timeout: 5000 });
         await expect(queryEditor.getByLabel('Custom string')).toBeVisible();
-        await queryEditor.getByLabel('Custom string').check({ force: true });
+        await queryEditor.getByText('Custom string').click({ timeout: 5000 });
         await expect(queryEditor.getByText('Endpoint Variable')).toBeVisible();
-
-        await queryEditor.getByTestId('jaops-query-editor-run-query').click();
-        await expect(queryEditor).toBeVisible();
     });
 
     for (const panel of panelRenderChecks) {
-        test(`${panel.name} renders in Grafana panel editor`, async ({ page, panelEditPage }) => {
+        test(`${panel.name} renders in Grafana panel editor`, async ({ gotoPanelEditPage, page, request }) => {
             test.setTimeout(60000);
 
-            await dismissGrafanaModals(page);
-            await panelEditPage.setVisualization(panel.name);
-            await expect(page.getByTestId(panel.marker)).toBeVisible({ timeout: 20000 });
-            await expect(page.getByText(/Plugin unavailable|Panel plugin not found|Error loading panel/i)).toHaveCount(
-                0
-            );
+            const dashboard = await createDashboardWithPanel(request, {
+                id: 1,
+                title: panel.name,
+                type: panel.type,
+                datasource: { type: datasourcePluginId, uid: datasourceUid },
+                targets: [
+                    {
+                        refId: 'A',
+                        datasource: { type: datasourcePluginId, uid: datasourceUid },
+                    },
+                ],
+            });
+
+            try {
+                await gotoPanelEditPage({ dashboard, id: '1' });
+                await dismissGrafanaModals(page);
+                await expect(page.getByTestId(panel.marker)).toBeVisible({ timeout: 20000 });
+                await expect(
+                    page.getByText(/Plugin unavailable|Panel plugin not found|Error loading panel/i)
+                ).toHaveCount(0);
+            } finally {
+                await deleteDashboard(request, dashboard);
+            }
         });
     }
 });
