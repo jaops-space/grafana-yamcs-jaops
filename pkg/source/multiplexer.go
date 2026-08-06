@@ -28,6 +28,10 @@ type Multiplexer struct {
 
 // NewMultiplexer creates a fresh multiplexer with a connection manager.
 func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSecureConfiguration) (*Multiplexer, error) {
+	return NewMultiplexerWithContext(context.Background(), cfg, seccfg)
+}
+
+func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSecureConfiguration) (*Multiplexer, error) {
 
 	mux := &Multiplexer{
 		Hosts:     make(map[string]*YamcsHost),
@@ -63,7 +67,7 @@ func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSe
 			}
 		}
 
-		yamcsClient, err := client.NewYamcsClient(hostCfg.Path, tlsConfig, creds)
+		yamcsClient, err := client.NewYamcsClientWithContext(ctx, hostCfg.Path, tlsConfig, creds)
 		if err != nil {
 			return nil, err
 		}

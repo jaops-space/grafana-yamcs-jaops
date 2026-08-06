@@ -28,7 +28,7 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 
 	// Create a per-instance multiplexer so different datasource instances
 	// do not share state or collide with each other.
-	multiplexer, err := source.NewMultiplexer(cfg, secure)
+	multiplexer, err := source.NewMultiplexerWithContext(ctx, cfg, secure)
 	if err != nil {
 		return nil, err
 	}

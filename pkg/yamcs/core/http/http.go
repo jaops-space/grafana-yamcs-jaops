@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
@@ -26,8 +28,14 @@ type HTTPManager struct {
 	UsingProtobuf bool
 	OnTokenUpdate func(Credentials)
 
-	RefreshStop chan struct{} // Channel to stop the refresh ticker
-	refreshMu   sync.Mutex
+	RefreshStop     chan struct{} // Channel to stop the refresh ticker
+	RefreshInterval time.Duration
+	refreshMu       sync.Mutex
+}
+
+type requestOptions struct {
+	applyCredentials bool
+	headers          map[string]string
 }
 
 // NewHTTPManager initializes a new Yamcs HTTPManager.
@@ -35,6 +43,10 @@ type HTTPManager struct {
 // created via the Grafana plugin SDK). Otherwise a new SDK-based client is
 // created with recommended timeouts and middlewares.
 func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, userAgent string, keepAlive bool, protobuf bool, existingClient *http.Client) (*HTTPManager, error) {
+	return NewHTTPManagerWithContext(context.Background(), address, tlsConfig, credentials, userAgent, keepAlive, protobuf, existingClient)
+}
+
+func NewHTTPManagerWithContext(ctx context.Context, address string, tlsConfig TLS, credentials Credentials, userAgent string, keepAlive bool, protobuf bool, existingClient *http.Client) (*HTTPManager, error) {
 	address = strings.TrimSuffix(address, "/")
 
 	var url, authRoot, apiRoot string
@@ -64,14 +76,15 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 	}
 
 	manager := &HTTPManager{
-		URL:           url,
-		AuthRoot:      authRoot,
-		APIRoot:       apiRoot,
-		Client:        httpClient,
-		Headers:       make(map[string]string),
-		Query:         make(map[string]string),
-		Credentials:   credentials,
-		UsingProtobuf: protobuf,
+		URL:             url,
+		AuthRoot:        authRoot,
+		APIRoot:         apiRoot,
+		Client:          httpClient,
+		Headers:         make(map[string]string),
+		Query:           make(map[string]string),
+		Credentials:     credentials,
+		UsingProtobuf:   protobuf,
+		RefreshInterval: 30 * time.Second,
 	}
 
 	if protobuf {
@@ -89,7 +102,7 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 	}
 
 	if credentials != nil {
-		if err := credentials.Login(manager); err != nil {
+		if err := credentials.Login(ctx, manager); err != nil {
 			return nil, err
 		}
 	}
@@ -99,8 +112,12 @@ func NewHTTPManager(address string, tlsConfig TLS, credentials Credentials, user
 
 // SendRequest sends an HTTP request and automatically applies credentials.
 func (m *HTTPManager) SendRequest(ctx context.Context, method string, url string, body []byte) ([]byte, error) {
-	if m.Credentials != nil && m.Credentials.IsExpired() {
-		if err := m.Credentials.Refresh(m); err != nil {
+	return m.sendRequest(ctx, method, url, body, requestOptions{applyCredentials: true})
+}
+
+func (m *HTTPManager) sendRequest(ctx context.Context, method string, url string, body []byte, opts requestOptions) ([]byte, error) {
+	if opts.applyCredentials && m.Credentials != nil && m.Credentials.IsExpired() {
+		if err := m.Credentials.Refresh(ctx, m); err != nil {
 			return nil, err
 		}
 	}
@@ -117,6 +134,9 @@ func (m *HTTPManager) SendRequest(ctx context.Context, method string, url string
 	for k, v := range m.Headers {
 		req.Header.Set(k, v)
 	}
+	for k, v := range opts.headers {
+		req.Header.Set(k, v)
+	}
 
 	// Apply query parameters
 	q := req.URL.Query()
@@ -127,7 +147,7 @@ func (m *HTTPManager) SendRequest(ctx context.Context, method string, url string
 	m.Query = make(map[string]string)
 
 	// Apply credentials
-	if m.Credentials != nil {
+	if opts.applyCredentials && m.Credentials != nil {
 		if err := m.Credentials.BeforeRequest(req); err != nil {
 			return nil, err
 		}
@@ -159,6 +179,33 @@ func (m *HTTPManager) SendJSONRequest(ctx context.Context, method string, url st
 	}
 
 	respBody, err := m.SendRequest(ctx, method, url, jsonBody)
+	if err != nil {
+		return err
+	}
+
+	if unmarshalTo != nil {
+		if err := json.Unmarshal(respBody, unmarshalTo); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SendFormRequest sends a form-encoded HTTP request.
+func (m *HTTPManager) SendFormRequest(ctx context.Context, method string, url string, form url.Values, headers map[string]string, unmarshalTo any) error {
+	reqBody := []byte(form.Encode())
+	requestHeaders := make(map[string]string, len(headers)+2)
+	requestHeaders["Content-Type"] = "application/x-www-form-urlencoded"
+	requestHeaders["Accept"] = "application/json"
+	for k, v := range headers {
+		requestHeaders[k] = v
+	}
+
+	respBody, err := m.sendRequest(ctx, method, url, reqBody, requestOptions{
+		applyCredentials: false,
+		headers:          requestHeaders,
+	})
 	if err != nil {
 		return err
 	}

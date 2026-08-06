@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -12,10 +13,10 @@ import (
 
 // Credentials interface for all auth types
 type Credentials interface {
-	Login(*HTTPManager) error
+	Login(context.Context, *HTTPManager) error
 	BeforeRequest(*http.Request) error
 	IsExpired() bool
-	Refresh(*HTTPManager) error
+	Refresh(context.Context, *HTTPManager) error
 }
 
 // TLS represents the configuration for a TLS (Transport Layer Security) connection.
@@ -44,7 +45,7 @@ func GetTLSConfiguration(verification bool) TLS {
 
 type NoCredentials struct{}
 
-func (n *NoCredentials) Login(*HTTPManager) error {
+func (n *NoCredentials) Login(context.Context, *HTTPManager) error {
 	return nil // No login required for no credentials.
 }
 func (n *NoCredentials) BeforeRequest(*http.Request) error {
@@ -53,7 +54,7 @@ func (n *NoCredentials) BeforeRequest(*http.Request) error {
 func (n *NoCredentials) IsExpired() bool {
 	return false // No expiration for no credentials.
 }
-func (n *NoCredentials) Refresh(*HTTPManager) error {
+func (n *NoCredentials) Refresh(context.Context, *HTTPManager) error {
 	return nil // No refresh needed for no credentials.
 }
 
@@ -117,21 +118,21 @@ func getTokenExpirySeconds(resp map[string]any) (int, error) {
 
 // --- Conversion functions ---
 
-func ConvertUserCredentials(manager *HTTPManager, username, password, refreshToken string) (*BearerCredentials, error) {
-	data := map[string]string{}
+func ConvertUserCredentials(ctx context.Context, manager *HTTPManager, username, password, refreshToken string) (*BearerCredentials, error) {
+	form := url.Values{}
 	if username != "" && password != "" {
-		data["grant_type"] = "password"
-		data["username"] = username
-		data["password"] = password
+		form.Set("grant_type", "password")
+		form.Set("username", username)
+		form.Set("password", password)
 	} else if refreshToken != "" {
-		data["grant_type"] = "refresh_token"
-		data["refresh_token"] = refreshToken
+		form.Set("grant_type", "refresh_token")
+		form.Set("refresh_token", refreshToken)
 	} else {
 		return nil, fmt.Errorf("either username/password or refresh token required")
 	}
 
 	var resp map[string]any
-	if err := manager.SendJSONRequest(context.Background(), "POST", manager.AuthRoot+"/token", data, &resp); err != nil {
+	if err := manager.SendFormRequest(ctx, "POST", manager.AuthRoot+"/token", form, nil, &resp); err != nil {
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 
@@ -157,20 +158,19 @@ func ConvertUserCredentials(manager *HTTPManager, username, password, refreshTok
 	}, nil
 }
 
-func ConvertServiceAccountCredentials(manager *HTTPManager, clientID, clientSecret, become string) (*ServiceAccountCredentials, error) {
+func ConvertServiceAccountCredentials(ctx context.Context, manager *HTTPManager, clientID, clientSecret, become string) (*ServiceAccountCredentials, error) {
 	if clientID == "" || clientSecret == "" || become == "" {
 		return nil, fmt.Errorf("client_id, client_secret, and become required")
 	}
 
-	data := map[string]string{
-		"grant_type": "client_credentials",
-		"become":     become,
-	}
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("become", become)
 
 	var resp map[string]any
 	auth := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
-	manager.Headers["Authorization"] = "Basic " + auth
-	if err := manager.SendJSONRequest(context.Background(), "POST", manager.AuthRoot+"/token", data, &resp); err != nil {
+	headers := map[string]string{"Authorization": "Basic " + auth}
+	if err := manager.SendFormRequest(ctx, "POST", manager.AuthRoot+"/token", form, headers, &resp); err != nil {
 		return nil, fmt.Errorf("service account token request failed: %w", err)
 	}
 
@@ -197,17 +197,17 @@ func ConvertServiceAccountCredentials(manager *HTTPManager, clientID, clientSecr
 
 // --- Methods for BearerCredentials ---
 
-func (b *BearerCredentials) Login(manager *HTTPManager) error {
+func (b *BearerCredentials) Login(ctx context.Context, manager *HTTPManager) error {
 	if b.AccessToken != "" && !b.IsExpired() {
 		return nil
 	}
-	return b.Refresh(manager)
+	return b.Refresh(ctx, manager)
 }
 
-func (b *BearerCredentials) Refresh(manager *HTTPManager) error {
+func (b *BearerCredentials) Refresh(ctx context.Context, manager *HTTPManager) error {
 	if b.RefreshToken != "" {
 		// Refresh using the refresh token
-		newCreds, err := ConvertUserCredentials(manager, b.Username, b.Password, b.RefreshToken)
+		newCreds, err := ConvertUserCredentials(ctx, manager, "", "", b.RefreshToken)
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func (b *BearerCredentials) Refresh(manager *HTTPManager) error {
 		return nil
 	} else if b.Username != "" && b.Password != "" {
 		// Refresh using username/password
-		newCreds, err := ConvertUserCredentials(manager, b.Username, b.Password, "")
+		newCreds, err := ConvertUserCredentials(ctx, manager, b.Username, b.Password, "")
 		if err != nil {
 			return err
 		}
@@ -251,12 +251,12 @@ func (b *BearerCredentials) BeforeRequest(req *http.Request) error {
 
 // --- Methods for ServiceAccountCredentials ---
 
-func (s *ServiceAccountCredentials) Login(manager *HTTPManager) error {
-	return s.Refresh(manager)
+func (s *ServiceAccountCredentials) Login(ctx context.Context, manager *HTTPManager) error {
+	return s.Refresh(ctx, manager)
 }
 
-func (s *ServiceAccountCredentials) Refresh(manager *HTTPManager) error {
-	newCreds, err := ConvertServiceAccountCredentials(manager, s.ClientID, s.ClientSecret, s.Become)
+func (s *ServiceAccountCredentials) Refresh(ctx context.Context, manager *HTTPManager) error {
+	newCreds, err := ConvertServiceAccountCredentials(ctx, manager, s.ClientID, s.ClientSecret, s.Become)
 	if err != nil {
 		return err
 	}
@@ -278,9 +278,9 @@ func (s *ServiceAccountCredentials) BeforeRequest(req *http.Request) error {
 
 // --- Methods for BasicAuthCredentials ---
 
-func (b *BasicAuthCredentials) Login(manager *HTTPManager) error   { return nil }
-func (b *BasicAuthCredentials) Refresh(manager *HTTPManager) error { return nil }
-func (b *BasicAuthCredentials) IsExpired() bool                    { return false }
+func (b *BasicAuthCredentials) Login(context.Context, *HTTPManager) error   { return nil }
+func (b *BasicAuthCredentials) Refresh(context.Context, *HTTPManager) error { return nil }
+func (b *BasicAuthCredentials) IsExpired() bool                             { return false }
 func (b *BasicAuthCredentials) BeforeRequest(req *http.Request) error {
 	auth := base64.StdEncoding.EncodeToString([]byte(b.Username + ":" + b.Password))
 	req.Header.Set("Authorization", "Basic "+auth)
@@ -289,9 +289,9 @@ func (b *BasicAuthCredentials) BeforeRequest(req *http.Request) error {
 
 // --- Methods for APIKeyCredentials ---
 
-func (a *APIKeyCredentials) Login(manager *HTTPManager) error   { return nil }
-func (a *APIKeyCredentials) Refresh(manager *HTTPManager) error { return nil }
-func (a *APIKeyCredentials) IsExpired() bool                    { return false }
+func (a *APIKeyCredentials) Login(context.Context, *HTTPManager) error   { return nil }
+func (a *APIKeyCredentials) Refresh(context.Context, *HTTPManager) error { return nil }
+func (a *APIKeyCredentials) IsExpired() bool                             { return false }
 func (a *APIKeyCredentials) BeforeRequest(req *http.Request) error {
 	req.Header.Set("x-api-key", a.Key)
 	return nil
@@ -319,14 +319,18 @@ func (m *HTTPManager) StartAutoRefresh() {
 	m.RefreshStop = stop
 	m.refreshMu.Unlock()
 
-	ticker := time.NewTicker(30 * time.Second)
+	interval := m.RefreshInterval
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	go func() {
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				if m.Credentials.IsExpired() {
-					if err := m.Credentials.Refresh(m); err != nil {
+					if err := m.Credentials.Refresh(context.Background(), m); err != nil {
 						backend.Logger.Error("failed to refresh token", "error", err)
 					}
 				}
