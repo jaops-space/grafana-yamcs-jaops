@@ -117,6 +117,14 @@ func RunParameterStream(ctx context.Context,
 				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(buffer))
 				continue
 			}
+			if q.Type == SingleValue {
+				frame := tools.ConvertSingleValueBufferToFrame(buffer, q.Parameter, false)
+				sender.SendFrame(
+					frame,
+					data.IncludeAll,
+				)
+				continue
+			}
 
 			average := len(buffer) > 3
 			var frame *data.Frame

@@ -40,7 +40,7 @@ func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
 	}
 }
 
-func TestParameterListenerIgnoresNonAcquiredValues(t *testing.T) {
+func TestParameterListenerBuffersExpiredValues(t *testing.T) {
 	endpoint := &YamcsEndpoint{
 		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
 		Parameters: map[string]*ParameterDemand{
@@ -61,8 +61,34 @@ func TestParameterListenerIgnoresNonAcquiredValues(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
+	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 1 {
+		t.Fatalf("expected expired value to be buffered, got %d values", len(got))
+	}
+}
+
+func TestParameterListenerIgnoresInvalidValues(t *testing.T) {
+	endpoint := &YamcsEndpoint{
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters: map[string]*ParameterDemand{
+			"/SIM/TEMP": {
+				Name: "/SIM/TEMP",
+				Streams: map[string]*ParameterStreamDemand{
+					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+				},
+			},
+		},
+	}
+	endpoint.Parameters["/SIM/TEMP"].Streams["req/sim/temp"].parameter = endpoint.Parameters["/SIM/TEMP"]
+
+	listener := endpoint.getChannelParameterListener()
+	if err := listener("/SIM/TEMP", &pvalue.ParameterValue{
+		AcquisitionStatus: pvalue.AcquisitionStatus_INVALID.Enum(),
+	}); err != nil {
+		t.Fatalf("listener returned error: %v", err)
+	}
+
 	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
-		t.Fatalf("expected non-acquired value to be ignored, got %d buffered values", len(got))
+		t.Fatalf("expected invalid value to be ignored, got %d buffered values", len(got))
 	}
 }
 

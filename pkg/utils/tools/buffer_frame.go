@@ -439,6 +439,38 @@ func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, inc
 	return frame
 }
 
+func ConvertSingleValueBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, realtime bool) *data.Frame {
+	if len(buffer) == 0 {
+		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int32{}))
+	}
+
+	values, times := extractParameterValues(buffer, realtime)
+	valueField := CreateValueField(values, parameter)
+
+	frame := data.NewFrame("response", data.NewField("time", nil, times), valueField)
+	AppendExpiredParameterNotice(frame, buffer, parameter)
+	return frame
+}
+
+// AppendExpiredParameterNotice adds a Grafana frame notice when the newest
+// parameter value is marked expired by Yamcs.
+func AppendExpiredParameterNotice(frame *data.Frame, buffer []*pvalue.ParameterValue, parameter string) {
+	if len(buffer) == 0 {
+		return
+	}
+
+	lastValue := buffer[len(buffer)-1]
+	if lastValue.GetAcquisitionStatus() != pvalue.AcquisitionStatus_EXPIRED {
+		return
+	}
+
+	frame.AppendNotices(data.Notice{
+		Severity: data.NoticeSeverityWarning,
+		Text:     fmt.Sprintf("Parameter %s is expired. Yamcs has not received a fresh value before its expiration time.", parameter),
+		Inspect:  data.InspectTypeMeta,
+	})
+}
+
 // ConvertRangesToFrame converts a range of parameter values into a Grafana data frame.
 func ConvertRangesToFrame(ranges *pvalue.Ranges, parameter string, automaticColors bool) *data.Frame {
 	times := []time.Time{}

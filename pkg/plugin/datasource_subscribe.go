@@ -82,6 +82,9 @@ func DatasourceSingleValueFrame(ctx context.Context, endpoint *source.YamcsEndpo
 	buffer := []client.ParameterValue{lastValue}
 
 	frame := tools.ConvertBufferToFrame(buffer, q.Parameter, false, false, false)
+	if q.Type == SingleValue {
+		frame = tools.ConvertSingleValueBufferToFrame(buffer, q.Parameter, false)
+	}
 	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
 	return frame, nil
 

@@ -56,9 +56,20 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 		streamCount = len(streamDemands)
 		paramDemand.LastReceived = time.Now()
 
-		if value.GetAcquisitionStatus() != pvalue.AcquisitionStatus_ACQUIRED {
-			backend.Logger.Debug("Ignoring parameter value", "parameter", parameter, "status", value.GetAcquisitionStatus())
+		status := value.GetAcquisitionStatus()
+		if status != pvalue.AcquisitionStatus_ACQUIRED && status != pvalue.AcquisitionStatus_EXPIRED {
+			backend.Logger.Debug("Ignoring parameter value", "parameter", parameter, "status", status)
 			return nil
+		}
+		if status == pvalue.AcquisitionStatus_EXPIRED {
+			backend.Logger.Debug(
+				"Received expired parameter value",
+				"parameter", parameter,
+				"streamCount", streamCount,
+				"generationTime", value.GetGenerationTime().AsTime(),
+				"acquisitionTime", value.GetAcquisitionTime().AsTime(),
+				"expireMillis", value.GetExpireMillis(),
+			)
 		}
 
 		receivedAt := time.Now()
