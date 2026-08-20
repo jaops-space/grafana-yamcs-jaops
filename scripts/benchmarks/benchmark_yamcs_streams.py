@@ -17,7 +17,7 @@ os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, NullFormatter
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LONG_TERM_BASELINE_DIR = os.path.join(SCRIPT_DIR, "baselines", "long-term")
@@ -540,7 +540,10 @@ def style_metric_axis(ax: Axes, title: str) -> None:
 def apply_y_tick_formatter(ax: Axes, axis_unit: str) -> None:
     if not axis_unit:
         return
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _position: format_axis_tick(value, axis_unit)))
+    formatter = FuncFormatter(lambda value, _position: format_axis_tick(value, axis_unit))
+    ax.yaxis.set_major_formatter(formatter)
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.offsetText.set_visible(False)
 
 
 def add_threshold_regions(ax: Axes, threshold_lines: list[tuple[str, str, str, list[float]]]) -> None:

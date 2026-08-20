@@ -90,6 +90,10 @@ def status_label(status: str) -> str:
     return {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}[status]
 
 
+def status_emoji(status: str) -> str:
+    return {"pass": "✅", "warn": "⚠️", "fail": "❌"}.get(status, "ℹ️")
+
+
 def metric_name(metric: str) -> str:
     return METRIC_NAMES.get(metric, metric.replace("_", " "))
 
@@ -147,10 +151,7 @@ def format_change(value: float) -> str:
 
 
 def summary_change_value(summary: dict[str, Any]) -> float:
-    if "median_change_pct" in summary:
-        return float(summary.get("median_change_pct", 0))
-    # Compatibility for old result files produced before the median summary change.
-    return float(summary.get("avg_change_pct", 0))
+    return float(summary.get("median_change_pct", 0))
 
 
 def median_change_title(summaries: list[dict[str, Any]]) -> str:
@@ -251,7 +252,7 @@ def build_comment(
         COMMENT_MARKER,
         "## Performance Benchmark",
         "",
-        f"**Status:** {status_label(status)}",
+        f"**Status:** {status_emoji(status)} `{status_label(status)}`",
         "",
         "**Scenario:** Yamcs quickstart simulator at 1 Hz with Grafana streams reading buffers on 1s tickers.",
         "",
@@ -296,7 +297,7 @@ def build_comment(
             lines.append(
                 "| {metric} | {status} | {observed} | {warn} | {fail} | {detail} |".format(
                     metric=metric_name(threshold["metric"]),
-                    status=threshold["status"].upper(),
+                    status=f"{status_emoji(threshold['status'])} `{threshold['status'].upper()}`",
                     observed=format_value(float(threshold["observed"]), threshold["unit"]),
                     warn=format_value(float(threshold["warn"]), threshold["unit"]),
                     fail=format_value(float(threshold["fail"]), threshold["unit"]),
@@ -311,8 +312,6 @@ def build_comment(
                 "",
                 "### Benchmark Plots",
                 "",
-                "Blue is HEAD. Slate is the PR base commit before the PR changes. Green dashed is the checked-in long-term baseline when available.",
-                "",
             ]
         )
         for metric, plot_name in all_plots:
@@ -320,15 +319,16 @@ def build_comment(
             baseline_summaries = summaries_by_metric.get(metric, [])
             image_url = plot_url(args, plot_name)
             median_change = median_change_title(baseline_summaries)
+            metric_status = threshold.get("status", "pass") if threshold else "pass"
             marker = " - needs attention" if plot_name in relevant_plot_names else ""
-            lines.extend(["<details>", f"<summary>{metric_name(metric)}{median_change}{marker}</summary>", ""])
+            lines.extend(["<details>", f"<summary>{status_emoji(metric_status)} {metric_name(metric)}{median_change}{marker}</summary>", ""])
             if threshold:
                 lines.extend(
                     [
                         "| Status | Observed | Warning threshold | Failure threshold |",
                         "|---|---:|---:|---:|",
                         "| {status} | {observed} | {warn} | {fail} |".format(
-                            status=str(threshold.get("status", "")).upper(),
+                            status=f"{status_emoji(str(threshold.get('status', '')))} `{str(threshold.get('status', '')).upper()}`",
                             observed=format_value(float(threshold.get("observed", 0)), threshold.get("unit", "")),
                             warn=format_value(float(threshold.get("warn", 0)), threshold.get("unit", "")),
                             fail=format_value(float(threshold.get("fail", 0)), threshold.get("unit", "")),
@@ -345,10 +345,10 @@ def build_comment(
                 )
                 for summary in baseline_summaries:
                     lines.append(
-                        "| {baseline} | {samples} | {avg} | {min} | {max} |".format(
+                        "| {baseline} | {samples} | {median} | {min} | {max} |".format(
                             baseline=summary.get("baseline", "baseline"),
                             samples=int(summary.get("samples", 0)),
-                            avg=format_change(summary_change_value(summary)),
+                            median=format_change(summary_change_value(summary)),
                             min=format_change(float(summary.get("max_negative_change_pct", summary.get("min_change_pct", 0)))),
                             max=format_change(float(summary.get("max_positive_change_pct", summary.get("max_change_pct", 0)))),
                         )
