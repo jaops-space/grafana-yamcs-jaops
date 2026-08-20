@@ -25,7 +25,7 @@ For every value of `N`, the benchmark:
 5. Runs one goroutine per Grafana stream.
 6. Reads and clears each stream buffer every `1s`.
 7. Converts read values into Grafana data frames, matching the normal RunStream read/frame/send path.
-8. Records median processing time, median read/clear time, freshness, memory, setup time, and median RunStream per-tick wall time.
+8. Records median processing time, median read/clear time, freshness, memory, setup time, empty-read validity data, and median RunStream busy time per tick.
 
 - Yamcs simulator rate: `1 Hz`
 - Grafana stream read ticker: `1s`
@@ -58,15 +58,26 @@ Benchmark plots can show three curves:
 
 The long-term baseline is intentionally committed to the repository so performance drift remains visible even when a PR base benchmark is unavailable or changes too often to be a useful historical reference. It should be refreshed only from GitHub Actions so the baseline is tied to the CI environment, not a developer workstation. Its metadata lives next to the result file in `scripts/benchmarks/baselines/long-term/metadata.json`.
 
-The report also shows informational median, maximum negative, and maximum positive percentage change for each plotted metric against each available baseline. These percentage changes do not affect WARN or FAIL status.
+Benchmark result files include a `metric_semantics_version`. Baseline percentage comparisons are only computed when the current run and baseline use the same metric semantics version. This prevents misleading comparisons when a metric definition changes, such as changing from averages to medians or replacing a wall-clock span with busy work.
+
+The report also shows informational median, maximum negative, and maximum positive percentage change for each plotted metric against each compatible baseline. These percentage changes do not affect WARN or FAIL status.
 
 ## Metrics
+
+### Implementation notes
+
+The benchmark intentionally measures the normal backend work path rather than a synthetic no-op path:
+
+- read/clear uses the same endpoint stream buffers as plugin streaming;
+- frame conversion uses preallocated value/time slices to avoid measuring avoidable slice growth overhead;
+- listener processing measures Yamcs parameter fan-out into active stream buffers;
+- RunStream busy time measures actual accumulated read/frame/send work, while avoiding the scheduler-sensitive wall-span artifact caused by many independent 1s tickers.
 
 ### Median read and clear time
 
 The median wall-clock time for one Grafana stream goroutine to call `GetAndClearParameterStreamBuffer`, convert the returned values into a Grafana data frame, and finish that read/send unit of work.
 
-This is a per-stream operation median. It should stay small as `N` grows.
+This is a per-stream operation median. It should stay small as `N` grows. The endpoint lookup uses a read lock and each stream buffer uses its own stream lock, so concurrent reads of different stream buffers do not need the endpoint-wide write lock.
 
 ### Median Yamcs listener processing time
 
@@ -101,17 +112,25 @@ The percentage of values read before the next 1 second simulator update.
 
 This is the main stalling signal. If this drops, Grafana stream reads are falling behind the 1 Hz Yamcs simulator cadence.
 
-### Median RunStream wall time Per 1s Tick
+### Empty read percentage
 
-For each 1 second stream ticker interval, the benchmark measures the wall-clock span from the first RunStream read/frame/send unit starting to the last RunStream read/frame/send unit finishing across all streams.
+The percentage of read/clear operations that found no buffered values.
 
-The reported value is the median across measured ticks. Ideally it stays below `1s`, otherwise it might be falling behind. This might highly depend on hardware because Grafana streams are concurrent and their wall-clock span might depend on how parallel they run.
+This is a validity signal, not a primary performance plot. With the default 1 Hz simulator and 1s read ticker, valid runs should normally have few or no empty reads. A high empty-read percentage usually means the simulator/Yamcs data path is not feeding values as expected, or the benchmark is reading more often than Yamcs produces updates.
+
+### Median RunStream busy time per 1s tick
+
+For each 1 second stream ticker interval, the benchmark sums the actual read/frame/send durations performed by all RunStream goroutines in that tick bucket.
+
+The reported value is the median of those per-tick busy totals. This measures total backend work per tick without treating unsynchronized goroutine ticker phase spread as plugin work.
+
+The raw legacy wall-span value is still present in JSON as `avg_tick_runstream` for diagnostics, but the CI plot and threshold use `median_tick_runstream_busy`.
 
 ### Stream setup time
 
 The time to create the Grafana stream demand state and Yamcs subscriptions for `N` streams before the measured run begins.
 
-The threshold uses setup time per stream.
+The threshold uses setup time per stream. Setup time is useful diagnostic data, but it can be affected by Yamcs JVM warmup, parameter metadata cache state, and subscription path warmup. The benchmark runs a discarded warmup scenario before measured scenarios to reduce this bias.
 
 ## CI Behavior
 

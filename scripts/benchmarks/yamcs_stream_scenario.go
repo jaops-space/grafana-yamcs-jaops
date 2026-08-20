@@ -25,6 +25,9 @@ type scenarioMetric struct {
 	ProcessEvents           int64   `json:"process_events"`
 	MedianProcessDuration   float64 `json:"avg_process"`
 	ReadClearOperations     int64   `json:"read_clear_operations"`
+	EmptyReadOperations     int64   `json:"empty_read_operations"`
+	NonEmptyReadOperations  int64   `json:"non_empty_read_operations"`
+	EmptyReadPercent        float64 `json:"empty_read_pct"`
 	MedianReadClearDuration float64 `json:"avg_read_clear"`
 	ValuesRead              int64   `json:"values_read"`
 	ValuesReadPerSecond     float64 `json:"values_read_per_sec"`
@@ -32,6 +35,7 @@ type scenarioMetric struct {
 	ValuesReadStale         int64   `json:"values_read_stale"`
 	ValuesReadFreshPercent  float64 `json:"values_read_fresh_pct"`
 	MedianTickRunStream     float64 `json:"avg_tick_runstream"`
+	MedianTickRunStreamBusy float64 `json:"median_tick_runstream_busy"`
 	LiveMemoryGrowthBytes   int64   `json:"live_memory_growth_bytes"`
 	TotalAllocatedBytes     uint64  `json:"total_allocated_bytes"`
 }
@@ -258,6 +262,8 @@ func runScenario(address string, instance string, processor string, parameters [
 	var valuesRead atomic.Int64
 	var freshValues atomic.Int64
 	var readOps atomic.Int64
+	var emptyReads atomic.Int64
+	var nonEmptyReads atomic.Int64
 	readDurations := &durationRecorder{}
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -300,6 +306,11 @@ func runScenario(address string, instance string, processor string, parameters [
 					readDurations.add(readSendElapsed.Nanoseconds())
 					tickWork.addReadSendSpan(startOffset, startOffset+readSendElapsed)
 					readOps.Add(1)
+					if len(values) == 0 {
+						emptyReads.Add(1)
+					} else {
+						nonEmptyReads.Add(1)
+					}
 					valuesRead.Add(int64(len(values)))
 				case <-stop:
 					return
@@ -323,21 +334,26 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 
 	readCount := readOps.Load()
+	emptyReadCount := emptyReads.Load()
+	nonEmptyReadCount := nonEmptyReads.Load()
 	processCount := processEvents.Load()
 	valueCount := valuesRead.Load()
 
 	metric := scenarioMetric{
-		Streams:               streams,
-		SetupDuration:         setupNanos,
-		ProcessEvents:         processCount,
-		ReadClearOperations:   readCount,
-		ValuesRead:            valueCount,
-		ValuesReadPerSecond:   float64(valueCount) / duration.Seconds(),
-		LiveMemoryGrowthBytes: int64(memEnd.Alloc) - int64(memStart.Alloc),
-		TotalAllocatedBytes:   memEnd.TotalAlloc - memStart.TotalAlloc,
+		Streams:                streams,
+		SetupDuration:          setupNanos,
+		ProcessEvents:          processCount,
+		ReadClearOperations:    readCount,
+		EmptyReadOperations:    emptyReadCount,
+		NonEmptyReadOperations: nonEmptyReadCount,
+		ValuesRead:             valueCount,
+		ValuesReadPerSecond:    float64(valueCount) / duration.Seconds(),
+		LiveMemoryGrowthBytes:  int64(memEnd.Alloc) - int64(memStart.Alloc),
+		TotalAllocatedBytes:    memEnd.TotalAlloc - memStart.TotalAlloc,
 	}
 	if readCount > 0 {
 		metric.MedianReadClearDuration = readDurations.median()
+		metric.EmptyReadPercent = 100 * float64(emptyReadCount) / float64(readCount)
 	}
 	freshCount := freshValues.Load()
 	metric.ValuesReadFresh = freshCount
@@ -350,6 +366,7 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 	tickSummary := tickWork.summary()
 	metric.MedianTickRunStream = tickSummary.MedianTotalNanos
+	metric.MedianTickRunStreamBusy = tickSummary.MedianBusyTotalNanos
 	return metric, nil
 }
 
@@ -357,6 +374,7 @@ type tickWorkload struct {
 	mu           sync.Mutex
 	interval     time.Duration
 	readSendSpan map[int]tickSpan
+	busyNanos    map[int]int64
 	highestIndex int
 }
 
@@ -367,7 +385,8 @@ type tickSpan struct {
 }
 
 type tickWorkloadSummary struct {
-	MedianTotalNanos float64
+	MedianTotalNanos     float64
+	MedianBusyTotalNanos float64
 }
 
 type durationRecorder struct {
@@ -394,6 +413,7 @@ func newTickWorkload(interval time.Duration) *tickWorkload {
 	return &tickWorkload{
 		interval:     interval,
 		readSendSpan: map[int]tickSpan{},
+		busyNanos:    map[int]int64{},
 	}
 }
 
@@ -424,6 +444,7 @@ func (workload *tickWorkload) addReadSendSpan(startOffset time.Duration, endOffs
 	if index > workload.highestIndex {
 		workload.highestIndex = index
 	}
+	workload.busyNanos[index] += endNanos - startNanos
 }
 
 func (workload *tickWorkload) summary() tickWorkloadSummary {
@@ -435,16 +456,19 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 	}
 
 	totals := make([]int64, 0, tickCount)
+	busyTotals := make([]int64, 0, tickCount)
 	for i := 0; i < tickCount; i++ {
 		readSend := int64(0)
 		if span := workload.readSendSpan[i]; span.seen {
 			readSend = span.endNanos - span.startNanos
 		}
 		totals = append(totals, readSend)
+		busyTotals = append(busyTotals, workload.busyNanos[i])
 	}
 
 	return tickWorkloadSummary{
-		MedianTotalNanos: medianInt64(totals),
+		MedianTotalNanos:     medianInt64(totals),
+		MedianBusyTotalNanos: medianInt64(busyTotals),
 	}
 }
 

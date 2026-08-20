@@ -22,6 +22,7 @@ from matplotlib.ticker import FuncFormatter
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LONG_TERM_BASELINE_DIR = os.path.join(SCRIPT_DIR, "baselines", "long-term")
 LONG_TERM_BASELINE_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "yamcs-stream-results.json")
+METRIC_SEMANTICS_VERSION = 2
 DEFAULT_STREAMS = "1,5,10,25,50,100,250,500,750,1000"
 DEFAULT_PARAMETERS = ",".join(
     [
@@ -75,7 +76,7 @@ METRIC_LABELS = {
     "total_allocated_bytes": "Total memory allocated during run",
     "values_read_per_sec": "Values read per second from buffers",
     "values_read_fresh_pct": "Values read within 1s tick",
-    "avg_tick_runstream": "Median RunStream wall time per 1s tick",
+    "median_tick_runstream_busy": "Median RunStream busy time per 1s tick",
     "setup": "Stream setup time",
 }
 PLOT_TITLES = {
@@ -85,13 +86,13 @@ PLOT_TITLES = {
     "total_allocated_bytes": "Total memory allocated while N Grafana streams run",
     "values_read_per_sec": "Values read per second from buffers by N Grafana streams",
     "values_read_fresh_pct": "Values read within the same 1s simulator tick",
-    "avg_tick_runstream": "Median RunStream wall time with N Grafana streams on 1s tickers",
+    "median_tick_runstream_busy": "Median total RunStream work with N Grafana streams per 1s tick",
     "setup": "Time to set up N Grafana streams",
 }
 PLOT_FILE_NAMES = {
     "avg_read_clear": "avg_read_clear",
     "avg_process": "avg_process",
-    "avg_tick_runstream": "avg_tick_runstream",
+    "median_tick_runstream_busy": "median_tick_runstream_busy",
     "setup": "setup",
 }
 PERFORMANCE_PLOT_KEYS = [
@@ -101,13 +102,13 @@ PERFORMANCE_PLOT_KEYS = [
     "total_allocated_bytes",
     "values_read_per_sec",
     "values_read_fresh_pct",
-    "avg_tick_runstream",
+    "median_tick_runstream_busy",
     "setup",
 ]
 LOG_Y_KEYS = {
     "avg_read_clear",
     "avg_process",
-    "avg_tick_runstream",
+    "median_tick_runstream_busy",
     "setup",
     "live_memory_growth_bytes",
     "total_allocated_bytes",
@@ -117,7 +118,7 @@ TIME_KEYS = {
     "avg_read_clear",
     "avg_process",
     "setup",
-    "avg_tick_runstream",
+    "median_tick_runstream_busy",
 }
 BYTE_KEYS = {"live_memory_growth_bytes", "total_allocated_bytes"}
 THRESHOLDS = {
@@ -169,12 +170,12 @@ THRESHOLDS = {
         "plot_key": "values_read_fresh_pct",
         "scale": "constant",
     },
-    "avg_tick_runstream": {
+    "median_tick_runstream_busy": {
         "warn": 1_000_000_000,
         "fail": 1_200_000_000,
         "operator": "max",
         "unit": "ns",
-        "plot_key": "avg_tick_runstream",
+        "plot_key": "median_tick_runstream_busy",
         "scale": "constant",
     },
 }
@@ -186,6 +187,7 @@ METRIC_UNITS = {
     "values_read_per_sec": "values/sec",
     "values_read_fresh_pct": "%",
     "avg_tick_runstream": "ns",
+    "median_tick_runstream_busy": "ns",
     "setup": "ns",
 }
 PLOT_COLORS = {
@@ -324,6 +326,12 @@ def load_json_file(path: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def metric_semantics_compatible(result: dict[str, Any] | None) -> bool:
+    if not result:
+        return False
+    return result.get("metric_semantics_version") == METRIC_SEMANTICS_VERSION
+
+
 def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -> None:
     metadata = {
         "name": "long-term",
@@ -352,6 +360,7 @@ def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -
         "streams": [row.get("streams") for row in result.get("scenarios", []) if isinstance(row, dict)],
         "parameter_count": len(result.get("parameters", [])),
         "refresh_command": "Run the `Refresh benchmark long-term baseline` GitHub Actions workflow.",
+        "metric_semantics_version": METRIC_SEMANTICS_VERSION,
     }
     with open(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json"), "w", encoding="utf-8") as fp:
         json.dump(metadata, fp, indent=2)
@@ -800,29 +809,37 @@ def main() -> None:
     result["python_started_at"] = started_at
     result["python_finished_at"] = datetime.now(timezone.utc).isoformat()
     result["simulator_rate"] = args.simulator_rate
+    result["metric_semantics_version"] = METRIC_SEMANTICS_VERSION
 
     json_path = os.path.join(args.output_dir, "yamcs-stream-results.json")
     csv_path = os.path.join(args.output_dir, "yamcs-stream-results.csv")
 
     threshold_results = evaluate_thresholds(result["scenarios"])
     baseline_result, baseline_message = load_baseline_results(args.baseline_results)
-    baseline_rows = baseline_result.get("scenarios", []) if baseline_result else None
+    baseline_compatible = metric_semantics_compatible(baseline_result)
+    if baseline_result and not baseline_compatible:
+        baseline_message = "baseline loaded but metric semantics version is incompatible"
+    baseline_rows = baseline_result.get("scenarios", []) if baseline_compatible else None
     if os.path.abspath(args.output_dir) == os.path.abspath(LONG_TERM_BASELINE_DIR):
         long_term_result = None
         long_term_message = "long-term baseline skipped while refreshing it"
     else:
         long_term_result, long_term_message = load_baseline_results(LONG_TERM_BASELINE_RESULTS)
-    long_term_rows = long_term_result.get("scenarios", []) if long_term_result else None
+    long_term_compatible = metric_semantics_compatible(long_term_result)
+    if long_term_result and not long_term_compatible:
+        long_term_message = "long-term baseline loaded but metric semantics version is incompatible"
+    long_term_rows = long_term_result.get("scenarios", []) if long_term_compatible else None
     baseline_change_summaries = summarize_baseline_changes(result["scenarios"], baseline_rows, "PR base")
     baseline_change_summaries += summarize_baseline_changes(result["scenarios"], long_term_rows, "Long-term baseline")
     result["baseline"] = {
-        "compatible": baseline_result is not None,
+        "compatible": baseline_compatible,
         "path": args.baseline_results,
         "commit": args.baseline_commit,
         "message": baseline_message,
+        "metric_semantics_version": baseline_result.get("metric_semantics_version") if baseline_result else None,
     }
     result["long_term_baseline"] = {
-        "compatible": long_term_result is not None,
+        "compatible": long_term_compatible,
         "path": os.path.relpath(LONG_TERM_BASELINE_RESULTS, os.getcwd()),
         "metadata": load_json_file(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json")) or {},
         "system": long_term_result.get("system", {}) if long_term_result else {},
@@ -832,6 +849,7 @@ def main() -> None:
             "processor": long_term_result.get("processor", "") if long_term_result else "",
         },
         "message": long_term_message,
+        "metric_semantics_version": long_term_result.get("metric_semantics_version") if long_term_result else None,
     }
     result["baseline_change_summaries"] = baseline_change_summaries
     result["thresholds"] = threshold_results

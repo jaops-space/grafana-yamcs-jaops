@@ -113,13 +113,18 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 // GetParameterStreamBuffer retrieves the buffer for a specific parameter stream.
 func (ep *YamcsEndpoint) GetAndClearParameterStreamBuffer(parameter string, path string) []client.ParameterValue {
 
-	ep.mu.Lock()
-	defer ep.mu.Unlock()
-
-	if ep.Parameters[parameter] == nil || ep.Parameters[parameter].Streams[path] == nil {
+	ep.mu.RLock()
+	paramDemand := ep.Parameters[parameter]
+	if paramDemand == nil {
+		ep.mu.RUnlock()
 		return nil
 	}
-	stream := ep.Parameters[parameter].Streams[path]
+	stream := paramDemand.Streams[path]
+	ep.mu.RUnlock()
+
+	if stream == nil {
+		return nil
+	}
 
 	stream.mu.Lock()
 	defer stream.mu.Unlock()

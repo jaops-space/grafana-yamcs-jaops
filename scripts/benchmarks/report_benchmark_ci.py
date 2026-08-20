@@ -19,7 +19,7 @@ METRIC_NAMES = {
     "values_read_per_sec": "Values read per second from buffers",
     "values_read_per_sec_per_stream": "Values read per second from buffers per stream",
     "values_read_fresh_pct": "Values read within the same 1s tick",
-    "avg_tick_runstream": "Median RunStream wall time per 1s tick",
+    "median_tick_runstream_busy": "Median RunStream busy time per 1s tick",
 }
 METRIC_DETAILS = {
     "avg_read_clear": "Median time spent clearing one stream buffer.",
@@ -28,7 +28,7 @@ METRIC_DETAILS = {
     "live_memory_growth_bytes_per_stream": "Additional live memory used per stream during the run.",
     "values_read_per_sec_per_stream": "Per-stream buffer throughput against the 1 Hz simulator cadence.",
     "values_read_fresh_pct": "Share of values read before the next 1 second simulator update.",
-    "avg_tick_runstream": "Median wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
+    "median_tick_runstream_busy": "Median total read/frame/send work done by RunStream goroutines during each 1 second tick.",
 }
 THRESHOLD_TO_PLOT = {
     "avg_read_clear": "avg_read_clear.png",
@@ -41,7 +41,7 @@ THRESHOLD_TO_PLOT = {
     "values_read_per_sec": "values_read_per_sec.png",
     "values_read_per_sec_per_stream": "values_read_per_sec.png",
     "values_read_fresh_pct": "values_read_fresh_pct.png",
-    "avg_tick_runstream": "avg_tick_runstream.png",
+    "median_tick_runstream_busy": "median_tick_runstream_busy.png",
 }
 PLOT_TO_METRIC = {
     "avg_read_clear.png": "avg_read_clear",
@@ -50,7 +50,7 @@ PLOT_TO_METRIC = {
     "total_allocated_bytes.png": "total_allocated_bytes",
     "values_read_per_sec.png": "values_read_per_sec",
     "values_read_fresh_pct.png": "values_read_fresh_pct",
-    "avg_tick_runstream.png": "avg_tick_runstream",
+    "median_tick_runstream_busy.png": "median_tick_runstream_busy",
     "setup.png": "setup",
 }
 PLOT_ORDER = list(PLOT_TO_METRIC.keys())
@@ -272,8 +272,12 @@ def build_comment(
     ]
     if baseline.get("compatible") and baseline.get("commit"):
         lines.append(f"| PR base commit | {commit_link(baseline.get('commit'))} |")
+    elif baseline.get("path"):
+        lines.append(f"| PR base benchmark | `{baseline.get('message', 'not available')}` |")
     if long_term_baseline.get("compatible"):
         lines.append(f"| Long-term baseline | `{format_long_term_baseline(long_term_baseline)}` |")
+    elif long_term_baseline.get("message"):
+        lines.append(f"| Long-term baseline | `{long_term_baseline.get('message')}` |")
     if args.run_url:
         lines.append(f"| Workflow run | [open run]({args.run_url}) |")
     lines.extend(["", "</details>"])
