@@ -71,7 +71,7 @@ Returns:
 */
 func (httpManager *HTTPManager) Login(account *Credentials) error {
 
-	err := httpManager.Credentials.Login(httpManager)
+	err := httpManager.Credentials.Login(context.Background(), httpManager)
 	if err != nil {
 		return err
 	}

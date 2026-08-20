@@ -153,7 +153,7 @@ func (d *Datasource) applyConnectivityChecks(
 		return nil
 	}
 
-	testMux, err := source.NewMultiplexer(connectivityCfg, seccfg)
+	testMux, err := source.NewMultiplexerWithContext(ctx, connectivityCfg, seccfg)
 	if err != nil {
 		return err
 	}

@@ -62,6 +62,16 @@ func NewYamcsClient(
 	credentials corehttp.Credentials,
 	options ...YamcsClientOption,
 ) (*YamcsClient, error) {
+	return NewYamcsClientWithContext(context.Background(), address, tlsConfig, credentials, options...)
+}
+
+func NewYamcsClientWithContext(
+	ctx context.Context,
+	address string,
+	tlsConfig corehttp.TLS,
+	credentials corehttp.Credentials,
+	options ...YamcsClientOption,
+) (*YamcsClient, error) {
 
 	// Initialize the YamcsClient with default values
 	client := &YamcsClient{
@@ -89,7 +99,7 @@ func NewYamcsClient(
 	}
 
 	// Create a new context for the client
-	httpManager, err := corehttp.NewHTTPManager(address, tlsConfig, credentials, client.UserAgent, client.KeepAlive, client.UseProtobuf, client.HTTPClient)
+	httpManager, err := corehttp.NewHTTPManagerWithContext(ctx, address, tlsConfig, credentials, client.UserAgent, client.KeepAlive, client.UseProtobuf, client.HTTPClient)
 	if err != nil {
 		return nil, err
 	}

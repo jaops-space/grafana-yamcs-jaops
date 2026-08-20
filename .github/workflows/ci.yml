@@ -257,8 +257,9 @@ jobs:
                   exit 1
 
             - name: Start Yamcs quickstart simulators
+              working-directory: /tmp/yamcs-quickstart
               run: |
-                  nohup python3 /tmp/yamcs-quickstart/simulator.py > /tmp/yamcs-simulator.log 2>&1 &
+                  nohup python3 simulator.py > /tmp/yamcs-simulator.log 2>&1 &
 
             - name: Check if Grafana container is running
               run: |
@@ -298,8 +299,8 @@ jobs:
               with:
                   name: ${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}-server-log
                   path: |
-                    grafana-server.log
-                    yamcs-simulator.log
+                      grafana-server.log
+                      yamcs-simulator.log
                   retention-days: 5
 
             # Uncomment this step to upload the Playwright report to Github artifacts.
@@ -308,6 +309,6 @@ jobs:
               uses: actions/upload-artifact@v4
               if: ${{ always() && steps.run-tests.outcome == 'failure' }}
               with:
-                name: playwright-report-${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}
-                path: playwright-report/
-                retention-days: 5
+                  name: playwright-report-${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}
+                  path: playwright-report/
+                  retention-days: 5
