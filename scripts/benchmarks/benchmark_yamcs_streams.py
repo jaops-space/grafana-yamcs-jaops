@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+from statistics import median
 from typing import Any
 
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "jaops-matplotlib-cache"))
@@ -68,31 +69,28 @@ DEFAULT_PARAMETERS = ",".join(
     ]
 )
 METRIC_LABELS = {
-    "avg_read_clear": "Average read and clear time",
-    "avg_process": "Average Yamcs listener processing time",
+    "avg_read_clear": "Median read and clear time",
+    "avg_process": "Median Yamcs listener processing time",
     "live_memory_growth_bytes": "Live memory used during run",
     "total_allocated_bytes": "Total memory allocated during run",
     "values_read_per_sec": "Values read per second from buffers",
     "values_read_fresh_pct": "Values read within 1s tick",
-    "avg_value_read_age": "Average value age when read",
-    "avg_tick_runstream": "Average RunStream wall time per 1s tick",
+    "avg_tick_runstream": "Median RunStream wall time per 1s tick",
     "setup": "Stream setup time",
 }
 PLOT_TITLES = {
-    "avg_read_clear": "Average time to read and clear one stream buffer",
-    "avg_process": "Average time to process one Yamcs parameter update",
+    "avg_read_clear": "Median time to read and clear one stream buffer",
+    "avg_process": "Median time to process one Yamcs parameter update",
     "live_memory_growth_bytes": "Live memory used while N Grafana streams run",
     "total_allocated_bytes": "Total memory allocated while N Grafana streams run",
     "values_read_per_sec": "Values read per second from buffers by N Grafana streams",
     "values_read_fresh_pct": "Values read within the same 1s simulator tick",
-    "avg_value_read_age": "Average age of values when Grafana stream reads them",
-    "avg_tick_runstream": "Average RunStream wall time with N Grafana streams on 1s tickers",
+    "avg_tick_runstream": "Median RunStream wall time with N Grafana streams on 1s tickers",
     "setup": "Time to set up N Grafana streams",
 }
 PLOT_FILE_NAMES = {
     "avg_read_clear": "avg_read_clear",
     "avg_process": "avg_process",
-    "avg_value_read_age": "avg_value_read_age",
     "avg_tick_runstream": "avg_tick_runstream",
     "setup": "setup",
 }
@@ -103,14 +101,12 @@ PERFORMANCE_PLOT_KEYS = [
     "total_allocated_bytes",
     "values_read_per_sec",
     "values_read_fresh_pct",
-    "avg_value_read_age",
     "avg_tick_runstream",
     "setup",
 ]
 LOG_Y_KEYS = {
     "avg_read_clear",
     "avg_process",
-    "avg_value_read_age",
     "avg_tick_runstream",
     "setup",
     "live_memory_growth_bytes",
@@ -121,7 +117,6 @@ TIME_KEYS = {
     "avg_read_clear",
     "avg_process",
     "setup",
-    "avg_value_read_age",
     "avg_tick_runstream",
 }
 BYTE_KEYS = {"live_memory_growth_bytes", "total_allocated_bytes"}
@@ -190,7 +185,6 @@ METRIC_UNITS = {
     "total_allocated_bytes": "bytes",
     "values_read_per_sec": "values/sec",
     "values_read_fresh_pct": "%",
-    "avg_value_read_age": "ns",
     "avg_tick_runstream": "ns",
     "setup": "ns",
 }
@@ -275,6 +269,10 @@ def run_go_scenario(args: argparse.Namespace, streams: list[int]) -> dict[str, A
         args.duration,
         "--warmup",
         args.warmup,
+        "--warmup-scenario-streams",
+        str(args.warmup_scenario_streams),
+        "--warmup-scenario-duration",
+        args.warmup_scenario_duration,
         "--read-interval",
         args.read_interval,
         "--freshness-window",
@@ -324,6 +322,40 @@ def load_json_file(path: str) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -> None:
+    metadata = {
+        "name": "long-term",
+        "description": "Checked-in benchmark baseline used as a stable reference curve in benchmark plots.",
+        "source_environment": "github-actions" if os.environ.get("GITHUB_ACTIONS") == "true" else "local",
+        "created_from": "scripts/benchmarks/baselines/long-term/yamcs-stream-results.json",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "github": {
+            "repository": os.environ.get("GITHUB_REPOSITORY", ""),
+            "workflow": os.environ.get("GITHUB_WORKFLOW", ""),
+            "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+            "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+            "sha": os.environ.get("GITHUB_SHA", ""),
+        },
+        "yamcs_quickstart": "jaops-space/yamcs-quickstart",
+        "yamcs_instance": result.get("instance", args.instance),
+        "yamcs_processor": result.get("processor", args.processor),
+        "simulator_rate_hz": args.simulator_rate,
+        "stream_read_interval": args.read_interval,
+        "freshness_window": args.freshness_window,
+        "warmup_scenario": {
+            "streams": args.warmup_scenario_streams,
+            "duration": args.warmup_scenario_duration,
+        },
+        "system": result.get("system", {}),
+        "streams": [row.get("streams") for row in result.get("scenarios", []) if isinstance(row, dict)],
+        "parameter_count": len(result.get("parameters", [])),
+        "refresh_command": "Run the `Refresh benchmark long-term baseline` GitHub Actions workflow.",
+    }
+    with open(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json"), "w", encoding="utf-8") as fp:
+        json.dump(metadata, fp, indent=2)
+        fp.write("\n")
 
 
 def scaled_series(key: str, values: list[float], scale_reference: float | None = None) -> tuple[list[float], str]:
@@ -711,9 +743,9 @@ def summarize_baseline_changes(
                     "baseline": label,
                     "metric": key,
                     "samples": len(changes),
-                    "avg_change_pct": sum(changes) / len(changes),
-                    "min_change_pct": min(changes),
-                    "max_change_pct": max(changes),
+                    "median_change_pct": median(changes),
+                    "max_negative_change_pct": min(changes),
+                    "max_positive_change_pct": max(changes),
                     "unit": METRIC_UNITS.get(key, ""),
                 }
             )
@@ -730,6 +762,8 @@ def main() -> None:
     parser.add_argument("--parameters", default=DEFAULT_PARAMETERS)
     parser.add_argument("--duration", default="10s")
     parser.add_argument("--warmup", default="3s")
+    parser.add_argument("--warmup-scenario-streams", type=int, default=25)
+    parser.add_argument("--warmup-scenario-duration", default="3s")
     parser.add_argument("--read-interval", default="1s")
     parser.add_argument("--freshness-window", default="1s")
     parser.add_argument("--quickstart-dir", default="/tmp/yamcs-quickstart")
@@ -739,11 +773,19 @@ def main() -> None:
     parser.add_argument("--simulator-rate", type=int, default=1)
     parser.add_argument("--baseline-results", default="", help="Optional previous benchmark JSON to plot and compare against")
     parser.add_argument("--baseline-commit", default="", help="Commit hash used to produce the PR base benchmark")
+    parser.add_argument("--allow-local-baseline", action="store_true", help="Allow writing the checked-in long-term baseline outside CI")
     parser.add_argument("--fail-on-threshold", action="store_true", help="Exit non-zero when any benchmark threshold fails")
     argv = sys.argv[1:]
     if argv and argv[0] == "--":
         argv = argv[1:]
     args = parser.parse_args(argv)
+
+    refreshing_long_term = os.path.abspath(args.output_dir) == os.path.abspath(LONG_TERM_BASELINE_DIR)
+    if refreshing_long_term and os.environ.get("CI") != "true" and not args.allow_local_baseline:
+        raise SystemExit(
+            "Refusing to refresh the checked-in long-term baseline outside CI. "
+            "Use the GitHub Actions baseline refresh workflow, or pass --allow-local-baseline for a local diagnostic run."
+        )
 
     os.makedirs(args.output_dir, exist_ok=True)
     started_at = datetime.now(timezone.utc).isoformat()
@@ -795,6 +837,8 @@ def main() -> None:
     result["thresholds"] = threshold_results
     with open(json_path, "w", encoding="utf-8") as fp:
         json.dump(result, fp, indent=2)
+    if refreshing_long_term:
+        write_long_term_metadata(args, result)
     write_csv(csv_path, result["scenarios"])
     plot_paths = plot_all_metrics(args.output_dir, result["scenarios"], baseline_rows, long_term_rows)
 

@@ -6,11 +6,9 @@ This repository has one Yamcs stream workload benchmark:
 pnpm run bench
 ```
 
-Refresh the checked-in long-term baseline with:
+Refresh the checked-in long-term baseline with the manual GitHub Actions workflow named `Refresh benchmark long-term baseline`.
 
-```bash
-pnpm run bench:baseline
-```
+`pnpm run bench:baseline` writes the checked-in baseline path, but it is intentionally guarded so it fails outside CI unless `--allow-local-baseline` is passed for a local diagnostic run.
 
 The benchmark assumes Yamcs quickstart is running on `localhost:8090`. By default it also starts `simulator.py` from `/tmp/yamcs-quickstart` at `1 Hz`.
 
@@ -20,17 +18,19 @@ Each scenario runs `N` concurrent Grafana stream demands against the Yamcs quick
 
 For every value of `N`, the benchmark:
 
-1. Creates `N` Grafana stream paths distributed across the default quickstart parameters.
-2. Lets Yamcs quickstart warm up for `3s`.
-3. Runs the measured workload for `10s`.
-4. Runs one goroutine per Grafana stream.
-5. Reads and clears each stream buffer every `1s`.
-6. Converts read values into Grafana data frames, matching the normal RunStream read/frame/send path.
-7. Records processing time, read/clear time, value freshness, memory, setup time, and RunStream per-tick wall time.
+1. Runs one discarded warmup scenario so Yamcs/plugin paths are warmed before measured scenarios.
+2. Creates `N` Grafana stream paths distributed across the default quickstart parameters.
+3. Lets Yamcs quickstart warm up for `3s`.
+4. Runs the measured workload for `10s`.
+5. Runs one goroutine per Grafana stream.
+6. Reads and clears each stream buffer every `1s`.
+7. Converts read values into Grafana data frames, matching the normal RunStream read/frame/send path.
+8. Records median processing time, median read/clear time, freshness, memory, setup time, and median RunStream per-tick wall time.
 
 - Yamcs simulator rate: `1 Hz`
 - Grafana stream read ticker: `1s`
 - Freshness window: `1s`
+- Discarded warmup scenario: `25` streams for `3s`
 
 ## Outputs
 
@@ -53,24 +53,24 @@ For every value of `N`, the benchmark:
 Benchmark plots can show three curves:
 
 - Blue: the current benchmark result.
-- Green: the PR base commit before the PR changes, when CI can benchmark it.
-- Orange: the checked-in long-term baseline from `scripts/benchmarks/baselines/long-term/yamcs-stream-results.json`.
+- Slate: the PR base commit before the PR changes, when CI can benchmark it.
+- Green dashed: the checked-in long-term baseline from `scripts/benchmarks/baselines/long-term/yamcs-stream-results.json`.
 
-The long-term baseline is intentionally committed to the repository so performance drift remains visible even when a PR base benchmark is unavailable or changes too often to be a useful historical reference. Its metadata lives next to the result file in `scripts/benchmarks/baselines/long-term/metadata.json`.
+The long-term baseline is intentionally committed to the repository so performance drift remains visible even when a PR base benchmark is unavailable or changes too often to be a useful historical reference. It should be refreshed only from GitHub Actions so the baseline is tied to the CI environment, not a developer workstation. Its metadata lives next to the result file in `scripts/benchmarks/baselines/long-term/metadata.json`.
 
-The report also shows informational average, minimum, and maximum percentage change for each metric against each available baseline. These percentage changes do not affect WARN or FAIL status.
+The report also shows informational median, maximum negative, and maximum positive percentage change for each plotted metric against each available baseline. These percentage changes do not affect WARN or FAIL status.
 
 ## Metrics
 
-### Average read and clear time
+### Median read and clear time
 
-The average wall-clock time for one Grafana stream goroutine to call `GetAndClearParameterStreamBuffer`, convert the returned values into a Grafana data frame, and finish that read/send unit of work.
+The median wall-clock time for one Grafana stream goroutine to call `GetAndClearParameterStreamBuffer`, convert the returned values into a Grafana data frame, and finish that read/send unit of work.
 
-This is a per-stream operation average. It should stay small as `N` grows.
+This is a per-stream operation median. It should stay small as `N` grows.
 
-### Average Yamcs listener processing time
+### Median Yamcs listener processing time
 
-The average time spent in the Yamcs parameter listener when a Yamcs parameter update is received and copied into the active Grafana stream buffers that requested that parameter.
+The median time spent in the Yamcs parameter listener when a Yamcs parameter update is received and copied into the active Grafana stream buffers that requested that parameter.
 
 This measures the backend fan-out cost of incoming Yamcs data.
 
@@ -101,18 +101,11 @@ The percentage of values read before the next 1 second simulator update.
 
 This is the main stalling signal. If this drops, Grafana stream reads are falling behind the 1 Hz Yamcs simulator cadence.
 
-### Average value age when read
-
-The average age of values when a Grafana stream reads them from its buffer.
-
-Lower is better. Values near or above `1s` mean reads are close to missing the simulator tick in which the value arrived.
-But high doesn't mean lower performance, it might just be de-sync with Yamcs simulator ticks, but it should never be above `1s`.
-
-### Average RunStream wall time Per 1s Tick
+### Median RunStream wall time Per 1s Tick
 
 For each 1 second stream ticker interval, the benchmark measures the wall-clock span from the first RunStream read/frame/send unit starting to the last RunStream read/frame/send unit finishing across all streams.
 
-Ideally it stays below `1s`, otherwise it might be falling behind. This might highly depend on hardware because Grafana streams are concurrent and their wall-clock span might depend on how parallel they run. 
+The reported value is the median across measured ticks. Ideally it stays below `1s`, otherwise it might be falling behind. This might highly depend on hardware because Grafana streams are concurrent and their wall-clock span might depend on how parallel they run.
 
 ### Stream setup time
 

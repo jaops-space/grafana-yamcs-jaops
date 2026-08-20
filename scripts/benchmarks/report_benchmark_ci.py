@@ -9,8 +9,8 @@ from typing import Any
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
 METRIC_NAMES = {
-    "avg_read_clear": "Average read and clear time",
-    "avg_process": "Average Yamcs listener processing time",
+    "avg_read_clear": "Median read and clear time",
+    "avg_process": "Median Yamcs listener processing time",
     "setup": "Stream setup time",
     "setup_per_stream": "Setup time per stream",
     "live_memory_growth_bytes": "Live memory used during run",
@@ -19,23 +19,17 @@ METRIC_NAMES = {
     "values_read_per_sec": "Values read per second from buffers",
     "values_read_per_sec_per_stream": "Values read per second from buffers per stream",
     "values_read_fresh_pct": "Values read within the same 1s tick",
-    "avg_value_read_age": "Average value age when read",
-    "avg_tick_runstream": "Average RunStream wall time per 1s tick",
+    "avg_tick_runstream": "Median RunStream wall time per 1s tick",
 }
 METRIC_DETAILS = {
-    "avg_read_clear": "Average time spent clearing one stream buffer.",
-    "avg_process": "Average time spent processing one Yamcs parameter update.",
+    "avg_read_clear": "Median time spent clearing one stream buffer.",
+    "avg_process": "Median time spent processing one Yamcs parameter update.",
     "setup_per_stream": "Time spent creating stream demand state and Yamcs subscriptions.",
     "live_memory_growth_bytes_per_stream": "Additional live memory used per stream during the run.",
     "values_read_per_sec_per_stream": "Per-stream buffer throughput against the 1 Hz simulator cadence.",
     "values_read_fresh_pct": "Share of values read before the next 1 second simulator update.",
-    "avg_tick_runstream": "Average wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
+    "avg_tick_runstream": "Median wall-clock time for all RunStream read/frame/send work during each 1 second tick.",
 }
-VALUE_AGE_NOTE = (
-    "Lower is usually better, and values near or above `1s` mean reads are close to missing the simulator tick in which "
-    "the value arrived. High value age does not always mean lower backend performance; it can also be caused by desync "
-    "with Yamcs simulator ticks, but it should never be above `1s`."
-)
 THRESHOLD_TO_PLOT = {
     "avg_read_clear": "avg_read_clear.png",
     "avg_process": "avg_process.png",
@@ -47,7 +41,6 @@ THRESHOLD_TO_PLOT = {
     "values_read_per_sec": "values_read_per_sec.png",
     "values_read_per_sec_per_stream": "values_read_per_sec.png",
     "values_read_fresh_pct": "values_read_fresh_pct.png",
-    "avg_value_read_age": "avg_value_read_age.png",
     "avg_tick_runstream": "avg_tick_runstream.png",
 }
 PLOT_TO_METRIC = {
@@ -57,7 +50,6 @@ PLOT_TO_METRIC = {
     "total_allocated_bytes.png": "total_allocated_bytes",
     "values_read_per_sec.png": "values_read_per_sec",
     "values_read_fresh_pct.png": "values_read_fresh_pct",
-    "avg_value_read_age.png": "avg_value_read_age",
     "avg_tick_runstream.png": "avg_tick_runstream",
     "setup.png": "setup",
 }
@@ -154,10 +146,17 @@ def format_change(value: float) -> str:
     return f"{value:+.1f}%"
 
 
-def average_change_title(summaries: list[dict[str, Any]]) -> str:
+def summary_change_value(summary: dict[str, Any]) -> float:
+    if "median_change_pct" in summary:
+        return float(summary.get("median_change_pct", 0))
+    # Compatibility for old result files produced before the median summary change.
+    return float(summary.get("avg_change_pct", 0))
+
+
+def median_change_title(summaries: list[dict[str, Any]]) -> str:
     for summary in summaries:
         if summary.get("baseline") == "PR base":
-            return f" - avg vs base {format_change(float(summary.get('avg_change_pct', 0)))}"
+            return f" - median vs base {format_change(summary_change_value(summary))}"
     return ""
 
 
@@ -316,9 +315,9 @@ def build_comment(
             threshold = threshold_by_metric.get(metric)
             baseline_summaries = summaries_by_metric.get(metric, [])
             image_url = plot_url(args, plot_name)
-            average_change = "" if metric == "avg_value_read_age" else average_change_title(baseline_summaries)
+            median_change = median_change_title(baseline_summaries)
             marker = " - needs attention" if plot_name in relevant_plot_names else ""
-            lines.extend(["<details>", f"<summary>{metric_name(metric)}{average_change}{marker}</summary>", ""])
+            lines.extend(["<details>", f"<summary>{metric_name(metric)}{median_change}{marker}</summary>", ""])
             if threshold:
                 lines.extend(
                     [
@@ -333,12 +332,10 @@ def build_comment(
                         "",
                     ]
                 )
-            if metric == "avg_value_read_age":
-                lines.extend([VALUE_AGE_NOTE, ""])
-            elif baseline_summaries:
+            if baseline_summaries:
                 lines.extend(
                     [
-                        "| Reference | Samples | Average change | Min change | Max change |",
+                        "| Reference | Samples | Median change | Max negative change | Max positive change |",
                         "|---|---:|---:|---:|---:|",
                     ]
                 )
@@ -347,9 +344,9 @@ def build_comment(
                         "| {baseline} | {samples} | {avg} | {min} | {max} |".format(
                             baseline=summary.get("baseline", "baseline"),
                             samples=int(summary.get("samples", 0)),
-                            avg=format_change(float(summary.get("avg_change_pct", 0))),
-                            min=format_change(float(summary.get("min_change_pct", 0))),
-                            max=format_change(float(summary.get("max_change_pct", 0))),
+                            avg=format_change(summary_change_value(summary)),
+                            min=format_change(float(summary.get("max_negative_change_pct", summary.get("min_change_pct", 0)))),
+                            max=format_change(float(summary.get("max_positive_change_pct", summary.get("max_change_pct", 0)))),
                         )
                     )
                 lines.extend(

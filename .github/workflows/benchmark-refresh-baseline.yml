@@ -1,0 +1,71 @@
+name: Refresh benchmark long-term baseline
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    pull-requests: write
+
+concurrency:
+    group: benchmark-refresh-baseline
+    cancel-in-progress: false
+
+jobs:
+    refresh-baseline:
+        name: Refresh long-term benchmark baseline
+        runs-on: ubuntu-latest
+        timeout-minutes: 25
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Go environment
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - uses: pnpm/action-setup@v3
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+
+            - name: Install Yamcs quickstart
+              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
+
+            - name: Start Yamcs quickstart
+              working-directory: /tmp/yamcs-quickstart
+              run: |
+                  cd docker
+                  docker compose up -d yamcs
+                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+
+            - name: Install benchmark Python deps
+              run: pip install -r scripts/benchmarks/requirements.txt
+
+            - name: Refresh long-term baseline in CI
+              run: pnpm run bench:baseline
+
+            - name: Create baseline refresh PR
+              uses: peter-evans/create-pull-request@v7
+              with:
+                  branch: chore/refresh-benchmark-baseline
+                  delete-branch: true
+                  commit-message: "bench: refresh long-term baseline"
+                  title: "bench: refresh long-term baseline"
+                  body: |
+                      Refreshes the checked-in long-term benchmark baseline from the GitHub Actions CI environment.
+
+                      This keeps the long-term baseline independent from local workstation hardware.
+                  add-paths: |
+                      scripts/benchmarks/baselines/long-term/yamcs-stream-results.json
+                      scripts/benchmarks/baselines/long-term/metadata.json
