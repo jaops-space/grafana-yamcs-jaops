@@ -906,18 +906,28 @@ def summarize_baseline_changes(
             base = float(baseline_value)
             changes.append(100 * (current - base) / abs(base))
         if changes:
+            max_negative_change, max_positive_change = split_change_extremes(changes)
             summaries.append(
                 {
                     "baseline": label,
                     "metric": key,
                     "samples": len(changes),
                     "median_change_pct": median(changes),
-                    "max_negative_change_pct": min(changes),
-                    "max_positive_change_pct": max(changes),
+                    "max_negative_change_pct": max_negative_change,
+                    "max_positive_change_pct": max_positive_change,
                     "unit": METRIC_UNITS.get(key, ""),
                 }
             )
     return summaries
+
+
+def split_change_extremes(changes: list[float]) -> tuple[float, float]:
+    negative_changes = [change for change in changes if change < 0]
+    positive_changes = [change for change in changes if change > 0]
+    return (
+        min(negative_changes) if negative_changes else 0,
+        max(positive_changes) if positive_changes else 0,
+    )
 
 
 def summarize_micro_baseline_changes(
@@ -950,14 +960,15 @@ def summarize_micro_baseline_changes(
                 continue
             changes.append(100 * (float(current_value) - float(baseline_value)) / abs(float(baseline_value)))
         if changes:
+            max_negative_change, max_positive_change = split_change_extremes(changes)
             summaries.append(
                 {
                     "baseline": label,
                     "metric": key,
                     "samples": len(changes),
                     "median_change_pct": median(changes),
-                    "max_negative_change_pct": min(changes),
-                    "max_positive_change_pct": max(changes),
+                    "max_negative_change_pct": max_negative_change,
+                    "max_positive_change_pct": max_positive_change,
                     "unit": METRIC_UNITS.get(key, ""),
                 }
             )
