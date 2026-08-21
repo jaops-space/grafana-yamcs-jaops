@@ -88,7 +88,7 @@ func benchmarkMicroMeasureFrame(metric string, group string, values int, samples
 		fn()
 		durations[i] = time.Since(started).Nanoseconds()
 	}
-	return benchmarkMicroPoint(metric, group, values, "Buffer values", samples, durations)
+	return benchmarkMicroPoint(metric, group, values, "Number of values in buffer", samples, durations)
 }
 
 func benchmarkMicroMeasureProcess(streams int, samples int) benchmarkMicroMetric {
@@ -113,7 +113,14 @@ func benchmarkMicroMeasureProcess(streams int, samples int) benchmarkMicroMetric
 			}
 		}
 	}
-	point := benchmarkMicroPoint("process_stream_10_values", "Process stream: 10 incoming values into N buffers", streams, "Stream buffers", samples, durations)
+	point := benchmarkMicroPoint(
+		"process_stream_10_values",
+		"Process stream: 10 incoming values into N buffers",
+		streams,
+		"Number of stream buffers receiving each value",
+		samples,
+		durations,
+	)
 	point.Streams = streams
 	point.BatchSize = microProcessValuesPerSample
 	return point

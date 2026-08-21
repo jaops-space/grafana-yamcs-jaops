@@ -70,30 +70,30 @@ DEFAULT_PARAMETERS = ",".join(
     ]
 )
 METRIC_LABELS = {
-    "live_memory_growth_bytes": "Live memory used during run",
-    "total_allocated_bytes": "Total memory allocated during run",
-    "values_read_per_sec": "Values read per second from buffers",
-    "values_read_fresh_pct": "Values read within 1s tick",
-    "median_tick_runstream_busy": "Median RunStream busy time per 1s tick",
-    "setup": "Stream setup time",
-    "frame_numeric_full": "Frame tool: numeric full frame",
-    "frame_numeric_average": "Frame tool: numeric average frame",
-    "frame_numeric_average_minmax": "Frame tool: numeric average frame + min/max",
-    "frame_discrete": "Frame tool: discrete frame",
-    "process_stream_10_values": "Process stream: 10 incoming values",
+    "live_memory_growth_bytes": "Live memory used during simulator run",
+    "total_allocated_bytes": "Total memory allocated during simulator run",
+    "values_read_per_sec": "Values read per second from simulator buffers",
+    "values_read_fresh_pct": "Values read within 1s simulator tick",
+    "median_tick_runstream_busy": "RunStream busy time per 1s simulator tick",
+    "setup": "Time to set up simulator streams",
+    "frame_numeric_full": "Time to convert numeric buffer to full frame",
+    "frame_numeric_average": "Time to convert numeric buffer to average frame",
+    "frame_numeric_average_minmax": "Time to convert numeric buffer to average/min/max frame",
+    "frame_discrete": "Time to convert discrete buffer to frame",
+    "process_stream_10_values": "Time to process 10 values into stream buffers",
 }
 PLOT_TITLES = {
-    "live_memory_growth_bytes": "Live memory used while N Grafana streams run",
-    "total_allocated_bytes": "Total memory allocated while N Grafana streams run",
-    "values_read_per_sec": "Values read per second from buffers by N Grafana streams",
-    "values_read_fresh_pct": "Values read within the same 1s simulator tick",
-    "median_tick_runstream_busy": "Median total RunStream work with N Grafana streams per 1s tick",
-    "setup": "Time to set up N Grafana streams",
-    "frame_numeric_full": "Frame tool: numeric full frame",
-    "frame_numeric_average": "Frame tool: numeric average frame",
-    "frame_numeric_average_minmax": "Frame tool: numeric average frame + min/max",
-    "frame_discrete": "Frame tool: discrete frame",
-    "process_stream_10_values": "Process stream: 10 incoming values into N stream buffers",
+    "live_memory_growth_bytes": "Simulator - Live memory used while N Grafana streams run",
+    "total_allocated_bytes": "Simulator - Total memory allocated while N Grafana streams run",
+    "values_read_per_sec": "Simulator - Values read per second by N Grafana streams",
+    "values_read_fresh_pct": "Simulator - Values read within the same 1s simulator tick",
+    "median_tick_runstream_busy": "Simulator - Time spent doing RunStream work per 1s tick",
+    "setup": "Simulator - Time to set up N Grafana streams",
+    "frame_numeric_full": "Microbenchmark - Time to convert a numeric buffer to a full frame",
+    "frame_numeric_average": "Microbenchmark - Time to convert a numeric buffer to an average frame",
+    "frame_numeric_average_minmax": "Microbenchmark - Time to convert a numeric buffer to an average/min/max frame",
+    "frame_discrete": "Microbenchmark - Time to convert a discrete buffer to a frame",
+    "process_stream_10_values": "Microbenchmark - Time to process 10 values into N stream buffers",
 }
 PLOT_FILE_NAMES = {
     "median_tick_runstream_busy": "median_tick_runstream_busy",
@@ -441,6 +441,23 @@ def split_axis_label(label: str) -> tuple[str, str]:
     return label, ""
 
 
+def y_axis_label(key: str, default_label: str, unit: str) -> str:
+    if key in {
+        "frame_numeric_full",
+        "frame_numeric_average",
+        "frame_numeric_average_minmax",
+        "frame_discrete",
+    }:
+        return f"Median conversion time ({unit})" if unit else "Median conversion time"
+    if key == "process_stream_10_values":
+        return f"Median processing time for 10 values ({unit})" if unit else "Median processing time for 10 values"
+    if key == "median_tick_runstream_busy":
+        return f"Median busy time per 1s tick ({unit})" if unit else "Median busy time per 1s tick"
+    if key == "setup":
+        return f"Setup time ({unit})" if unit else "Setup time"
+    return f"{default_label} ({unit})" if unit else default_label
+
+
 def format_number(value: float) -> str:
     abs_value = abs(value)
     if abs_value == 0:
@@ -572,9 +589,9 @@ def threshold_operator(threshold_lines: list[tuple[str, str, str, list[float]]])
     return "max"
 
 
-def style_metric_axis(ax: Axes, title: str) -> None:
+def style_metric_axis(ax: Axes, title: str, x_label: str = "Number of concurrent Grafana streams") -> None:
     ax.set_title(title, loc="left", fontsize=13, fontweight="normal", pad=18)
-    ax.set_xlabel("Concurrent Grafana streams (N)")
+    ax.set_xlabel(x_label)
     ax.spines[["top", "right"]].set_visible(False)
     for spine in ax.spines.values():
         spine.set_color(PLOT_COLORS["grid"])
@@ -689,7 +706,7 @@ def plot_metric(
     for level, _operator, color, threshold_values in threshold_lines:
         ax.plot(xs, threshold_values, color=color, linewidth=1.25, alpha=0.95, zorder=2)
     ax.set_xscale("log")
-    ax.set_ylabel(y_label)
+    ax.set_ylabel(y_axis_label(key, y_label, y_unit))
     style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
     axis_values = ys + baseline_ys + long_term_ys + [value for _, _, _, threshold_values in threshold_lines for value in threshold_values]
     if key.endswith("_pct"):
@@ -782,9 +799,8 @@ def plot_micro_metric(
             zorder=2,
         )
     ax.set_xscale("log")
-    ax.set_ylabel(y_label)
-    style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by {x_label.lower()}"))
-    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_axis_label(key, y_label, y_unit))
+    style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by {x_label.lower()}"), x_label)
     axis_values = ys + baseline_ys + long_term_ys
     if key in LOG_Y_KEYS:
         plt.sca(ax)
