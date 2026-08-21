@@ -70,34 +70,41 @@ DEFAULT_PARAMETERS = ",".join(
     ]
 )
 METRIC_LABELS = {
-    "avg_read_clear": "Median read and clear time",
-    "avg_process": "Median Yamcs listener processing time",
     "live_memory_growth_bytes": "Live memory used during run",
     "total_allocated_bytes": "Total memory allocated during run",
     "values_read_per_sec": "Values read per second from buffers",
     "values_read_fresh_pct": "Values read within 1s tick",
     "median_tick_runstream_busy": "Median RunStream busy time per 1s tick",
     "setup": "Stream setup time",
+    "frame_numeric_full": "Frame tool: numeric full frame",
+    "frame_numeric_average": "Frame tool: numeric average frame",
+    "frame_numeric_average_minmax": "Frame tool: numeric average frame + min/max",
+    "frame_discrete": "Frame tool: discrete frame",
+    "process_stream_10_values": "Process stream: 10 incoming values",
 }
 PLOT_TITLES = {
-    "avg_read_clear": "Median time to read and clear one stream buffer",
-    "avg_process": "Median time to process one Yamcs parameter update",
     "live_memory_growth_bytes": "Live memory used while N Grafana streams run",
     "total_allocated_bytes": "Total memory allocated while N Grafana streams run",
     "values_read_per_sec": "Values read per second from buffers by N Grafana streams",
     "values_read_fresh_pct": "Values read within the same 1s simulator tick",
     "median_tick_runstream_busy": "Median total RunStream work with N Grafana streams per 1s tick",
     "setup": "Time to set up N Grafana streams",
+    "frame_numeric_full": "Frame tool: numeric full frame",
+    "frame_numeric_average": "Frame tool: numeric average frame",
+    "frame_numeric_average_minmax": "Frame tool: numeric average frame + min/max",
+    "frame_discrete": "Frame tool: discrete frame",
+    "process_stream_10_values": "Process stream: 10 incoming values into N stream buffers",
 }
 PLOT_FILE_NAMES = {
-    "avg_read_clear": "avg_read_clear",
-    "avg_process": "avg_process",
     "median_tick_runstream_busy": "median_tick_runstream_busy",
     "setup": "setup",
+    "frame_numeric_full": "frame_numeric_full",
+    "frame_numeric_average": "frame_numeric_average",
+    "frame_numeric_average_minmax": "frame_numeric_average_minmax",
+    "frame_discrete": "frame_discrete",
+    "process_stream_10_values": "process_stream_10_values",
 }
 PERFORMANCE_PLOT_KEYS = [
-    "avg_read_clear",
-    "avg_process",
     "live_memory_growth_bytes",
     "total_allocated_bytes",
     "values_read_per_sec",
@@ -105,39 +112,36 @@ PERFORMANCE_PLOT_KEYS = [
     "median_tick_runstream_busy",
     "setup",
 ]
+MICRO_PLOT_KEYS = [
+    "frame_numeric_full",
+    "frame_numeric_average",
+    "frame_numeric_average_minmax",
+    "frame_discrete",
+    "process_stream_10_values",
+]
 LOG_Y_KEYS = {
-    "avg_read_clear",
-    "avg_process",
     "median_tick_runstream_busy",
     "setup",
     "live_memory_growth_bytes",
     "total_allocated_bytes",
     "values_read_per_sec",
+    "frame_numeric_full",
+    "frame_numeric_average",
+    "frame_numeric_average_minmax",
+    "frame_discrete",
+    "process_stream_10_values",
 }
 TIME_KEYS = {
-    "avg_read_clear",
-    "avg_process",
     "setup",
     "median_tick_runstream_busy",
+    "frame_numeric_full",
+    "frame_numeric_average",
+    "frame_numeric_average_minmax",
+    "frame_discrete",
+    "process_stream_10_values",
 }
 BYTE_KEYS = {"live_memory_growth_bytes", "total_allocated_bytes"}
 THRESHOLDS = {
-    "avg_read_clear": {
-        "warn": 1_000_000,
-        "fail": 10_000_000,
-        "operator": "max",
-        "unit": "ns",
-        "plot_key": "avg_read_clear",
-        "scale": "constant",
-    },
-    "avg_process": {
-        "warn": 1_000_000,
-        "fail": 10_000_000,
-        "operator": "max",
-        "unit": "ns",
-        "plot_key": "avg_process",
-        "scale": "constant",
-    },
     "setup_per_stream": {
         "warn": 50_000_000,
         "fail": 100_000_000,
@@ -180,8 +184,6 @@ THRESHOLDS = {
     },
 }
 METRIC_UNITS = {
-    "avg_read_clear": "ns",
-    "avg_process": "ns",
     "live_memory_growth_bytes": "bytes",
     "total_allocated_bytes": "bytes",
     "values_read_per_sec": "values/sec",
@@ -189,6 +191,11 @@ METRIC_UNITS = {
     "avg_tick_runstream": "ns",
     "median_tick_runstream_busy": "ns",
     "setup": "ns",
+    "frame_numeric_full": "ns",
+    "frame_numeric_average": "ns",
+    "frame_numeric_average_minmax": "ns",
+    "frame_discrete": "ns",
+    "process_stream_10_values": "ns",
 }
 PLOT_COLORS = {
     "head": "#1d4ed8",
@@ -287,6 +294,44 @@ def run_go_scenario(args: argparse.Namespace, streams: list[int]) -> dict[str, A
             f"{result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
     return json.loads(result.stdout)
+
+
+def run_go_microbenchmarks(args: argparse.Namespace) -> list[dict[str, Any]]:
+    env = os.environ.copy()
+    env.setdefault("GOCACHE", os.path.join(tempfile.gettempdir(), "jaops-go-build-cache"))
+    os.makedirs(env["GOCACHE"], exist_ok=True)
+    with tempfile.NamedTemporaryFile(prefix="jaops-microbench-", suffix=".json", delete=False) as fp:
+        output_path = fp.name
+    env["BENCHMARK_MICRO_OUTPUT"] = output_path
+    cmd = [
+        "go",
+        "test",
+        "./pkg/source",
+        "-tags",
+        "benchmark",
+        "-run",
+        "TestBenchmarkMicroCurves",
+        "-count",
+        "1",
+        "-timeout",
+        "10m",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Go benchmark micro curves failed with exit code "
+            f"{result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+    try:
+        with open(output_path, encoding="utf-8") as fp:
+            payload = json.load(fp)
+    finally:
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass
+    metrics = payload.get("metrics", [])
+    return metrics if isinstance(metrics, list) else []
 
 
 def write_csv(path: str, rows: list[dict[str, Any]]) -> None:
@@ -672,6 +717,90 @@ def plot_metric(
     return path
 
 
+def plot_micro_metric(
+    output_dir: str,
+    rows: list[dict[str, Any]],
+    key: str,
+    baseline_rows: list[dict[str, Any]] | None = None,
+    long_term_rows: list[dict[str, Any]] | None = None,
+) -> str | None:
+    metric_rows = [row for row in rows if row.get("metric") == key and isinstance(row.get("x"), int)]
+    points = [(row["x"], row.get("median_ns")) for row in metric_rows if isinstance(row.get("median_ns"), (int, float))]
+    if not points:
+        return None
+
+    points.sort(key=lambda item: item[0])
+    xs = [point[0] for point in points]
+    raw_ys = [float(point[1]) for point in points]
+    x_label = next((str(row.get("x_label")) for row in metric_rows if row.get("x_label")), "N")
+
+    baseline_points = []
+    if baseline_rows:
+        baseline_points = [
+            (row["x"], row.get("median_ns"))
+            for row in baseline_rows
+            if row.get("metric") == key and isinstance(row.get("x"), int) and isinstance(row.get("median_ns"), (int, float))
+        ]
+        baseline_points.sort(key=lambda item: item[0])
+    baseline_raw_ys = [float(point[1]) for point in baseline_points]
+
+    long_term_points = []
+    if long_term_rows:
+        long_term_points = [
+            (row["x"], row.get("median_ns"))
+            for row in long_term_rows
+            if row.get("metric") == key and isinstance(row.get("x"), int) and isinstance(row.get("median_ns"), (int, float))
+        ]
+        long_term_points.sort(key=lambda item: item[0])
+    long_term_raw_ys = [float(point[1]) for point in long_term_points]
+
+    all_raw_ys = raw_ys + baseline_raw_ys + long_term_raw_ys
+    scale_reference = max(abs(value) for value in all_raw_ys) if all_raw_ys else 0
+    ys, label = scaled_series(key, raw_ys, scale_reference)
+    y_label, y_unit = split_axis_label(label)
+    baseline_xs = [point[0] for point in baseline_points]
+    baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
+    long_term_xs = [point[0] for point in long_term_points]
+    long_term_ys, _ = scaled_series(key, long_term_raw_ys, scale_reference)
+    path = os.path.join(output_dir, f"{PLOT_FILE_NAMES.get(key, key)}.png")
+
+    fig, ax = plt.subplots(figsize=(9.6, 5.4))
+    fig.patch.set_facecolor("#f8fafc")
+    ax.set_facecolor("white")
+    ax.plot(xs, ys, color=PLOT_COLORS["head"], linewidth=3.0, label="HEAD", zorder=3)
+    ax.scatter(xs, ys, s=34, color=PLOT_COLORS["head"], edgecolor="white", linewidth=1.1, zorder=4)
+    if baseline_points:
+        ax.plot(baseline_xs, baseline_ys, color=PLOT_COLORS["pr_base"], linewidth=2.3, label="PR base", zorder=2)
+    if long_term_points:
+        ax.plot(
+            long_term_xs,
+            long_term_ys,
+            color=PLOT_COLORS["long_term"],
+            linewidth=2.1,
+            linestyle=(0, (5, 4)),
+            label="Long-term baseline",
+            zorder=2,
+        )
+    ax.set_xscale("log")
+    ax.set_ylabel(y_label)
+    style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by {x_label.lower()}"))
+    ax.set_xlabel(x_label)
+    axis_values = ys + baseline_ys + long_term_ys
+    if key in LOG_Y_KEYS:
+        plt.sca(ax)
+        apply_log_y_axis(axis_values)
+    else:
+        plt.sca(ax)
+        apply_y_axis_floor(axis_values)
+    apply_y_tick_formatter(ax, y_unit)
+    add_head_fill(ax, xs, ys, axis_values)
+    ax.legend(frameon=False, loc="upper left", ncols=3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=180, facecolor="white")
+    plt.close()
+    return path
+
+
 def plot_all_metrics(
     output_dir: str,
     rows: list[dict[str, Any]],
@@ -684,6 +813,17 @@ def plot_all_metrics(
         if filename.endswith(".png"):
             os.remove(os.path.join(plots_dir, filename))
     return [path for key in PERFORMANCE_PLOT_KEYS if (path := plot_metric(plots_dir, rows, key, baseline_rows, long_term_rows))]
+
+
+def plot_all_micro_metrics(
+    output_dir: str,
+    rows: list[dict[str, Any]],
+    baseline_rows: list[dict[str, Any]] | None = None,
+    long_term_rows: list[dict[str, Any]] | None = None,
+) -> list[str]:
+    plots_dir = os.path.join(output_dir, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    return [path for key in MICRO_PLOT_KEYS if (path := plot_micro_metric(plots_dir, rows, key, baseline_rows, long_term_rows))]
 
 
 def threshold_value(row: dict[str, Any], key: str) -> float:
@@ -764,6 +904,50 @@ def summarize_baseline_changes(
     return summaries
 
 
+def summarize_micro_baseline_changes(
+    rows: list[dict[str, Any]],
+    baseline_rows: list[dict[str, Any]] | None,
+    label: str,
+) -> list[dict[str, Any]]:
+    if not baseline_rows:
+        return []
+
+    baseline_by_metric_x = {
+        (row.get("metric"), row.get("x")): row
+        for row in baseline_rows
+        if isinstance(row, dict) and isinstance(row.get("metric"), str) and isinstance(row.get("x"), int)
+    }
+    summaries = []
+    for key in MICRO_PLOT_KEYS:
+        changes = []
+        for row in rows:
+            if row.get("metric") != key or not isinstance(row.get("x"), int):
+                continue
+            baseline = baseline_by_metric_x.get((key, row["x"]))
+            if not baseline:
+                continue
+            current_value = row.get("median_ns")
+            baseline_value = baseline.get("median_ns")
+            if not isinstance(current_value, (int, float)) or not isinstance(baseline_value, (int, float)):
+                continue
+            if baseline_value == 0:
+                continue
+            changes.append(100 * (float(current_value) - float(baseline_value)) / abs(float(baseline_value)))
+        if changes:
+            summaries.append(
+                {
+                    "baseline": label,
+                    "metric": key,
+                    "samples": len(changes),
+                    "median_change_pct": median(changes),
+                    "max_negative_change_pct": min(changes),
+                    "max_positive_change_pct": max(changes),
+                    "unit": METRIC_UNITS.get(key, ""),
+                }
+            )
+    return summaries
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark N concurrent Grafana streams with live Yamcs quickstart data.")
     parser.add_argument("--output-dir", default="benchmark-output")
@@ -806,6 +990,7 @@ def main() -> None:
         if simulator is not None:
             time.sleep(2)
         result = run_go_scenario(args, args.streams)
+        result["microbenchmarks"] = run_go_microbenchmarks(args)
     finally:
         stop_process(simulator)
 
@@ -823,6 +1008,7 @@ def main() -> None:
     if baseline_result and not baseline_compatible:
         baseline_message = "baseline loaded but metric semantics version is incompatible"
     baseline_rows = baseline_result.get("scenarios", []) if baseline_compatible else None
+    baseline_micro_rows = baseline_result.get("microbenchmarks", []) if baseline_compatible else None
     if os.path.abspath(args.output_dir) == os.path.abspath(LONG_TERM_BASELINE_DIR):
         long_term_result = None
         long_term_message = "long-term baseline skipped while refreshing it"
@@ -832,8 +1018,13 @@ def main() -> None:
     if long_term_result and not long_term_compatible:
         long_term_message = "long-term baseline loaded but metric semantics version is incompatible"
     long_term_rows = long_term_result.get("scenarios", []) if long_term_compatible else None
+    long_term_micro_rows = long_term_result.get("microbenchmarks", []) if long_term_compatible else None
     baseline_change_summaries = summarize_baseline_changes(result["scenarios"], baseline_rows, "PR base")
     baseline_change_summaries += summarize_baseline_changes(result["scenarios"], long_term_rows, "Long-term baseline")
+    baseline_change_summaries += summarize_micro_baseline_changes(result.get("microbenchmarks", []), baseline_micro_rows, "PR base")
+    baseline_change_summaries += summarize_micro_baseline_changes(
+        result.get("microbenchmarks", []), long_term_micro_rows, "Long-term baseline"
+    )
     result["baseline"] = {
         "compatible": baseline_compatible,
         "path": args.baseline_results,
@@ -862,6 +1053,12 @@ def main() -> None:
         write_long_term_metadata(args, result)
     write_csv(csv_path, result["scenarios"])
     plot_paths = plot_all_metrics(args.output_dir, result["scenarios"], baseline_rows, long_term_rows)
+    plot_paths += plot_all_micro_metrics(
+        args.output_dir,
+        result.get("microbenchmarks", []),
+        baseline_micro_rows,
+        long_term_micro_rows,
+    )
 
     print("=== Yamcs Stream Scenario Benchmark ===")
     print(f"scenarios: {len(result['scenarios'])}")

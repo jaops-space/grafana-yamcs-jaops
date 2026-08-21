@@ -9,8 +9,6 @@ from typing import Any
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
 METRIC_NAMES = {
-    "avg_read_clear": "Median read and clear time",
-    "avg_process": "Median Yamcs listener processing time",
     "setup": "Stream setup time",
     "setup_per_stream": "Setup time per stream",
     "live_memory_growth_bytes": "Live memory used during run",
@@ -20,10 +18,13 @@ METRIC_NAMES = {
     "values_read_per_sec_per_stream": "Values read per second from buffers per stream",
     "values_read_fresh_pct": "Values read within the same 1s tick",
     "median_tick_runstream_busy": "Median RunStream busy time per 1s tick",
+    "frame_numeric_full": "Frame tool: numeric full frame",
+    "frame_numeric_average": "Frame tool: numeric average frame",
+    "frame_numeric_average_minmax": "Frame tool: numeric average frame + min/max",
+    "frame_discrete": "Frame tool: discrete frame",
+    "process_stream_10_values": "Process stream: 10 incoming values",
 }
 METRIC_DETAILS = {
-    "avg_read_clear": "Median time spent clearing one stream buffer.",
-    "avg_process": "Median time spent processing one Yamcs parameter update.",
     "setup_per_stream": "Time spent creating stream demand state and Yamcs subscriptions.",
     "live_memory_growth_bytes_per_stream": "Additional live memory used per stream during the run.",
     "values_read_per_sec_per_stream": "Per-stream buffer throughput against the 1 Hz simulator cadence.",
@@ -31,8 +32,6 @@ METRIC_DETAILS = {
     "median_tick_runstream_busy": "Median total read/frame/send work done by RunStream goroutines during each 1 second tick.",
 }
 THRESHOLD_TO_PLOT = {
-    "avg_read_clear": "avg_read_clear.png",
-    "avg_process": "avg_process.png",
     "setup": "setup.png",
     "setup_per_stream": "setup.png",
     "live_memory_growth_bytes": "live_memory_growth_bytes.png",
@@ -44,14 +43,17 @@ THRESHOLD_TO_PLOT = {
     "median_tick_runstream_busy": "median_tick_runstream_busy.png",
 }
 PLOT_TO_METRIC = {
-    "avg_read_clear.png": "avg_read_clear",
-    "avg_process.png": "avg_process",
     "live_memory_growth_bytes.png": "live_memory_growth_bytes",
     "total_allocated_bytes.png": "total_allocated_bytes",
     "values_read_per_sec.png": "values_read_per_sec",
     "values_read_fresh_pct.png": "values_read_fresh_pct",
     "median_tick_runstream_busy.png": "median_tick_runstream_busy",
     "setup.png": "setup",
+    "frame_numeric_full.png": "frame_numeric_full",
+    "frame_numeric_average.png": "frame_numeric_average",
+    "frame_numeric_average_minmax.png": "frame_numeric_average_minmax",
+    "frame_discrete.png": "frame_discrete",
+    "process_stream_10_values.png": "process_stream_10_values",
 }
 PLOT_ORDER = list(PLOT_TO_METRIC.keys())
 
