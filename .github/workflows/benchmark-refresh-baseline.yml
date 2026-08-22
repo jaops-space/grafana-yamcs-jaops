@@ -61,7 +61,7 @@ jobs:
                   branch: chore/refresh-benchmark-baseline
                   delete-branch: true
                   commit-message: "bench: refresh long-term baseline"
-                  title: "bench: refresh long-term baseline"
+                  title: "Bench: Refresh long-term baseline"
                   body: |
                       Refreshes the checked-in long-term benchmark baseline from the GitHub Actions CI environment.
 
