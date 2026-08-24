@@ -45,8 +45,6 @@ Benchmark CI is conditional. On pull requests, add the `run-benchmark` label to 
 
 This starts Yamcs quickstart's `simulator.py` by default, opens N concurrent Grafana stream demands against the quickstart `myproject/realtime` processor, and reads each stream buffer from its own goroutine. Performance plots use concurrent Grafana streams (`N`) on the x-axis and one metric per file:
 
-- median read-and-clear latency
-- median Yamcs listener process latency
 - live memory growth and total allocated bytes
 - values read per second
 - percentage of values read within the 1 second freshness window
@@ -63,11 +61,15 @@ Thresholds are rendered directly on plots where they apply and are also included
 
     pnpm run bench -- --fail-on-threshold
 
-Yamcs stream scenario output files are written directly to `benchmark-output/`:
+Benchmark output files are written by layer:
 
-- `yamcs-stream-results.json`
-- `yamcs-stream-results.csv`
+- `microbenchmarks/microbenchmarks.json`
+- `simulator/simulator.json`
+- `simulator/simulator.csv`
+- `grafana/grafana.json`
 - `plots/*.png`
+- `benchmark-status.json`
+- `benchmark-comment.md`
 
 ## Prerequisites
 

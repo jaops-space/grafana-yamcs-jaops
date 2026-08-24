@@ -19,9 +19,22 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.ticker import FuncFormatter, NullFormatter
 
+from .metrics import METRIC_UNITS, MICRO_METRICS, SIMULATOR_METRICS, SIMULATOR_THRESHOLDS
+from .plotting import (
+    PLOT_COLORS,
+    add_range_band,
+    format_axis_tick,
+    percent_change,
+    plot_series,
+    range_values,
+    split_change_extremes,
+)
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LONG_TERM_BASELINE_DIR = os.path.join(SCRIPT_DIR, "baselines", "long-term")
-LONG_TERM_BASELINE_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "yamcs-stream-results.json")
+BENCHMARK_DIR = os.path.dirname(SCRIPT_DIR)
+LONG_TERM_BASELINE_DIR = os.path.join(BENCHMARK_DIR, "baselines", "long-term")
+LONG_TERM_SIMULATOR_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "simulator.json")
+LONG_TERM_MICRO_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "microbenchmarks.json")
 METRIC_SEMANTICS_VERSION = 2
 DEFAULT_STREAMS = "1,5,10,25,50,100,250,500,750,1000"
 DEFAULT_PARAMETERS = ",".join(
@@ -69,41 +82,9 @@ DEFAULT_PARAMETERS = ",".join(
         "/myproject/Enum_Para_3",
     ]
 )
-METRIC_LABELS = {
-    "live_memory_growth_bytes": "Live memory used during simulator run",
-    "total_allocated_bytes": "Total memory allocated during simulator run",
-    "values_read_per_sec": "Values read per second from simulator buffers",
-    "values_read_fresh_pct": "Values read within 1s simulator tick",
-    "median_tick_runstream_busy": "RunStream busy time per 1s simulator tick",
-    "setup": "Time to set up simulator streams",
-    "frame_numeric_full": "Time to convert numeric buffer to full frame",
-    "frame_numeric_average": "Time to convert numeric buffer to average frame",
-    "frame_numeric_average_minmax": "Time to convert numeric buffer to average/min/max frame",
-    "frame_discrete": "Time to convert discrete buffer to frame",
-    "process_stream_10_values": "Time to process 10 values into stream buffers",
-}
-PLOT_TITLES = {
-    "live_memory_growth_bytes": "Simulator - Live memory used while N Grafana streams run",
-    "total_allocated_bytes": "Simulator - Total memory allocated while N Grafana streams run",
-    "values_read_per_sec": "Simulator - Values read per second by N Grafana streams",
-    "values_read_fresh_pct": "Simulator - Values read within the same 1s simulator tick",
-    "median_tick_runstream_busy": "Simulator - Time spent doing RunStream work per 1s tick",
-    "setup": "Simulator - Time to set up N Grafana streams",
-    "frame_numeric_full": "Microbenchmark - Time to convert a numeric buffer to a full frame",
-    "frame_numeric_average": "Microbenchmark - Time to convert a numeric buffer to an average frame",
-    "frame_numeric_average_minmax": "Microbenchmark - Time to convert a numeric buffer to an average/min/max frame",
-    "frame_discrete": "Microbenchmark - Time to convert a discrete buffer to a frame",
-    "process_stream_10_values": "Microbenchmark - Time to process 10 values into N stream buffers",
-}
-PLOT_FILE_NAMES = {
-    "median_tick_runstream_busy": "median_tick_runstream_busy",
-    "setup": "setup",
-    "frame_numeric_full": "frame_numeric_full",
-    "frame_numeric_average": "frame_numeric_average",
-    "frame_numeric_average_minmax": "frame_numeric_average_minmax",
-    "frame_discrete": "frame_discrete",
-    "process_stream_10_values": "process_stream_10_values",
-}
+METRIC_LABELS = {key: value["label"] for source in (SIMULATOR_METRICS, MICRO_METRICS) for key, value in source.items()}
+PLOT_TITLES = {key: value["title"] for source in (SIMULATOR_METRICS, MICRO_METRICS) for key, value in source.items()}
+PLOT_FILE_NAMES = {key: os.path.splitext(value["file"])[0] for source in (SIMULATOR_METRICS, MICRO_METRICS) for key, value in source.items()}
 PERFORMANCE_PLOT_KEYS = [
     "live_memory_growth_bytes",
     "total_allocated_bytes",
@@ -141,75 +122,7 @@ TIME_KEYS = {
     "process_stream_10_values",
 }
 BYTE_KEYS = {"live_memory_growth_bytes", "total_allocated_bytes"}
-THRESHOLDS = {
-    "setup_per_stream": {
-        "warn": 50_000_000,
-        "fail": 100_000_000,
-        "operator": "max",
-        "unit": "ns/stream",
-        "plot_key": "setup",
-        "scale": "per_stream",
-    },
-    "live_memory_growth_bytes_per_stream": {
-        "warn": 200_000,
-        "fail": 1_000_000,
-        "operator": "max",
-        "unit": "bytes/stream",
-        "plot_key": "live_memory_growth_bytes",
-        "scale": "per_stream",
-    },
-    "values_read_per_sec_per_stream": {
-        "warn": 0.8,
-        "fail": 0.5,
-        "operator": "min",
-        "unit": "values/sec/stream",
-        "plot_key": "values_read_per_sec",
-        "scale": "per_stream",
-    },
-    "values_read_fresh_pct": {
-        "warn": 99,
-        "fail": 95,
-        "operator": "min",
-        "unit": "%",
-        "plot_key": "values_read_fresh_pct",
-        "scale": "constant",
-    },
-    "median_tick_runstream_busy": {
-        "warn": 1_000_000_000,
-        "fail": 1_200_000_000,
-        "operator": "max",
-        "unit": "ns",
-        "plot_key": "median_tick_runstream_busy",
-        "scale": "constant",
-    },
-}
-METRIC_UNITS = {
-    "live_memory_growth_bytes": "bytes",
-    "total_allocated_bytes": "bytes",
-    "values_read_per_sec": "values/sec",
-    "values_read_fresh_pct": "%",
-    "avg_tick_runstream": "ns",
-    "median_tick_runstream_busy": "ns",
-    "setup": "ns",
-    "frame_numeric_full": "ns",
-    "frame_numeric_average": "ns",
-    "frame_numeric_average_minmax": "ns",
-    "frame_discrete": "ns",
-    "process_stream_10_values": "ns",
-}
-PLOT_COLORS = {
-    "head": "#1d4ed8",
-    "pr_base": "#64748b",
-    "long_term": "#16a34a",
-    "warn": "#f59e0b",
-    "warn_text": "#b45309",
-    "fail": "#ef4444",
-    "fail_text": "#b91c1c",
-    "grid": "#e2e8f0",
-    "minor_grid": "#f1f5f9",
-}
-
-
+THRESHOLDS = SIMULATOR_THRESHOLDS
 def parse_streams(value: str) -> list[int]:
     streams = sorted({int(part.strip()) for part in value.split(",") if part.strip()})
     if not streams or any(n <= 0 for n in streams):
@@ -263,7 +176,7 @@ def run_go_scenario(args: argparse.Namespace, streams: list[int]) -> dict[str, A
     cmd = [
         "go",
         "run",
-        "./scripts/benchmarks/yamcs_stream_scenario.go",
+        "./scripts/benchmarks/simulator/scenario.go",
         "--address",
         args.yamcs_address,
         "--instance",
@@ -382,7 +295,7 @@ def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -
         "name": "long-term",
         "description": "Checked-in benchmark baseline used as a stable reference curve in benchmark plots.",
         "source_environment": "github-actions" if os.environ.get("GITHUB_ACTIONS") == "true" else "local",
-        "created_from": "scripts/benchmarks/baselines/long-term/yamcs-stream-results.json",
+        "created_from": "scripts/benchmarks/baselines/long-term/simulator.json",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "github": {
             "repository": os.environ.get("GITHUB_REPOSITORY", ""),
@@ -448,73 +361,14 @@ def y_axis_label(key: str, default_label: str, unit: str) -> str:
         "frame_numeric_average_minmax",
         "frame_discrete",
     }:
-        return f"Median conversion time ({unit})" if unit else "Median conversion time"
+        return "Median conversion time"
     if key == "process_stream_10_values":
-        return f"Median processing time for 10 values ({unit})" if unit else "Median processing time for 10 values"
+        return "Median processing time for 10 values"
     if key == "median_tick_runstream_busy":
-        return f"Median busy time per 1s tick ({unit})" if unit else "Median busy time per 1s tick"
+        return "Median busy time per 1s tick"
     if key == "setup":
-        return f"Setup time ({unit})" if unit else "Setup time"
-    return f"{default_label} ({unit})" if unit else default_label
-
-
-def format_number(value: float) -> str:
-    abs_value = abs(value)
-    if abs_value == 0:
-        return "0"
-    if abs_value >= 100:
-        return f"{value:.0f}"
-    if abs_value >= 10:
-        return f"{value:.1f}".rstrip("0").rstrip(".")
-    if abs_value >= 1:
-        return f"{value:.2f}".rstrip("0").rstrip(".")
-    return f"{value:.3f}".rstrip("0").rstrip(".")
-
-
-def format_time_tick(value: float, axis_unit: str) -> str:
-    multipliers = {"ns": 1, "us": 1_000, "ms": 1_000_000, "s": 1_000_000_000}
-    ns = value * multipliers.get(axis_unit, 1)
-    abs_ns = abs(ns)
-    if abs_ns >= 1_000_000_000:
-        return f"{format_number(ns / 1_000_000_000)} s"
-    if abs_ns >= 1_000_000:
-        return f"{format_number(ns / 1_000_000)} ms"
-    if abs_ns >= 1_000:
-        return f"{format_number(ns / 1_000)} us"
-    return f"{format_number(ns)} ns"
-
-
-def format_byte_tick(value: float, axis_unit: str) -> str:
-    multipliers = {"bytes": 1, "KiB": 1024, "MiB": 1024 * 1024, "GiB": 1024 * 1024 * 1024}
-    bytes_value = value * multipliers.get(axis_unit, 1)
-    abs_bytes = abs(bytes_value)
-    if abs_bytes >= 1024 * 1024 * 1024:
-        return f"{format_number(bytes_value / (1024 * 1024 * 1024))} GiB"
-    if abs_bytes >= 1024 * 1024:
-        return f"{format_number(bytes_value / (1024 * 1024))} MiB"
-    if abs_bytes >= 1024:
-        return f"{format_number(bytes_value / 1024)} KiB"
-    return f"{format_number(bytes_value)} bytes"
-
-
-def format_rate_tick(value: float, axis_unit: str) -> str:
-    if axis_unit == "values/sec":
-        if abs(value) >= 1_000_000:
-            return f"{format_number(value / 1_000_000)}M values/s"
-        if abs(value) >= 1_000:
-            return f"{format_number(value / 1_000)}k values/s"
-        return f"{format_number(value)} values/s"
-    return f"{format_number(value)} {axis_unit}".rstrip()
-
-
-def format_axis_tick(value: float, axis_unit: str) -> str:
-    if axis_unit in {"ns", "us", "ms", "s"}:
-        return format_time_tick(value, axis_unit)
-    if axis_unit in {"bytes", "KiB", "MiB", "GiB"}:
-        return format_byte_tick(value, axis_unit)
-    if axis_unit == "%":
-        return f"{format_number(value)}%"
-    return format_rate_tick(value, axis_unit)
+        return "Setup time"
+    return default_label
 
 
 def apply_y_axis_floor(values: list[float]) -> None:
@@ -635,19 +489,6 @@ def add_threshold_label(ax: Axes, label: str, value: float, color: str) -> None:
     ax.text(xmax, text_y, label, ha="right", va="bottom", color=color, fontsize=9)
 
 
-def add_head_fill(ax: Axes, xs: list[int], ys: list[float], axis_values: list[float]) -> None:
-    if not xs or not ys:
-        return
-    if ax.get_yscale() == "log":
-        positive = [value for value in axis_values if value > 0]
-        if not positive:
-            return
-        fill_bottom = min(positive) * 0.8
-    else:
-        fill_bottom = max(0, ax.get_ylim()[0])
-    ax.fill_between(xs, fill_bottom, ys, color=PLOT_COLORS["head"], alpha=0.045, zorder=1)
-
-
 def plot_metric(
     output_dir: str,
     rows: list[dict[str, Any]],
@@ -663,6 +504,13 @@ def plot_metric(
     points.sort(key=lambda item: item[0])
     xs = [point[0] for point in points]
     raw_ys = [float(point[1]) for point in points]
+    raw_mins: list[float] = []
+    raw_maxs: list[float] = []
+    for x, y in points:
+        row = next(row for row in rows if row.get("streams") == x and row.get(key) == y)
+        min_value, max_value = range_values(row, key)
+        raw_mins.append(float(y) if min_value is None else min_value)
+        raw_maxs.append(float(y) if max_value is None else max_value)
     baseline_points = []
     if baseline_rows:
         baseline_points = [(row["streams"], row.get(key)) for row in baseline_rows if row.get(key) is not None]
@@ -676,8 +524,11 @@ def plot_metric(
         long_term_points.sort(key=lambda item: item[0])
     long_term_raw_ys = [float(point[1]) for point in long_term_points]
     all_raw_ys = raw_ys + baseline_raw_ys + long_term_raw_ys
+    all_raw_ys += raw_mins + raw_maxs
     scale_reference = max(abs(value) for value in all_raw_ys) if all_raw_ys else 0
     ys, label = scaled_series(key, raw_ys, scale_reference)
+    ys_min, _ = scaled_series(key, raw_mins, scale_reference)
+    ys_max, _ = scaled_series(key, raw_maxs, scale_reference)
     y_label, y_unit = split_axis_label(label)
     baseline_xs = [point[0] for point in baseline_points]
     baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
@@ -689,26 +540,24 @@ def plot_metric(
     fig, ax = plt.subplots(figsize=(9.6, 5.4))
     fig.patch.set_facecolor("#f8fafc")
     ax.set_facecolor("white")
-    ax.plot(xs, ys, color=PLOT_COLORS["head"], linewidth=3.0, label="HEAD", zorder=3)
-    ax.scatter(xs, ys, s=34, color=PLOT_COLORS["head"], edgecolor="white", linewidth=1.1, zorder=4)
+    plot_series(ax, xs, ys, "head", zorder=3)
     if baseline_points:
-        ax.plot(baseline_xs, baseline_ys, color=PLOT_COLORS["pr_base"], linewidth=2.3, label="PR base", zorder=2)
+        plot_series(ax, baseline_xs, baseline_ys, "pr_base", zorder=2)
     if long_term_points:
-        ax.plot(
-            long_term_xs,
-            long_term_ys,
-            color=PLOT_COLORS["long_term"],
-            linewidth=2.1,
-            linestyle=(0, (5, 4)),
-            label="Long-term baseline",
-            zorder=2,
-        )
+        plot_series(ax, long_term_xs, long_term_ys, "long_term", zorder=2)
     for level, _operator, color, threshold_values in threshold_lines:
         ax.plot(xs, threshold_values, color=color, linewidth=1.25, alpha=0.95, zorder=2)
     ax.set_xscale("log")
     ax.set_ylabel(y_axis_label(key, y_label, y_unit))
     style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
-    axis_values = ys + baseline_ys + long_term_ys + [value for _, _, _, threshold_values in threshold_lines for value in threshold_values]
+    axis_values = (
+        ys
+        + ys_min
+        + ys_max
+        + baseline_ys
+        + long_term_ys
+        + [value for _, _, _, threshold_values in threshold_lines for value in threshold_values]
+    )
     if key.endswith("_pct"):
         plt.sca(ax)
         apply_percentage_y_axis(axis_values)
@@ -719,7 +568,7 @@ def plot_metric(
         plt.sca(ax)
         apply_y_axis_floor(axis_values)
     apply_y_tick_formatter(ax, y_unit)
-    add_head_fill(ax, xs, ys, axis_values)
+    add_range_band(ax, xs, ys_min, ys_max, PLOT_COLORS["head"])
     add_threshold_regions(ax, threshold_lines)
     warn = threshold_level(threshold_lines, "warn")
     fail = threshold_level(threshold_lines, "fail")
@@ -749,6 +598,14 @@ def plot_micro_metric(
     points.sort(key=lambda item: item[0])
     xs = [point[0] for point in points]
     raw_ys = [float(point[1]) for point in points]
+    metric_rows_by_x = {row["x"]: row for row in metric_rows if isinstance(row.get("x"), int)}
+    raw_mins: list[float] = []
+    raw_maxs: list[float] = []
+    for x, y in points:
+        row = metric_rows_by_x.get(x, {})
+        min_value, max_value = range_values(row, key, "ns")
+        raw_mins.append(float(y) if min_value is None else min_value)
+        raw_maxs.append(float(y) if max_value is None else max_value)
     x_label = next((str(row.get("x_label")) for row in metric_rows if row.get("x_label")), "N")
 
     baseline_points = []
@@ -771,9 +628,11 @@ def plot_micro_metric(
         long_term_points.sort(key=lambda item: item[0])
     long_term_raw_ys = [float(point[1]) for point in long_term_points]
 
-    all_raw_ys = raw_ys + baseline_raw_ys + long_term_raw_ys
+    all_raw_ys = raw_ys + raw_mins + raw_maxs + baseline_raw_ys + long_term_raw_ys
     scale_reference = max(abs(value) for value in all_raw_ys) if all_raw_ys else 0
     ys, label = scaled_series(key, raw_ys, scale_reference)
+    ys_min, _ = scaled_series(key, raw_mins, scale_reference)
+    ys_max, _ = scaled_series(key, raw_maxs, scale_reference)
     y_label, y_unit = split_axis_label(label)
     baseline_xs = [point[0] for point in baseline_points]
     baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
@@ -784,24 +643,15 @@ def plot_micro_metric(
     fig, ax = plt.subplots(figsize=(9.6, 5.4))
     fig.patch.set_facecolor("#f8fafc")
     ax.set_facecolor("white")
-    ax.plot(xs, ys, color=PLOT_COLORS["head"], linewidth=3.0, label="HEAD", zorder=3)
-    ax.scatter(xs, ys, s=34, color=PLOT_COLORS["head"], edgecolor="white", linewidth=1.1, zorder=4)
+    plot_series(ax, xs, ys, "head", zorder=3)
     if baseline_points:
-        ax.plot(baseline_xs, baseline_ys, color=PLOT_COLORS["pr_base"], linewidth=2.3, label="PR base", zorder=2)
+        plot_series(ax, baseline_xs, baseline_ys, "pr_base", zorder=2)
     if long_term_points:
-        ax.plot(
-            long_term_xs,
-            long_term_ys,
-            color=PLOT_COLORS["long_term"],
-            linewidth=2.1,
-            linestyle=(0, (5, 4)),
-            label="Long-term baseline",
-            zorder=2,
-        )
+        plot_series(ax, long_term_xs, long_term_ys, "long_term", zorder=2)
     ax.set_xscale("log")
     ax.set_ylabel(y_axis_label(key, y_label, y_unit))
     style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by {x_label.lower()}"), x_label)
-    axis_values = ys + baseline_ys + long_term_ys
+    axis_values = ys + ys_min + ys_max + baseline_ys + long_term_ys
     if key in LOG_Y_KEYS:
         plt.sca(ax)
         apply_log_y_axis(axis_values)
@@ -809,7 +659,7 @@ def plot_micro_metric(
         plt.sca(ax)
         apply_y_axis_floor(axis_values)
     apply_y_tick_formatter(ax, y_unit)
-    add_head_fill(ax, xs, ys, axis_values)
+    add_range_band(ax, xs, ys_min, ys_max, PLOT_COLORS["head"])
     ax.legend(frameon=False, loc="upper left", ncols=3)
     fig.tight_layout()
     fig.savefig(path, dpi=180, facecolor="white")
@@ -902,9 +752,9 @@ def summarize_baseline_changes(
             if baseline_value == 0:
                 continue
 
-            current = float(current_value)
-            base = float(baseline_value)
-            changes.append(100 * (current - base) / abs(base))
+            change = percent_change(float(current_value), float(baseline_value))
+            if change is not None:
+                changes.append(change)
         if changes:
             max_negative_change, max_positive_change = split_change_extremes(changes)
             summaries.append(
@@ -919,15 +769,6 @@ def summarize_baseline_changes(
                 }
             )
     return summaries
-
-
-def split_change_extremes(changes: list[float]) -> tuple[float, float]:
-    negative_changes = [change for change in changes if change < 0]
-    positive_changes = [change for change in changes if change > 0]
-    return (
-        min(negative_changes) if negative_changes else 0,
-        max(positive_changes) if positive_changes else 0,
-    )
 
 
 def summarize_micro_baseline_changes(
@@ -956,9 +797,9 @@ def summarize_micro_baseline_changes(
             baseline_value = baseline.get("median_ns")
             if not isinstance(current_value, (int, float)) or not isinstance(baseline_value, (int, float)):
                 continue
-            if baseline_value == 0:
-                continue
-            changes.append(100 * (float(current_value) - float(baseline_value)) / abs(float(baseline_value)))
+            change = percent_change(float(current_value), float(baseline_value))
+            if change is not None:
+                changes.append(change)
         if changes:
             max_negative_change, max_positive_change = split_change_extremes(changes)
             summaries.append(
@@ -973,130 +814,3 @@ def summarize_micro_baseline_changes(
                 }
             )
     return summaries
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Benchmark N concurrent Grafana streams with live Yamcs quickstart data.")
-    parser.add_argument("--output-dir", default="benchmark-output")
-    parser.add_argument("--yamcs-address", default="localhost:8090")
-    parser.add_argument("--instance", default="myproject")
-    parser.add_argument("--processor", default="realtime")
-    parser.add_argument("--streams", type=parse_streams, default=parse_streams(DEFAULT_STREAMS))
-    parser.add_argument("--parameters", default=DEFAULT_PARAMETERS)
-    parser.add_argument("--duration", default="10s")
-    parser.add_argument("--warmup", default="3s")
-    parser.add_argument("--warmup-scenario-streams", type=int, default=25)
-    parser.add_argument("--warmup-scenario-duration", default="3s")
-    parser.add_argument("--read-interval", default="1s")
-    parser.add_argument("--freshness-window", default="1s")
-    parser.add_argument("--quickstart-dir", default="/tmp/yamcs-quickstart")
-    parser.add_argument("--no-simulator", action="store_true", help="Do not start simulator.py before running the scenario")
-    parser.add_argument("--simulator-host", default="127.0.0.1")
-    parser.add_argument("--simulator-port", type=int, default=10015)
-    parser.add_argument("--simulator-rate", type=int, default=1)
-    parser.add_argument("--baseline-results", default="", help="Optional previous benchmark JSON to plot and compare against")
-    parser.add_argument("--baseline-commit", default="", help="Commit hash used to produce the PR base benchmark")
-    parser.add_argument("--allow-local-baseline", action="store_true", help="Allow writing the checked-in long-term baseline outside CI")
-    parser.add_argument("--fail-on-threshold", action="store_true", help="Exit non-zero when any benchmark threshold fails")
-    argv = sys.argv[1:]
-    if argv and argv[0] == "--":
-        argv = argv[1:]
-    args = parser.parse_args(argv)
-
-    refreshing_long_term = os.path.abspath(args.output_dir) == os.path.abspath(LONG_TERM_BASELINE_DIR)
-    if refreshing_long_term and os.environ.get("CI") != "true" and not args.allow_local_baseline:
-        raise SystemExit(
-            "Refusing to refresh the checked-in long-term baseline outside CI. "
-            "Use the GitHub Actions baseline refresh workflow, or pass --allow-local-baseline for a local diagnostic run."
-        )
-
-    os.makedirs(args.output_dir, exist_ok=True)
-    started_at = datetime.now(timezone.utc).isoformat()
-    simulator = run_simulator(args)
-    try:
-        if simulator is not None:
-            time.sleep(2)
-        result = run_go_scenario(args, args.streams)
-        result["microbenchmarks"] = run_go_microbenchmarks(args)
-    finally:
-        stop_process(simulator)
-
-    result["python_started_at"] = started_at
-    result["python_finished_at"] = datetime.now(timezone.utc).isoformat()
-    result["simulator_rate"] = args.simulator_rate
-    result["metric_semantics_version"] = METRIC_SEMANTICS_VERSION
-
-    json_path = os.path.join(args.output_dir, "yamcs-stream-results.json")
-    csv_path = os.path.join(args.output_dir, "yamcs-stream-results.csv")
-
-    threshold_results = evaluate_thresholds(result["scenarios"])
-    baseline_result, baseline_message = load_baseline_results(args.baseline_results)
-    baseline_compatible = metric_semantics_compatible(baseline_result)
-    if baseline_result and not baseline_compatible:
-        baseline_message = "baseline loaded but metric semantics version is incompatible"
-    baseline_rows = baseline_result.get("scenarios", []) if baseline_compatible else None
-    baseline_micro_rows = baseline_result.get("microbenchmarks", []) if baseline_compatible else None
-    if os.path.abspath(args.output_dir) == os.path.abspath(LONG_TERM_BASELINE_DIR):
-        long_term_result = None
-        long_term_message = "long-term baseline skipped while refreshing it"
-    else:
-        long_term_result, long_term_message = load_baseline_results(LONG_TERM_BASELINE_RESULTS)
-    long_term_compatible = metric_semantics_compatible(long_term_result)
-    if long_term_result and not long_term_compatible:
-        long_term_message = "long-term baseline loaded but metric semantics version is incompatible"
-    long_term_rows = long_term_result.get("scenarios", []) if long_term_compatible else None
-    long_term_micro_rows = long_term_result.get("microbenchmarks", []) if long_term_compatible else None
-    baseline_change_summaries = summarize_baseline_changes(result["scenarios"], baseline_rows, "PR base")
-    baseline_change_summaries += summarize_baseline_changes(result["scenarios"], long_term_rows, "Long-term baseline")
-    baseline_change_summaries += summarize_micro_baseline_changes(result.get("microbenchmarks", []), baseline_micro_rows, "PR base")
-    baseline_change_summaries += summarize_micro_baseline_changes(
-        result.get("microbenchmarks", []), long_term_micro_rows, "Long-term baseline"
-    )
-    result["baseline"] = {
-        "compatible": baseline_compatible,
-        "path": args.baseline_results,
-        "commit": args.baseline_commit,
-        "message": baseline_message,
-        "metric_semantics_version": baseline_result.get("metric_semantics_version") if baseline_result else None,
-    }
-    result["long_term_baseline"] = {
-        "compatible": long_term_compatible,
-        "path": os.path.relpath(LONG_TERM_BASELINE_RESULTS, os.getcwd()),
-        "metadata": load_json_file(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json")) or {},
-        "system": long_term_result.get("system", {}) if long_term_result else {},
-        "environment": {
-            "yamcs_address": long_term_result.get("yamcs_address", "") if long_term_result else "",
-            "instance": long_term_result.get("instance", "") if long_term_result else "",
-            "processor": long_term_result.get("processor", "") if long_term_result else "",
-        },
-        "message": long_term_message,
-        "metric_semantics_version": long_term_result.get("metric_semantics_version") if long_term_result else None,
-    }
-    result["baseline_change_summaries"] = baseline_change_summaries
-    result["thresholds"] = threshold_results
-    with open(json_path, "w", encoding="utf-8") as fp:
-        json.dump(result, fp, indent=2)
-    if refreshing_long_term:
-        write_long_term_metadata(args, result)
-    write_csv(csv_path, result["scenarios"])
-    plot_paths = plot_all_metrics(args.output_dir, result["scenarios"], baseline_rows, long_term_rows)
-    plot_paths += plot_all_micro_metrics(
-        args.output_dir,
-        result.get("microbenchmarks", []),
-        baseline_micro_rows,
-        long_term_micro_rows,
-    )
-
-    print("=== Yamcs Stream Scenario Benchmark ===")
-    print(f"scenarios: {len(result['scenarios'])}")
-    print(f"plots generated: {len(plot_paths)}")
-    print(f"baseline: {baseline_message}")
-    print(f"long-term baseline: {long_term_message}")
-    print(f"thresholds: {', '.join(t['metric'] + '=' + t['status'] for t in threshold_results)}")
-    print(f"Artifacts written to: {os.path.abspath(args.output_dir)}")
-    if args.fail_on_threshold and any(t["status"] == "fail" for t in threshold_results):
-        raise SystemExit(1)
-
-
-if __name__ == "__main__":
-    main()

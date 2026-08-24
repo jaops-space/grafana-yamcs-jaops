@@ -77,6 +77,7 @@ func RunParameterStream(ctx context.Context,
 	}
 	backend.Logger.Debug("Requested parameter stream", "parameter", q.Parameter, "path", req.Path)
 	defer endpoint.WithdrawParameterStreamRequest(ctx, q.Parameter, req.Path)
+	streamBenchmarkStats.recordRunStream(req.Path)
 
 	tickerInterval := getStreamTickerInterval(q, time.Second)
 	tickerInterval = scaleTickerIntervalByReplay(endpoint, tickerInterval)
@@ -101,6 +102,7 @@ func RunParameterStream(ctx context.Context,
 				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
+			started := time.Now()
 			buffer := endpoint.GetAndClearParameterStreamBuffer(q.Parameter, req.Path)
 			if len(buffer) == 0 {
 				continue
@@ -112,6 +114,7 @@ func RunParameterStream(ctx context.Context,
 					frame,
 					data.IncludeDataOnly,
 				)
+				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(buffer))
 				continue
 			}
 
@@ -127,6 +130,7 @@ func RunParameterStream(ctx context.Context,
 				frame,
 				data.IncludeDataOnly,
 			)
+			streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(buffer))
 		}
 	}
 

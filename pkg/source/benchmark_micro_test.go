@@ -34,6 +34,8 @@ type benchmarkMicroMetric struct {
 	XLabel    string  `json:"x_label"`
 	Samples   int     `json:"samples"`
 	MedianNS  float64 `json:"median_ns"`
+	MinNS     float64 `json:"min_ns"`
+	MaxNS     float64 `json:"max_ns"`
 	Values    int     `json:"values,omitempty"`
 	Streams   int     `json:"streams,omitempty"`
 	BatchSize int     `json:"batch_size,omitempty"`
@@ -145,6 +147,8 @@ func benchmarkMicroPoint(metric string, group string, x int, xLabel string, samp
 		XLabel:   xLabel,
 		Samples:  samples,
 		MedianNS: median,
+		MinNS:    float64(sorted[0]),
+		MaxNS:    float64(sorted[len(sorted)-1]),
 		Values:   x,
 	}
 }

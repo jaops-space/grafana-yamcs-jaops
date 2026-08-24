@@ -36,6 +36,8 @@ type scenarioMetric struct {
 	ValuesReadFreshPercent  float64 `json:"values_read_fresh_pct"`
 	MedianTickRunStream     float64 `json:"avg_tick_runstream"`
 	MedianTickRunStreamBusy float64 `json:"median_tick_runstream_busy"`
+	TickRunStreamBusyMin    float64 `json:"median_tick_runstream_busy_min"`
+	TickRunStreamBusyMax    float64 `json:"median_tick_runstream_busy_max"`
 	LiveMemoryGrowthBytes   int64   `json:"live_memory_growth_bytes"`
 	TotalAllocatedBytes     uint64  `json:"total_allocated_bytes"`
 }
@@ -367,6 +369,8 @@ func runScenario(address string, instance string, processor string, parameters [
 	tickSummary := tickWork.summary()
 	metric.MedianTickRunStream = tickSummary.MedianTotalNanos
 	metric.MedianTickRunStreamBusy = tickSummary.MedianBusyTotalNanos
+	metric.TickRunStreamBusyMin = tickSummary.MinBusyTotalNanos
+	metric.TickRunStreamBusyMax = tickSummary.MaxBusyTotalNanos
 	return metric, nil
 }
 
@@ -387,6 +391,8 @@ type tickSpan struct {
 type tickWorkloadSummary struct {
 	MedianTotalNanos     float64
 	MedianBusyTotalNanos float64
+	MinBusyTotalNanos    float64
+	MaxBusyTotalNanos    float64
 }
 
 type durationRecorder struct {
@@ -469,7 +475,35 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 	return tickWorkloadSummary{
 		MedianTotalNanos:     medianInt64(totals),
 		MedianBusyTotalNanos: medianInt64(busyTotals),
+		MinBusyTotalNanos:    minInt64(busyTotals),
+		MaxBusyTotalNanos:    maxInt64(busyTotals),
 	}
+}
+
+func minInt64(values []int64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	minimum := values[0]
+	for _, value := range values[1:] {
+		if value < minimum {
+			minimum = value
+		}
+	}
+	return float64(minimum)
+}
+
+func maxInt64(values []int64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	maximum := values[0]
+	for _, value := range values[1:] {
+		if value > maximum {
+			maximum = value
+		}
+	}
+	return float64(maximum)
 }
 
 func medianInt64(values []int64) float64 {

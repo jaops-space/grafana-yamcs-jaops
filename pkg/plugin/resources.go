@@ -163,6 +163,9 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 
 	mux.HandleFunc("/fetch/health-details", d.handleGetLastHealthDetails)
 
+	mux.HandleFunc("/benchmark/reset", d.handleBenchmarkReset)
+	mux.HandleFunc("/benchmark/stats", d.handleBenchmarkStats)
+
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
