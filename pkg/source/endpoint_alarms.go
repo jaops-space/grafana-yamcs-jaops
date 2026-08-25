@@ -146,6 +146,8 @@ func (ep *YamcsEndpoint) GetAlarmsStream(path string) []*alarms.AlarmData {
 
 func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
 	// Clear only the update buffer, not the cache
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 }
 

@@ -28,6 +28,14 @@ func getStreamTickerInterval(q PluginQuery, fallback time.Duration) time.Duratio
 	return interval
 }
 
+// livenessCheckInterval bounds how long an event-driven stream (alarms, links,
+// command history) can go without checking whether the underlying yamcs
+// websocket connection is still alive. Without this, a silently dropped
+// connection (e.g. one that doesn't produce a new event to react to) leaves
+// the stream blocked forever on its signal channel, never surfacing an error
+// and never letting Grafana Live re-establish the stream.
+const livenessCheckInterval = 5 * time.Second
+
 func minStreamTickerInterval(interval time.Duration) time.Duration {
 	if interval < 200*time.Millisecond {
 		return 200 * time.Millisecond
@@ -162,13 +170,24 @@ func RunEventStream(ctx context.Context,
 	if err != nil {
 		return backend.DownstreamError(err)
 	}
+	if signal == nil {
+		return backend.DownstreamErrorf("events stream signal not registered for path %q", req.Path)
+	}
 
 	defer endpoint.WithdrawEventsStreamRequest(req.Path)
+
+	// Periodic liveness check, see livenessCheckInterval comment.
+	ticker := time.NewTicker(livenessCheckInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-ticker.C:
+			if !yamcs.IsWebSocketConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
 		case event, ok := <-signal:
 			if !ok {
 				return nil
@@ -202,14 +221,29 @@ func RunCommandHistoryStream(
 	}
 
 	// Start listening for command history entries for this path
-	endpoint.RequestCommandHistoryStream(ctx, req.Path)
+	if err := endpoint.RequestCommandHistoryStream(ctx, req.Path); err != nil {
+		return backend.DownstreamError(err)
+	}
 	signal := endpoint.GetCommandHistorySignal(req.Path)
+	if signal == nil {
+		return backend.DownstreamErrorf("command history stream signal not registered for path %q", req.Path)
+	}
 	defer endpoint.WithdrawCommandHistoryStreamRequest(req.Path)
+
+	// Periodic liveness check so a silently dropped websocket connection is
+	// detected even when no new command history events are arriving, instead
+	// of blocking forever on the signal channel.
+	ticker := time.NewTicker(livenessCheckInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-ticker.C:
+			if !yamcs.IsWebSocketConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
 		case command, ok := <-signal:
 			if !ok {
 				return nil
@@ -304,14 +338,27 @@ func RunAlarmsStream(
 	}
 
 	// Start listening for alarm events for this path
-	endpoint.RequestAlarmsStream(ctx, req.Path)
+	if err := endpoint.RequestAlarmsStream(ctx, req.Path); err != nil {
+		return backend.DownstreamError(err)
+	}
 	signal := endpoint.GetAlarmsSignal(req.Path)
+	if signal == nil {
+		return backend.DownstreamErrorf("alarms stream signal not registered for path %q", req.Path)
+	}
 	defer endpoint.WithdrawAlarmsStreamRequest(req.Path)
+
+	// Periodic liveness check, see livenessCheckInterval comment.
+	ticker := time.NewTicker(livenessCheckInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-ticker.C:
+			if !yamcs.IsWebSocketConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
 		case _, ok := <-signal:
 			if !ok {
 				return nil
@@ -381,10 +428,18 @@ func RunLinksStream(
 	}
 	defer endpoint.WithdrawLinksStreamRequest(req.Path)
 
+	// Periodic liveness check, see livenessCheckInterval comment.
+	ticker := time.NewTicker(livenessCheckInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-ticker.C:
+			if !yamcs.IsWebSocketConnected() {
+				return backend.DownstreamErrorf("yamcs client disconnected")
+			}
 		case link, ok := <-signal:
 			if !ok {
 				return nil
