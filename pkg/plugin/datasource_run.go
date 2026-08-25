@@ -371,9 +371,14 @@ func RunLinksStream(
 		return backend.DownstreamErrorf("yamcs client disconnected")
 	}
 
-	endpoint.RequestLinksStream(ctx, req.Path)
+	if err := endpoint.RequestLinksStream(ctx, req.Path); err != nil {
+		return backend.DownstreamError(err)
+	}
 
 	signal := endpoint.GetLinksSignal(req.Path)
+	if signal == nil {
+		return backend.DownstreamErrorf("links stream signal not registered for path %q", req.Path)
+	}
 	defer endpoint.WithdrawLinksStreamRequest(req.Path)
 
 	for {
@@ -396,6 +401,12 @@ func RunLinksStream(
 				return err
 			}
 
+			backend.Logger.Debug(
+				"sending links stream frame",
+				"path", req.Path,
+				"linkCount", len(latestLink.GetLinks()),
+				"fieldCount", len(frame.Fields),
+			)
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,

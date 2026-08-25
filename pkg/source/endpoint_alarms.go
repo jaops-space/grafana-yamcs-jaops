@@ -13,8 +13,14 @@ import (
 func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) error {
 
 	ep.mu.Lock()
-	ep.getOrCreateAlarmsSubscription(ctx)
-	ep.getOrCreateGlobalAlarmStatusSubscription(ctx)
+	if _, err := ep.getOrCreateAlarmsSubscription(ctx); err != nil {
+		ep.mu.Unlock()
+		return err
+	}
+	if _, err := ep.getOrCreateGlobalAlarmStatusSubscription(ctx); err != nil {
+		ep.mu.Unlock()
+		return err
+	}
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 	ep.AlarmSignals[path] = make(chan struct{}, StreamSignalBufferSize)
 	ep.mu.Unlock()
