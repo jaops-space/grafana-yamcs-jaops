@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppEvents, LoadingState, PanelProps, GrafanaTheme2 } from '@grafana/data';
+import { AppEvents, DataFrame, LoadingState, PanelProps, GrafanaTheme2 } from '@grafana/data';
 import { getAppEvents, getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { Button, Badge, Alert, Spinner, useStyles2, Tooltip, Link } from '@grafana/ui';
 import { css } from '@emotion/css';
@@ -27,6 +27,49 @@ function buildSafeNameFilter(pattern: string): RegExp | null {
     } catch {
         return null;
     }
+}
+
+function fieldValue(frame: DataFrame, name: string, index: number): any {
+    return frame.fields.find((field) => field.name === name)?.values[index];
+}
+
+function objectFieldValue<T>(frame: DataFrame, name: string, index: number, fallback: T): T {
+    const value = fieldValue(frame, name, index);
+    if (value == null) {
+        return fallback;
+    }
+    if (typeof value === 'string') {
+        try {
+            return JSON.parse(value);
+        } catch {
+            return fallback;
+        }
+    }
+    return value;
+}
+
+function linksFromFrame(frame: DataFrame | undefined): LinkInfo[] {
+    if (!frame || !frame.fields.length) {
+        return [];
+    }
+
+    const nameField = frame.fields.find((field) => field.name === 'name');
+    if (!nameField) {
+        return [];
+    }
+
+    return nameField.values.map((name, index) => ({
+        name: String(name ?? ''),
+        type: fieldValue(frame, 'type', index),
+        disabled: Boolean(fieldValue(frame, 'disabled', index)),
+        status: fieldValue(frame, 'status', index),
+        dataInCount: fieldValue(frame, 'dataInCount', index),
+        dataOutCount: fieldValue(frame, 'dataOutCount', index),
+        detailedStatus: fieldValue(frame, 'detailedStatus', index),
+        parentName: fieldValue(frame, 'parentName', index),
+        actions: objectFieldValue(frame, 'actions', index, []),
+        extra: objectFieldValue(frame, 'extra', index, {}),
+    }));
 }
 
 const getStyles = (theme: GrafanaTheme2) => ({
@@ -83,13 +126,24 @@ const getStyles = (theme: GrafanaTheme2) => ({
 export const LinksPanel: React.FC<Props> = ({ options, data }) => {
     const styles = useStyles2(getStyles);
     const appEvents = getAppEvents();
-    const [links, setLinks] = useState<LinkInfo[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
     const [dsUid, setDsUid] = useState<string | null>(null);
     const [endpoint, setEndpoint] = useState<string | null>(null);
     const [activeLinks, setActiveLinks] = useState<Set<string>>(new Set());
     const prevCounters = useRef<Record<string, { dataIn: string; dataOut: string }>>({});
+
+    let links = linksFromFrame(data.series?.[0]);
+    if (options.nameFilter) {
+        const regex = buildSafeNameFilter(options.nameFilter);
+        if (regex) {
+            links = links.filter((link) => regex.test(link.name));
+        }
+    }
+
+    const counterSignature = links
+        .map((link) => `${link.name}:${String(link.dataInCount ?? '0')}:${String(link.dataOutCount ?? '0')}`)
+        .join('|');
 
     // Extract datasource UID and endpoint from the query targets
     useEffect(() => {
@@ -118,62 +172,28 @@ export const LinksPanel: React.FC<Props> = ({ options, data }) => {
 
     const loading = data.state === LoadingState.Loading && links.length === 0;
 
-    // Consume links stream data emitted by backend stream frames.
+    // Track counter changes for transient activity highlighting.
     useEffect(() => {
-        const firstSeries = data.series?.[0];
-        if (!firstSeries) {
-            return;
+        const nowActive = new Set<string>();
+        const newCounters: Record<string, { dataIn: string; dataOut: string }> = {};
+        for (const link of links) {
+            const key = link.name;
+            const dataIn = String(link.dataInCount ?? '0');
+            const dataOut = String(link.dataOutCount ?? '0');
+            newCounters[key] = { dataIn, dataOut };
+            const prev = prevCounters.current[key];
+            if (prev && (prev.dataIn !== dataIn || prev.dataOut !== dataOut)) {
+                nowActive.add(key);
+            }
         }
 
-        const linksField = firstSeries.fields.find((f) => f.name === 'linksJson');
-        if (!linksField || linksField.values.length === 0) {
-            return;
+        prevCounters.current = newCounters;
+        setActiveLinks(nowActive);
+
+        if (nowActive.size > 0) {
+            setTimeout(() => setActiveLinks(new Set()), 1500);
         }
-
-        const latest = linksField.values[linksField.values.length - 1];
-
-        if (typeof latest !== 'string' || latest.length === 0) {
-            return;
-        }
-
-        try {
-            let linksList: LinkInfo[] = JSON.parse(latest);
-            if (!Array.isArray(linksList)) {
-                linksList = [];
-            }
-
-            if (options.nameFilter) {
-                const regex = buildSafeNameFilter(options.nameFilter);
-                if (regex) {
-                    linksList = linksList.filter((link) => regex.test(link.name));
-                }
-            }
-
-            const nowActive = new Set<string>();
-            const newCounters: Record<string, { dataIn: string; dataOut: string }> = {};
-            for (const link of linksList) {
-                const key = link.name;
-                const dataIn = String(link.dataInCount ?? '0');
-                const dataOut = String(link.dataOutCount ?? '0');
-                newCounters[key] = { dataIn, dataOut };
-                const prev = prevCounters.current[key];
-                if (prev && (prev.dataIn !== dataIn || prev.dataOut !== dataOut)) {
-                    nowActive.add(key);
-                }
-            }
-
-            prevCounters.current = newCounters;
-            setActiveLinks(nowActive);
-            setLinks(linksList);
-            setError(null);
-
-            if (nowActive.size > 0) {
-                setTimeout(() => setActiveLinks(new Set()), 1500);
-            }
-        } catch (e: any) {
-            setError(e.message || 'Failed to decode streamed links');
-        }
-    }, [data.series, options.nameFilter]);
+    }, [counterSignature]);
 
     useEffect(() => {
         if (data.state === LoadingState.Error) {

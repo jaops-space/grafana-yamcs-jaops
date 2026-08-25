@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
@@ -38,6 +37,9 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) e
 		for _, alarm := range alarmList {
 			// Skip cleared alarms when loading initial cache
 			if alarm.GetClearInfo() != nil {
+				continue
+			}
+			if alarm.GetId() == nil {
 				continue
 			}
 			qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
@@ -204,34 +206,19 @@ func (ep *YamcsEndpoint) getAlarmsListener() client.AlarmListener {
 		hasUpdate := false
 
 		// Generate unique alarm ID (namespace/name/seqNum)
+		if alarm.GetId() == nil {
+			return nil
+		}
 		qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
 		alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
 
 		ep.mu.Lock()
 		defer ep.mu.Unlock()
-		// If the alarm has been cleared, remove it from the cache
-		if alarm.GetClearInfo() != nil {
+		if shouldRemoveAlarmFromCache(alarm) {
 			delete(ep.AlarmCache, alarmID)
 			hasUpdate = true
-			// Skip adding cleared alarms to streaming buffer
 		} else {
-
-			// Update the cache: merge incoming alarm data onto the existing cached entry
-			// so that fields only sent in TRIGGERED/SEVERITY_INCREASED (e.g. mostSevereValue)
-			// are not lost when VALUE_UPDATED notifications arrive with partial data.
-			if existing, ok := ep.AlarmCache[alarmID]; ok {
-				merged := proto.Clone(existing).(*alarms.AlarmData)
-				proto.Merge(merged, alarm)
-				// When an alarm is unshelved, Yamcs sends a notification with no shelveInfo.
-				// proto.Merge does not clear existing fields, so we must explicitly clear
-				// ShelveInfo when the notification type is UNSHELVED.
-				if alarm.GetNotificationType() == alarms.AlarmNotificationType_UNSHELVED {
-					merged.ShelveInfo = nil
-				}
-				ep.AlarmCache[alarmID] = merged
-			} else {
-				ep.AlarmCache[alarmID] = alarm
-			}
+			ep.AlarmCache[alarmID] = alarm
 			hasUpdate = true
 		}
 
@@ -242,4 +229,12 @@ func (ep *YamcsEndpoint) getAlarmsListener() client.AlarmListener {
 		}
 		return nil
 	}
+}
+
+func shouldRemoveAlarmFromCache(alarm *alarms.AlarmData) bool {
+	if alarm.GetClearInfo() != nil {
+		return true
+	}
+
+	return alarm.GetProcessOK() && !alarm.GetTriggered() && alarm.GetAcknowledged()
 }

@@ -12,7 +12,6 @@ import (
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
@@ -237,24 +236,10 @@ func DatasourceLinksFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 		return nil, err
 	}
 
-	return buildLinksFrame(list)
-}
-
-func buildLinksFrame(items []*links.LinkInfo) (*data.Frame, error) {
-	results := make([]LinkInfoResult, 0, len(items))
-	for _, link := range items {
-		results = append(results, convertLinkInfo(link))
-	}
-
-	payload, err := json.Marshal(results)
+	frame, err := tools.ConvertLinksToFrame(list)
 	if err != nil {
 		return nil, err
 	}
-
-	frame := data.NewFrame(
-		"links",
-		data.NewField("linksJson", nil, []string{string(payload)}),
-	)
 	setPreferredVisualization(frame, Links)
 
 	return frame, nil

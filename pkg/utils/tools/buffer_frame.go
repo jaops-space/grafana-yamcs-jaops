@@ -309,29 +309,35 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 				}
 
 			default:
+				if strings.HasPrefix(name, "Acknowledge_") {
+					ackName, field, ok := splitCommandAckAttribute(name)
+					if !ok {
+						continue
+					}
+
+					ack, ok := commandEntry.ExtraAcknowledgements[ackName]
+					if !ok {
+						ack = &CommandAck{}
+						commandEntry.ExtraAcknowledgements[ackName] = ack
+					}
+
+					applyCommandAckAttribute(ack, field, value)
+				}
+
 				// Handle Verifier_* attributes
 				if strings.HasPrefix(name, "Verifier_") {
-					rest := strings.TrimPrefix(name, "Verifier_")
-					underscoreIndex := strings.LastIndex(rest, "_")
-					if underscoreIndex > 0 {
-						ackName := "Verifier_" + rest[:underscoreIndex]
-						field := rest[underscoreIndex+1:]
-
-						ack, ok := commandEntry.ExtraAcknowledgements[ackName]
-						if !ok {
-							ack = &CommandAck{}
-							commandEntry.ExtraAcknowledgements[ackName] = ack
-						}
-
-						switch field {
-						case "Status":
-							ack.Status = value.GetStringValue()
-						case "Time":
-							ack.Time = value.GetStringValue()
-						case "Message":
-							ack.Message = value.GetStringValue()
-						}
+					ackName, field, ok := splitCommandAckAttribute(name)
+					if !ok {
+						continue
 					}
+
+					ack, ok := commandEntry.ExtraAcknowledgements[ackName]
+					if !ok {
+						ack = &CommandAck{}
+						commandEntry.ExtraAcknowledgements[ackName] = ack
+					}
+
+					applyCommandAckAttribute(ack, field, value)
 				}
 
 				// Handle CommandComplete_* attributes
@@ -375,6 +381,32 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 	}
 
 	return data.NewFrame("response", data.NewField("commands", nil, commandList))
+}
+
+func splitCommandAckAttribute(name string) (string, string, bool) {
+	underscoreIndex := strings.LastIndex(name, "_")
+	if underscoreIndex <= 0 || underscoreIndex == len(name)-1 {
+		return "", "", false
+	}
+
+	field := name[underscoreIndex+1:]
+	switch field {
+	case "Status", "Time", "Message":
+		return name[:underscoreIndex], field, true
+	default:
+		return "", "", false
+	}
+}
+
+func applyCommandAckAttribute(ack *CommandAck, field string, value *protobuf.Value) {
+	switch field {
+	case "Status":
+		ack.Status = value.GetStringValue()
+	case "Time":
+		ack.Time = value.GetStringValue()
+	case "Message":
+		ack.Message = value.GetStringValue()
+	}
 }
 
 // ConvertSampleBufferToFrame converts a time series sample buffer into a data frame.

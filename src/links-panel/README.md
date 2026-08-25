@@ -4,37 +4,40 @@ Adds the ability to view and control Yamcs data links directly from Grafana dash
 
 ## What it does
 
-A new **JAOPS Links Panel** lets operators see all Yamcs links for a given endpoint and enable, disable, or reset their counters with a click. The panel polls the backend over REST on a configurable interval (default 5 s), it does not use the WebSocket streaming pipeline that parameter queries use.
+A new **JAOPS Links Panel** lets operators see all Yamcs links for a given endpoint and enable, disable, or reset their counters with a click. Link state is delivered through the Grafana Live streaming pipeline, backed by Yamcs `SubscribeLinks` WebSocket updates.
 
 ## How it works
 
-The panel reads the datasource UID and endpoint from its query configuration (`data.request.targets`). Because links don't need streaming, the datasource returns an empty observable for `LINKS` queries to preserve the request metadata:
+The panel reads the datasource UID and endpoint from its query configuration (`data.request.targets`). A Links query subscribes to a datasource Live channel whose path ends in `/links`:
 
 ```typescript
-if (query.type === QueryType.LINKS) {
-    return new Observable<DataQueryResponse>((subscriber) => {
-        subscriber.next({ data: [], state: LoadingState.Done });
-        subscriber.complete();
-    });
-}
+getGrafanaLiveSrv().getDataStream({
+    buffer: {
+        action: StreamingFrameAction.Replace,
+    },
+    addr: {
+        scope: LiveChannelScope.DataSource,
+        stream: this.uid,
+        path: `${endpoint}/links`,
+    },
+});
 ```
 
-The panel then fetches data directly using `getBackendSrv()`:
+The backend converts each Yamcs `LinkInfo` into one DataFrame row. Link properties are exposed as normal DataFrame fields:
 
-```typescript
-const url = `/api/datasources/uid/${dsUid}/resources/endpoint/${endpoint}/links`;
-const result = await getBackendSrv().get(url);
+```text
+instance | name | type | disabled | status | dataInCount | dataOutCount | detailedStatus | parentName | actions | extra
 ```
 
 Dashboard variables are supported: when "As variable" is checked, the endpoint is resolved via `getTemplateSrv().replace(target.endpointVariable)`.
 
 ## Activity indicator
 
-- When a link's data counters (in or out) increase between refreshes, its row will briefly flash with a green background to indicate recent activity, similar to Yamcs Web. This works automatically with polling and requires no extra configuration.
+- When a link's data counters (in or out) increase between stream updates, its row will briefly flash with a green background to indicate recent activity, similar to Yamcs Web.
 
 ## Backend
 
-Six new resource routes are registered in `resources.go`, backed by corresponding client methods in `link_endpoints.go` that call the Yamcs REST API using protobuf:
+Resource routes are registered in `resources.go`, backed by corresponding client methods in `link_endpoints.go` that call the Yamcs REST API using protobuf for operator actions:
 
 ```
 GET  /endpoint/{endpointID}/links                        — list all links
@@ -47,7 +50,6 @@ POST /endpoint/{endpointID}/links/{linkName}/action/{id}  — run a link action
 
 ## Panel options
 
-- **Auto-refresh interval**: polling frequency in seconds (0 = manual only, default 5)
 - **Show details**: show link type and data in/out counters (default true)
 - **Filter by name**: regex to filter which links are displayed
 

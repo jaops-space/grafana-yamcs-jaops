@@ -8,7 +8,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -497,30 +497,6 @@ func (d *Datasource) handleUnshelveAlarm(w http.ResponseWriter, req *http.Reques
 	json.NewEncoder(w).Encode(map[string]string{"status": "unshelved"})
 }
 
-// LinkInfoResult is a JSON-friendly representation of a link.
-type LinkInfoResult struct {
-	Instance       string         `json:"instance"`
-	Name           string         `json:"name"`
-	Type           string         `json:"type"`
-	Disabled       bool           `json:"disabled"`
-	Status         string         `json:"status"`
-	DataInCount    int64          `json:"dataInCount"`
-	DataOutCount   int64          `json:"dataOutCount"`
-	DetailedStatus string         `json:"detailedStatus"`
-	ParentName     string         `json:"parentName,omitempty"`
-	Actions        []ActionResult `json:"actions,omitempty"`
-	Extra          map[string]any `json:"extra,omitempty"`
-}
-
-// ActionResult is a JSON-friendly representation of a link action.
-type ActionResult struct {
-	ID      string `json:"id"`
-	Label   string `json:"label"`
-	Style   string `json:"style"`
-	Enabled bool   `json:"enabled"`
-	Checked bool   `json:"checked"`
-}
-
 // handleListLinks handles incoming requests to list all links for an endpoint.
 func (d *Datasource) handleListLinks(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
@@ -548,9 +524,9 @@ func (d *Datasource) handleListLinks(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	results := make([]LinkInfoResult, 0, len(links))
+	results := make([]tools.LinkInfoResult, 0, len(links))
 	for _, link := range links {
-		results = append(results, convertLinkInfo(link))
+		results = append(results, tools.ConvertLinkInfo(link))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -585,7 +561,7 @@ func (d *Datasource) handleGetLink(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	result := convertLinkInfo(link)
+	result := tools.ConvertLinkInfo(link)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
@@ -619,7 +595,7 @@ func (d *Datasource) handleEnableLink(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	result := convertLinkInfo(link)
+	result := tools.ConvertLinkInfo(link)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
@@ -653,7 +629,7 @@ func (d *Datasource) handleDisableLink(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	result := convertLinkInfo(link)
+	result := tools.ConvertLinkInfo(link)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
@@ -687,7 +663,7 @@ func (d *Datasource) handleResetLinkCounters(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	result := convertLinkInfo(link)
+	result := tools.ConvertLinkInfo(link)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
@@ -746,40 +722,4 @@ func (d *Datasource) handleRunLinkAction(w http.ResponseWriter, req *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
-}
-
-// convertLinkInfo converts a protobuf LinkInfo to a JSON-friendly LinkInfoResult.
-func convertLinkInfo(link *links.LinkInfo) LinkInfoResult {
-	result := LinkInfoResult{
-		Instance:       link.GetInstance(),
-		Name:           link.GetName(),
-		Type:           link.GetType(),
-		Disabled:       link.GetDisabled(),
-		Status:         link.GetStatus(),
-		DataInCount:    link.GetDataInCount(),
-		DataOutCount:   link.GetDataOutCount(),
-		DetailedStatus: link.GetDetailedStatus(),
-		ParentName:     link.GetParentName(),
-	}
-
-	// Convert actions
-	if link.GetActions() != nil {
-		result.Actions = make([]ActionResult, 0, len(link.GetActions()))
-		for _, action := range link.GetActions() {
-			result.Actions = append(result.Actions, ActionResult{
-				ID:      action.GetId(),
-				Label:   action.GetLabel(),
-				Style:   action.GetStyle(),
-				Enabled: action.GetEnabled(),
-				Checked: action.GetChecked(),
-			})
-		}
-	}
-
-	// Convert extra fields
-	if link.GetExtra() != nil {
-		result.Extra = link.GetExtra().AsMap()
-	}
-
-	return result
 }

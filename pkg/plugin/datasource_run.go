@@ -391,7 +391,7 @@ func RunLinksStream(
 			linksEvents := endpoint.DrainLinksSignal(link, signal)
 			latestLink := linksEvents[len(linksEvents)-1]
 
-			frame, err := buildLinksFrame(latestLink.GetLinks())
+			frame, err := tools.ConvertLinksToFrame(latestLink.GetLinks())
 			if err != nil {
 				return err
 			}

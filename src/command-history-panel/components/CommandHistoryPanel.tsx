@@ -2,7 +2,7 @@ import { css } from '@emotion/css';
 import { dateTime, GrafanaTheme2, PanelProps } from '@grafana/data';
 import { Icon, InteractiveTable, Stack, Text, Tooltip, useStyles2 } from '@grafana/ui';
 import { CommandHistoryOptions } from 'command-history-panel/module';
-import React, { useMemo } from 'react';
+import React from 'react';
 
 // ------------------
 // Type Definitions
@@ -301,7 +301,7 @@ function RowSubComponent({ row }: { row: any }) {
 
 const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data, options }) => {
     const styles = useStyles2(getStyles);
-    const deduped = useMemo(() => {
+    const deduped = (() => {
         const frame = data.series[0];
         if (!frame || !frame.fields.length) {
             return [];
@@ -314,10 +314,10 @@ const CommandHistoryPanel: React.FC<PanelProps<CommandHistoryOptions>> = ({ data
 
         const raw = rawField.values as any[];
 
-        const parsed: CommandEntry[] = raw.filter(Boolean).reverse();
-        const deduped = dedupeById(parsed);
+        const parsed: CommandEntry[] = raw.filter(Boolean);
+        const deduped = dedupeById(parsed).sort((a, b) => dateTime(b.time).valueOf() - dateTime(a.time).valueOf());
         return deduped;
-    }, [data]);
+    })();
 
     return (
         <div
