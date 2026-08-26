@@ -158,7 +158,7 @@ For a quick Yamcs demo, use the [JAOPS Yamcs Quickstart](https://github.com/jaop
 - **Replay/Simulation support** - Visualize replays and future simulations through synchronization between Grafana and Yamcs clock.
 
 <p align="center">
-  <img src="./screenshots/DesignDocument.png" alt="Design document" width="900">
+  <img src="./docs/PLUGIN_MODEL.png" alt="Plugin model document" width="900">
 </p>
 
 ## Example Grafana Dashboard Connected to Yamcs
@@ -203,7 +203,7 @@ Contributions are welcome!
 
 If you find a bug, have a feature request, or want to improve the project, feel free to open an issue or submit a pull request.
 
-Please follow the existing code style and include tests if applicable. For major changes, it's recommended to open a discussion first. Read the [contributing guidelines](./CONTRIBUTING.md) for further indications on how to contribute.
+Please follow the existing code style and include tests if applicable. For major changes, it's recommended to open a discussion first. Read the [contributing guidelines](./docs/CONTRIBUTING.md) for further indications on how to contribute.
 
 ## Acknowledgements
 

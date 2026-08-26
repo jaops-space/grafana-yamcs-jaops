@@ -136,7 +136,7 @@ The plugin includes helpful tutorials for each panel. Access them from the main 
 - **Replay/Simulation support** - Visualize replays and future simulations through synchronization between Grafana and Yamcs clock.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/DesignDocument.png" alt="Design document" width="900">
+  <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/docs/PLUGIN_MODEL.png" alt="Plugin model design" width="900">
 </p>
 
 ## Example Grafana Dashboard Connected to Yamcs

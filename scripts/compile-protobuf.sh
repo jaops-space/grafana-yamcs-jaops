@@ -6,6 +6,12 @@
 
 set -e  # Exit immediately if a command fails
 
+# Anchor all relative paths (temp-yamcs, api/, etc.) to the repo root,
+# regardless of where this script is invoked from.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
 # Colors
 GREEN="\e[32m"
 YELLOW="\e[33m"

@@ -18,7 +18,7 @@
         "server": "docker compose up --build",
         "server:dev": "DEVELOPMENT=true docker compose up --build",
         "server:localhost": "docker compose up --build",
-        "server:nginx": "docker compose -f docker-compose.yaml -f .config/docker-compose-nginx.yaml up --build",
+        "server:nginx": "docker compose -f docker-compose-nginx.yaml up --build",
         "sign": "npx --yes @grafana/sign-plugin@latest",
         "bench:grafana": "playwright test tests/benchmark/streaming.benchmark.spec.ts --project=chromium"
     },
