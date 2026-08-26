@@ -200,3 +200,143 @@ def add_range_band(ax: Axes, xs: list[int], ys_min: list[float], ys_max: list[fl
     if not any(min_value != max_value for min_value, max_value in zip(ys_min, ys_max)):
         return
     ax.fill_between(xs, ys_min, ys_max, color=color, alpha=0.11, linewidth=0, zorder=1)
+
+
+# Ordered from closest-to-median (most points, least faded) to the extremes
+# (fewest points, most faded), so the shading reads as a point-density fan
+# rather than a flat min/max box.
+DENSITY_BAND_STEPS: tuple[tuple[str, str, float], ...] = (
+    ("median", "p70", 0.30),
+    ("p70", "p95", 0.18),
+    ("p95", "p99", 0.10),
+    ("p99", "max", 0.05),
+    ("median", "p30", 0.30),
+    ("p30", "p5", 0.18),
+    ("p5", "p1", 0.10),
+    ("p1", "min", 0.05),
+)
+
+
+def add_density_band(
+    ax: Axes,
+    xs: list[int],
+    ys: list[float],
+    ys_min: list[float],
+    ys_max: list[float],
+    percentile_columns: dict[str, list[float]] | None,
+    color: str,
+) -> None:
+    """Shade the spread around the head series.
+
+    When per-point percentiles (p1/p5/p30/median/p70/p95/p99) are supplied,
+    draws a fan of progressively more faded bands out from the median in
+    both directions, so denser regions of the distribution look darker.
+    Otherwise falls back to a single flat min/max band - today's benchmark
+    harnesses only record min/max per point, so real reports use the
+    fallback until percentile capture is added upstream.
+    """
+    if not xs:
+        return
+
+    columns: dict[str, list[float]] = dict(percentile_columns or {})
+    columns.setdefault("median", ys)
+    columns.setdefault("min", ys_min)
+    columns.setdefault("max", ys_max)
+
+    drew_any = False
+    for inner_key, outer_key, alpha in DENSITY_BAND_STEPS:
+        inner = columns.get(inner_key)
+        outer = columns.get(outer_key)
+        if not inner or not outer or len(inner) != len(xs) or len(outer) != len(xs):
+            continue
+        if all(a == b for a, b in zip(inner, outer)):
+            continue
+        ax.fill_between(xs, inner, outer, color=color, alpha=alpha, linewidth=0, zorder=1)
+        drew_any = True
+
+    if not drew_any:
+        add_range_band(ax, xs, ys_min, ys_max, color)
+
+
+def apply_y_axis_floor(ax: Axes, values: list[float]) -> None:
+    if not values:
+        return
+    ymin = min(values)
+    ymax = max(values)
+    if ymin >= 0:
+        upper = ymax * 1.12 if ymax > 0 else 1
+        ax.set_ylim(bottom=0, top=upper)
+        return
+
+    span = ymax - ymin
+    min_span = max(abs(ymax), abs(ymin), 1) * 0.2
+    if span < min_span:
+        midpoint = (ymax + ymin) / 2
+        half = min_span / 2
+        ax.set_ylim(midpoint - half, midpoint + half)
+    else:
+        ax.set_ylim(ymin - span * 0.06, ymax + span * 0.12)
+
+
+def apply_log_y_axis(ax: Axes, values: list[float]) -> None:
+    positive = [value for value in values if value > 0]
+    if not positive:
+        return
+    ax.set_yscale("log")
+    ax.set_ylim(bottom=min(positive) * 0.8, top=max(positive) * 1.2)
+
+
+def apply_percentage_y_axis(ax: Axes, values: list[float]) -> None:
+    if not values:
+        return
+    ymin = max(0, min(values) - 5)
+    ymax = min(105, max(values) + 2)
+    if ymax - ymin < 10:
+        midpoint = (ymin + ymax) / 2
+        ymin = max(0, midpoint - 5)
+        ymax = min(105, midpoint + 5)
+    ax.set_ylim(bottom=ymin, top=ymax)
+
+
+def add_threshold_bands(ax: Axes, threshold_lines: list[tuple[str, str, str, list[int], list[float]]]) -> None:
+    """Shade the warn/fail zones using the actual (possibly per-x-scaled)
+    threshold line values, not just a flat horizontal span, so scaled
+    thresholds (e.g. per-panel/per-sample) shade correctly too.
+    """
+    warn_entry = next(((xs, ys) for level, _op, _color, xs, ys in threshold_lines if level == "warn"), None)
+    fail_entry = next(((xs, ys) for level, _op, _color, xs, ys in threshold_lines if level == "fail"), None)
+    if warn_entry is None or fail_entry is None:
+        return
+    xs, warn_ys = warn_entry
+    _, fail_ys = fail_entry
+    if len(warn_ys) != len(xs) or len(fail_ys) != len(xs):
+        return
+
+    operator = next((operator for _level, operator, _color, _xs, _ys in threshold_lines), "max")
+    ymin, ymax = ax.get_ylim()
+    top = [ymax] * len(xs)
+    bottom = [ymin] * len(xs)
+    if operator == "min":
+        ax.fill_between(xs, fail_ys, warn_ys, color=PLOT_COLORS["warn"], alpha=0.07, linewidth=0, zorder=0)
+        ax.fill_between(xs, bottom, fail_ys, color=PLOT_COLORS["fail"], alpha=0.055, linewidth=0, zorder=0)
+        return
+    ax.fill_between(xs, warn_ys, fail_ys, color=PLOT_COLORS["warn"], alpha=0.07, linewidth=0, zorder=0)
+    ax.fill_between(xs, fail_ys, top, color=PLOT_COLORS["fail"], alpha=0.055, linewidth=0, zorder=0)
+
+
+def add_threshold_line_label(ax: Axes, xs: list[int], ys: list[float], label: str, color: str) -> None:
+    """Label a threshold line (constant or per-x-scaled) at its right-most
+    point, clipped to the current (data-driven) view so labels for
+    thresholds that fall outside the visible range are simply skipped
+    instead of stretching the axis to fit them.
+    """
+    if not xs or not ys:
+        return
+    ymin, ymax = ax.get_ylim()
+    xmax = ax.get_xlim()[1]
+    value = ys[-1]
+    if not ymin <= value <= ymax:
+        return
+    text_y = value * 1.04 if ax.get_yscale() == "log" else value + (ymax - ymin) * 0.018
+    text_y = min(max(text_y, ymin), ymax)
+    ax.text(xmax, text_y, label, ha="right", va="bottom", color=color, fontsize=9, fontweight="bold", zorder=4)

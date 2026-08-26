@@ -249,11 +249,11 @@ jobs:
         outputs:
             should_comment: ${{ steps.benchmark-status.outputs.should_comment }}
             should_fail: ${{ steps.benchmark-status.outputs.should_fail }}
+        # Read-only: this job checks out the PR ref and runs scripts/benchmarks/report.py,
+        # which is PR-controlled code. It must never hold write tokens (see benchmark-publish).
         permissions:
             actions: read
-            contents: write
-            issues: write
-            pull-requests: write
+            contents: read
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -305,14 +305,36 @@ jobs:
                   name: benchmark-${{ github.run_id }}
                   path: benchmark-output
                   retention-days: 14
+            - name: Fail benchmark on threshold failure
+              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
+              run: exit 1
+
+    # Separate from benchmark-report on purpose: benchmark-report checks out the PR ref and
+    # executes PR-controlled code (scripts/benchmarks/report.py), so it must stay read-only.
+    # This job only downloads the already-produced artifact and talks to the GitHub API -
+    # no PR code is checked out or executed here - so it's safe to grant it write access.
+    benchmark-publish:
+        name: Publish report
+        runs-on: ubuntu-latest
+        needs: [benchmark-report]
+        if: >-
+            ${{
+              always() &&
+              github.event_name == 'pull_request' &&
+              needs.benchmark-report.outputs.should_comment == 'true'
+            }}
+        permissions:
+            actions: read
+            contents: write
+            issues: write
+            pull-requests: write
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  name: benchmark-${{ github.run_id }}
+                  path: benchmark-output
             - name: Publish benchmark plot images for PR artifacts
               id: publish-plots
-              if: >-
-                  ${{
-                    always() &&
-                    github.event_name == 'pull_request' &&
-                    steps.benchmark-status.outputs.should_comment == 'true'
-                  }}
               continue-on-error: true
               uses: actions/github-script@v8
               with:
@@ -363,12 +385,6 @@ jobs:
                       }
                       core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
             - name: Comment benchmark result
-              if: >-
-                  ${{
-                    always() &&
-                    github.event_name == 'pull_request' &&
-                    steps.benchmark-status.outputs.should_comment == 'true'
-                  }}
               continue-on-error: true
               uses: actions/github-script@v8
               env:
@@ -395,6 +411,3 @@ jobs:
                       } else {
                         await github.rest.issues.createComment({owner, repo, issue_number, body});
                       }
-            - name: Fail benchmark on threshold failure
-              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
-              run: exit 1

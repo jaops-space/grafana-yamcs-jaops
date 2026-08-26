@@ -11,7 +11,11 @@ from matplotlib.ticker import FuncFormatter, NullFormatter
 from .metrics import GRAFANA_METRICS, GRAFANA_THRESHOLDS
 from .plotting import (
     PLOT_COLORS,
-    add_range_band,
+    add_density_band,
+    add_threshold_bands,
+    add_threshold_line_label,
+    apply_log_y_axis,
+    apply_y_axis_floor,
     format_axis_tick,
     format_baseline_change_rows,
     format_change,
@@ -100,41 +104,13 @@ def thresholds_for_plot(rows: list[dict[str, Any]], metric: str) -> list[tuple[s
     return lines
 
 
-def constant_threshold_level(threshold_lines: list[tuple[str, str, str, list[int], list[float]]], level: str) -> float | None:
-    for threshold_level, _operator, _color, _xs, values in threshold_lines:
-        if threshold_level == level and values and all(value == values[0] for value in values):
-            return float(values[0])
+def threshold_xy(
+    threshold_lines: list[tuple[str, str, str, list[int], list[float]]], level: str
+) -> tuple[list[int], list[float]] | None:
+    for threshold_level, _operator, _color, xs, values in threshold_lines:
+        if threshold_level == level:
+            return xs, values
     return None
-
-
-def threshold_operator(threshold_lines: list[tuple[str, str, str, list[int], list[float]]]) -> str:
-    for _level, operator, _color, _xs, _values in threshold_lines:
-        return operator
-    return "max"
-
-
-def add_threshold_regions(ax: Axes, threshold_lines: list[tuple[str, str, str, list[int], list[float]]]) -> None:
-    warn = constant_threshold_level(threshold_lines, "warn")
-    fail = constant_threshold_level(threshold_lines, "fail")
-    if warn is None or fail is None:
-        return
-    ymin, ymax = ax.get_ylim()
-    if threshold_operator(threshold_lines) == "min":
-        ax.axhspan(max(ymin, fail), min(ymax, warn), color=PLOT_COLORS["warn"], alpha=0.07, zorder=0)
-        ax.axhspan(ymin, min(ymax, fail), color=PLOT_COLORS["fail"], alpha=0.055, zorder=0)
-        return
-    ax.axhspan(max(ymin, warn), min(ymax, fail), color=PLOT_COLORS["warn"], alpha=0.07, zorder=0)
-    ax.axhspan(max(ymin, fail), ymax, color=PLOT_COLORS["fail"], alpha=0.055, zorder=0)
-
-
-def add_threshold_label(ax: Axes, label: str, value: float, color: str) -> None:
-    xmin, xmax = ax.get_xlim()
-    ymin, ymax = ax.get_ylim()
-    if not ymin <= value <= ymax:
-        return
-    text_y = value * 1.04 if ax.get_yscale() == "log" else value + (ymax - ymin) * 0.018
-    text_y = min(max(text_y, ymin), ymax)
-    ax.text(xmax, text_y, label, ha="right", va="bottom", color=color, fontsize=9)
 
 
 def plot_metric(
@@ -154,7 +130,14 @@ def plot_metric(
     fig.patch.set_facecolor("#f8fafc")
     ax.set_facecolor("white")
 
+    # Values used to size the y-axis - deliberately excludes threshold
+    # lines, so a threshold far from the data doesn't stretch the axis
+    # and squash the real curve.
     all_values: list[float] = []
+    head_xs: list[int] = []
+    head_ys: list[float] = []
+    head_ys_min: list[float] = []
+    head_ys_max: list[float] = []
     series = [
         (head, "head"),
         (baseline, "pr_base"),
@@ -170,31 +153,33 @@ def plot_metric(
             continue
         all_values.extend(ys)
         if prefix == "head":
-            ys_min = []
-            ys_max = []
+            head_xs = xs
+            head_ys = ys
             for row, y in zip(rows, ys):
                 min_value, max_value = range_values(row, metric)
-                ys_min.append(y if min_value is None else min_value)
-                ys_max.append(y if max_value is None else max_value)
-            all_values.extend(ys_min)
-            all_values.extend(ys_max)
-            add_range_band(ax, xs, ys_min, ys_max, PLOT_COLORS["head"])
+                head_ys_min.append(y if min_value is None else min_value)
+                head_ys_max.append(y if max_value is None else max_value)
+            all_values.extend(head_ys_min)
+            all_values.extend(head_ys_max)
         plot_series(ax, xs, ys, prefix, zorder=3 if prefix == "head" else 2)
-    for level, _operator, color, xs, ys in threshold_lines:
-        ax.plot(xs, ys, color=color, linewidth=1.25, alpha=0.95, zorder=2)
-        all_values.extend(ys)
 
     ax.set_xscale("log")
     if config.get("log") and any(value > 0 for value in all_values):
-        ax.set_yscale("log")
+        apply_log_y_axis(ax, all_values)
+    else:
+        apply_y_axis_floor(ax, all_values)
     style_axis(ax, config["title"], config["label"], config["unit"])
-    add_threshold_regions(ax, threshold_lines)
-    warn = constant_threshold_level(threshold_lines, "warn")
-    fail = constant_threshold_level(threshold_lines, "fail")
-    if warn is not None:
-        add_threshold_label(ax, "warn", warn, PLOT_COLORS["warn_text"])
-    if fail is not None:
-        add_threshold_label(ax, "fail", fail, PLOT_COLORS["fail_text"])
+
+    add_density_band(ax, head_xs, head_ys, head_ys_min, head_ys_max, None, PLOT_COLORS["head"])
+    for level, _operator, color, xs, ys in threshold_lines:
+        ax.plot(xs, ys, color=color, linewidth=1.25, alpha=0.95, zorder=2, clip_on=True)
+    add_threshold_bands(ax, threshold_lines)
+    warn_line = threshold_xy(threshold_lines, "warn")
+    fail_line = threshold_xy(threshold_lines, "fail")
+    if warn_line is not None:
+        add_threshold_line_label(ax, *warn_line, "warn", PLOT_COLORS["warn_text"])
+    if fail_line is not None:
+        add_threshold_line_label(ax, *fail_line, "fail", PLOT_COLORS["fail_text"])
     ax.legend(frameon=False, loc="upper left", ncols=3)
     fig.tight_layout()
     fig.savefig(path, dpi=180, facecolor="white")
