@@ -32,6 +32,7 @@ from .plotting import (
     percent_change,
     plot_series,
     range_values,
+    raw_percentile_columns,
     split_change_extremes,
 )
 
@@ -438,6 +439,7 @@ def plot_metric(
     points.sort(key=lambda item: item[0])
     xs = [point[0] for point in points]
     raw_ys = [float(point[1]) for point in points]
+    rows_by_x = {row["streams"]: row for row in rows if "streams" in row}
     raw_mins: list[float] = []
     raw_maxs: list[float] = []
     for x, y in points:
@@ -445,6 +447,7 @@ def plot_metric(
         min_value, max_value = range_values(row, key)
         raw_mins.append(float(y) if min_value is None else min_value)
         raw_maxs.append(float(y) if max_value is None else max_value)
+    raw_percentiles = raw_percentile_columns(rows_by_x, xs, key)
     baseline_points = []
     if baseline_rows:
         baseline_points = [(row["streams"], row.get(key)) for row in baseline_rows if row.get(key) is not None]
@@ -463,6 +466,7 @@ def plot_metric(
     ys, label = scaled_series(key, raw_ys, scale_reference)
     ys_min, _ = scaled_series(key, raw_mins, scale_reference)
     ys_max, _ = scaled_series(key, raw_maxs, scale_reference)
+    percentile_columns = {suffix: scaled_series(key, values, scale_reference)[0] for suffix, values in raw_percentiles.items()}
     y_label, y_unit = split_axis_label(label)
     baseline_xs = [point[0] for point in baseline_points]
     baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)
@@ -493,7 +497,7 @@ def plot_metric(
     else:
         apply_y_axis_floor(ax, axis_values)
     apply_y_tick_formatter(ax, y_unit)
-    add_density_band(ax, xs, ys, ys_min, ys_max, None, PLOT_COLORS["head"])
+    add_density_band(ax, xs, ys, ys_min, ys_max, percentile_columns, PLOT_COLORS["head"])
     for level, _operator, color, threshold_xs, threshold_values in threshold_lines:
         ax.plot(threshold_xs, threshold_values, color=color, linewidth=1.25, alpha=0.95, zorder=2, clip_on=True)
     add_threshold_bands(ax, threshold_lines)
@@ -533,6 +537,7 @@ def plot_micro_metric(
         min_value, max_value = range_values(row, key, "ns")
         raw_mins.append(float(y) if min_value is None else min_value)
         raw_maxs.append(float(y) if max_value is None else max_value)
+    raw_percentiles = raw_percentile_columns(metric_rows_by_x, xs, key)
     x_label = next((str(row.get("x_label")) for row in metric_rows if row.get("x_label")), "N")
 
     baseline_points = []
@@ -560,6 +565,7 @@ def plot_micro_metric(
     ys, label = scaled_series(key, raw_ys, scale_reference)
     ys_min, _ = scaled_series(key, raw_mins, scale_reference)
     ys_max, _ = scaled_series(key, raw_maxs, scale_reference)
+    percentile_columns = {suffix: scaled_series(key, values, scale_reference)[0] for suffix, values in raw_percentiles.items()}
     y_label, y_unit = split_axis_label(label)
     baseline_xs = [point[0] for point in baseline_points]
     baseline_ys, _ = scaled_series(key, baseline_raw_ys, scale_reference)

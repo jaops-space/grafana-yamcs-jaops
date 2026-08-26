@@ -23,6 +23,7 @@ from .plotting import (
     percent_change,
     plot_series,
     range_values,
+    raw_percentile_columns,
     split_change_extremes,
     status_emoji,
 )
@@ -138,6 +139,7 @@ def plot_metric(
     head_ys: list[float] = []
     head_ys_min: list[float] = []
     head_ys_max: list[float] = []
+    head_percentile_columns: dict[str, list[float]] = {}
     series = [
         (head, "head"),
         (baseline, "pr_base"),
@@ -161,6 +163,8 @@ def plot_metric(
                 head_ys_max.append(y if max_value is None else max_value)
             all_values.extend(head_ys_min)
             all_values.extend(head_ys_max)
+            rows_by_x = {int(row["panels"]): row for row in rows}
+            head_percentile_columns = raw_percentile_columns(rows_by_x, xs, metric)
         plot_series(ax, xs, ys, prefix, zorder=3 if prefix == "head" else 2)
 
     ax.set_xscale("log")
@@ -170,7 +174,7 @@ def plot_metric(
         apply_y_axis_floor(ax, all_values)
     style_axis(ax, config["title"], config["label"], config["unit"])
 
-    add_density_band(ax, head_xs, head_ys, head_ys_min, head_ys_max, None, PLOT_COLORS["head"])
+    add_density_band(ax, head_xs, head_ys, head_ys_min, head_ys_max, head_percentile_columns or None, PLOT_COLORS["head"])
     for level, _operator, color, xs, ys in threshold_lines:
         ax.plot(xs, ys, color=color, linewidth=1.25, alpha=0.95, zorder=2, clip_on=True)
     add_threshold_bands(ax, threshold_lines)

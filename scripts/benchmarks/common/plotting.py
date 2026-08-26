@@ -179,7 +179,25 @@ def plot_series(ax: Axes, xs: list[int], ys: list[float], series: str, zorder: i
     ax.scatter(xs, ys, s=28 if series != "head" else 34, color=str(style["color"]), edgecolor="white", linewidth=1.0, zorder=zorder + 1)
 
 
+def distribution_stats(row: dict[str, Any], metric: str) -> dict[str, float]:
+    """Return the `<metric>_distribution` object (median/min/max/p1../p99) if
+    present and well-formed, else an empty dict.
+
+    This is the nested-struct JSON shape emitted by the Go simulator and the
+    Grafana benchmark spec (see `distributionStats` / `DistributionStats`).
+    """
+    value = row.get(f"{metric}_distribution")
+    if not isinstance(value, dict):
+        return {}
+    return {key: float(val) for key, val in value.items() if isinstance(val, (int, float))}
+
+
 def range_values(row: dict[str, Any], metric: str, value_key: str = "") -> tuple[float | None, float | None]:
+    distribution = distribution_stats(row, metric)
+    if "min" in distribution and "max" in distribution:
+        return distribution["min"], distribution["max"]
+    # Legacy flat-field fallback, for older result JSON produced before
+    # distribution stats existed.
     candidates = [
         (f"{metric}_min", f"{metric}_max"),
         (f"min_{metric}", f"max_{metric}"),
@@ -192,6 +210,39 @@ def range_values(row: dict[str, Any], metric: str, value_key: str = "") -> tuple
         if isinstance(min_value, (int, float)) and isinstance(max_value, (int, float)):
             return float(min_value), float(max_value)
     return None, None
+
+
+PERCENTILE_SUFFIXES: tuple[str, ...] = ("p1", "p5", "p30", "p70", "p95", "p99")
+
+
+def raw_percentile_columns(rows_by_x: dict[Any, dict[str, Any]], xs: list[Any], metric: str) -> dict[str, list[float]]:
+    """Collect per-x percentile columns (p1/p5/p30/p70/p95/p99) for `metric`.
+
+    Reads from the nested `<metric>_distribution` object when present,
+    falling back to legacy flat `<metric>_<suffix>` fields for older result
+    JSON. A percentile is only included if every x has a value for it - a
+    metric with partial percentile data (e.g. an older run before percentile
+    capture was added) simply omits that percentile rather than guessing,
+    and `add_density_band` falls back to the flat min/max band for any
+    percentile it doesn't get.
+    """
+    columns: dict[str, list[float]] = {}
+    for suffix in PERCENTILE_SUFFIXES:
+        field = f"{metric}_{suffix}"
+        values: list[float] = []
+        complete = True
+        for x in xs:
+            row = rows_by_x.get(x)
+            value = distribution_stats(row, metric).get(suffix) if row else None
+            if value is None:
+                value = row.get(field) if row else None
+            if not isinstance(value, (int, float)):
+                complete = False
+                break
+            values.append(float(value))
+        if complete and values:
+            columns[suffix] = values
+    return columns
 
 
 def add_range_band(ax: Axes, xs: list[int], ys_min: list[float], ys_max: list[float], color: str) -> None:

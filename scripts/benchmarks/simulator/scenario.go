@@ -20,26 +20,25 @@ import (
 )
 
 type scenarioMetric struct {
-	Streams                 int     `json:"streams"`
-	SetupDuration           int64   `json:"setup"`
-	ProcessEvents           int64   `json:"process_events"`
-	MedianProcessDuration   float64 `json:"avg_process"`
-	ReadClearOperations     int64   `json:"read_clear_operations"`
-	EmptyReadOperations     int64   `json:"empty_read_operations"`
-	NonEmptyReadOperations  int64   `json:"non_empty_read_operations"`
-	EmptyReadPercent        float64 `json:"empty_read_pct"`
-	MedianReadClearDuration float64 `json:"avg_read_clear"`
-	ValuesRead              int64   `json:"values_read"`
-	ValuesReadPerSecond     float64 `json:"values_read_per_sec"`
-	ValuesReadFresh         int64   `json:"values_read_fresh"`
-	ValuesReadStale         int64   `json:"values_read_stale"`
-	ValuesReadFreshPercent  float64 `json:"values_read_fresh_pct"`
-	MedianTickRunStream     float64 `json:"avg_tick_runstream"`
-	MedianTickRunStreamBusy float64 `json:"median_tick_runstream_busy"`
-	TickRunStreamBusyMin    float64 `json:"median_tick_runstream_busy_min"`
-	TickRunStreamBusyMax    float64 `json:"median_tick_runstream_busy_max"`
-	LiveMemoryGrowthBytes   int64   `json:"live_memory_growth_bytes"`
-	TotalAllocatedBytes     uint64  `json:"total_allocated_bytes"`
+	Streams                 int               `json:"streams"`
+	SetupDuration           int64             `json:"setup"`
+	ProcessEvents           int64             `json:"process_events"`
+	MedianProcessDuration   float64           `json:"avg_process"`
+	ReadClearOperations     int64             `json:"read_clear_operations"`
+	EmptyReadOperations     int64             `json:"empty_read_operations"`
+	NonEmptyReadOperations  int64             `json:"non_empty_read_operations"`
+	EmptyReadPercent        float64           `json:"empty_read_pct"`
+	MedianReadClearDuration float64           `json:"avg_read_clear"`
+	ValuesRead              int64             `json:"values_read"`
+	ValuesReadPerSecond     float64           `json:"values_read_per_sec"`
+	ValuesReadFresh         int64             `json:"values_read_fresh"`
+	ValuesReadStale         int64             `json:"values_read_stale"`
+	ValuesReadFreshPercent  float64           `json:"values_read_fresh_pct"`
+	MedianTickRunStream     float64           `json:"avg_tick_runstream"`
+	MedianTickRunStreamBusy float64           `json:"median_tick_runstream_busy"`
+	TickRunStreamBusy       distributionStats `json:"median_tick_runstream_busy_distribution"`
+	LiveMemoryGrowthBytes   int64             `json:"live_memory_growth_bytes"`
+	TotalAllocatedBytes     uint64            `json:"total_allocated_bytes"`
 }
 
 type scenarioResult struct {
@@ -368,9 +367,8 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 	tickSummary := tickWork.summary()
 	metric.MedianTickRunStream = tickSummary.MedianTotalNanos
-	metric.MedianTickRunStreamBusy = tickSummary.MedianBusyTotalNanos
-	metric.TickRunStreamBusyMin = tickSummary.MinBusyTotalNanos
-	metric.TickRunStreamBusyMax = tickSummary.MaxBusyTotalNanos
+	metric.MedianTickRunStreamBusy = tickSummary.Busy.Median
+	metric.TickRunStreamBusy = tickSummary.Busy
 	return metric, nil
 }
 
@@ -388,11 +386,43 @@ type tickSpan struct {
 	seen       bool
 }
 
+// distributionStats bundles a full statistical summary of a set of
+// measurements (median/min/max plus a percentile spread) so metrics that
+// want distribution data declare a single field instead of one field per
+// statistic. Serializes as a nested JSON object, e.g.
+// "median_tick_runstream_busy_distribution": {"median": ..., "p95": ...}.
+type distributionStats struct {
+	Median float64 `json:"median"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	P1     float64 `json:"p1"`
+	P5     float64 `json:"p5"`
+	P30    float64 `json:"p30"`
+	P70    float64 `json:"p70"`
+	P95    float64 `json:"p95"`
+	P99    float64 `json:"p99"`
+}
+
+func computeDistribution(values []int64) distributionStats {
+	if len(values) == 0 {
+		return distributionStats{}
+	}
+	return distributionStats{
+		Median: medianInt64(values),
+		Min:    minInt64(values),
+		Max:    maxInt64(values),
+		P1:     percentileInt64(values, 0.01),
+		P5:     percentileInt64(values, 0.05),
+		P30:    percentileInt64(values, 0.30),
+		P70:    percentileInt64(values, 0.70),
+		P95:    percentileInt64(values, 0.95),
+		P99:    percentileInt64(values, 0.99),
+	}
+}
+
 type tickWorkloadSummary struct {
-	MedianTotalNanos     float64
-	MedianBusyTotalNanos float64
-	MinBusyTotalNanos    float64
-	MaxBusyTotalNanos    float64
+	MedianTotalNanos float64
+	Busy             distributionStats
 }
 
 type durationRecorder struct {
@@ -464,20 +494,46 @@ func (workload *tickWorkload) summary() tickWorkloadSummary {
 	totals := make([]int64, 0, tickCount)
 	busyTotals := make([]int64, 0, tickCount)
 	for i := 0; i < tickCount; i++ {
-		readSend := int64(0)
-		if span := workload.readSendSpan[i]; span.seen {
-			readSend = span.endNanos - span.startNanos
+		span, seen := workload.readSendSpan[i]
+		if !seen || !span.seen {
+			// No stream reported activity for this tick window at all - it
+			// was never observed, not genuinely a zero-duration busy tick.
+			// Including it as a literal 0 would fabricate a false minimum
+			// (and a false trough in the density band), so skip it.
+			continue
 		}
-		totals = append(totals, readSend)
+		totals = append(totals, span.endNanos-span.startNanos)
 		busyTotals = append(busyTotals, workload.busyNanos[i])
+	}
+	if len(busyTotals) == 0 {
+		return tickWorkloadSummary{}
 	}
 
 	return tickWorkloadSummary{
-		MedianTotalNanos:     medianInt64(totals),
-		MedianBusyTotalNanos: medianInt64(busyTotals),
-		MinBusyTotalNanos:    minInt64(busyTotals),
-		MaxBusyTotalNanos:    maxInt64(busyTotals),
+		MedianTotalNanos: medianInt64(totals),
+		Busy:             computeDistribution(busyTotals),
 	}
+}
+
+// percentileInt64 returns the linearly-interpolated percentile (p in [0,1])
+// of values, matching the conventional "nearest-rank with interpolation"
+// method used by numpy's default (`linear`) percentile interpolation.
+func percentileInt64(values []int64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := append([]int64(nil), values...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	if len(sorted) == 1 {
+		return float64(sorted[0])
+	}
+	rank := p * float64(len(sorted)-1)
+	lower := int(rank)
+	if lower >= len(sorted)-1 {
+		return float64(sorted[len(sorted)-1])
+	}
+	fraction := rank - float64(lower)
+	return float64(sorted[lower]) + fraction*float64(sorted[lower+1]-sorted[lower])
 }
 
 func minInt64(values []int64) float64 {

@@ -49,3 +49,5 @@ jaops-yamcs-app.zip
 !.vscode/launch.json
 
 TESTING_SPECS.md
+# Local scratch/preview files (not committed)
+.tmp/

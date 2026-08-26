@@ -13,13 +13,26 @@ type BenchmarkStats = {
     unique_stream_paths: number;
     window_seconds: number;
     backend_alloc_bytes: number;
-    backend_median_heap_alloc_bytes: number;
-    backend_median_heap_alloc_bytes_min: number;
-    backend_median_heap_alloc_bytes_max: number;
+    backend_heap_alloc_bytes: number;
     backend_heap_alloc_growth_bytes: number;
     backend_heap_inuse_bytes: number;
     backend_heap_objects: number;
     backend_sys_bytes: number;
+};
+
+// Bundles a full statistical summary (median/min/max plus a percentile
+// spread) so a metric declares a single nested field instead of one flat
+// field per statistic. Mirrors the Go simulator's distributionStats.
+type DistributionStats = {
+    median: number;
+    min: number;
+    max: number;
+    p1: number;
+    p5: number;
+    p30: number;
+    p70: number;
+    p95: number;
+    p99: number;
 };
 
 type BenchmarkResult = {
@@ -39,6 +52,13 @@ type BenchmarkResult = {
     backend_datapoints_per_second: number;
     backend_unique_stream_paths: number;
     backend_heap_alloc_bytes: number;
+    backend_median_heap_alloc_bytes: number;
+    backend_median_heap_alloc_bytes_distribution: DistributionStats;
+    backend_heap_alloc_growth_bytes: number;
+    backend_heap_inuse_bytes: number;
+    backend_heap_objects: number;
+    backend_sys_bytes: number;
+};
     backend_heap_alloc_growth_bytes: number;
     backend_heap_inuse_bytes: number;
     backend_heap_objects: number;
@@ -78,6 +98,40 @@ function median(values: number[]): number {
         return sorted[middle];
     }
     return Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+}
+
+// Linear-interpolated percentile (p in [0,1]), matching numpy's default
+// interpolation method. Used to build a density band (rather than a flat
+// min/max box) for the benchmark plots.
+function percentile(values: number[], p: number): number {
+    if (values.length === 0) {
+        return 0;
+    }
+    const sorted = [...values].sort((left, right) => left - right);
+    if (sorted.length === 1) {
+        return sorted[0];
+    }
+    const rank = p * (sorted.length - 1);
+    const lower = Math.floor(rank);
+    if (lower >= sorted.length - 1) {
+        return sorted[sorted.length - 1];
+    }
+    const fraction = rank - lower;
+    return sorted[lower] + fraction * (sorted[lower + 1] - sorted[lower]);
+}
+
+function computeDistribution(values: number[]): DistributionStats {
+    return {
+        median: median(values),
+        min: Math.min(...values),
+        max: Math.max(...values),
+        p1: percentile(values, 0.01),
+        p5: percentile(values, 0.05),
+        p30: percentile(values, 0.3),
+        p70: percentile(values, 0.7),
+        p95: percentile(values, 0.95),
+        p99: percentile(values, 0.99),
+    };
 }
 
 function buildPanel(index: number) {
@@ -343,8 +397,7 @@ test.describe('Grafana panel streaming benchmark', () => {
                     backend_datapoints_per_second: backend.window_seconds > 0 ? backend.values_sent / backend.window_seconds : 0,
                     backend_unique_stream_paths: backend.unique_stream_paths,
                     backend_median_heap_alloc_bytes: medianBackendHeapAllocBytes,
-                    backend_median_heap_alloc_bytes_min: Math.min(...backendHeapAllocSamples),
-                    backend_median_heap_alloc_bytes_max: Math.max(...backendHeapAllocSamples),
+                    backend_median_heap_alloc_bytes_distribution: computeDistribution(backendHeapAllocSamples),
                     backend_heap_alloc_growth_bytes: backend.backend_heap_alloc_growth_bytes,
                     backend_heap_inuse_bytes: backend.backend_heap_inuse_bytes,
                     backend_heap_objects: backend.backend_heap_objects,
