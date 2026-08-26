@@ -11,7 +11,7 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint --cache .",
         "lint:fix": "pnpm run lint --fix && prettier --write --list-different .",
-        "e2e": "playwright test",
+        "e2e": "playwright test --grep-invert @benchmark",
         "bench:simulator": "python3 scripts/benchmarks/simulator/run.py",
         "bench:micro": "python3 scripts/benchmarks/micro/run.py",
         "bench:report": "python3 scripts/benchmarks/report.py",

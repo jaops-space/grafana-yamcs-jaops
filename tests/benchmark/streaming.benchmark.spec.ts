@@ -295,7 +295,7 @@ test.describe('Grafana panel streaming benchmark', () => {
         });
     });
 
-    test('measures panel streaming runtime', { tag: '@performance' }, async ({ page, request }) => {
+    test('measures panel streaming runtime', { tag: ['@performance', '@benchmark'] }, async ({ page, request }) => {
         test.setTimeout(Math.max(240_000, panelCounts.length * benchmarkDurationMs * 3));
         const results: BenchmarkResult[] = [];
 
