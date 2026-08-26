@@ -1,4 +1,4 @@
-name: Refresh benchmark long-term baseline
+name: Refresh long-term benchmark baseline
 
 on:
     workflow_dispatch:
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
     refresh-simulator-baseline:
-        name: Refresh simulator baseline
+        name: Simulator baseline
         runs-on: ubuntu-latest
         timeout-minutes: 25
         steps:
@@ -45,7 +45,7 @@ jobs:
                   retention-days: 14
 
     refresh-microbenchmarks-baseline:
-        name: Refresh microbenchmarks baseline
+        name: Microbenchmarks baseline
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -66,7 +66,7 @@ jobs:
                   retention-days: 14
 
     refresh-grafana-baseline:
-        name: Refresh Grafana baseline
+        name: Grafana Live baseline
         runs-on: ubuntu-latest
         timeout-minutes: 35
         steps:
@@ -116,7 +116,7 @@ jobs:
                   retention-days: 14
 
     create-baseline-pr:
-        name: Create baseline refresh PR
+        name: Create PR
         runs-on: ubuntu-latest
         needs: [refresh-simulator-baseline, refresh-microbenchmarks-baseline, refresh-grafana-baseline]
         steps:

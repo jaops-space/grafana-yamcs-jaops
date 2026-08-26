@@ -52,7 +52,7 @@ jobs:
                   echo "sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
 
     micro-benchmark:
-        name: Microbenchmarks
+        name: Microbenchmarks (perf)
         runs-on: ubuntu-latest
         timeout-minutes: 15
         needs: resolve-base
@@ -89,7 +89,7 @@ jobs:
                   retention-days: 14
 
     scenario-benchmark:
-        name: Simulator scenario benchmark
+        name: Simulator benchmarks (perf)
         runs-on: ubuntu-latest
         timeout-minutes: 30
         needs: resolve-base
@@ -149,7 +149,7 @@ jobs:
                   retention-days: 14
 
     grafana-benchmark:
-        name: Grafana benchmark
+        name: Grafana Live benchmarks (perf)
         runs-on: ubuntu-latest
         timeout-minutes: 35
         needs: resolve-base
@@ -242,7 +242,7 @@ jobs:
                   retention-days: 14
 
     benchmark-report:
-        name: Benchmark report
+        name: Report results
         runs-on: ubuntu-latest
         needs: [resolve-base, micro-benchmark, scenario-benchmark, grafana-benchmark]
         if: always() && needs.resolve-base.result == 'success'
@@ -251,7 +251,9 @@ jobs:
             should_fail: ${{ steps.benchmark-status.outputs.should_fail }}
         permissions:
             actions: read
-            contents: read
+            contents: write
+            issues: write
+            pull-requests: write
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -303,32 +305,14 @@ jobs:
                   name: benchmark-${{ github.run_id }}
                   path: benchmark-output
                   retention-days: 14
-            - name: Fail benchmark on threshold failure
-              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
-              run: exit 1
-
-    benchmark-comment:
-        name: Benchmark PR comment
-        runs-on: ubuntu-latest
-        needs: [benchmark-report]
-        if: >-
-            ${{
-              always() &&
-              github.event_name == 'pull_request' &&
-              needs.benchmark-report.outputs.should_comment == 'true'
-            }}
-        permissions:
-            actions: read
-            contents: write
-            issues: write
-            pull-requests: write
-        steps:
-            - uses: actions/download-artifact@v4
-              with:
-                  name: benchmark-${{ github.run_id }}
-                  path: benchmark-output
             - name: Publish benchmark plot images for PR artifacts
               id: publish-plots
+              if: >-
+                  ${{
+                    always() &&
+                    github.event_name == 'pull_request' &&
+                    steps.benchmark-status.outputs.should_comment == 'true'
+                  }}
               continue-on-error: true
               uses: actions/github-script@v8
               with:
@@ -379,6 +363,12 @@ jobs:
                       }
                       core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
             - name: Comment benchmark result
+              if: >-
+                  ${{
+                    always() &&
+                    github.event_name == 'pull_request' &&
+                    steps.benchmark-status.outputs.should_comment == 'true'
+                  }}
               continue-on-error: true
               uses: actions/github-script@v8
               env:
@@ -405,3 +395,6 @@ jobs:
                       } else {
                         await github.rest.issues.createComment({owner, repo, issue_number, body});
                       }
+            - name: Fail benchmark on threshold failure
+              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
+              run: exit 1
