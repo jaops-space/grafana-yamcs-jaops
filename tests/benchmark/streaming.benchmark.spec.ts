@@ -59,11 +59,6 @@ type BenchmarkResult = {
     backend_heap_objects: number;
     backend_sys_bytes: number;
 };
-    backend_heap_alloc_growth_bytes: number;
-    backend_heap_inuse_bytes: number;
-    backend_heap_objects: number;
-    backend_sys_bytes: number;
-};
 
 const datasourceUid = process.env.GRAFANA_BENCHMARK_DATASOURCE_UID ?? 'jaops-yamcs-main';
 const datasourceType = 'jaops-yamcs-datasource';
