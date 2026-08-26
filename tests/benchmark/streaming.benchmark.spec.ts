@@ -151,21 +151,6 @@ async function createDashboard(request: any, panelCount: number): Promise<string
     return createBody.uid ?? dashboardPayload.dashboard.uid;
 }
 
-function extractLiveChannels(payload: string): string[] {
-    const channels = new Set<string>();
-    const escapedDatasourceUid = datasourceUid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const datasourcePath = `ds\\/${escapedDatasourceUid}\\/`;
-    const regex = new RegExp(`(?:channel|channels?)["']?\\\\?\\\\?:["']([^"']*${datasourcePath}[^"']+)`, 'g');
-    for (const match of payload.matchAll(regex)) {
-        channels.add(match[1].replace(/\\\//g, '/'));
-    }
-    const fallback = new RegExp(`${datasourcePath}[^"',}\\\\\\s]+`, 'g');
-    for (const match of payload.matchAll(fallback)) {
-        channels.add(match[0].replace(/\\\//g, '/'));
-    }
-    return [...channels];
-}
-
 async function resetBackendStats(request: any, targetSamples = 0): Promise<void> {
     const response = await request.post(`/api/datasources/uid/${datasourceUid}/resources/benchmark/reset`, {
         data: { target_samples: targetSamples },
@@ -269,6 +254,20 @@ async function drainBufferedStreamingValues(request: any): Promise<void> {
         .toBeGreaterThan(0);
 }
 
+async function waitForBackendStreamsQuiet(request: any): Promise<void> {
+    await expect
+        .poll(
+            async () => {
+                await resetBackendStats(request);
+                await new Promise((resolve) => setTimeout(resolve, 1500));
+                const stats = await readBackendStats(request);
+                return stats.frames_sent;
+            },
+            { timeout: 30_000 }
+        )
+        .toBe(0);
+}
+
 async function warmPanelCount(page: any, request: any, panelCount: number): Promise<void> {
     const dashboardUid = await createDashboard(request, panelCount);
     try {
@@ -281,6 +280,7 @@ async function warmPanelCount(page: any, request: any, panelCount: number): Prom
         await page.goto('about:blank').catch(() => undefined);
         await page.waitForTimeout(streamSettleMs).catch(() => undefined);
         await request.delete(`/api/dashboards/uid/${dashboardUid}`).catch(() => undefined);
+        await waitForBackendStreamsQuiet(request);
     }
 }
 
@@ -296,7 +296,7 @@ test.describe('Grafana panel streaming benchmark', () => {
     });
 
     test('measures panel streaming runtime', { tag: ['@performance', '@benchmark'] }, async ({ page, request }) => {
-        test.setTimeout(Math.max(240_000, panelCounts.length * benchmarkDurationMs * 3));
+        test.setTimeout(Math.max(600_000, panelCounts.length * (benchmarkDurationMs + streamSettleMs * 8 + 60_000)));
         const results: BenchmarkResult[] = [];
 
         await page.goto('about:blank');
@@ -306,20 +306,6 @@ test.describe('Grafana panel streaming benchmark', () => {
         for (const panelCount of panelCounts) {
             await warmPanelCount(page, request, panelCount);
             const dashboardUid = await createDashboard(request, panelCount);
-            const liveChannels = new Set<string>();
-
-            const websocketHandler = (ws: any) => {
-                if (!ws.url().includes('/api/live/ws')) {
-                    return;
-                }
-                ws.on('framesent', (frame) => {
-                    const payload = typeof frame.payload === 'string' ? frame.payload : frame.payload.toString();
-                    for (const channel of extractLiveChannels(payload)) {
-                        liveChannels.add(channel);
-                    }
-                });
-            };
-            page.on('websocket', websocketHandler);
 
             try {
                 await page.goto('about:blank');
@@ -347,7 +333,7 @@ test.describe('Grafana panel streaming benchmark', () => {
                 results.push({
                     panels: panelCount,
                     time_to_panels_ready_ms: timeToPanelsReady,
-                    live_streams_opened: liveChannels.size || backend.unique_stream_paths,
+                    live_streams_opened: backend.unique_stream_paths,
                     backend_run_stream_runtime_ns: backend.run_stream_runtime_ns,
                     backend_run_stream_samples: backend.run_stream_samples,
                     backend_run_stream_target_samples: targetSamples,
@@ -366,10 +352,10 @@ test.describe('Grafana panel streaming benchmark', () => {
                     ...browser,
                 });
             } finally {
-                page.off('websocket', websocketHandler);
                 await page.goto('about:blank').catch(() => undefined);
                 await page.waitForTimeout(streamSettleMs).catch(() => undefined);
                 await request.delete(`/api/dashboards/uid/${dashboardUid}`).catch(() => undefined);
+                await waitForBackendStreamsQuiet(request);
             }
         }
 
