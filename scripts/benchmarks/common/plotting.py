@@ -1,6 +1,7 @@
 from typing import Any
 
 from matplotlib.axes import Axes
+from matplotlib.ticker import FuncFormatter, NullFormatter
 
 PLOT_COLORS = {
     "head": "#1d4ed8",
@@ -179,21 +180,33 @@ def plot_series(ax: Axes, xs: list[int], ys: list[float], series: str, zorder: i
     ax.scatter(xs, ys, s=28 if series != "head" else 34, color=str(style["color"]), edgecolor="white", linewidth=1.0, zorder=zorder + 1)
 
 
-def distribution_stats(row: dict[str, Any], metric: str) -> dict[str, float]:
+def apply_x_tick_formatter(ax: Axes) -> None:
+    """Format log-scale x-axis ticks as plain numbers (1, 10, 100, 1000)
+    instead of matplotlib's default power-of-ten notation (10^0, 10^1, ...).
+    """
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _position: format_number(value)))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+
+
+def distribution_stats(row: dict[str, Any], metric: str, value_key: str = "") -> dict[str, float]:
     """Return the `<metric>_distribution` object (median/min/max/p1../p99) if
     present and well-formed, else an empty dict.
 
-    This is the nested-struct JSON shape emitted by the Go simulator and the
-    Grafana benchmark spec (see `distributionStats` / `DistributionStats`).
+    This is the nested-struct JSON shape emitted by the Go simulator, the Go
+    microbenchmarks, and the Grafana benchmark spec (see `distributionStats`
+    / `benchmarkDistribution` / `DistributionStats`). Some rows key their
+    distribution off a shared value column (e.g. microbenchmark rows all use
+    `ns_distribution`) rather than the metric name itself, hence `value_key`.
     """
-    value = row.get(f"{metric}_distribution")
-    if not isinstance(value, dict):
-        return {}
-    return {key: float(val) for key, val in value.items() if isinstance(val, (int, float))}
+    for field in filter(None, (f"{metric}_distribution", f"{value_key}_distribution" if value_key else None)):
+        value = row.get(field)
+        if isinstance(value, dict):
+            return {key: float(val) for key, val in value.items() if isinstance(val, (int, float))}
+    return {}
 
 
 def range_values(row: dict[str, Any], metric: str, value_key: str = "") -> tuple[float | None, float | None]:
-    distribution = distribution_stats(row, metric)
+    distribution = distribution_stats(row, metric, value_key)
     if "min" in distribution and "max" in distribution:
         return distribution["min"], distribution["max"]
     # Legacy flat-field fallback, for older result JSON produced before
@@ -215,11 +228,15 @@ def range_values(row: dict[str, Any], metric: str, value_key: str = "") -> tuple
 PERCENTILE_SUFFIXES: tuple[str, ...] = ("p1", "p5", "p30", "p70", "p95", "p99")
 
 
-def raw_percentile_columns(rows_by_x: dict[Any, dict[str, Any]], xs: list[Any], metric: str) -> dict[str, list[float]]:
+def raw_percentile_columns(
+    rows_by_x: dict[Any, dict[str, Any]], xs: list[Any], metric: str, value_key: str = ""
+) -> dict[str, list[float]]:
     """Collect per-x percentile columns (p1/p5/p30/p70/p95/p99) for `metric`.
 
-    Reads from the nested `<metric>_distribution` object when present,
-    falling back to legacy flat `<metric>_<suffix>` fields for older result
+    Reads from the nested `<metric>_distribution` object when present
+    (falling back to `<value_key>_distribution` for rows that key their
+    distribution off a shared value column, e.g. microbenchmark rows), then
+    falls back to legacy flat `<metric>_<suffix>` fields for older result
     JSON. A percentile is only included if every x has a value for it - a
     metric with partial percentile data (e.g. an older run before percentile
     capture was added) simply omits that percentile rather than guessing,
@@ -233,7 +250,7 @@ def raw_percentile_columns(rows_by_x: dict[Any, dict[str, Any]], xs: list[Any], 
         complete = True
         for x in xs:
             row = rows_by_x.get(x)
-            value = distribution_stats(row, metric).get(suffix) if row else None
+            value = distribution_stats(row, metric, value_key).get(suffix) if row else None
             if value is None:
                 value = row.get(field) if row else None
             if not isinstance(value, (int, float)):

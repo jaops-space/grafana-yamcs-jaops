@@ -28,15 +28,16 @@ type benchmarkMicroResult struct {
 }
 
 type benchmarkMicroMetric struct {
-	Metric    string  `json:"metric"`
-	Group     string  `json:"group"`
-	X         int     `json:"x"`
-	XLabel    string  `json:"x_label"`
-	Samples   int     `json:"samples"`
-	MedianNS  float64 `json:"median_ns"`
-	MinNS     float64 `json:"min_ns"`
-	MaxNS     float64 `json:"max_ns"`
-	Values    int     `json:"values,omitempty"`
+	Metric         string               `json:"metric"`
+	Group          string               `json:"group"`
+	X              int                  `json:"x"`
+	XLabel         string               `json:"x_label"`
+	Samples        int                  `json:"samples"`
+	MedianNS       float64              `json:"median_ns"`
+	MinNS          float64              `json:"min_ns"`
+	MaxNS          float64              `json:"max_ns"`
+	NSDistribution benchmarkDistribution `json:"ns_distribution"`
+	Values         int                  `json:"values,omitempty"`
 	Streams   int     `json:"streams,omitempty"`
 	BatchSize int     `json:"batch_size,omitempty"`
 }
@@ -128,28 +129,73 @@ func benchmarkMicroMeasureProcess(streams int, samples int) benchmarkMicroMetric
 	return point
 }
 
+// benchmarkDistribution bundles a full statistical summary (median/min/max
+// plus a percentile spread) so a metric declares a single nested field
+// instead of one flat field per statistic. Mirrors the scenario simulator's
+// distributionStats (scripts/benchmarks/simulator/scenario.go) and the
+// Grafana benchmark spec's DistributionStats.
+type benchmarkDistribution struct {
+	Median float64 `json:"median"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	P1     float64 `json:"p1"`
+	P5     float64 `json:"p5"`
+	P30    float64 `json:"p30"`
+	P70    float64 `json:"p70"`
+	P95    float64 `json:"p95"`
+	P99    float64 `json:"p99"`
+}
+
+// computeBenchmarkDistribution expects sorted to already be sorted ascending.
+func computeBenchmarkDistribution(sorted []int64) benchmarkDistribution {
+	if len(sorted) == 0 {
+		return benchmarkDistribution{}
+	}
+	percentile := func(p float64) float64 {
+		if len(sorted) == 1 {
+			return float64(sorted[0])
+		}
+		rank := p * float64(len(sorted)-1)
+		lower := int(rank)
+		if lower >= len(sorted)-1 {
+			return float64(sorted[len(sorted)-1])
+		}
+		fraction := rank - float64(lower)
+		return float64(sorted[lower]) + fraction*float64(sorted[lower+1]-sorted[lower])
+	}
+	middle := len(sorted) / 2
+	median := float64(sorted[middle])
+	if len(sorted)%2 == 0 {
+		median = float64(sorted[middle-1]+sorted[middle]) / 2
+	}
+	return benchmarkDistribution{
+		Median: median,
+		Min:    float64(sorted[0]),
+		Max:    float64(sorted[len(sorted)-1]),
+		P1:     percentile(0.01),
+		P5:     percentile(0.05),
+		P30:    percentile(0.30),
+		P70:    percentile(0.70),
+		P95:    percentile(0.95),
+		P99:    percentile(0.99),
+	}
+}
+
 func benchmarkMicroPoint(metric string, group string, x int, xLabel string, samples int, durations []int64) benchmarkMicroMetric {
 	sorted := append([]int64(nil), durations...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-	median := float64(0)
-	if len(sorted) > 0 {
-		middle := len(sorted) / 2
-		if len(sorted)%2 == 0 {
-			median = float64(sorted[middle-1]+sorted[middle]) / 2
-		} else {
-			median = float64(sorted[middle])
-		}
-	}
+	distribution := computeBenchmarkDistribution(sorted)
 	return benchmarkMicroMetric{
-		Metric:   metric,
-		Group:    group,
-		X:        x,
-		XLabel:   xLabel,
-		Samples:  samples,
-		MedianNS: median,
-		MinNS:    float64(sorted[0]),
-		MaxNS:    float64(sorted[len(sorted)-1]),
-		Values:   x,
+		Metric:         metric,
+		Group:          group,
+		X:              x,
+		XLabel:         xLabel,
+		Samples:        samples,
+		MedianNS:       distribution.Median,
+		MinNS:          distribution.Min,
+		MaxNS:          distribution.Max,
+		NSDistribution: distribution,
+		Values:         x,
 	}
 }
 

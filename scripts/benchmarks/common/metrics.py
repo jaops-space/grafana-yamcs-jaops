@@ -109,7 +109,7 @@ GRAFANA_METRICS = {
         "label": "Datapoints received per second",
         "unit": "count/s",
         "file": "grafana_datapoints.png",
-        "log": False,
+        "log": True,
     },
     "live_streams_opened": {
         "name": "Grafana Live - live streams opened",
@@ -117,7 +117,7 @@ GRAFANA_METRICS = {
         "label": "Live streams opened",
         "unit": "count",
         "file": "grafana_streams.png",
-        "log": False,
+        "log": True,
     },
 }
 

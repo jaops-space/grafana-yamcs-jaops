@@ -27,6 +27,7 @@ from .plotting import (
     add_threshold_line_label,
     apply_log_y_axis,
     apply_percentage_y_axis,
+    apply_x_tick_formatter,
     apply_y_axis_floor,
     format_axis_tick,
     percent_change,
@@ -484,6 +485,7 @@ def plot_metric(
     if long_term_points:
         plot_series(ax, long_term_xs, long_term_ys, "long_term", zorder=2)
     ax.set_xscale("log")
+    apply_x_tick_formatter(ax)
     ax.set_ylabel(y_axis_label(key, y_label, y_unit))
     style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
     # Deliberately excludes threshold values: thresholds are drawn as
@@ -537,7 +539,7 @@ def plot_micro_metric(
         min_value, max_value = range_values(row, key, "ns")
         raw_mins.append(float(y) if min_value is None else min_value)
         raw_maxs.append(float(y) if max_value is None else max_value)
-    raw_percentiles = raw_percentile_columns(metric_rows_by_x, xs, key)
+    raw_percentiles = raw_percentile_columns(metric_rows_by_x, xs, key, "ns")
     x_label = next((str(row.get("x_label")) for row in metric_rows if row.get("x_label")), "N")
 
     baseline_points = []
@@ -582,6 +584,7 @@ def plot_micro_metric(
     if long_term_points:
         plot_series(ax, long_term_xs, long_term_ys, "long_term", zorder=2)
     ax.set_xscale("log")
+    apply_x_tick_formatter(ax)
     ax.set_ylabel(y_axis_label(key, y_label, y_unit))
     style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by {x_label.lower()}"), x_label)
     axis_values = ys + ys_min + ys_max + baseline_ys + long_term_ys
@@ -590,7 +593,7 @@ def plot_micro_metric(
     else:
         apply_y_axis_floor(ax, axis_values)
     apply_y_tick_formatter(ax, y_unit)
-    add_density_band(ax, xs, ys, ys_min, ys_max, None, PLOT_COLORS["head"])
+    add_density_band(ax, xs, ys, ys_min, ys_max, percentile_columns, PLOT_COLORS["head"])
     ax.legend(frameon=False, loc="upper left", ncols=3)
     fig.tight_layout()
     fig.savefig(path, dpi=180, facecolor="white")

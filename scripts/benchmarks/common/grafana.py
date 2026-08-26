@@ -15,6 +15,7 @@ from .plotting import (
     add_threshold_bands,
     add_threshold_line_label,
     apply_log_y_axis,
+    apply_x_tick_formatter,
     apply_y_axis_floor,
     format_axis_tick,
     format_baseline_change_rows,
@@ -168,6 +169,7 @@ def plot_metric(
         plot_series(ax, xs, ys, prefix, zorder=3 if prefix == "head" else 2)
 
     ax.set_xscale("log")
+    apply_x_tick_formatter(ax)
     if config.get("log") and any(value > 0 for value in all_values):
         apply_log_y_axis(ax, all_values)
     else:
