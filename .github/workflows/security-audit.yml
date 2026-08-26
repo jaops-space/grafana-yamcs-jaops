@@ -133,26 +133,31 @@ jobs:
       - name: Evaluate audit status
         id: evaluate
         if: always()
+        env:
+          GOVULNCHECK_OUTCOME: ${{ steps.govulncheck.outcome }}
+          PNPM_AUDIT_OUTCOME: ${{ steps.pnpm-audit.outcome }}
+          OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
+          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
         run: |
           failed=false
           summary=""
 
-          if [ "${{ steps.govulncheck.outcome }}" != "success" ]; then
+          if [ "$GOVULNCHECK_OUTCOME" != "success" ]; then
             failed=true
             summary="${summary}\n- govulncheck reported issues or failed"
           fi
 
-          if [ "${{ steps.pnpm-audit.outcome }}" != "success" ]; then
+          if [ "$PNPM_AUDIT_OUTCOME" != "success" ]; then
             failed=true
             summary="${summary}\n- pnpm audit reported high/critical advisories or failed"
           fi
 
-          if [ "${{ steps.osv-scanner.outcome }}" != "success" ]; then
+          if [ "$OSV_SCANNER_OUTCOME" != "success" ]; then
             failed=true
             summary="${summary}\n- OSV-Scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
           fi
 
-          if [ "${{ steps.trivy.outcome }}" != "success" ]; then
+          if [ "$TRIVY_OUTCOME" != "success" ]; then
             failed=true
             summary="${summary}\n- Trivy reported high/critical findings or failed"
           fi
@@ -167,11 +172,18 @@ jobs:
       - name: Build audit markdown from JSON
         id: build-markdown
         if: always() && steps.evaluate.outputs.failed == 'true'
+        env:
+          GOVULNCHECK_OUTCOME: ${{ steps.govulncheck.outcome }}
+          PNPM_AUDIT_OUTCOME: ${{ steps.pnpm-audit.outcome }}
+          OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
+          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
+          RUN_ID: ${{ github.run_id }}
+          AUDIT_SUMMARY: ${{ steps.evaluate.outputs.summary }}
         run: |
-          gov_status="${{ steps.govulncheck.outcome }}"
-          pnpm_status="${{ steps.pnpm-audit.outcome }}"
-          osv_status="${{ steps.osv-scanner.outcome }}"
-          trivy_status="${{ steps.trivy.outcome }}"
+          gov_status="$GOVULNCHECK_OUTCOME"
+          pnpm_status="$PNPM_AUDIT_OUTCOME"
+          osv_status="$OSV_SCANNER_OUTCOME"
+          trivy_status="$TRIVY_OUTCOME"
 
           gov_findings="0"
           if [ -f govulncheck.json ]; then
@@ -201,10 +213,10 @@ jobs:
           {
             echo "## Automated security audit report"
             echo
-            echo "Generated at ${generated_at} from workflow run ${{ github.run_id }}."
+            echo "Generated at ${generated_at} from workflow run ${RUN_ID}."
             echo
             echo "### Summary"
-            echo "${{ steps.evaluate.outputs.summary }}"
+            echo "$AUDIT_SUMMARY"
             echo
             echo "### Findings overview"
             echo "| Scanner | Status | Findings |"
@@ -247,7 +259,7 @@ jobs:
             fi
             echo
             echo "### Raw artifacts"
-            echo "- Artifact: security-audit-reports-${{ github.run_id }}"
+            echo "- Artifact: security-audit-reports-${RUN_ID}"
             echo "- Files: govulncheck.json, pnpm-audit.json, osv-scanner.json, osv-prod-packages.txt, trivy-results.sarif"
           } >> audit-report.md
 
@@ -313,12 +325,14 @@ jobs:
       - name: Post audit comment on audit PR
         if: always() && steps.evaluate.outputs.failed == 'true' && steps.create-pr.outputs.pull-request-number != ''
         uses: actions/github-script@v7
+        env:
+          AUDIT_PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
         with:
           script: |
             const fs = require('node:fs');
             const marker = '<!-- security-audit-comment -->';
             const body = fs.readFileSync('audit-pr-comment.md', 'utf8');
-            const issue_number = Number('${{ steps.create-pr.outputs.pull-request-number }}');
+            const issue_number = Number(process.env.AUDIT_PR_NUMBER);
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,

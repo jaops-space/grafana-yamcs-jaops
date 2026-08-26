@@ -44,8 +44,11 @@ jobs:
             - name: Unit tests
               run: pnpm run test:ci
             - name: Build frontend
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  GIT_REF: ${{ github.ref }}
               run: |
-                  if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+                  if [ "$EVENT_NAME" = "push" ] && [ "$GIT_REF" = "refs/heads/main" ]; then
                     pnpm run build --profile --json stats.json
                   else
                     pnpm run build
@@ -106,14 +109,19 @@ jobs:
 
             - name: Package plugin
               id: package-plugin
+              env:
+                  PLUGIN_ID: ${{ steps.metadata.outputs.plugin-id }}
+                  PLUGIN_ARCHIVE: ${{ steps.metadata.outputs.archive }}
               run: |
-                  mv dist ${{ steps.metadata.outputs.plugin-id }}
-                  zip ${{ steps.metadata.outputs.archive }} ${{ steps.metadata.outputs.plugin-id }} -r
+                  mv dist "$PLUGIN_ID"
+                  zip "$PLUGIN_ARCHIVE" "$PLUGIN_ID" -r
 
             - name: Check plugin.json
+              env:
+                  PLUGIN_ARCHIVE: ${{ steps.metadata.outputs.archive }}
               run: |
                   docker run --pull=always \
-                    -v $PWD/${{ steps.metadata.outputs.archive }}:/archive.zip \
+                    -v "$PWD/$PLUGIN_ARCHIVE:/archive.zip" \
                     grafana/plugin-validator-cli -analyzer=metadatavalid /archive.zip
 
             - name: Archive Build
@@ -233,9 +241,12 @@ jobs:
               run: pnpm install --frozen-lockfile --prefer-offline
 
             - name: Start Grafana
+              env:
+                  GRAFANA_VERSION: ${{ matrix.GRAFANA_IMAGE.VERSION }}
+                  GRAFANA_IMAGE: ${{ matrix.GRAFANA_IMAGE.NAME }}
               run: |
                   docker compose pull
-                  GF_LOG_LEVEL=debug ANONYMOUS_AUTH_ENABLED=false DEVELOPMENT=false GRAFANA_VERSION=${{ matrix.GRAFANA_IMAGE.VERSION }} GRAFANA_IMAGE=${{ matrix.GRAFANA_IMAGE.NAME }} docker compose up -d
+                  GF_LOG_LEVEL=debug ANONYMOUS_AUTH_ENABLED=false DEVELOPMENT=false GRAFANA_VERSION="$GRAFANA_VERSION" GRAFANA_IMAGE="$GRAFANA_IMAGE" docker compose up -d
 
             - name: Start Yamcs quickstart
               run: |

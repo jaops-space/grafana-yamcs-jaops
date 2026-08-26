@@ -13,12 +13,13 @@ name: Security Checks
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   security:
     name: gosec + osv-scanner + plugin-validator
     runs-on: ubuntu-latest
+    outputs:
+      has_findings: ${{ steps.pr-comment.outputs.has_findings }}
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
@@ -197,21 +198,25 @@ jobs:
       - name: Evaluate security status
         id: evaluate
         if: always()
+        env:
+          GOSEC_OUTCOME: ${{ steps.gosec.outcome }}
+          OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
+          PLUGIN_VALIDATOR_OUTCOME: ${{ steps.plugin-validator.outcome }}
         run: |
           failed=false
           summary=""
 
-          if [ "${{ steps.gosec.outcome }}" = "failure" ]; then
+          if [ "$GOSEC_OUTCOME" = "failure" ]; then
             failed=true
             summary="${summary}\n- gosec reported HIGH/CRITICAL-policy findings or failed"
           fi
 
-          if [ "${{ steps.osv-scanner.outcome }}" = "failure" ]; then
+          if [ "$OSV_SCANNER_OUTCOME" = "failure" ]; then
             failed=true
             summary="${summary}\n- osv-scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
           fi
 
-          if [ "${{ steps.plugin-validator.outcome }}" = "failure" ]; then
+          if [ "$PLUGIN_VALIDATOR_OUTCOME" = "failure" ]; then
             failed=true
             summary="${summary}\n- plugin-validator reported blocking findings or failed"
           fi
@@ -226,6 +231,8 @@ jobs:
       - name: Build PR security comment from JSON
         id: pr-comment
         if: always() && github.event_name == 'pull_request'
+        env:
+          RUN_ID: ${{ github.run_id }}
         run: |
           gosec_findings=0
           if [ -f gosec.json ] && jq -e . gosec.json >/dev/null 2>&1; then
@@ -296,17 +303,51 @@ jobs:
           {
             echo "<details><summary>Raw outputs</summary>"
             echo
-            echo "- gosec JSON: artifact security-reports-${{ github.run_id }} / gosec.json"
-            echo "- osv-scanner JSON: artifact security-reports-${{ github.run_id }} / osv-scanner.json"
-            echo "- plugin-validator JSON: artifact security-reports-${{ github.run_id }} / plugin-validator.json"
+            echo "- gosec JSON: artifact security-reports-${RUN_ID} / gosec.json"
+            echo "- osv-scanner JSON: artifact security-reports-${RUN_ID} / osv-scanner.json"
+            echo "- plugin-validator JSON: artifact security-reports-${RUN_ID} / plugin-validator.json"
             echo
             echo "</details>"
           } >> pr-security-comment.md
 
           echo "has_findings=true" >> "$GITHUB_OUTPUT"
 
-      - name: Post PR security comment
+      - name: Upload PR security comment
         if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-comment-${{ github.run_id }}
+          path: pr-security-comment.md
+          retention-days: 1
+
+      - name: Fail workflow on findings
+        if: always() && steps.evaluate.outputs.failed == 'true'
+        env:
+          SECURITY_SUMMARY: ${{ steps.evaluate.outputs.summary }}
+        run: |
+          echo "security checks detected issues:"
+          echo "$SECURITY_SUMMARY"
+          exit 1
+
+  security-comment:
+    name: Security PR comment
+    runs-on: ubuntu-latest
+    needs: security
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      actions: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Download PR security comment
+        if: needs.security.outputs.has_findings == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: security-comment-${{ github.run_id }}
+          path: .
+
+      - name: Post PR security comment
+        if: needs.security.outputs.has_findings == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -340,7 +381,7 @@ jobs:
             }
 
       - name: Delete PR security comment when clean
-        if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'false'
+        if: needs.security.outputs.has_findings == 'false'
         uses: actions/github-script@v7
         with:
           script: |
@@ -362,10 +403,3 @@ jobs:
                 comment_id: existing.id,
               });
             }
-
-      - name: Fail workflow on findings
-        if: always() && steps.evaluate.outputs.failed == 'true'
-        run: |
-          echo "security checks detected issues:"
-          echo "${{ steps.evaluate.outputs.summary }}"
-          exit 1

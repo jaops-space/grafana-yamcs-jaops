@@ -36,12 +36,15 @@ jobs:
                   fetch-depth: 0
             - name: Determine benchmark base commit
               id: base
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  BASE_REF: ${{ github.event.pull_request.base.ref }}
               run: |
-                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                  if [ "$EVENT_NAME" = "pull_request" ]; then
                     if git rev-parse --verify HEAD^2 >/dev/null 2>&1; then
                       BASE_SHA="$(git merge-base HEAD^2 HEAD^1)"
                     else
-                      git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+                      git fetch --no-tags origin "$BASE_REF"
                       BASE_SHA="$(git merge-base HEAD FETCH_HEAD)"
                     fi
                   else
@@ -124,11 +127,13 @@ jobs:
                     python3 scripts/benchmarks/benchmark_yamcs_streams.py --output-dir ../benchmark-output/simulator/baseline
                   fi
             - name: Run simulator scenario
+              env:
+                  BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
               run: |
                   python3 scripts/benchmarks/simulator/run.py \
                     --output-dir benchmark-output/simulator/head \
                     --baseline-results benchmark-output/simulator/baseline/simulator.json \
-                    --baseline-commit "${{ needs.resolve-base.outputs.sha }}"
+                    --baseline-commit "$BASELINE_COMMIT"
             - name: Collect scenario logs
               if: always()
               run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs > benchmark-output/simulator/yamcs.log || true
@@ -239,11 +244,12 @@ jobs:
         runs-on: ubuntu-latest
         needs: [resolve-base, micro-benchmark, scenario-benchmark, grafana-benchmark]
         if: always() && needs.resolve-base.result == 'success'
+        outputs:
+            should_comment: ${{ steps.benchmark-status.outputs.should_comment }}
+            should_fail: ${{ steps.benchmark-status.outputs.should_fail }}
         permissions:
-            contents: write
             actions: read
-            issues: write
-            pull-requests: write
+            contents: read
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
@@ -263,6 +269,9 @@ jobs:
                   name: benchmark-grafana
                   path: artifacts/grafana
             - name: Build benchmark report
+              env:
+                  BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
                   python3 scripts/benchmarks/report.py \
                     --output-dir benchmark-output \
@@ -272,8 +281,8 @@ jobs:
                     --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
                     --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
                     --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
-                    --baseline-commit "${{ needs.resolve-base.outputs.sha }}" \
-                    --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    --baseline-commit "$BASELINE_COMMIT" \
+                    --run-url "$RUN_URL"
             - name: Read benchmark status
               id: benchmark-status
               run: |
@@ -286,9 +295,38 @@ jobs:
                   print(f"should_comment={str(report.get('should_comment', True)).lower()}")
                   print(f"should_fail={str(report.get('should_fail', status == 'fail')).lower()}")
                   PY
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: benchmark-${{ github.run_id }}
+                  path: benchmark-output
+                  retention-days: 14
+            - name: Fail benchmark on threshold failure
+              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
+              run: exit 1
+
+    benchmark-comment:
+        name: Benchmark PR comment
+        runs-on: ubuntu-latest
+        needs: [benchmark-report]
+        if: >-
+            ${{
+              always() &&
+              github.event_name == 'pull_request' &&
+              needs.benchmark-report.outputs.should_comment == 'true'
+            }}
+        permissions:
+            actions: read
+            contents: write
+            issues: write
+            pull-requests: write
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  name: benchmark-${{ github.run_id }}
+                  path: benchmark-output
             - name: Publish benchmark plot images for PR artifacts
               id: publish-plots
-              if: ${{ github.event_name == 'pull_request' && steps.benchmark-status.outputs.should_comment == 'true' }}
               continue-on-error: true
               uses: actions/github-script@v8
               with:
@@ -338,34 +376,20 @@ jobs:
                         await github.rest.git.createRef({owner, repo, ref: `refs/heads/${branch}`, sha: commit.data.sha});
                       }
                       core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
-            - name: Generate final benchmark PR comment
-              run: |
-                  python3 scripts/benchmarks/report.py \
-                    --output-dir benchmark-output \
-                    --simulator-results artifacts/simulator/head/simulator.json \
-                    --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
-                    --grafana-results artifacts/grafana/head/grafana.json \
-                    --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
-                    --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
-                    --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
-                    --baseline-commit "${{ needs.resolve-base.outputs.sha }}" \
-                    --plots-base-url "${{ steps.publish-plots.outputs.plots-base-url }}" \
-                    --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            - uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: benchmark-${{ github.run_id }}
-                  path: benchmark-output
-                  retention-days: 14
             - name: Comment benchmark result
-              if: ${{ github.event_name == 'pull_request' && steps.benchmark-status.outputs.should_comment == 'true' }}
               continue-on-error: true
               uses: actions/github-script@v8
+              env:
+                  PLOTS_BASE_URL: ${{ steps.publish-plots.outputs.plots-base-url }}
               with:
                   script: |
                       const fs = require('fs');
                       const marker = '<!-- jaops-yamcs-benchmark-report -->';
-                      const body = fs.readFileSync('benchmark-output/benchmark-comment.md', 'utf8');
+                      const plotsBaseUrl = process.env.PLOTS_BASE_URL || '';
+                      let body = fs.readFileSync('benchmark-output/benchmark-comment.md', 'utf8');
+                      if (plotsBaseUrl) {
+                        body = body.replaceAll('benchmark-output/plots/', `${plotsBaseUrl}/`);
+                      }
                       const {owner, repo} = context.repo;
                       const issue_number = context.payload.pull_request.number;
                       const comments = await github.paginate(github.rest.issues.listComments, {owner, repo, issue_number, per_page: 100});
@@ -379,6 +403,3 @@ jobs:
                       } else {
                         await github.rest.issues.createComment({owner, repo, issue_number, body});
                       }
-            - name: Fail benchmark on threshold failure
-              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
-              run: exit 1

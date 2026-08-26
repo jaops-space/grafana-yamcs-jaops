@@ -19,8 +19,10 @@ jobs:
         steps:
             - name: Check signing token
               id: check-token
+              env:
+                  GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
               run: |
-                  if [ -z "${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}" ]; then
+                  if [ -z "$GRAFANA_ACCESS_POLICY_TOKEN" ]; then
                     echo "::warning::GRAFANA_ACCESS_POLICY_TOKEN not found"
                     echo "has_token=false" >> $GITHUB_OUTPUT
                   else
