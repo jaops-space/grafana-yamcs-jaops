@@ -32,15 +32,33 @@ declare global {
     }
 }
 
-function recordBenchmarkFrontendDelivery(response: DataQueryResponse): void {
-    const stats = typeof window !== 'undefined' ? window.__jaopsBenchmarkStats : undefined;
-    if (!stats) {
-        return;
-    }
-    for (const frame of response.data ?? []) {
-        stats.framesReceived += 1;
-        stats.valuesReceived += frame.length ?? 0;
-    }
+/**
+ * Grafana Live's client-side `getDataStream()` re-emits the *entire*
+ * accumulated streaming buffer on every tick (see
+ * `GrafanaLiveService.getDataStream` in grafana/public/app/features/live/live.ts),
+ * not just the values that arrived since the previous emission. Naively
+ * summing `frame.length` across emissions therefore counts already-seen rows
+ * again and again as the buffer grows, wildly inflating the rate. Track the
+ * previous frame length per subscription and only count the delta (the
+ * genuinely new rows) on each tick.
+ */
+function createBenchmarkFrontendTap(): (response: DataQueryResponse) => void {
+    let previousLength = 0;
+    return (response: DataQueryResponse) => {
+        for (const frame of response.data ?? []) {
+            const length = frame.length ?? 0;
+            // A shrink (e.g. schema change resets the buffer) means the whole
+            // frame is effectively new; never count a negative delta.
+            const delta = length >= previousLength ? length - previousLength : length;
+            previousLength = length;
+
+            const stats = typeof window !== 'undefined' ? window.__jaopsBenchmarkStats : undefined;
+            if (stats && delta > 0) {
+                stats.framesReceived += 1;
+                stats.valuesReceived += delta;
+            }
+        }
+    };
 }
 
 function formatAbsoluteRangePath(request: DataQueryRequest<Query>): string {
@@ -209,7 +227,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                             },
                         },
                     })
-                    .pipe(tap(recordBenchmarkFrontendDelivery));
+                    .pipe(tap(createBenchmarkFrontendTap()));
             })
             .filter(Boolean) as Array<Observable<DataQueryResponse>>; // Remove undefined values
 
