@@ -75,6 +75,15 @@ def threshold_plot_value(row: dict[str, Any], key: str, threshold_value: float) 
         # free and shouldn't dilute the per-stream throughput.
         streams = row.get("backend_unique_stream_paths", row.get("panels"))
         return threshold_value * float(streams) if isinstance(streams, (int, float)) else None
+    if key == "frontend_datapoints_per_second_per_panel":
+        # Unlike the backend metric above, this one is measured client-side
+        # (see frontend_datapoints_per_second/tests/benchmark), i.e. what
+        # each panel's own Grafana Live subscription actually receives after
+        # channel fan-out. Every panel gets its own delivery regardless of
+        # stream sharing, so dividing by the real panel count is correct
+        # here.
+        panels = row.get("panels")
+        return threshold_value * float(panels) if isinstance(panels, (int, float)) else None
     if key == "backend_run_stream_runtime_ns_per_sample":
         samples = row.get("backend_run_stream_samples")
         return threshold_value * float(samples) if isinstance(samples, (int, float)) else None
@@ -238,6 +247,16 @@ def threshold_metric_value(row: dict[str, Any], key: str) -> float | None:
             return None
         value = row.get("backend_datapoints_per_second")
         return float(value) / streams if isinstance(value, (int, float)) else None
+    if key == "frontend_datapoints_per_second_per_panel":
+        # frontend_datapoints_per_second is measured per browser tab across
+        # all panels, so divide by the real panel count (not unique
+        # streams) - every panel genuinely receives its own delivery after
+        # Grafana Live's client-side channel fan-out.
+        panels = float(row.get("panels") or 0)
+        if panels <= 0:
+            return None
+        value = row.get("frontend_datapoints_per_second")
+        return float(value) / panels if isinstance(value, (int, float)) else None
     if key == "backend_run_stream_runtime_ns_per_sample":
         samples = float(row.get("backend_run_stream_samples") or 0)
         if samples <= 0:

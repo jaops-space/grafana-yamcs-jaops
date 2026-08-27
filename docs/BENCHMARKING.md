@@ -137,7 +137,8 @@ The PR comment currently plots:
 - browser heap after browser garbage collection;
 - total backend RunStream runtime for the fixed sample window;
 - median backend live heap while panels stream;
-- datapoints received per second;
+- backend datapoints produced per second (per unique backend stream - stays flat when panels share a stream);
+- datapoints received per second across all panels (frontend, measured in the browser - scales with real panel count);
 - live streams opened.
 
 The Grafana layer is the closest to user-visible behavior. Browser heap and time-to-ready cover frontend cost. Backend RunStream runtime and backend heap cover plugin backend work while Grafana is actively streaming.

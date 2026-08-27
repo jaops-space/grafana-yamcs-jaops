@@ -104,11 +104,19 @@ GRAFANA_METRICS = {
         "log": False,
     },
     "backend_datapoints_per_second": {
-        "name": "Grafana Live - datapoints received per second",
-        "title": "Grafana Live - datapoints received per second",
-        "label": "Datapoints received per second",
+        "name": "Grafana Live - backend datapoints produced per second",
+        "title": "Grafana Live - backend datapoints produced per second",
+        "label": "Backend datapoints produced per second (per unique stream)",
         "unit": "count/s",
         "file": "grafana_datapoints.png",
+        "log": True,
+    },
+    "frontend_datapoints_per_second": {
+        "name": "Grafana Live - datapoints received per second (frontend)",
+        "title": "Grafana Live - datapoints received per second (frontend)",
+        "label": "Datapoints received per second across all panels",
+        "unit": "count/s",
+        "file": "grafana_frontend_datapoints.png",
         "log": True,
     },
     "live_streams_opened": {
@@ -134,6 +142,13 @@ GRAFANA_THRESHOLDS = {
         "warn": 0.8,
         "fail": 0.5,
         "unit": "points/sec/stream",
+    },
+    "frontend_datapoints_per_second_per_panel": {
+        "plot_metric": "frontend_datapoints_per_second",
+        "operator": "min",
+        "warn": 0.8,
+        "fail": 0.5,
+        "unit": "points/sec/panel",
     },
     "backend_run_stream_runtime_ns_per_sample": {
         "plot_metric": "backend_run_stream_runtime_ns",
@@ -211,9 +226,14 @@ DERIVED_METRICS = {
         "plot_metric": "values_read_per_sec",
     },
     "backend_datapoints_per_second_per_stream": {
-        "name": "Grafana - Datapoints received per second per live stream",
+        "name": "Grafana - Backend datapoints produced per second per unique stream",
         "unit": "points/sec/stream",
         "plot_metric": "backend_datapoints_per_second",
+    },
+    "frontend_datapoints_per_second_per_panel": {
+        "name": "Grafana - Datapoints received per second per panel (frontend)",
+        "unit": "points/sec/panel",
+        "plot_metric": "frontend_datapoints_per_second",
     },
     "backend_run_stream_runtime_ns_per_sample": {
         "name": "Grafana - Backend RunStream runtime per sample",
@@ -240,6 +260,7 @@ METRIC_UNITS = {
     "backend_run_stream_runtime_ns": "ns",
     "backend_median_heap_alloc_bytes": "bytes",
     "backend_datapoints_per_second": "count/s",
+    "frontend_datapoints_per_second": "count/s",
     "live_streams_opened": "count",
 }
 
@@ -270,6 +291,7 @@ THRESHOLD_TO_PLOT = {
     "median_tick_runstream_busy": SIMULATOR_METRICS["median_tick_runstream_busy"]["file"],
     "time_to_panels_ready_ms": GRAFANA_METRICS["time_to_panels_ready_ms"]["file"],
     "backend_datapoints_per_second_per_stream": GRAFANA_METRICS["backend_datapoints_per_second"]["file"],
+    "frontend_datapoints_per_second_per_panel": GRAFANA_METRICS["frontend_datapoints_per_second"]["file"],
     "backend_run_stream_runtime_ns_per_sample": GRAFANA_METRICS["backend_run_stream_runtime_ns"]["file"],
     "backend_median_heap_alloc_bytes": GRAFANA_METRICS["backend_median_heap_alloc_bytes"]["file"],
 }

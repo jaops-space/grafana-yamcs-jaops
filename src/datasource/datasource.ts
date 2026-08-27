@@ -11,7 +11,37 @@ import {
 import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafana/runtime';
 
 import { Observable, merge } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { Configuration, DEFAULT_QUERY as DefaultQuery, DefaultConfiguration, Query, QueryType } from './types';
+
+/**
+ * Opt-in counter of data actually delivered to this browser tab over Grafana
+ * Live, i.e. what panels really receive after Grafana Live's client-side
+ * channel sharing/fan-out - as opposed to backend-side production metrics,
+ * which only see one send per unique backend stream, even when many panels
+ * share it. Only accumulates once a benchmark harness installs
+ * `window.__jaopsBenchmarkStats` (see tests/benchmark), so it is a no-op
+ * (single property check) for every other user.
+ */
+declare global {
+    interface Window {
+        __jaopsBenchmarkStats?: {
+            framesReceived: number;
+            valuesReceived: number;
+        };
+    }
+}
+
+function recordBenchmarkFrontendDelivery(response: DataQueryResponse): void {
+    const stats = typeof window !== 'undefined' ? window.__jaopsBenchmarkStats : undefined;
+    if (!stats) {
+        return;
+    }
+    for (const frame of response.data ?? []) {
+        stats.framesReceived += 1;
+        stats.valuesReceived += frame.length ?? 0;
+    }
+}
 
 function formatAbsoluteRangePath(request: DataQueryRequest<Query>): string {
     const fromUnix = request.range.from.unix();
@@ -161,23 +191,25 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     pathParts.push(formatRangePath(request));
                 }
 
-                return getGrafanaLiveSrv().getDataStream({
-                    buffer: {
-                        maxLength: this.bufferMaxLength,
-                        action,
-                    },
-                    addr: {
-                        scope: LiveChannelScope.DataSource,
-                        stream: this.uid,
-                        path: pathParts.join('/'),
-                        data: {
-                            ...query,
-                            from: fromUnix,
-                            to: toUnix,
-                            points: roundedMaxDataPoints,
+                return getGrafanaLiveSrv()
+                    .getDataStream({
+                        buffer: {
+                            maxLength: this.bufferMaxLength,
+                            action,
                         },
-                    },
-                });
+                        addr: {
+                            scope: LiveChannelScope.DataSource,
+                            stream: this.uid,
+                            path: pathParts.join('/'),
+                            data: {
+                                ...query,
+                                from: fromUnix,
+                                to: toUnix,
+                                points: roundedMaxDataPoints,
+                            },
+                        },
+                    })
+                    .pipe(tap(recordBenchmarkFrontendDelivery));
             })
             .filter(Boolean) as Array<Observable<DataQueryResponse>>; // Remove undefined values
 
