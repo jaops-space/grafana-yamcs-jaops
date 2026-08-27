@@ -524,15 +524,15 @@ func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
 
 // extractParameterValues extracts values and timestamps from a parameter buffer.
 func extractParameterValues(buffer []*pvalue.ParameterValue, realtime bool) ([]interface{}, []time.Time) {
-	var values []interface{}
-	var times []time.Time
+	values := make([]interface{}, len(buffer))
+	times := make([]time.Time, len(buffer))
 
-	for _, item := range buffer {
-		values = append(values, extractValue(item.GetEngValue()))
+	for i, item := range buffer {
+		values[i] = extractValue(item.GetEngValue())
 		if realtime {
-			times = append(times, time.Now())
+			times[i] = time.Now()
 		} else {
-			times = append(times, item.GetGenerationTime().AsTime())
+			times[i] = item.GetGenerationTime().AsTime()
 		}
 
 	}

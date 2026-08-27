@@ -1,0 +1,189 @@
+name: Refresh long-term benchmark baseline
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    pull-requests: write
+
+concurrency:
+    group: benchmark-refresh-baseline
+    cancel-in-progress: false
+
+jobs:
+    refresh-simulator-baseline:
+        name: Simulator baseline
+        runs-on: ubuntu-latest
+        timeout-minutes: 25
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install -r scripts/benchmarks/requirements.txt
+            - name: Install Yamcs quickstart
+              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
+            - name: Start Yamcs quickstart
+              working-directory: /tmp/yamcs-quickstart
+              run: |
+                  cd docker
+                  docker compose up -d yamcs
+                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+            - name: Refresh simulator baseline
+              run: python3 scripts/benchmarks/simulator/run.py --output-dir benchmark-output/simulator
+            - name: Stop Yamcs quickstart
+              if: always()
+              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: refresh-simulator-baseline
+                  path: benchmark-output/simulator
+                  retention-days: 14
+
+    refresh-microbenchmarks-baseline:
+        name: Microbenchmarks baseline
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install -r scripts/benchmarks/requirements.txt
+            - name: Refresh microbenchmarks baseline
+              run: python3 scripts/benchmarks/micro/run.py --output-dir benchmark-output/microbenchmarks
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: refresh-microbenchmarks-baseline
+                  path: benchmark-output/microbenchmarks
+                  retention-days: 14
+
+    refresh-grafana-baseline:
+        name: Grafana Live baseline
+        runs-on: ubuntu-latest
+        timeout-minutes: 35
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v3
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  cache: "pnpm"
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+            - run: pnpm install --frozen-lockfile --prefer-offline
+            - name: Install Yamcs quickstart
+              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
+            - name: Start Yamcs quickstart
+              working-directory: /tmp/yamcs-quickstart
+              run: |
+                  cd docker
+                  docker compose up -d yamcs
+                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+            - name: Start Yamcs simulator
+              working-directory: /tmp/yamcs-quickstart
+              run: nohup python3 simulator.py --tm_host 127.0.0.1 --tm_port 10015 --rate 1 --testdata /tmp/yamcs-quickstart/testdata.ccsds > /tmp/yamcs-simulator.log 2>&1 &
+            - name: Build plugin for Grafana benchmark
+              run: |
+                  pnpm run build
+                  go run github.com/magefile/mage -v buildAll
+                  go build -o dist/gpx_grafana_yamcs_jaops_linux_amd64 -tags "arrow_json_stdlib benchmark" ./pkg
+            - name: Refresh Grafana baseline
+              run: |
+                  docker compose down -v || true
+                  ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
+                  timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
+                  pnpm exec playwright install chromium --with-deps
+                  GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/grafana.json" pnpm run bench:grafana
+            - name: Stop Grafana services
+              if: always()
+              run: |
+                  docker compose down -v || true
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: refresh-grafana-baseline
+                  path: benchmark-output/grafana
+                  retention-days: 14
+
+    create-baseline-pr:
+        name: Create PR
+        runs-on: ubuntu-latest
+        needs: [refresh-simulator-baseline, refresh-microbenchmarks-baseline, refresh-grafana-baseline]
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install -r scripts/benchmarks/requirements.txt
+            - uses: actions/download-artifact@v4
+              with:
+                  name: refresh-simulator-baseline
+                  path: artifacts/simulator
+            - uses: actions/download-artifact@v4
+              with:
+                  name: refresh-microbenchmarks-baseline
+                  path: artifacts/microbenchmarks
+            - uses: actions/download-artifact@v4
+              with:
+                  name: refresh-grafana-baseline
+                  path: artifacts/grafana
+            - name: Copy refreshed long-term baselines
+              run: |
+                  mkdir -p scripts/benchmarks/baselines/long-term
+                  cp artifacts/simulator/simulator.json scripts/benchmarks/baselines/long-term/simulator.json
+                  cp artifacts/simulator/simulator.csv scripts/benchmarks/baselines/long-term/simulator.csv
+                  cp artifacts/microbenchmarks/microbenchmarks.json scripts/benchmarks/baselines/long-term/microbenchmarks.json
+                  cp artifacts/grafana/grafana.json scripts/benchmarks/baselines/long-term/grafana.json
+                  python3 - <<'PY'
+                  import json
+                  import os
+                  from datetime import datetime, timezone
+
+                  baseline_dir = "scripts/benchmarks/baselines/long-term"
+                  with open(os.path.join(baseline_dir, "simulator.json"), encoding="utf-8") as fp:
+                      simulator = json.load(fp)
+                  with open(os.path.join(baseline_dir, "microbenchmarks.json"), encoding="utf-8") as fp:
+                      micro = json.load(fp)
+                  metadata = {
+                      "created_at": datetime.now(timezone.utc).isoformat(),
+                      "source": "github-actions",
+                      "github_run_id": os.environ.get("GITHUB_RUN_ID", ""),
+                      "github_sha": os.environ.get("GITHUB_SHA", ""),
+                      "metric_semantics_version": simulator.get("metric_semantics_version") or micro.get("metric_semantics_version"),
+                      "yamcs_quickstart": simulator.get("yamcs_quickstart", ""),
+                      "simulator_rate_hz": simulator.get("simulator_rate", 0),
+                      "stream_read_interval": f"{simulator.get('read_interval_ms', 0)}ms",
+                      "parameter_count": len(simulator.get("parameters", []) or micro.get("parameters", [])),
+                  }
+                  with open(os.path.join(baseline_dir, "metadata.json"), "w", encoding="utf-8") as fp:
+                      json.dump(metadata, fp, indent=2)
+                      fp.write("\n")
+                  PY
+            - uses: peter-evans/create-pull-request@v7
+              with:
+                  branch: chore/refresh-benchmark-baseline
+                  delete-branch: true
+                  commit-message: "bench: refresh long-term baseline"
+                  title: "Bench: Refresh long-term baseline"
+                  body: |
+                      Refreshes the checked-in long-term benchmark baseline from GitHub Actions.
+
+                      The scenario, microbenchmark, and Grafana layers run in separate CI jobs, then update the checked-in long-term baseline files.
+                  add-paths: |
+                      scripts/benchmarks/baselines/long-term/simulator.json
+                      scripts/benchmarks/baselines/long-term/simulator.csv
+                      scripts/benchmarks/baselines/long-term/microbenchmarks.json
+                      scripts/benchmarks/baselines/long-term/grafana.json
+                      scripts/benchmarks/baselines/long-term/metadata.json

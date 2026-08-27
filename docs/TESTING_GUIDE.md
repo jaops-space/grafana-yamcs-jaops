@@ -37,33 +37,39 @@ Run Yamcs-backed stream scenario benchmarks:
     pip install -r scripts/benchmarks/requirements.txt
     pnpm run bench
 
-Benchmark CI is conditional. On pull requests, add the `run-benchmark` label to run the benchmark job. The job also supports manual `workflow_dispatch` runs from GitHub Actions. Warn thresholds create/update a PR comment and keep CI green; fail thresholds create/update the comment and fail the benchmark job.
+Refresh the checked-in long-term benchmark baseline:
 
-This starts Yamcs quickstart's `simulator.py` by default, opens N concurrent Grafana stream demands against the quickstart `myproject/realtime` processor, and reads each stream buffer from its own goroutine. Performance plots use concurrent Grafana streams (`N`) on the x-axis and one metric curve per file:
+    pnpm run bench:baseline
 
-- average read-and-clear latency
-- average Yamcs listener process latency
+Benchmark CI is conditional. On pull requests, add the `run-benchmark` label to run the benchmark job and create or update the benchmark PR comment with all plots. The job also supports manual `workflow_dispatch` runs from GitHub Actions. Warn thresholds keep CI green; fail thresholds fail the benchmark job.
+
+This starts Yamcs quickstart's `simulator.py` by default, opens N concurrent Grafana stream demands against the quickstart `myproject/realtime` processor, and reads each stream buffer from its own goroutine. Performance plots use concurrent Grafana streams (`N`) on the x-axis and one metric per file:
+
 - live memory growth and total allocated bytes
 - values read per second
-- average values per read-and-clear operation
 - percentage of values read within the 1 second freshness window
-- average/max value buffer age and max stall beyond the freshness window
-- worst total per-tick RunStream workload across all streams
+- median RunStream busy work per 1s tick
 - stream setup time
 
 By default the benchmark matches Yamcs quickstart's simulator cadence: simulator rate `1 Hz`, stream read interval `1s`, and freshness window `1s`. A value counts as fresh when it is read from its Grafana stream buffer within one second of being placed there by the Yamcs listener.
 
 See [BENCHMARKING.md](./BENCHMARKING.md) for the full scenario description, metric definitions, thresholds, and CI behavior.
 
-Invariant metrics such as goroutine count, stream goroutine count, unique parameter count, active Yamcs subscription count, paths per parameter, and scenario wall time remain in JSON/CSV for sanity checks, but are not plotted. Thresholds are rendered directly on plots where they apply and are also included in the JSON output. Distant thresholds are hidden so plots can zoom into observed behavior. Use `--fail-on-threshold` to make failed thresholds exit non-zero:
+Invariant and diagnostic metrics such as empty read percentage, legacy RunStream wall span, and scenario wall time remain in JSON/CSV for sanity checks, but are not primary plots. Plots show the current result, the PR base benchmark when available, and the checked-in long-term baseline when available. Baseline percentage changes are reported as median, maximum negative, and maximum positive informational values and do not affect WARN or FAIL status.
+
+Thresholds are rendered directly on plots where they apply and are also included in the JSON output. Distant thresholds are hidden so plots can zoom into observed behavior. Use `--fail-on-threshold` to make failed thresholds exit non-zero:
 
     pnpm run bench -- --fail-on-threshold
 
-Yamcs stream scenario output files are written directly to `benchmark-output/`:
+Benchmark output files are written by layer:
 
-- `yamcs-stream-results.json`
-- `yamcs-stream-results.csv`
+- `microbenchmarks/microbenchmarks.json`
+- `simulator/simulator.json`
+- `simulator/simulator.csv`
+- `grafana/grafana.json`
 - `plots/*.png`
+- `benchmark-status.json`
+- `benchmark-comment.md`
 
 ## Prerequisites
 

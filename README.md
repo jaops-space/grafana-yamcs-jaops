@@ -21,7 +21,7 @@
 <p align="center">
   <a href="https://grafana.com/grafana/plugins/jaops-yamcs-app/">Grafana Catalog</a>
   ·
-  <a href="./setup_instructions.md">Setup Instructions</a>
+  <a href="./docs/SETUP_INSTRUCTIONS.md">Setup Instructions</a>
   ·
   <a href="./docs/TESTING_GUIDE.md">Testing Guide</a>
   ·
@@ -40,6 +40,15 @@ This plugin is engineered for high reliability to be used in Mission Control Cen
 The current version has already been tested in real-world deployments but active development continues and community feedback and contributions are very welcome.
 
 Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control software, tools and training for spacecraft in orbit and rovers on the Moon!
+
+### Install and Try
+
+There are two common ways to use the plugin:
+
+- **One-click catalog install:** install the signed release from the [Grafana Catalog](https://grafana.com/grafana/plugins/jaops-yamcs-app/) when you want the latest published version.
+- **Local development install:** follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) when you want to test unreleased changes, contribute, or run the local demo environment.
+
+For a quick Yamcs demo, use the [JAOPS Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart). The plugin also includes in-app tutorials for each panel, available from the main navigation menu in Grafana.
 
 <table>
   <tr>
@@ -149,7 +158,7 @@ Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control
 - **Replay/Simulation support** - Visualize replays and future simulations through synchronization between Grafana and Yamcs clock.
 
 <p align="center">
-  <img src="./screenshots/DesignDocument.png" alt="Design document" width="900">
+  <img src="./docs/PLUGIN_MODEL.png" alt="Plugin model document" width="900">
 </p>
 
 ## Example Grafana Dashboard Connected to Yamcs
@@ -157,14 +166,14 @@ Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control
 Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
 They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
 
-After cloning the repository, run in three separate terminals:
+After cloning the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart), run in separate terminals:
 
 ```bash
 ./mvn yamcs:run
 ```
 
 ```bash
-python3 simulator.sh
+python3 simulator.py
 ```
 
 ```bash
@@ -175,20 +184,16 @@ python3 simulator/images/generate_images.py
   <img src="./screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">
 </p>
 
-## Archive Database Configuration
-
-The plugin supports querying telemetry from live Yamcs data.
-
 ## Try Out the Plugin for Yourself
 
-Follow the [setup instruction](./setup_instructions.md) to get started in just a few minutes.
+Follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) to get started in just a few minutes.
 
 For deeper development and validation workflows:
 
 | Guide | Purpose |
 | --- | --- |
 | [Testing Guide](./docs/TESTING_GUIDE.md) | Local unit, integration, and end-to-end testing workflows. |
-| [Benchmarking](./docs/BENCHMARKING.md) | Yamcs stream benchmark setup, metrics, plots, and CI behavior. |
+| [Benchmarking](./docs/BENCHMARKING.md) | Benchmark setup, metrics, plots, and CI behavior. |
 | [Plugin Signing](./docs/PLUGIN_SIGNING.md) | Signing and release preparation notes. |
 | [GitHub Secrets Setup](./docs/GITHUB_SECRETS_SETUP.md) | CI secret configuration. |
 
@@ -198,7 +203,7 @@ Contributions are welcome!
 
 If you find a bug, have a feature request, or want to improve the project, feel free to open an issue or submit a pull request.
 
-Please follow the existing code style and include tests if applicable. For major changes, it's recommended to open a discussion first. Read the [contributing guidelines](./CONTRIBUTING.md) for further indications on how to contribute.
+Please follow the existing code style and include tests if applicable. For major changes, it's recommended to open a discussion first. Read the [contributing guidelines](./docs/CONTRIBUTING.md) for further indications on how to contribute.
 
 ## Acknowledgements
 

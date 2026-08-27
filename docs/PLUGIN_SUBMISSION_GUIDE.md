@@ -58,7 +58,7 @@ jaops-yamcs-app/                    # Main app plugin
 3. **Documentation**:
     - README.md
     - TESTING_GUIDE.md
-    - setup_instructions.md
+    - docs/SETUP_INSTRUCTIONS.md
 4. **Test Environment**: Provisioning configuration
 
 5. **Security Audit and sumbission steps**

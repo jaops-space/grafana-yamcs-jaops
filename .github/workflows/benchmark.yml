@@ -1,28 +1,23 @@
 name: Benchmark
 
 on:
-    workflow_dispatch:
     pull_request:
         types: [opened, synchronize, reopened, labeled]
         branches:
             - master
             - main
-        paths:
-            - "pkg/source/**"
-            - "pkg/plugin/**"
-            - "pkg/yamcs/**"
-            - "scripts/benchmarks/**"
-            - ".github/workflows/benchmark.yml"
-            - "package.json"
 
 permissions:
     contents: read
 
+concurrency:
+    group: benchmark-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
 jobs:
-    benchmark:
-        name: Performance Benchmark
+    resolve-base:
+        name: Resolve benchmark base
         runs-on: ubuntu-latest
-        timeout-minutes: 20
         if: >-
             ${{
               github.event_name == 'workflow_dispatch' ||
@@ -32,276 +27,387 @@ jobs:
                 contains(github.event.pull_request.labels.*.name, 'run-benchmark')
               )
             }}
-        permissions:
-            contents: write
-            actions: read
-            issues: write
-            pull-requests: write
-
+        outputs:
+            sha: ${{ steps.base.outputs.sha }}
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+            - name: Determine benchmark base commit
+              id: base
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  BASE_REF: ${{ github.event.pull_request.base.ref }}
+              run: |
+                  if [ "$EVENT_NAME" = "pull_request" ]; then
+                    if git rev-parse --verify HEAD^2 >/dev/null 2>&1; then
+                      BASE_SHA="$(git merge-base HEAD^2 HEAD^1)"
+                    else
+                      git fetch --no-tags origin "$BASE_REF"
+                      BASE_SHA="$(git merge-base HEAD FETCH_HEAD)"
+                    fi
+                  else
+                    BASE_SHA="$(git rev-parse HEAD)"
+                  fi
+                  echo "sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
 
-            - name: Setup Go environment
-              uses: actions/setup-go@v5
+    micro-benchmark:
+        name: Microbenchmarks (perf)
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        needs: resolve-base
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
               with:
                   go-version-file: go.mod
-
-            - name: Setup Python
-              uses: actions/setup-python@v5
+                  cache: false
+            - uses: actions/setup-python@v5
               with:
                   python-version: "3.12"
-
-            - uses: pnpm/action-setup@v3
-
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - run: pip install -r scripts/benchmarks/requirements.txt
+            - uses: actions/checkout@v4
               with:
-                  node-version: "22"
+                  ref: ${{ needs.resolve-base.outputs.sha }}
+                  path: benchmark-base-source
+            - name: Run base microbenchmarks
+              working-directory: benchmark-base-source
+              run: |
+                  if [ -f scripts/benchmarks/micro/run.py ]; then
+                    python3 scripts/benchmarks/micro/run.py --output-dir ../benchmark-output/microbenchmarks/baseline
+                  elif [ -f scripts/benchmarks/microbenchmarks.py ]; then
+                    python3 scripts/benchmarks/microbenchmarks.py --output-dir ../benchmark-output/microbenchmarks/baseline
+                  elif [ -f scripts/benchmarks/benchmark_yamcs_streams.py ] && grep -q -- "--only" scripts/benchmarks/benchmark_yamcs_streams.py; then
+                    python3 scripts/benchmarks/benchmark_yamcs_streams.py --only micro --output-dir ../benchmark-output/microbenchmarks/baseline
+                  fi
+            - name: Run microbenchmarks
+              run: python3 scripts/benchmarks/micro/run.py --output-dir benchmark-output/microbenchmarks/head
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: benchmark-micro
+                  path: benchmark-output/microbenchmarks
+                  retention-days: 14
 
+    scenario-benchmark:
+        name: Simulator benchmarks (perf)
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        needs: resolve-base
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+                  cache: false
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install -r scripts/benchmarks/requirements.txt
             - name: Install Yamcs quickstart
               run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
-
             - name: Start Yamcs quickstart
               working-directory: /tmp/yamcs-quickstart
               run: |
                   cd docker
                   docker compose up -d yamcs
                   timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
-
-            - name: Install benchmark Python deps
-              run: pip install -r scripts/benchmarks/requirements.txt
-
-            - name: Determine PR base benchmark commit
-              if: ${{ github.event_name == 'pull_request' }}
-              id: benchmark-base
-              run: |
-                  if git rev-parse --verify HEAD^2 >/dev/null 2>&1; then
-                    BASE_SHA="$(git merge-base HEAD^2 HEAD^1)"
-                  else
-                    git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
-                    BASE_SHA="$(git merge-base HEAD FETCH_HEAD)"
-                  fi
-                  echo "sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
-
-            - name: Checkout PR base benchmark source
-              if: ${{ github.event_name == 'pull_request' }}
-              uses: actions/checkout@v4
+            - uses: actions/checkout@v4
               with:
-                  ref: ${{ steps.benchmark-base.outputs.sha }}
+                  ref: ${{ needs.resolve-base.outputs.sha }}
                   path: benchmark-base-source
-
-            - name: Run PR base benchmark
-              if: ${{ github.event_name == 'pull_request' }}
-              id: run-baseline-benchmark
-              continue-on-error: true
+            - name: Run base simulator scenario
               working-directory: benchmark-base-source
               run: |
-                  if [ ! -f scripts/benchmarks/benchmark_yamcs_streams.py ]; then
-                    echo "Base commit has no Yamcs benchmark script; skipping baseline."
-                    exit 0
+                  if [ -f scripts/benchmarks/simulator/run.py ]; then
+                    python3 scripts/benchmarks/simulator/run.py --output-dir ../benchmark-output/simulator/baseline
+                  elif [ -f scripts/benchmarks/simulator.py ]; then
+                    python3 scripts/benchmarks/simulator.py --output-dir ../benchmark-output/simulator/baseline
+                  elif [ -f scripts/benchmarks/benchmark_yamcs_streams.py ] && grep -q -- "--only" scripts/benchmarks/benchmark_yamcs_streams.py; then
+                    python3 scripts/benchmarks/benchmark_yamcs_streams.py --only scenario --output-dir ../benchmark-output/simulator/baseline
+                  elif [ -f scripts/benchmarks/benchmark_yamcs_streams.py ]; then
+                    python3 scripts/benchmarks/benchmark_yamcs_streams.py --output-dir ../benchmark-output/simulator/baseline
                   fi
-                  python3 scripts/benchmarks/benchmark_yamcs_streams.py \
-                    --output-dir ../benchmark-output/baseline
-
-            - name: Run performance benchmark
-              id: run-benchmark
-              continue-on-error: true
+            - name: Run simulator scenario
+              env:
+                  BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
               run: |
-                  pnpm run bench -- \
-                    --baseline-results benchmark-output/baseline/yamcs-stream-results.json
-
-            - name: Generate benchmark report files
-              if: ${{ steps.run-benchmark.outcome == 'success' }}
-              run: |
-                  pnpm run bench:report -- \
-                    --output-dir benchmark-output \
-                    --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-            - name: Upload benchmark artifacts
-              id: upload-benchmark
+                  python3 scripts/benchmarks/simulator/run.py \
+                    --output-dir benchmark-output/simulator/head \
+                    --baseline-results benchmark-output/simulator/baseline/simulator.json \
+                    --baseline-commit "$BASELINE_COMMIT"
+            - name: Collect scenario logs
               if: always()
-              uses: actions/upload-artifact@v4
+              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs > benchmark-output/simulator/yamcs.log || true
+            - name: Stop scenario services
+              if: always()
+              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+            - uses: actions/upload-artifact@v4
+              if: always()
               with:
-                  name: benchmark-${{ github.run_id }}
-                  path: benchmark-output
+                  name: benchmark-scenario
+                  path: benchmark-output/simulator
                   retention-days: 14
 
+    grafana-benchmark:
+        name: Grafana Live benchmarks (perf)
+        runs-on: ubuntu-latest
+        timeout-minutes: 35
+        needs: resolve-base
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v3
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+                  cache: false
+            - run: pnpm install --frozen-lockfile --prefer-offline
+            - name: Install Yamcs quickstart
+              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
+            - name: Start Yamcs quickstart
+              working-directory: /tmp/yamcs-quickstart
+              run: |
+                  cd docker
+                  docker compose up -d yamcs
+                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.resolve-base.outputs.sha }}
+                  path: benchmark-base-source
+            - name: Run base Grafana benchmark
+              working-directory: benchmark-base-source
+              run: |
+                  if [ -f tests/benchmark/streaming.benchmark.spec.ts ]; then
+                    pnpm install --frozen-lockfile --prefer-offline
+                    pnpm run build
+                    go run github.com/magefile/mage -v buildAll
+                    go build -o dist/gpx_grafana_yamcs_jaops_linux_amd64 -tags "arrow_json_stdlib benchmark" ./pkg
+                    docker compose down -v || true
+                    ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
+                    timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
+                    cd /tmp/yamcs-quickstart
+                    nohup python3 simulator.py --tm_host 127.0.0.1 --tm_port 10015 --rate 1 --testdata /tmp/yamcs-quickstart/testdata.ccsds > /tmp/yamcs-simulator-base.log 2>&1 &
+                    echo "$!" > /tmp/yamcs-simulator-base.pid
+                    cd "$GITHUB_WORKSPACE/benchmark-base-source"
+                    pnpm exec playwright install chromium --with-deps
+                    GRAFANA_BENCHMARK_OUTPUT="../benchmark-output/grafana/baseline/grafana.json" pnpm run bench:grafana
+                    if [ -f /tmp/yamcs-simulator-base.pid ]; then
+                      kill "$(cat /tmp/yamcs-simulator-base.pid)" 2>/dev/null || true
+                    fi
+                    docker compose down -v
+                  fi
+            - name: Build plugin for Grafana benchmark
+              run: |
+                  pnpm run build
+                  go run github.com/magefile/mage -v buildAll
+                  go build -o dist/gpx_grafana_yamcs_jaops_linux_amd64 -tags "arrow_json_stdlib benchmark" ./pkg
+            - name: Run Grafana benchmark
+              run: |
+                  docker compose down -v || true
+                  ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
+                  timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
+                  cd /tmp/yamcs-quickstart
+                  nohup python3 simulator.py --tm_host 127.0.0.1 --tm_port 10015 --rate 1 --testdata /tmp/yamcs-quickstart/testdata.ccsds > /tmp/yamcs-simulator-head.log 2>&1 &
+                  echo "$!" > /tmp/yamcs-simulator-head.pid
+                  cd "$GITHUB_WORKSPACE"
+                  pnpm exec playwright install chromium --with-deps
+                  GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/head/grafana.json" pnpm run bench:grafana
+                  if [ -f /tmp/yamcs-simulator-head.pid ]; then
+                    kill "$(cat /tmp/yamcs-simulator-head.pid)" 2>/dev/null || true
+                  fi
+            - name: Collect Grafana logs
+              if: always()
+              run: |
+                  docker logs jaops-yamcs-app > benchmark-output/grafana/grafana.log 2>&1 || true
+                  cp /tmp/yamcs-simulator-base.log benchmark-output/grafana/yamcs-simulator-base.log || true
+                  cp /tmp/yamcs-simulator-head.log benchmark-output/grafana/yamcs-simulator-head.log || true
+            - name: Stop Grafana services
+              if: always()
+              run: |
+                  if [ -f /tmp/yamcs-simulator-base.pid ]; then
+                    kill "$(cat /tmp/yamcs-simulator-base.pid)" 2>/dev/null || true
+                  fi
+                  if [ -f /tmp/yamcs-simulator-head.pid ]; then
+                    kill "$(cat /tmp/yamcs-simulator-head.pid)" 2>/dev/null || true
+                  fi
+                  docker compose down -v || true
+                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: benchmark-grafana
+                  path: benchmark-output/grafana
+                  retention-days: 14
+
+    benchmark-report:
+        name: Report results
+        runs-on: ubuntu-latest
+        needs: [resolve-base, micro-benchmark, scenario-benchmark, grafana-benchmark]
+        if: always() && needs.resolve-base.result == 'success'
+        outputs:
+            should_comment: ${{ steps.benchmark-status.outputs.should_comment }}
+            should_fail: ${{ steps.benchmark-status.outputs.should_fail }}
+        # Read-only: this job checks out the PR ref and runs scripts/benchmarks/report.py,
+        # which is PR-controlled code. It must never hold write tokens (see benchmark-publish).
+        permissions:
+            actions: read
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+            - run: pip install -r scripts/benchmarks/requirements.txt
+            - uses: actions/download-artifact@v4
+              with:
+                  name: benchmark-scenario
+                  path: artifacts/simulator
+            - uses: actions/download-artifact@v4
+              with:
+                  name: benchmark-micro
+                  path: artifacts/microbenchmarks
+            - uses: actions/download-artifact@v4
+              with:
+                  name: benchmark-grafana
+                  path: artifacts/grafana
+            - name: Build benchmark report
+              env:
+                  BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  python3 scripts/benchmarks/report.py \
+                    --output-dir benchmark-output \
+                    --simulator-results artifacts/simulator/head/simulator.json \
+                    --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
+                    --grafana-results artifacts/grafana/head/grafana.json \
+                    --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
+                    --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
+                    --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
+                    --baseline-commit "$BASELINE_COMMIT" \
+                    --run-url "$RUN_URL"
             - name: Read benchmark status
-              if: ${{ steps.run-benchmark.outcome == 'success' }}
               id: benchmark-status
               run: |
                   python3 - <<'PY' >> "$GITHUB_OUTPUT"
                   import json
                   with open("benchmark-output/benchmark-status.json", encoding="utf-8") as fp:
-                      status = json.load(fp)
-                  print(f"status={status['status']}")
-                  print(f"should_comment={str(status['should_comment']).lower()}")
-                  print(f"should_fail={str(status['should_fail']).lower()}")
+                      report = json.load(fp)
+                  status = report.get("status", "pass")
+                  print(f"status={status}")
+                  print(f"should_comment={str(report.get('should_comment', True)).lower()}")
+                  print(f"should_fail={str(report.get('should_fail', status == 'fail')).lower()}")
                   PY
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: benchmark-${{ github.run_id }}
+                  path: benchmark-output
+                  retention-days: 14
+            - name: Fail benchmark on threshold failure
+              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
+              run: exit 1
 
+    # Separate from benchmark-report on purpose: benchmark-report checks out the PR ref and
+    # executes PR-controlled code (scripts/benchmarks/report.py), so it must stay read-only.
+    # This job only downloads the already-produced artifact and talks to the GitHub API -
+    # no PR code is checked out or executed here - so it's safe to grant it write access.
+    benchmark-publish:
+        name: Publish report
+        runs-on: ubuntu-latest
+        needs: [benchmark-report]
+        if: >-
+            ${{
+              always() &&
+              github.event_name == 'pull_request' &&
+              needs.benchmark-report.outputs.should_comment == 'true'
+            }}
+        permissions:
+            actions: read
+            contents: write
+            issues: write
+            pull-requests: write
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  name: benchmark-${{ github.run_id }}
+                  path: benchmark-output
             - name: Publish benchmark plot images for PR artifacts
               id: publish-plots
-              if: >-
-                  ${{
-                    github.event_name == 'pull_request' &&
-                    steps.run-benchmark.outcome == 'success' &&
-                    steps.benchmark-status.outputs.should_comment == 'true'
-                  }}
               continue-on-error: true
               uses: actions/github-script@v8
               with:
                   script: |
                       const fs = require('fs');
                       const path = require('path');
-                      const status = JSON.parse(fs.readFileSync('benchmark-output/benchmark-status.json', 'utf8'));
-                      const regressionPlots = status.regression_plots || [];
                       const plotsDir = path.join('benchmark-output', 'plots');
                       const allPlots = fs.existsSync(plotsDir)
                         ? fs.readdirSync(plotsDir).filter((name) => name.endsWith('.png'))
                         : [];
-
                       if (allPlots.length === 0) {
                         core.setOutput('plots-base-url', '');
                         return;
                       }
-
                       const {owner, repo} = context.repo;
                       const prNumber = context.payload.pull_request.number;
                       const runId = context.runId;
                       const branch = `benchmark-artifacts-pr-${prNumber}`;
                       const prefix = `benchmark/run-${runId}/plots`;
-                      const defaultBranch = context.payload.repository.default_branch;
-
+                      let parentSha;
                       try {
-                        await github.rest.git.getRef({owner, repo, ref: `heads/${branch}`});
+                        const ref = await github.rest.git.getRef({owner, repo, ref: `heads/${branch}`});
+                        parentSha = ref.data.object.sha;
                       } catch (error) {
-                        if (error.status !== 404) {
-                          throw error;
-                        }
-                        const base = await github.rest.git.getRef({owner, repo, ref: `heads/${defaultBranch}`});
-                        await github.rest.git.createRef({
-                          owner,
-                          repo,
-                          ref: `refs/heads/${branch}`,
-                          sha: base.data.object.sha,
-                        });
+                        if (error.status !== 404) throw error;
                       }
-
+                      const treeEntries = [];
                       for (const plot of allPlots) {
                         const source = path.join(plotsDir, plot);
-                        const target = `${prefix}/${plot}`;
-                        let sha;
-                        try {
-                          const existing = await github.rest.repos.getContent({
-                            owner,
-                            repo,
-                            path: target,
-                            ref: branch,
-                          });
-                          if (!Array.isArray(existing.data)) {
-                            sha = existing.data.sha;
-                          }
-                        } catch (error) {
-                          if (error.status !== 404) {
-                            throw error;
-                          }
-                        }
-
-                        await github.rest.repos.createOrUpdateFileContents({
-                          owner,
-                          repo,
-                          branch,
-                          path: target,
-                          message: `Add Yamcs benchmark plot for PR #${prNumber}, run ${runId}`,
+                        const blob = await github.rest.git.createBlob({
+                          owner, repo,
                           content: fs.readFileSync(source).toString('base64'),
-                          sha,
+                          encoding: 'base64',
                         });
+                        treeEntries.push({path: `${prefix}/${plot}`, mode: '100644', type: 'blob', sha: blob.data.sha});
                       }
-
-                      const plotsBaseUrl = regressionPlots.length > 0
-                        ? `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`
-                        : '';
-                      core.setOutput('plots-base-url', plotsBaseUrl);
-
-            - name: Add artifact link to benchmark PR comment
-              if: ${{ steps.run-benchmark.outcome == 'success' }}
-              run: |
-                  pnpm run bench:report -- \
-                    --output-dir benchmark-output \
-                    --artifact-url "${{ steps.upload-benchmark.outputs.artifact-url }}" \
-                    --plots-base-url "${{ steps.publish-plots.outputs.plots-base-url }}" \
-                    --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-            - name: Comment benchmark warnings or failures
-              if: >-
-                  ${{
-                    github.event_name == 'pull_request' &&
-                    steps.run-benchmark.outcome == 'success' &&
-                    steps.benchmark-status.outputs.should_comment == 'true'
-                  }}
+                      const tree = await github.rest.git.createTree({owner, repo, tree: treeEntries});
+                      const commit = await github.rest.git.createCommit({
+                        owner, repo,
+                        message: `Add benchmark plots for run ${runId}`,
+                        tree: tree.data.sha,
+                        parents: parentSha ? [parentSha] : [],
+                      });
+                      if (parentSha) {
+                        await github.rest.git.updateRef({owner, repo, ref: `heads/${branch}`, sha: commit.data.sha});
+                      } else {
+                        await github.rest.git.createRef({owner, repo, ref: `refs/heads/${branch}`, sha: commit.data.sha});
+                      }
+                      core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
+            - name: Comment benchmark result
               continue-on-error: true
               uses: actions/github-script@v8
+              env:
+                  PLOTS_BASE_URL: ${{ steps.publish-plots.outputs.plots-base-url }}
               with:
                   script: |
                       const fs = require('fs');
                       const marker = '<!-- jaops-yamcs-benchmark-report -->';
-                      const body = fs.readFileSync('benchmark-output/benchmark-comment.md', 'utf8');
+                      const plotsBaseUrl = process.env.PLOTS_BASE_URL || '';
+                      let body = fs.readFileSync('benchmark-output/benchmark-comment.md', 'utf8');
+                      if (plotsBaseUrl) {
+                        body = body.replaceAll('benchmark-output/plots/', `${plotsBaseUrl}/`);
+                      }
                       const {owner, repo} = context.repo;
                       const issue_number = context.payload.pull_request.number;
-                      const comments = await github.paginate(github.rest.issues.listComments, {
-                        owner,
-                        repo,
-                        issue_number,
-                        per_page: 100,
-                      });
-                      const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+                      const comments = await github.paginate(github.rest.issues.listComments, {owner, repo, issue_number, per_page: 100});
+                      const existingComments = comments.filter((comment) => comment.body && comment.body.includes(marker));
+                      const existing = existingComments[0];
                       if (existing) {
-                        await github.rest.issues.updateComment({
-                          owner,
-                          repo,
-                          comment_id: existing.id,
-                          body,
-                        });
+                        await github.rest.issues.updateComment({owner, repo, comment_id: existing.id, body});
+                        for (const duplicate of existingComments.slice(1)) {
+                          await github.rest.issues.deleteComment({owner, repo, comment_id: duplicate.id});
+                        }
                       } else {
-                        await github.rest.issues.createComment({
-                          owner,
-                          repo,
-                          issue_number,
-                          body,
-                        });
+                        await github.rest.issues.createComment({owner, repo, issue_number, body});
                       }
-
-            - name: Delete benchmark PR comment when clean
-              if: >-
-                  ${{
-                    github.event_name == 'pull_request' &&
-                    steps.run-benchmark.outcome == 'success' &&
-                    steps.benchmark-status.outputs.should_comment == 'false'
-                  }}
-              continue-on-error: true
-              uses: actions/github-script@v8
-              with:
-                  script: |
-                      const marker = '<!-- jaops-yamcs-benchmark-report -->';
-                      const {owner, repo} = context.repo;
-                      const issue_number = context.payload.pull_request.number;
-                      const comments = await github.paginate(github.rest.issues.listComments, {
-                        owner,
-                        repo,
-                        issue_number,
-                        per_page: 100,
-                      });
-                      const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
-                      if (existing) {
-                        await github.rest.issues.deleteComment({
-                          owner,
-                          repo,
-                          comment_id: existing.id,
-                        });
-                      }
-
-            - name: Fail benchmark on threshold failure
-              if: ${{ steps.benchmark-status.outputs.should_fail == 'true' }}
-              run: exit 1
