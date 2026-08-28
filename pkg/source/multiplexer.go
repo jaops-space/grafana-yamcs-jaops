@@ -126,6 +126,13 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 // hosts connect (and their endpoints get resolved/subscribed) asynchronously,
 // as soon as each host's manager succeeds.
 //
+// Managers run off context.Background() rather than any caller-supplied
+// context: NewDatasource's ctx is scoped to the single request that happened
+// to trigger instance creation and is canceled as soon as that request
+// completes, which would otherwise cancel every future dial attempt for this
+// host's entire lifetime. Managers still stop cleanly via
+// stopConnectionManager() (see Dispose).
+//
 // SubscribeStream/RunStream never call Connect()/dial a host directly - they
 // call YamcsEndpoint.EnsureReady(), which checks current state and, if the
 // host isn't connected yet, calls host.RequestConnect() (a non-blocking nudge
@@ -133,7 +140,7 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 // unreachable host can never stall requests for any other host, and repeated
 // requests for a broken host never trigger their own redundant network dials
 // - the manager is the single owner of that host's retry pacing.
-func (mux *Multiplexer) StartConnectionManagers(ctx context.Context) {
+func (mux *Multiplexer) StartConnectionManagers() {
 	mux.SyncMux.RLock()
 	hosts := make(map[string]*YamcsHost, len(mux.Hosts))
 	for hostID, host := range mux.Hosts {
@@ -142,7 +149,7 @@ func (mux *Multiplexer) StartConnectionManagers(ctx context.Context) {
 	mux.SyncMux.RUnlock()
 
 	for hostID, host := range hosts {
-		host.startConnectionManager(ctx, hostID, mux.finishHostConnect)
+		host.startConnectionManager(context.Background(), hostID, mux.finishHostConnect)
 	}
 }
 

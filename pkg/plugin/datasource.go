@@ -39,7 +39,7 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	// subscribed) asynchronously as each manager's dial succeeds, so a slow
 	// or unreachable host never delays plugin startup, and can never block
 	// requests for any other host either. See YamcsHost.runConnectionManager.
-	multiplexer.StartConnectionManagers(ctx)
+	multiplexer.StartConnectionManagers()
 
 	router := mux.NewRouter()
 	datasource.registerRoutes(router)
