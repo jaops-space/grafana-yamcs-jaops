@@ -158,7 +158,7 @@ func (d *Datasource) applyConnectivityChecks(
 		return err
 	}
 
-	hostErrors, epsErrors := testMux.Connect(ctx, false)
+	hostErrors, epsErrors := testMux.ConnectSync(ctx, false)
 
 	for hostID, host := range cfg.Hosts {
 		if current, exists := details.Hosts[hostID]; exists && current.Status != "ok" {

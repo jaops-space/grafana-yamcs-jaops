@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
@@ -53,6 +54,19 @@ type YamcsClient struct {
 	TimeSubscriptions              map[int32]*TimeSubscription
 	LinkSubscriptions              map[int32]*LinkSubscription
 	ProcessorSubscriptions         map[int32]*ProcessorSubscription
+
+	// disconnectMu guards disconnectSignal so it can be safely read, closed and
+	// replaced concurrently from the WebSocket's disconnect handler (writer)
+	// and from any number of RunStream goroutines (readers).
+	disconnectMu sync.Mutex
+
+	// disconnectSignal is closed exactly once whenever the underlying
+	// WebSocket connection is lost, and replaced with a fresh, open channel on
+	// every successful (re)connect. Streams should select on Disconnected()
+	// instead of periodically polling IsWebSocketConnected(), so a dropped
+	// connection is reacted to immediately instead of up to a polling
+	// interval later.
+	disconnectSignal chan struct{}
 }
 
 // NewYamcsClient constructs a new YamcsClient.
@@ -88,6 +102,7 @@ func NewYamcsClientWithContext(
 		TimeSubscriptions:              make(map[int32]*TimeSubscription),
 		LinkSubscriptions:              make(map[int32]*LinkSubscription),
 		ProcessorSubscriptions:         make(map[int32]*ProcessorSubscription),
+		disconnectSignal:               make(chan struct{}),
 	}
 
 	// WebSocket URL based on whether TLS is enabled
@@ -121,6 +136,7 @@ func NewYamcsClientWithContext(
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {
 		client.clearAllSubscriptions()
+		client.signalDisconnected()
 	})
 
 	return client, nil
@@ -133,9 +149,63 @@ func (client *YamcsClient) EstablishWebSocketConnection(ctx context.Context) err
 	err := client.WebSocket.Connect(ctx)
 	if err == nil {
 		client.clearAllSubscriptions()
+		client.resetDisconnectSignal()
 		go client.WebSocket.Listen()
 	}
 	return err
+}
+
+// Disconnected returns a channel that is closed exactly once the underlying
+// WebSocket connection is lost. Streams should select on this channel (rather
+// than, or in addition to, periodically polling IsWebSocketConnected()) so a
+// dropped connection is reacted to the moment it happens instead of only on
+// the next poll tick - which previously left streams blocked on an event
+// signal for up to a full polling interval (or indefinitely, for streams that
+// didn't poll at all) after the connection was actually already gone.
+//
+// The returned channel is only valid for the connection that was active when
+// Disconnected() was called; after a reconnect, a fresh channel is created,
+// so callers that keep running across reconnects should call Disconnected()
+// again rather than caching the returned channel.
+func (client *YamcsClient) Disconnected() <-chan struct{} {
+	client.disconnectMu.Lock()
+	defer client.disconnectMu.Unlock()
+	if client.disconnectSignal == nil {
+		// Defensively lazy-init: guards against a YamcsClient constructed via
+		// struct literal (e.g. in tests) rather than NewYamcsClient, which
+		// would otherwise leave this nil and make Disconnected() block
+		// forever instead of ever firing.
+		client.disconnectSignal = make(chan struct{})
+	}
+	return client.disconnectSignal
+}
+
+// signalDisconnected closes the current disconnect signal, waking up any
+// stream goroutines blocked on Disconnected(). Safe to call more than once
+// for the same disconnect event (e.g. if both an explicit Disconnect() and
+// the read loop's own cleanup both observe the same drop).
+func (client *YamcsClient) signalDisconnected() {
+	client.disconnectMu.Lock()
+	defer client.disconnectMu.Unlock()
+	if client.disconnectSignal == nil {
+		client.disconnectSignal = make(chan struct{})
+	}
+	select {
+	case <-client.disconnectSignal:
+		// already closed for this connection attempt
+	default:
+		close(client.disconnectSignal)
+	}
+}
+
+// resetDisconnectSignal replaces the disconnect signal with a fresh, open
+// channel. Called after every successful (re)connect so a previously closed
+// signal doesn't cause newly started streams to immediately think they're
+// disconnected.
+func (client *YamcsClient) resetDisconnectSignal() {
+	client.disconnectMu.Lock()
+	defer client.disconnectMu.Unlock()
+	client.disconnectSignal = make(chan struct{})
 }
 
 func (client *YamcsClient) CloseWebSocketConnection() error {

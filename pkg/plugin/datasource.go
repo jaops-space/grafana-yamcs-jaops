@@ -34,7 +34,12 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	}
 	datasource.multiplexer = multiplexer
 
-	multiplexer.Connect(ctx, true)
+	// Kick off each host's background connection manager. This returns
+	// immediately - hosts connect (and their endpoints get resolved/
+	// subscribed) asynchronously as each manager's dial succeeds, so a slow
+	// or unreachable host never delays plugin startup, and can never block
+	// requests for any other host either. See YamcsHost.runConnectionManager.
+	multiplexer.StartConnectionManagers(ctx)
 
 	router := mux.NewRouter()
 	datasource.registerRoutes(router)
@@ -47,8 +52,6 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 // SubscribeStream handles the initial data request when a user subscribes to a stream.
 // It fetches the historical data based on the query and returns it as the initial response.
 func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
-
-	d.multiplexer.Connect(ctx, true)
 
 	var q PluginQuery
 
@@ -64,6 +67,26 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Demands/Subscriptions just ack immediately below without touching the
+	// endpoint's host/instance state at all, so they're exempt from the
+	// readiness check (and, for Demands specifically, are meant to work even
+	// while the host is disconnected - see RunDemandsStream).
+	if q.Type != Demands && q.Type != Subscriptions {
+		// Fail fast, purely from in-memory state, if this endpoint's host isn't
+		// connected or its instance/processor hasn't resolved. This never touches
+		// the network: if the host isn't connected, it asks the host's background
+		// connection manager to try (a non-blocking request, not a dial performed
+		// here) and returns immediately. Grafana Live retries failed stream
+		// subscriptions on its own schedule for as long as the panel stays open,
+		// so returning fast here (instead of attempting - and failing - a real
+		// historical-data request against a host/instance known to be
+		// unavailable) is what keeps a persistently broken query from flooding
+		// Yamcs with doomed requests, no matter how many panels/users retry it.
+		if err := endpoint.EnsureReady(); err != nil {
+			return nil, err
+		}
 	}
 
 	// Create a Grafana data frame based on the requested query type
@@ -134,8 +157,6 @@ func (d *Datasource) PublishStream(context.Context, *backend.PublishStreamReques
 // how historical data is retrieved, making real-time and historical views seamless.
 func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
 
-	d.multiplexer.Connect(ctx, true)
-
 	var q PluginQuery
 
 	// Parse the query from the request payload
@@ -150,6 +171,20 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 	endpoint, err := d.multiplexer.GetEndpoint(q.EndpointID)
 	if err != nil {
 		return err
+	}
+
+	// Same fast, in-memory-only readiness check as SubscribeStream: if the
+	// host isn't connected yet, request a (background, non-blocking) connect
+	// attempt and return immediately rather than blocking this call on a
+	// dial. Grafana Live's RunStream retry/backoff will call us again later.
+	//
+	// Demands is exempt: RunDemandsStream only reports local in-memory
+	// endpoint diagnostic state and is intentionally designed to keep running
+	// across host disconnects/reconnects.
+	if q.Type != Demands {
+		if err := endpoint.EnsureReady(); err != nil {
+			return err
+		}
 	}
 
 	// Route the stream to the appropriate handler

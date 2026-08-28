@@ -131,7 +131,7 @@ func TestIntegrationYamcs_EndpointLinksStreamFanoutBuildsColumnarFrame(t *testin
 		t.Fatalf("create multiplexer: %v", err)
 	}
 
-	hostErrors, endpointErrors := mux.Connect(streamCtx, false)
+	hostErrors, endpointErrors := mux.ConnectSync(streamCtx, false)
 	if len(hostErrors) != 0 || len(endpointErrors) != 0 {
 		t.Fatalf("connect multiplexer hostErrors=%v endpointErrors=%v", hostErrors, endpointErrors)
 	}

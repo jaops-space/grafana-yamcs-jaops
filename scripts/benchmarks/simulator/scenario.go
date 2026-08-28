@@ -214,7 +214,7 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 	defer mux.Dispose()
 
-	hostErrors, endpointErrors := mux.Connect(ctx, true)
+	hostErrors, endpointErrors := mux.ConnectSync(ctx, true)
 	if len(hostErrors) > 0 || len(endpointErrors) > 0 {
 		return scenarioMetric{}, fmt.Errorf("connect hostErrors=%v endpointErrors=%v", hostErrors, endpointErrors)
 	}

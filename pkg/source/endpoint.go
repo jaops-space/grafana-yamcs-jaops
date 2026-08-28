@@ -68,6 +68,8 @@ func (ep *YamcsEndpoint) GetInstance() (client.Instance, error) {
 	if host == nil {
 		return nil, errors.New("host not found")
 	}
+	host.mu.RLock()
+	defer host.mu.RUnlock()
 	hInstance := host.Instances[ep.Configuration.Instance]
 	if hInstance == nil || hInstance.Instance == nil {
 		return nil, errors.New("instance not found")
@@ -82,6 +84,8 @@ func (ep *YamcsEndpoint) GetProcessor() (client.Processor, error) {
 	if host == nil {
 		return nil, errors.New("host not found")
 	}
+	host.mu.RLock()
+	defer host.mu.RUnlock()
 	hInstance := host.Instances[ep.Configuration.Instance]
 	if hInstance == nil {
 		return nil, errors.New("instance not found")
@@ -98,4 +102,53 @@ func (ep *YamcsEndpoint) GetInstanceName() string {
 }
 func (ep *YamcsEndpoint) GetProcessorName() string {
 	return ep.Configuration.Processor
+}
+
+// EnsureReady checks, purely from in-memory state, whether this endpoint is
+// ready to serve a request right now: its host must be connected, and its
+// configured instance/processor must have actually been resolved on that host
+// (populated by the host's background connection manager after a successful
+// connect - see YamcsHost.runConnectionManager and Multiplexer.finishHostConnect).
+//
+// It never performs network I/O itself. If the host isn't connected yet, it
+// asks the host's connection manager to try (via RequestConnect, which is a
+// non-blocking nudge, not a direct dial) and returns immediately with an
+// error - callers should surface that error and let Grafana's own stream
+// retry mechanism call back in later, by which point the background manager
+// may have succeeded. This keeps SubscribeStream/RunStream from ever blocking
+// on - or repeatedly triggering - a network dial themselves, and from ever
+// issuing a doomed historical-data request against a host/instance that is
+// already known, in memory, to be unavailable.
+func (ep *YamcsEndpoint) EnsureReady() error {
+	host := ep.GetHost()
+	if host == nil {
+		return errors.New("host not found")
+	}
+
+	if !host.IsConnected() {
+		host.RequestConnect()
+		return errors.New("host not connected yet; reconnect requested")
+	}
+
+	instance, err := ep.GetInstance()
+	if err != nil {
+		return err
+	}
+
+	if ep.Configuration.Processor != "" {
+		if _, err := ep.GetProcessor(); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// No explicit processor configured: mirror connectEndpoint's default
+	// resolution (first persistent, non-replay processor), using data already
+	// fetched by the connect manager - no network call needed here.
+	for _, processor := range instance.GetProcessors() {
+		if processor.GetPersistent() && !processor.GetReplay() {
+			return nil
+		}
+	}
+	return errors.New("no default processor available for instance " + ep.Configuration.Instance)
 }

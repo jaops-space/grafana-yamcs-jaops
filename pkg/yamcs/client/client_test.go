@@ -150,3 +150,58 @@ func TestClientCloseDisposesHTTPAndClearsSubscriptions(t *testing.T) {
 		t.Fatal("expected all subscriptions to be cleared on close")
 	}
 }
+
+// TestClientDisconnectedSignalClosesOnDisconnect verifies that the channel
+// returned by Disconnected() is closed the moment the underlying WebSocket
+// connection drops, without requiring any caller to poll
+// IsWebSocketConnected(). This is what lets RunStream handlers (events, alarms,
+// command history, links, ...) react to a lost connection immediately instead
+// of blocking forever (or until the next poll tick) on a signal channel that
+// will never receive anything again.
+func TestClientDisconnectedSignalClosesOnDisconnect(t *testing.T) {
+	client, err := NewYamcsClient(
+		"somepath",
+		corehttp.GetNoTLSConfiguration(),
+		&corehttp.NoCredentials{},
+		OptionSetProtocol(false),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	disconnected := client.Disconnected()
+	select {
+	case <-disconnected:
+		t.Fatal("expected disconnect signal to be open before any disconnect")
+	default:
+	}
+
+	// Simulate a dropped connection the same way the WebSocket read loop does
+	// internally (ws.WebSocketHandler.Listen defers ForceDisconnect on any
+	// read error/close), without needing a real server.
+	client.WebSocket.ForceDisconnect()
+
+	select {
+	case <-disconnected:
+		// expected: signal closed immediately on disconnect
+	case <-time.After(time.Second):
+		t.Fatal("expected disconnect signal to be closed after ForceDisconnect")
+	}
+
+	// A second disconnect notification for the same (already-disconnected)
+	// connection must not panic from a double-close.
+	client.signalDisconnected()
+
+	// After a fresh connect, a NEW open signal should be handed out so newly
+	// started streams don't immediately think they're disconnected.
+	client.resetDisconnectSignal()
+	fresh := client.Disconnected()
+	select {
+	case <-fresh:
+		t.Fatal("expected a fresh, open disconnect signal after reconnect")
+	default:
+	}
+	if fresh == disconnected {
+		t.Fatal("expected resetDisconnectSignal to hand out a new channel instance")
+	}
+}

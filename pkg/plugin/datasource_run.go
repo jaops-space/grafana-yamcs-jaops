@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
 func getStreamTickerInterval(q PluginQuery, fallback time.Duration) time.Duration {
@@ -27,14 +28,6 @@ func getStreamTickerInterval(q PluginQuery, fallback time.Duration) time.Duratio
 	}
 	return interval
 }
-
-// livenessCheckInterval bounds how long an event-driven stream (alarms, links,
-// command history) can go without checking whether the underlying yamcs
-// websocket connection is still alive. Without this, a silently dropped
-// connection (e.g. one that doesn't produce a new event to react to) leaves
-// the stream blocked forever on its signal channel, never surfacing an error
-// and never letting Grafana Live re-establish the stream.
-const livenessCheckInterval = 5 * time.Second
 
 func minStreamTickerInterval(interval time.Duration) time.Duration {
 	if interval < 200*time.Millisecond {
@@ -62,20 +55,55 @@ func scaleTickerIntervalByReplay(endpoint *source.YamcsEndpoint, baseInterval ti
 	return minStreamTickerInterval(scaled)
 }
 
+// beginStreamGuard is the single place where every RunXStream handler checks
+// that this endpoint's Yamcs WebSocket is connected before doing any real
+// work, instead of each handler separately calling endpoint.GetClient(),
+// checking IsWebSocketConnected() and wiring up its own
+// `case <-yamcs.Disconnected()` arm.
+//
+// On success, it returns the endpoint's Yamcs client (for the rare handler
+// that still needs it, e.g. RunSubscriptionStream) along with a context
+// derived from ctx that is also cancelled - with cause
+// backend.DownstreamErrorf("yamcs client disconnected") - the instant the
+// connection is lost, so callers can rely solely on
+// `case <-ctx.Done(): return context.Cause(ctx)` in their select loop for
+// both panel-close and connection-loss, with no extra channel or re-check
+// needed. The returned cancel func must be deferred by the caller to stop the
+// small watcher goroutine once the stream ends.
+//
+// Not used by RunDemandsStream, which is intentionally WebSocket-independent
+// (see its own doc comment).
+func beginStreamGuard(ctx context.Context, endpoint *source.YamcsEndpoint) (context.Context, *client.YamcsClient, context.CancelFunc, error) {
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, nil, nil, backend.DownstreamError(err)
+	}
+	if !yamcs.IsWebSocketConnected() {
+		return nil, nil, nil, backend.DownstreamErrorf("yamcs client disconnected")
+	}
+
+	streamCtx, cancel := context.WithCancelCause(ctx)
+	go func() {
+		select {
+		case <-streamCtx.Done():
+		case <-yamcs.Disconnected():
+			cancel(backend.DownstreamErrorf("yamcs client disconnected"))
+		}
+	}()
+	return streamCtx, yamcs, func() { cancel(nil) }, nil
+}
+
 func RunParameterStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	yamcs, err := endpoint.GetClient()
+	ctx, _, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
-
-	if !yamcs.IsWebSocketConnected() {
-		yamcs.EstablishWebSocketConnection(ctx)
-	}
+	defer cancel()
 
 	backend.Logger.Debug("Requesting parameter stream", "parameter", q.Parameter, "path", req.Path)
 	err = endpoint.RequestNewParameterStream(ctx, q.Parameter, req.Path)
@@ -103,12 +131,8 @@ func RunParameterStream(ctx context.Context,
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return context.Cause(ctx)
 		case <-ticker.C:
-
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
-			}
 
 			started := time.Now()
 			buffer := endpoint.GetAndClearParameterStreamBuffer(q.Parameter, req.Path)
@@ -158,14 +182,12 @@ func RunEventStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	yamcs, err := endpoint.GetClient()
+	ctx, _, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
+	defer cancel()
 
-	if !yamcs.IsWebSocketConnected() {
-		return backend.DownstreamErrorf("yamcs client disconnected")
-	}
 	signal, err := endpoint.RequestEventsStream(ctx, req.Path)
 	if err != nil {
 		return backend.DownstreamError(err)
@@ -176,25 +198,13 @@ func RunEventStream(ctx context.Context,
 
 	defer endpoint.WithdrawEventsStreamRequest(req.Path)
 
-	// Periodic liveness check, see livenessCheckInterval comment.
-	ticker := time.NewTicker(livenessCheckInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
-			}
+			return context.Cause(ctx)
 		case event, ok := <-signal:
 			if !ok {
 				return nil
-			}
-
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
 			frame := tools.ConvertEventsToFrame(endpoint.DrainEventsSignal(event, signal))
@@ -215,10 +225,11 @@ func RunCommandHistoryStream(
 	q PluginQuery,
 ) error {
 
-	yamcs, err := endpoint.GetClient()
+	ctx, _, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
+	defer cancel()
 
 	// Start listening for command history entries for this path
 	if err := endpoint.RequestCommandHistoryStream(ctx, req.Path); err != nil {
@@ -230,26 +241,13 @@ func RunCommandHistoryStream(
 	}
 	defer endpoint.WithdrawCommandHistoryStreamRequest(req.Path)
 
-	// Periodic liveness check so a silently dropped websocket connection is
-	// detected even when no new command history events are arriving, instead
-	// of blocking forever on the signal channel.
-	ticker := time.NewTicker(livenessCheckInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
-			}
+			return context.Cause(ctx)
 		case command, ok := <-signal:
 			if !ok {
 				return nil
-			}
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 			frame := tools.ConvertCommandListToFrame(endpoint.DrainCommandHistorySignal(command, signal))
 			sender.SendFrame(
@@ -268,14 +266,11 @@ func RunTimeStream(
 	q PluginQuery,
 ) error {
 
-	yamcs, err := endpoint.GetClient()
+	ctx, _, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
-
-	if !yamcs.IsWebSocketConnected() {
-		return backend.DownstreamErrorf("yamcs client disconnected")
-	}
+	defer cancel()
 
 	err = endpoint.RequestTime(ctx)
 	if err != nil {
@@ -291,12 +286,8 @@ func RunTimeStream(
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return context.Cause(ctx)
 		case <-ticker.C:
-
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
-			}
 
 			currentTime, ok := endpoint.GetCurrentTimeIfFresh(15 * time.Second)
 			if !ok {
@@ -328,14 +319,11 @@ func RunAlarmsStream(
 	q PluginQuery,
 ) error {
 
-	yamcs, err := endpoint.GetClient()
+	ctx, _, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
-
-	if !yamcs.IsWebSocketConnected() {
-		return backend.DownstreamErrorf("yamcs client disconnected")
-	}
+	defer cancel()
 
 	// Start listening for alarm events for this path
 	if err := endpoint.RequestAlarmsStream(ctx, req.Path); err != nil {
@@ -347,24 +335,13 @@ func RunAlarmsStream(
 	}
 	defer endpoint.WithdrawAlarmsStreamRequest(req.Path)
 
-	// Periodic liveness check, see livenessCheckInterval comment.
-	ticker := time.NewTicker(livenessCheckInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
-			}
+			return context.Cause(ctx)
 		case _, ok := <-signal:
 			if !ok {
 				return nil
-			}
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 			endpoint.DrainAlarmsSignal(signal)
 
@@ -409,14 +386,11 @@ func RunLinksStream(
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery,
 ) error {
-	yamcs, err := endpoint.GetClient()
+	ctx, _, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
-
-	if !yamcs.IsWebSocketConnected() {
-		return backend.DownstreamErrorf("yamcs client disconnected")
-	}
+	defer cancel()
 
 	if err := endpoint.RequestLinksStream(ctx, req.Path); err != nil {
 		return backend.DownstreamError(err)
@@ -428,24 +402,13 @@ func RunLinksStream(
 	}
 	defer endpoint.WithdrawLinksStreamRequest(req.Path)
 
-	// Periodic liveness check, see livenessCheckInterval comment.
-	ticker := time.NewTicker(livenessCheckInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
-			}
+			return context.Cause(ctx)
 		case link, ok := <-signal:
 			if !ok {
 				return nil
-			}
-			if !yamcs.IsWebSocketConnected() {
-				return backend.DownstreamErrorf("yamcs client disconnected")
 			}
 
 			linksEvents := endpoint.DrainLinksSignal(link, signal)

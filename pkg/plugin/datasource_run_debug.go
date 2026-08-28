@@ -15,14 +15,11 @@ func RunSubscriptionStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
-	yamcs, err := endpoint.GetClient()
+	ctx, yamcs, cancel, err := beginStreamGuard(ctx, endpoint)
 	if err != nil {
-		return backend.DownstreamError(err)
+		return err
 	}
-
-	if !yamcs.IsWebSocketConnected() {
-		return backend.DownstreamErrorf("yamcs client disconnected")
-	}
+	defer cancel()
 
 	ticker := time.NewTicker(time.Second)
 
@@ -31,7 +28,7 @@ func RunSubscriptionStream(ctx context.Context,
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return context.Cause(ctx)
 		case <-ticker.C:
 
 			subscriptions := make([]string, 0)
@@ -62,6 +59,12 @@ func RunDemandsStream(ctx context.Context,
 	endpoint *source.YamcsEndpoint,
 	q PluginQuery) error {
 
+	// Unlike the other streams, the demands stream is a local diagnostic view
+	// derived purely from in-memory endpoint state (which parameters have
+	// active streams and when they last received a value) - it doesn't depend
+	// on the WebSocket connection itself, so it intentionally keeps running
+	// across disconnects/reconnects and only exits when the panel is closed
+	// (ctx cancelled).
 	ticker := time.NewTicker(time.Second)
 
 	defer ticker.Stop()
