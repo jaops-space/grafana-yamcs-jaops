@@ -24,7 +24,7 @@ jobs:
               (
                 github.event_name == 'pull_request' &&
                 github.event.action != 'closed' &&
-                contains(github.event.pull_request.labels.*.name, 'run-benchmark')
+                contains(github.event.pull_request.labels.*.name, 'run/benchmarks')
               )
             }}
         outputs:
@@ -242,7 +242,7 @@ jobs:
                   retention-days: 14
 
     benchmark-report:
-        name: Report results
+        name: Create report
         runs-on: ubuntu-latest
         needs: [resolve-base, micro-benchmark, scenario-benchmark, grafana-benchmark]
         if: always() && needs.resolve-base.result == 'success'

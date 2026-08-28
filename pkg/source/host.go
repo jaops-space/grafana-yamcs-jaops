@@ -201,17 +201,6 @@ func (host *YamcsHost) runConnectionManager(ctx context.Context, hostID string, 
 	}
 }
 
-func (mux *Multiplexer) GetSecureData(host string) *config.YamcsSecureHost {
-	if host == "" {
-		return nil
-	}
-	secureHost, exists := mux.Secure.Hosts[host]
-	if !exists {
-		return nil
-	}
-	return secureHost
-}
-
 // GetProcessorListener updates processor snapshots and keeps endpoint processor references current.
 func (host *YamcsHost) GetProcessorListener(instance client.Instance, processor client.Processor) func(update client.Processor) {
 

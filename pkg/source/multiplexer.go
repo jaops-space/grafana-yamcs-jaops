@@ -26,6 +26,13 @@ type Multiplexer struct {
 	SyncMux sync.RWMutex
 }
 
+// hostEndpoint pairs an endpoint's config ID with the endpoint itself, for
+// code that needs to iterate a host's endpoints and still report errors by ID.
+type hostEndpoint struct {
+	ID       string
+	Endpoint *YamcsEndpoint
+}
+
 // NewMultiplexer creates a fresh multiplexer with a connection manager.
 func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSecureConfiguration) (*Multiplexer, error) {
 	return NewMultiplexerWithContext(context.Background(), cfg, seccfg)
@@ -153,6 +160,32 @@ func (mux *Multiplexer) StartConnectionManagers() {
 	}
 }
 
+// resolveHostInstances lists a host's instances/processors from Yamcs and
+// stores them on the host (replacing any previously known set), so
+// EnsureReady/connectEndpoint can resolve them purely from memory afterwards.
+// Called once per successful connect, from both the live (finishHostConnect)
+// and one-shot (connectHostSync) paths.
+func resolveHostInstances(ctx context.Context, host *YamcsHost, cli *client.YamcsClient) error {
+	instances, err := cli.ListInstances(ctx)
+	if err != nil {
+		return err
+	}
+
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	for _, instance := range instances {
+		hostInstance := &YamcsHostInstance{
+			Instance:   instance,
+			Processors: map[string]client.Processor{},
+		}
+		for _, processor := range instance.Processors {
+			hostInstance.Processors[processor.GetName()] = processor
+		}
+		host.Instances[instance.GetName()] = hostInstance
+	}
+	return nil
+}
+
 // finishHostConnect lists instances/processors and sets up endpoint
 // subscriptions for a host that has just (re)connected. It is called by each
 // host's connection manager, with that host's connectMu held, immediately
@@ -164,34 +197,16 @@ func (mux *Multiplexer) finishHostConnect(ctx context.Context, hostID string, ho
 		return
 	}
 
-	instances, err := cli.ListInstances(ctx)
-	if err != nil {
+	if err := resolveHostInstances(ctx, host, cli); err != nil {
 		backend.Logger.Warn("Could not list instances after connect", "host", host.Name(), "error", err)
 		return
 	}
-	host.mu.Lock()
-	for _, instance := range instances {
-		host.Instances[instance.GetName()] = &YamcsHostInstance{
-			Instance:   instance,
-			Processors: map[string]client.Processor{},
-		}
-		for _, processor := range instance.Processors {
-			host.Instances[instance.GetName()].Processors[processor.GetName()] = processor
-		}
-	}
-	host.mu.Unlock()
 
 	mux.SyncMux.RLock()
-	var hostEndpoints []struct {
-		ID       string
-		Endpoint *YamcsEndpoint
-	}
+	var hostEndpoints []hostEndpoint
 	for endpointID, endpoint := range mux.Endpoints {
 		if endpoint.GetHost() == host {
-			hostEndpoints = append(hostEndpoints, struct {
-				ID       string
-				Endpoint *YamcsEndpoint
-			}{ID: endpointID, Endpoint: endpoint})
+			hostEndpoints = append(hostEndpoints, hostEndpoint{ID: endpointID, Endpoint: endpoint})
 		}
 	}
 	mux.SyncMux.RUnlock()
@@ -228,16 +243,10 @@ func (mux *Multiplexer) ConnectSync(ctx context.Context, subscribe bool) (map[st
 	for hostID, host := range mux.Hosts {
 		hosts[hostID] = host
 	}
-	endpointsByHost := make(map[*YamcsHost][]struct {
-		ID       string
-		Endpoint *YamcsEndpoint
-	})
+	endpointsByHost := make(map[*YamcsHost][]hostEndpoint)
 	for endpointID, endpoint := range mux.Endpoints {
 		endpointHost := endpoint.GetHost()
-		endpointsByHost[endpointHost] = append(endpointsByHost[endpointHost], struct {
-			ID       string
-			Endpoint *YamcsEndpoint
-		}{ID: endpointID, Endpoint: endpoint})
+		endpointsByHost[endpointHost] = append(endpointsByHost[endpointHost], hostEndpoint{ID: endpointID, Endpoint: endpoint})
 	}
 	mux.SyncMux.RUnlock()
 
@@ -268,10 +277,7 @@ func (mux *Multiplexer) connectHostSync(
 	ctx context.Context,
 	hostID string,
 	host *YamcsHost,
-	hostEndpoints []struct {
-		ID       string
-		Endpoint *YamcsEndpoint
-	},
+	hostEndpoints []hostEndpoint,
 	subscribe bool,
 	hostErrors map[string]error,
 	endpointErrors map[string]error,
@@ -296,22 +302,10 @@ func (mux *Multiplexer) connectHostSync(
 		return
 	}
 
-	instances, err := cli.ListInstances(ctx)
-	if err != nil {
+	if err := resolveHostInstances(ctx, host, cli); err != nil {
 		hostErrors[hostID] = exception.Wrap(fmt.Sprintf("could not list instances for host %s", host.Name()), "MUX_CONNECT_LIST_INSTANCES", err)
 		return
 	}
-	host.mu.Lock()
-	for _, instance := range instances {
-		host.Instances[instance.GetName()] = &YamcsHostInstance{
-			Instance:   instance,
-			Processors: map[string]client.Processor{},
-		}
-		for _, processor := range instance.Processors {
-			host.Instances[instance.GetName()].Processors[processor.GetName()] = processor
-		}
-	}
-	host.mu.Unlock()
 
 	for _, e := range hostEndpoints {
 		mux.connectEndpoint(ctx, e.ID, e.Endpoint, host, cli, subscribe, endpointErrors)
@@ -393,4 +387,17 @@ func (mux *Multiplexer) Dispose() {
 	}
 	mux.Hosts = make(map[string]*YamcsHost)
 	mux.Endpoints = make(map[string]*YamcsEndpoint)
+}
+
+// GetSecureData returns the secure (credential) configuration for a given
+// host ID, or nil if unset/not found.
+func (mux *Multiplexer) GetSecureData(host string) *config.YamcsSecureHost {
+	if host == "" {
+		return nil
+	}
+	secureHost, exists := mux.Secure.Hosts[host]
+	if !exists {
+		return nil
+	}
+	return secureHost
 }
