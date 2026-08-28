@@ -38,9 +38,11 @@ func newParameterSubscription(ctx context.Context, client *YamcsClient, instance
 	}
 
 	// Create subscription request
+	updateOnExpiration := true
 	subscribeRequest := &processing.SubscribeParametersRequest{
-		Instance:  &instanceName,
-		Processor: &processorName,
+		Instance:           &instanceName,
+		Processor:          &processorName,
+		UpdateOnExpiration: &updateOnExpiration,
 	}
 
 	// Add parameters to subscription
@@ -141,10 +143,12 @@ func (sub *ParameterSubscription) SetListener(listener ParameterListener) {
 // updateSubscription sends an update to the server with the given action (add, remove, replace).
 func (sub *ParameterSubscription) updateSubscription(action processing.SubscribeParametersRequest_Action, parameters ...string) error {
 	// Create and populate the subscription request
+	updateOnExpiration := true
 	subscribeRequest := &processing.SubscribeParametersRequest{
-		Instance:  &sub.Instance,
-		Processor: &sub.Processor,
-		Action:    action.Enum(),
+		Instance:           &sub.Instance,
+		Processor:          &sub.Processor,
+		Action:             action.Enum(),
+		UpdateOnExpiration: &updateOnExpiration,
 	}
 
 	var namedObjectIds []*protobuf.NamedObjectId

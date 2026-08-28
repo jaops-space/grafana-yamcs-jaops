@@ -117,6 +117,33 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
         updateOptionsJson({ ...config, [key]: value });
     };
 
+    const updateBufferMaxLength = (value: string) => {
+        if (value === '') {
+            updateConfig('bufferMaxLength', undefined);
+            return;
+        }
+
+        const bufferMaxLength = Number(value);
+        updateOptionsJson({
+            ...config,
+            bufferMaxLength,
+            dataPointsRounding:
+                config.dataPointsRounding && config.dataPointsRounding > bufferMaxLength
+                    ? bufferMaxLength
+                    : config.dataPointsRounding,
+        });
+    };
+
+    const updateDataPointsRounding = (value: string) => {
+        if (value === '') {
+            updateConfig('dataPointsRounding', undefined);
+            return;
+        }
+
+        const configuredBufferMaxLength = config.bufferMaxLength ?? DefaultConfiguration.bufferMaxLength;
+        updateConfig('dataPointsRounding', Math.min(Number(value), configuredBufferMaxLength));
+    };
+
     const endpointsToObject = (nextEndpoints: IndexedEndpoint[]) => {
         const nextEndpointObject: Endpoints = {};
 
@@ -351,12 +378,31 @@ export default function ConfigEditor({ options, onOptionsChange }: ConfigProps) 
 
                     <div className={styles.pluginCard}>
                         <div className={styles.pluginGrid}>
-                            <InlineField label="Buffer Max Length">
+                            <InlineField
+                                label="Buffer Max Length"
+                                tooltip="Maximum number of stream frames Grafana Live keeps in memory for each stream."
+                            >
                                 <Input
-                                    value={config.bufferMaxLength}
+                                    value={config.bufferMaxLength ?? ''}
                                     type="number"
+                                    min={1}
+                                    placeholder="5000"
                                     width={18}
-                                    onChange={(e) => updateConfig('bufferMaxLength', e.currentTarget.value)}
+                                    onChange={(e) => updateBufferMaxLength(e.currentTarget.value)}
+                                />
+                            </InlineField>
+
+                            <InlineField
+                                label="Data Points Rounding"
+                                tooltip="Rounds Grafana max data points to the nearest bucket for data stream sharing. With 500, panels requesting 450 or 650 points share the 500-point stream. Higher values can increase performance. The rounded value is capped by Buffer Max Length."
+                            >
+                                <Input
+                                    value={config.dataPointsRounding ?? ''}
+                                    type="number"
+                                    min={1}
+                                    placeholder="500"
+                                    width={18}
+                                    onChange={(e) => updateDataPointsRounding(e.currentTarget.value)}
                                 />
                             </InlineField>
 

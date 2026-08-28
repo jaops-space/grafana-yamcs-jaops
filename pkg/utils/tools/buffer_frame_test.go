@@ -293,6 +293,86 @@ func TestConvertBufferToFrame(t *testing.T) {
 	}
 }
 
+func TestAppendExpiredParameterNotice(t *testing.T) {
+	parameter := "/SIM/TEMP"
+	frame := data.NewFrame("response")
+	buffer := []*pvalue.ParameterValue{
+		{AcquisitionStatus: pvalue.AcquisitionStatus_EXPIRED.Enum()},
+	}
+
+	AppendExpiredParameterNotice(frame, buffer, parameter)
+
+	require.NotNil(t, frame.Meta)
+	require.Len(t, frame.Meta.Notices, 1)
+	assert.Equal(t, data.NoticeSeverityWarning, frame.Meta.Notices[0].Severity)
+	assert.Contains(t, frame.Meta.Notices[0].Text, parameter)
+	assert.Contains(t, frame.Meta.Notices[0].Text, "expired")
+}
+
+func TestAppendExpiredParameterNoticeIgnoresAcquiredLatestValue(t *testing.T) {
+	frame := data.NewFrame("response")
+	buffer := []*pvalue.ParameterValue{
+		{AcquisitionStatus: pvalue.AcquisitionStatus_EXPIRED.Enum()},
+		{AcquisitionStatus: pvalue.AcquisitionStatus_ACQUIRED.Enum()},
+	}
+
+	AppendExpiredParameterNotice(frame, buffer, "/SIM/TEMP")
+
+	assert.Nil(t, frame.Meta)
+}
+
+func TestConvertSingleValueBufferToFrameAddsExpiredNotice(t *testing.T) {
+	parameter := "/SIM/TEMP"
+	generationTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	buffer := []*pvalue.ParameterValue{
+		{
+			AcquisitionStatus: pvalue.AcquisitionStatus_ACQUIRED.Enum(),
+			GenerationTime:    timestamppb.New(generationTime),
+			EngValue:          &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: new(12.5)},
+		},
+		{
+			AcquisitionStatus: pvalue.AcquisitionStatus_EXPIRED.Enum(),
+			GenerationTime:    timestamppb.New(generationTime.Add(time.Second)),
+			EngValue:          &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: new(12.5)},
+		},
+	}
+
+	frame := ConvertSingleValueBufferToFrame(buffer, parameter, false)
+
+	require.Len(t, frame.Fields, 2)
+	assert.Equal(t, generationTime, frame.Fields[0].At(0))
+	assert.Equal(t, generationTime.Add(time.Second), frame.Fields[0].At(1))
+	assert.Equal(t, 12.5, frame.Fields[1].At(0))
+	assert.Equal(t, 12.5, frame.Fields[1].At(1))
+	assert.Nil(t, frame.Fields[1].Config)
+	require.NotNil(t, frame.Meta)
+	require.Len(t, frame.Meta.Notices, 1)
+}
+
+func TestConvertSingleValueBufferToFrameOmitsNoticeWhenLatestSampleIsFresh(t *testing.T) {
+	parameter := "/SIM/TEMP"
+	buffer := []*pvalue.ParameterValue{
+		{
+			AcquisitionStatus: pvalue.AcquisitionStatus_EXPIRED.Enum(),
+			GenerationTime:    timestamppb.New(time.Unix(0, 0)),
+			EngValue:          &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: new(12.5)},
+		},
+		{
+			AcquisitionStatus: pvalue.AcquisitionStatus_ACQUIRED.Enum(),
+			GenerationTime:    timestamppb.New(time.Unix(1, 0)),
+			EngValue:          &protobuf.Value{Type: protobuf.Value_DOUBLE.Enum(), DoubleValue: new(13.5)},
+		},
+	}
+
+	frame := ConvertSingleValueBufferToFrame(buffer, parameter, false)
+
+	require.Len(t, frame.Fields, 2)
+	assert.Equal(t, 12.5, frame.Fields[1].At(0))
+	assert.Equal(t, 13.5, frame.Fields[1].At(1))
+	assert.Nil(t, frame.Fields[1].Config)
+	assert.Nil(t, frame.Meta)
+}
+
 // TestConvertRangesToFrame tests the ConvertRangesToFrame function.
 func TestConvertRangesToFrame(t *testing.T) {
 	tests := []struct {

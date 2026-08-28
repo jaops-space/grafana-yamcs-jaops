@@ -32,7 +32,8 @@ describe('DataSource.query', () => {
         new DataSource({
             uid: 'jaops-yamcs-main',
             jsonData: {
-                bufferMaxLength: 123,
+                bufferMaxLength: 5000,
+                dataPointsRounding: 500,
             },
         } as any);
 
@@ -75,7 +76,7 @@ describe('DataSource.query', () => {
         const streamArg = getDataStreamMock.mock.calls[0][0];
 
         expect(streamArg.buffer.action).toBe(StreamingFrameAction.Replace);
-        expect(streamArg.buffer.maxLength).toBe(123);
+        expect(streamArg.buffer.maxLength).toBe(5000);
         expect(streamArg.addr.scope).toBe(LiveChannelScope.DataSource);
         expect(streamArg.addr.stream).toBe('jaops-yamcs-main');
         expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature');
@@ -92,13 +93,46 @@ describe('DataSource.query', () => {
         expect(streamArg.buffer.action).toBe(StreamingFrameAction.Append);
     });
 
-    it('includes raw Unix range, max data points, and sorted min/max fields in plot live path', async () => {
+    it('uses relative range and rounded data points in realtime plot live path', async () => {
         const ds = buildDatasource();
 
         await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: ['max', 'min'] }) as any));
 
         const streamArg = getDataStreamMock.mock.calls[0][0];
-        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/1000-2000/321/fields=max-min');
+        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/500/fields=max-min');
+        expect(streamArg.addr.data.points).toBe(500);
+        expect(streamArg.addr.data.from).toBe(1000);
+        expect(streamArg.addr.data.to).toBe(2000);
+    });
+
+    it('uses raw Unix range in stream path when dashboard range is not relative', async () => {
+        const ds = buildDatasource();
+        const request = buildRequest(QueryType.PLOT, { fields: ['max', 'min'] });
+        request.range.raw = { from: '2026-08-04T10:00:00Z', to: '2026-08-04T10:05:00Z' };
+
+        await firstValueFrom(ds.query(request as any));
+
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/1000-2000/500/fields=max-min');
+    });
+
+    it('rounds data points to the nearest configured bucket and caps by buffer max length', async () => {
+        const ds = new DataSource({
+            uid: 'jaops-yamcs-main',
+            jsonData: {
+                bufferMaxLength: 1000,
+                dataPointsRounding: 500,
+            },
+        } as any);
+
+        const request = buildRequest(QueryType.PLOT, { fields: [] });
+        request.maxDataPoints = 1600;
+
+        await firstValueFrom(ds.query(request as any));
+
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/1000/fields=none');
+        expect(streamArg.addr.data.points).toBe(1000);
     });
 
     it('uses a stable field segment for plot queries without min or max', async () => {
@@ -107,7 +141,7 @@ describe('DataSource.query', () => {
         await firstValueFrom(ds.query(buildRequest(QueryType.PLOT, { fields: [] }) as any));
 
         const streamArg = getDataStreamMock.mock.calls[0][0];
-        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/1000-2000/321/fields=none');
+        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/500/fields=none');
     });
 
     it('includes automatic color setting in discrete stream path and payload', async () => {
@@ -116,7 +150,7 @@ describe('DataSource.query', () => {
         await firstValueFrom(ds.query(buildRequest(QueryType.DISCRETE, { automaticColors: true }) as any));
 
         const streamArg = getDataStreamMock.mock.calls[0][0];
-        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/1000-2000/321/colors=auto');
+        expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/500/colors=auto');
         expect(streamArg.addr.data.automaticColors).toBe(true);
     });
 
@@ -140,7 +174,7 @@ describe('DataSource.query', () => {
             },
             {
                 type: QueryType.COMMAND_HISTORY,
-                expectedPath: 'myproject_realtime/commands/1000-2000',
+                expectedPath: 'myproject_realtime/commands/now-5m-now',
                 expectedAction: StreamingFrameAction.Append,
             },
             {

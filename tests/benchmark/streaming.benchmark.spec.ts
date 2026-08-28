@@ -51,6 +51,9 @@ type BenchmarkResult = {
     backend_values_sent: number;
     backend_datapoints_per_second: number;
     backend_unique_stream_paths: number;
+    frontend_frames_received: number;
+    frontend_values_received: number;
+    frontend_datapoints_per_second: number;
     backend_heap_alloc_bytes: number;
     backend_median_heap_alloc_bytes: number;
     backend_median_heap_alloc_bytes_distribution: DistributionStats;
@@ -213,6 +216,25 @@ async function readBackendStats(request: any): Promise<BenchmarkStats> {
     return response.json();
 }
 
+// Frontend delivery counter: installs/resets window.__jaopsBenchmarkStats,
+// which the datasource's query() taps into on every DataQueryResponse it
+// receives from Grafana Live (see src/datasource/datasource.ts). Unlike the
+// backend stats above (one send per unique backend stream, even when many
+// panels share it), this counts what each panel's own subscription actually
+// receives client-side after Grafana Live's channel fan-out, so it scales
+// with panel count the same way the user-visible dashboard does.
+type FrontendStats = { framesReceived: number; valuesReceived: number };
+
+async function resetFrontendStats(page: any): Promise<void> {
+    await page.evaluate(() => {
+        window.__jaopsBenchmarkStats = { framesReceived: 0, valuesReceived: 0 };
+    });
+}
+
+async function readFrontendStats(page: any): Promise<FrontendStats> {
+    return page.evaluate(() => window.__jaopsBenchmarkStats ?? { framesReceived: 0, valuesReceived: 0 });
+}
+
 async function collectBrowserMetrics(page: any) {
     const client = await page.context().newCDPSession(page);
     await client.send('Performance.enable');
@@ -365,6 +387,8 @@ test.describe('Grafana panel streaming benchmark', () => {
                 const targetSamples = panelCount * sampleTicks;
                 await drainBufferedStreamingValues(request);
                 await resetBackendStats(request, targetSamples);
+                await resetFrontendStats(page);
+                const frontendWindowStartedAt = Date.now();
                 let backend = await readBackendStats(request);
                 const backendHeapAllocSamples = [backend.backend_heap_alloc_bytes];
                 const sampleDeadline = Date.now() + benchmarkDurationMs + 30_000;
@@ -377,6 +401,8 @@ test.describe('Grafana panel streaming benchmark', () => {
                 backend = await readBackendStats(request);
                 backendHeapAllocSamples.push(backend.backend_heap_alloc_bytes);
                 const medianBackendHeapAllocBytes = median(backendHeapAllocSamples);
+                const frontend = await readFrontendStats(page);
+                const frontendWindowSeconds = (Date.now() - frontendWindowStartedAt) / 1000;
                 const browser = await collectBrowserMetrics(page);
 
                 results.push({
@@ -391,6 +417,10 @@ test.describe('Grafana panel streaming benchmark', () => {
                     backend_values_sent: backend.values_sent,
                     backend_datapoints_per_second: backend.window_seconds > 0 ? backend.values_sent / backend.window_seconds : 0,
                     backend_unique_stream_paths: backend.unique_stream_paths,
+                    frontend_frames_received: frontend.framesReceived,
+                    frontend_values_received: frontend.valuesReceived,
+                    frontend_datapoints_per_second:
+                        frontendWindowSeconds > 0 ? frontend.valuesReceived / frontendWindowSeconds : 0,
                     backend_median_heap_alloc_bytes: medianBackendHeapAllocBytes,
                     backend_median_heap_alloc_bytes_distribution: computeDistribution(backendHeapAllocSamples),
                     backend_heap_alloc_growth_bytes: backend.backend_heap_alloc_growth_bytes,
