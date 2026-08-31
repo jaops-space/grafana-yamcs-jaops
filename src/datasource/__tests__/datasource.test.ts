@@ -135,6 +135,23 @@ describe('DataSource.query', () => {
         expect(streamArg.addr.data.points).toBe(1000);
     });
 
+    it('never rounds data points down to 0 for a narrow/shrunk panel', async () => {
+        // A panel scaled down enough that Grafana resolves maxDataPoints to
+        // less than half of the configured rounding bucket used to round
+        // down to 0 datapoints, which the backend/Yamcs rejects outright
+        // ("invalid point count 0, must be between 1 and 10000") and killed
+        // the stream subscription instead of just showing a smaller plot.
+        const ds = buildDatasource();
+        const request = buildRequest(QueryType.PLOT, { fields: [] });
+        request.maxDataPoints = 100;
+
+        await firstValueFrom(ds.query(request as any));
+
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        expect(streamArg.addr.data.points).toBeGreaterThan(0);
+        expect(streamArg.addr.data.points).toBe(500);
+    });
+
     it('uses a stable field segment for plot queries without min or max', async () => {
         const ds = buildDatasource();
 

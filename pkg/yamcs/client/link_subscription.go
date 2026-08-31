@@ -64,6 +64,11 @@ func (client *YamcsClient) HaltLinkSubscriptionsForInstance(instance string) {
 
 // newLinkSubscription initializes and subscribes to links updates.
 func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance string) (*LinkSubscription, error) {
+	cooldownKey := subscribeCooldownKey("links", instance, "")
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &LinkSubscription{
 		client:   client,
 		Instance: instance,
@@ -84,6 +89,7 @@ func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance str
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

@@ -67,6 +67,11 @@ func (client *YamcsClient) HaltEventSubscriptionsForInstance(instance string) {
 
 // NewEventSubscription initializes a new EventSubscription and subscribes to events.
 func (client *YamcsClient) newEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
+	cooldownKey := subscribeCooldownKey("events", instance, "")
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &EventSubscription{
 		client:              client,
 		Instance:            instance,
@@ -91,6 +96,7 @@ func (client *YamcsClient) newEventSubscription(ctx context.Context, instance st
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

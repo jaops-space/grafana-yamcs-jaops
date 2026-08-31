@@ -66,6 +66,11 @@ func (client *YamcsClient) HaltCommandHistorySubscriptionsForInstance(instance s
 
 // newCommandHistorySubscription initializes and subscribes to command history.
 func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, instance, processor string) (*CommandHistorySubscription, error) {
+	cooldownKey := subscribeCooldownKey("commandHistory", instance, processor)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &CommandHistorySubscription{
 		client:              client,
 		Instance:            instance,
@@ -90,6 +95,7 @@ func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, in
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

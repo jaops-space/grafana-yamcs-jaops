@@ -39,6 +39,10 @@ func (client *YamcsClient) CreateTimeSubscription(ctx context.Context, instance 
 
 // SubscribeTime subscribes to time updates from a specific instance and processor.
 func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance string, processor string) (*TimeSubscription, error) {
+	cooldownKey := subscribeCooldownKey("time", instance, processor)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
 
 	// Create the subscription request for time updates
 	subscribeTimeRequest := &ptime.SubscribeTimeRequest{
@@ -60,6 +64,7 @@ func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance str
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

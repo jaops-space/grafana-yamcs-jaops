@@ -71,6 +71,23 @@ type YamcsClient struct {
 	LinkSubscriptions              map[int32]*LinkSubscription
 	ProcessorSubscriptions         map[int32]*ProcessorSubscription
 
+	// subscribeCooldowns tracks, per subscription kind/instance/processor
+	// (see subscribeCooldownKey), the time before which a fresh subscribe
+	// attempt should be skipped in favour of failing fast. Access only
+	// through subsMu.
+	//
+	// Every newXSubscription below blocks for the WebSocket's full SendSync
+	// timeout before it can fail, so a call that fails always "ran long
+	// enough" from Grafana's point of view - which means Grafana's own
+	// RunStream retry backoff (which grows only for calls that fail fast)
+	// never grows for these failures, and it re-invokes RunStream
+	// immediately, forever. This mirrors the fail-fast idiom already used by
+	// YamcsEndpoint.EnsureReady for host-level readiness: while a very
+	// recent identical attempt is still cooling down, skip the network
+	// round-trip entirely and return the failure instantly instead, so
+	// Grafana's backoff can grow normally.
+	subscribeCooldowns map[string]time.Time
+
 	// disconnectMu guards disconnectSignal so it can be safely read, closed and
 	// replaced concurrently from the WebSocket's disconnect handler (writer)
 	// and from any number of RunStream goroutines (readers).
@@ -118,6 +135,7 @@ func NewYamcsClientWithContext(
 		TimeSubscriptions:              make(map[int32]*TimeSubscription),
 		LinkSubscriptions:              make(map[int32]*LinkSubscription),
 		ProcessorSubscriptions:         make(map[int32]*ProcessorSubscription),
+		subscribeCooldowns:             make(map[string]time.Time),
 		disconnectSignal:               make(chan struct{}),
 	}
 
@@ -304,4 +322,48 @@ func (client *YamcsClient) clearAllSubscriptions() {
 	client.TimeSubscriptions = make(map[int32]*TimeSubscription)
 	client.LinkSubscriptions = make(map[int32]*LinkSubscription)
 	client.ProcessorSubscriptions = make(map[int32]*ProcessorSubscription)
+	// A fresh connection deserves a fresh attempt, regardless of how the
+	// previous one ended.
+	client.subscribeCooldowns = make(map[string]time.Time)
+}
+
+// subscribeFailureCooldown is how long a subscribe attempt for a given
+// kind/instance/processor is skipped after it fails, before another real
+// attempt is allowed. See subscribeCooldowns for why this exists.
+const subscribeFailureCooldown = 5 * time.Second
+
+// subscribeCooldownKey identifies a distinct subscribe operation for cooldown
+// purposes. Subscriptions are per instance (and, where applicable, per
+// processor), not per caller/panel, so that's the granularity used here -
+// matching FindXSubscription's own lookup granularity.
+func subscribeCooldownKey(kind, instance, processor string) string {
+	return kind + "|" + instance + "|" + processor
+}
+
+// checkSubscribeCooldown fails fast, without touching the network, if an
+// identical subscribe attempt failed too recently. Returns nil when the
+// caller should go ahead and attempt the real subscribe.
+func (client *YamcsClient) checkSubscribeCooldown(key string) error {
+	client.subsMu.RLock()
+	until, cooling := client.subscribeCooldowns[key]
+	client.subsMu.RUnlock()
+
+	if cooling && time.Now().Before(until) {
+		return fmt.Errorf("subscribe %q failed recently, backing off for %s", key, time.Until(until).Round(time.Millisecond))
+	}
+	return nil
+}
+
+// recordSubscribeOutcome clears the cooldown for key when the subscribe
+// attempt succeeded or the caller's context was cancelled/deadlined (not a
+// real failure, e.g. normal shutdown), otherwise starts/refreshes it.
+func (client *YamcsClient) recordSubscribeOutcome(ctx context.Context, key string, err error) {
+	client.subsMu.Lock()
+	defer client.subsMu.Unlock()
+
+	if err == nil || ctx.Err() != nil {
+		delete(client.subscribeCooldowns, key)
+		return
+	}
+	client.subscribeCooldowns[key] = time.Now().Add(subscribeFailureCooldown)
 }

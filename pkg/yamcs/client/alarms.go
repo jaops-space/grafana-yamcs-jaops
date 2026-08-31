@@ -112,6 +112,11 @@ func (c *YamcsClient) CreateAlarmSubscription(ctx context.Context, instance stri
 
 // newAlarmSubscription handles the subscription logic for alarms.
 func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
+	cooldownKey := subscribeCooldownKey("alarms", instance, processor)
+	if err := c.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &AlarmSubscription{
 		client:   c,
 		instance: instance,
@@ -133,6 +138,7 @@ func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string,
 	}
 
 	_, callID, _, err := c.WebSocket.SendSync(ctx, message)
+	c.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +243,11 @@ func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(ctx context.Context, i
 
 // newGlobalAlarmStatusSubscription handles the subscription logic for global alarm status updates.
 func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
+	cooldownKey := subscribeCooldownKey("globalAlarmStatus", instance, processor)
+	if err := c.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &GlobalStatusSubscription{
 		client:              c,
 		instance:            instance,
@@ -260,6 +271,7 @@ func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, inst
 	}
 
 	_, callID, _, err := c.WebSocket.SendSync(ctx, message)
+	c.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

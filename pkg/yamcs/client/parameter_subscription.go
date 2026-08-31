@@ -29,6 +29,11 @@ type ParameterSubscription struct {
 
 // NewParameterSubscription creates a new ParameterSubscription for an instance and processor with initial parameters.
 func newParameterSubscription(ctx context.Context, client *YamcsClient, instanceName, processorName string, initialParameters ...string) (*ParameterSubscription, error) {
+	cooldownKey := subscribeCooldownKey("parameters", instanceName, processorName)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &ParameterSubscription{
 		client:              client,
 		Instance:            instanceName,
@@ -64,6 +69,7 @@ func newParameterSubscription(ctx context.Context, client *YamcsClient, instance
 		Options: anyMessage,
 	}
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

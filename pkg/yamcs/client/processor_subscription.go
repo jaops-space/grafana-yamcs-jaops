@@ -49,6 +49,11 @@ func (client *YamcsClient) CreateProcessorSubscriptionByNames(ctx context.Contex
 }
 
 func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instance string, processor string) (*ProcessorSubscription, error) {
+	cooldownKey := subscribeCooldownKey("processors", instance, processor)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &ProcessorSubscription{
 		client:    client,
 		Instance:  instance,
@@ -71,6 +76,7 @@ func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instanc
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}

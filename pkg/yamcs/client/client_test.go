@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -203,5 +204,87 @@ func TestClientDisconnectedSignalClosesOnDisconnect(t *testing.T) {
 	}
 	if fresh == disconnected {
 		t.Fatal("expected resetDisconnectSignal to hand out a new channel instance")
+	}
+}
+
+func TestSubscribeCooldownAllowsFirstAttemptAndClearsOnSuccess(t *testing.T) {
+	client := &YamcsClient{subscribeCooldowns: make(map[string]time.Time)}
+	key := subscribeCooldownKey("parameters", "myinstance", "realtime")
+
+	if err := client.checkSubscribeCooldown(key); err != nil {
+		t.Fatalf("expected no cooldown before any failure, got: %v", err)
+	}
+
+	client.recordSubscribeOutcome(context.Background(), key, nil)
+	if err := client.checkSubscribeCooldown(key); err != nil {
+		t.Fatalf("expected no cooldown after a successful attempt, got: %v", err)
+	}
+}
+
+func TestSubscribeCooldownBlocksImmediateRetryAfterFailure(t *testing.T) {
+	client := &YamcsClient{subscribeCooldowns: make(map[string]time.Time)}
+	key := subscribeCooldownKey("commandHistory", "myinstance", "realtime")
+
+	client.recordSubscribeOutcome(context.Background(), key, errors.New("boom"))
+
+	start := time.Now()
+	err := client.checkSubscribeCooldown(key)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected a cooldown error immediately after a recorded failure")
+	}
+	if elapsed > 50*time.Millisecond {
+		t.Fatalf("checkSubscribeCooldown took %v - expected an instant, non-blocking, in-memory-only check", elapsed)
+	}
+
+	// A different key must be unaffected.
+	otherKey := subscribeCooldownKey("commandHistory", "otherinstance", "realtime")
+	if err := client.checkSubscribeCooldown(otherKey); err != nil {
+		t.Fatalf("expected no cooldown for an unrelated key, got: %v", err)
+	}
+}
+
+func TestSubscribeCooldownIgnoresCancelledContextFailures(t *testing.T) {
+	client := &YamcsClient{subscribeCooldowns: make(map[string]time.Time)}
+	key := subscribeCooldownKey("events", "myinstance", "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// A failure caused by the caller's own context being cancelled (e.g.
+	// normal shutdown) must not start a cooldown - it isn't evidence the next
+	// attempt will fail too.
+	client.recordSubscribeOutcome(ctx, key, errors.New("context canceled"))
+	if err := client.checkSubscribeCooldown(key); err != nil {
+		t.Fatalf("expected no cooldown after a context-cancelled failure, got: %v", err)
+	}
+}
+
+func TestSubscribeCooldownExpiresAfterConfiguredDuration(t *testing.T) {
+	client := &YamcsClient{subscribeCooldowns: make(map[string]time.Time)}
+	key := subscribeCooldownKey("links", "myinstance", "")
+
+	// Simulate a failure that happened just outside the cooldown window.
+	client.subscribeCooldowns[key] = time.Now().Add(-time.Millisecond)
+
+	if err := client.checkSubscribeCooldown(key); err != nil {
+		t.Fatalf("expected cooldown to have expired, got: %v", err)
+	}
+}
+
+func TestClearAllSubscriptionsResetsCooldowns(t *testing.T) {
+	client := &YamcsClient{subscribeCooldowns: make(map[string]time.Time)}
+	key := subscribeCooldownKey("time", "myinstance", "realtime")
+	client.recordSubscribeOutcome(context.Background(), key, errors.New("boom"))
+
+	if err := client.checkSubscribeCooldown(key); err == nil {
+		t.Fatal("expected a cooldown to be active before clearAllSubscriptions")
+	}
+
+	client.clearAllSubscriptions()
+
+	if err := client.checkSubscribeCooldown(key); err != nil {
+		t.Fatalf("expected clearAllSubscriptions to reset cooldowns for a fresh connection, got: %v", err)
 	}
 }
