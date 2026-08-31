@@ -26,6 +26,20 @@ type YamcsHostInstance struct {
 }
 
 // YamcsHost represents a Yamcs server connection along with its instances and processors.
+//
+// Locking summary (three distinct locks are involved in this subsystem;
+// none of them substitute for another):
+//   - Multiplexer.SyncMux guards membership of the Multiplexer's Hosts/
+//     Endpoints maps (which hosts/endpoints exist), not anything inside a
+//     given *YamcsHost.
+//   - YamcsHost.connectMu serializes connect+resolve+subscribe work for THIS
+//     host only (dial, list instances, set up endpoint subscriptions), so a
+//     slow/unreachable host never blocks the same work for unrelated,
+//     healthy hosts. Held for the entire connect transition, including the
+//     onConnected callback - see runConnectionManager/connectHostSync.
+//   - YamcsHost.mu guards the contents of Instances/its Processors maps
+//     (read by connectEndpoint, written by GetProcessorListener's callback
+//     and by resolveHostInstances).
 type YamcsHost struct {
 	mu            sync.RWMutex
 	Client        *client.YamcsClient
@@ -170,14 +184,18 @@ func (host *YamcsHost) runConnectionManager(ctx context.Context, hostID string, 
 		var err error
 		if !host.IsConnected() { // re-check under lock; may have raced with ConnectSync
 			err = host.dial(ctx)
+			if err == nil && onConnected != nil {
+				// Runs with connectMu still held, so this connect transition's
+				// instance-list/subscription setup can never interleave with
+				// another connect attempt for this same host - matching the
+				// guarantee ConnectSync/connectHostSync gives its callers.
+				onConnected(ctx, hostID, host)
+			}
 		}
 		host.connectMu.Unlock()
 
 		if err == nil {
 			backoff = connectManagerInitialBackoff
-			if onConnected != nil {
-				onConnected(ctx, hostID, host)
-			}
 			continue
 		}
 
@@ -216,8 +234,19 @@ func (host *YamcsHost) GetProcessorListener(instance client.Instance, processor 
 		host.mu.Lock()
 		defer host.mu.Unlock()
 
-		// TODO: error checking
-		host.Instances[instanceName].Processors[processorName] = processor
+		hostInstance, ok := host.Instances[instanceName]
+		if !ok {
+			// Instance was removed (e.g. a reconnect re-listed instances and
+			// this one no longer exists) since this listener was registered.
+			// Nothing to update.
+			backend.Logger.Warn("Processor update for unknown instance, dropping", "host", host.Name(), "instance", instanceName, "processor", processorName)
+			return
+		}
+
+		// Store the new snapshot (update), not the original processor this
+		// listener closed over - otherwise every update would just
+		// re-write the stale initial state forever.
+		hostInstance.Processors[processorName] = update
 
 	}
 }
