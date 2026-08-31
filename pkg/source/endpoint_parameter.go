@@ -44,12 +44,21 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 			}
 		}()
 
-		paramDemand, err := ep.getOrCreateParameterDemand(context.Background(), parameter)
-		if err != nil {
-			return err
-		}
-
+		// This listener runs synchronously on the WebSocket's single read
+		// loop, so it must never block on network I/O - a demand should
+		// always already exist by the time a value arrives (created by
+		// RequestNewParameterStream before the subscribe request is even
+		// sent). If it doesn't (e.g. a stray value for a stale/leftover
+		// subscription), just drop the value instead of fetching it live,
+		// which would stall delivery of every other incoming message on
+		// this connection while it's in flight.
 		ep.mu.Lock()
+		paramDemand := ep.Parameters[parameter]
+		if paramDemand == nil {
+			ep.mu.Unlock()
+			backend.Logger.Debug("dropping parameter value for unknown demand", "parameter", parameter)
+			return nil
+		}
 		streamDemands := make([]*ParameterStreamDemand, 0, len(paramDemand.Streams))
 		for _, streamDemand := range paramDemand.Streams {
 			streamDemands = append(streamDemands, streamDemand)

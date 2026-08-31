@@ -361,3 +361,47 @@ func TestGetOrCreateParameterDemandDoesNotBlockUnrelatedEndpointState(t *testing
 		t.Fatal("getOrCreateParameterDemand never completed")
 	}
 }
+
+// TestParameterListenerDropsUnknownParameterWithoutNetworkCall verifies that
+// getChannelParameterListener - which runs synchronously on the WebSocket's
+// single read loop - never attempts a live (HTTP) demand lookup for a
+// parameter it doesn't already know about. Doing so would block delivery of
+// every other incoming message on the same connection for as long as that
+// call takes. Instead, values for unknown parameters must simply be dropped.
+func TestParameterListenerDropsUnknownParameterWithoutNetworkCall(t *testing.T) {
+	cli, err := client.NewYamcsClient("unused", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	// If the listener ever attempted a network call, this transport would
+	// make the test hang/timeout, catching the regression.
+	cli.HTTP.Client.Transport = &slowJSONTransport{delay: 5 * time.Second}
+
+	endpoint := &YamcsEndpoint{
+		Host:          &YamcsHost{Client: cli, Configuration: &config.YamcsHostConfiguration{ID: "test-host"}},
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters:    map[string]*ParameterDemand{},
+	}
+
+	listener := endpoint.getChannelParameterListener()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- listener("/SIM/UNKNOWN", &pvalue.ParameterValue{
+			AcquisitionStatus: pvalue.AcquisitionStatus_ACQUIRED.Enum(),
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected listener to drop the value without error, got %v", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("listener blocked on a network call for an unknown parameter")
+	}
+
+	if _, found := endpoint.Parameters["/SIM/UNKNOWN"]; found {
+		t.Fatal("expected listener not to create a demand for an unknown parameter")
+	}
+}
