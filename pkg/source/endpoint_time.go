@@ -16,11 +16,20 @@ func (ep *YamcsEndpoint) RequestTime(ctx context.Context) error {
 
 	subscription, found := client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName())
 	if !found {
-		var err error
-		subscription, err = client.CreateTimeSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
-		if err != nil {
-			return err
+		// Only one goroutine may attempt to create the time subscription
+		// for this endpoint at a time - scoped separately from mu so it
+		// never blocks unrelated endpoint state.
+		ep.timeSubscribeMu.Lock()
+		subscription, found = client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName())
+		if !found {
+			var err error
+			subscription, err = client.CreateTimeSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
+			if err != nil {
+				ep.timeSubscribeMu.Unlock()
+				return err
+			}
 		}
+		ep.timeSubscribeMu.Unlock()
 	}
 
 	subscription.AddTimeListener(ep.getTimeHandler())

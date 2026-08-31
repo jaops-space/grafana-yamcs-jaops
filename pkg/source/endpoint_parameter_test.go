@@ -2,12 +2,18 @@ package source
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
@@ -236,5 +242,122 @@ func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
 	}
 	if got := len(valueConfig.Thresholds.Steps); got != 2 {
 		t.Fatalf("expected 2 thresholds, got %d", got)
+	}
+}
+
+// slowJSONTransport is an http.RoundTripper that sleeps for delay before
+// returning a successful, empty JSON body - simulating a slow-but-working
+// HTTP call (e.g. a loaded/high-latency Yamcs instance), as opposed to an
+// outright failure.
+type slowJSONTransport struct {
+	delay time.Duration
+}
+
+func (t *slowJSONTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	time.Sleep(t.delay)
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader("{}")),
+		Header:     make(http.Header),
+	}, nil
+}
+
+// TestRequestNewParameterStreamDoesNotBlockUnrelatedEndpointState verifies
+// that a slow parameter-demand creation (e.g. a slow GetParameter HTTP call
+// for a brand new parameter, encountered via the real RequestNewParameterStream
+// entry point) does not hold mu, so unrelated endpoint bookkeeping (here:
+// alarms) for the very same endpoint stays fully responsive while it's in
+// flight. Previously mu was held for RequestNewParameterStream's entire body
+// (including this HTTP call), so one slow/stuck subscribe-ish attempt for
+// one data type could stall every other panel on the same endpoint.
+func TestRequestNewParameterStreamDoesNotBlockUnrelatedEndpointState(t *testing.T) {
+	cli, err := client.NewYamcsClient("unused", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	cli.HTTP.Client.Transport = &slowJSONTransport{delay: 300 * time.Millisecond}
+
+	endpoint := &YamcsEndpoint{
+		Host:          &YamcsHost{Client: cli, Configuration: &config.YamcsHostConfiguration{ID: "test-host"}},
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters:    map[string]*ParameterDemand{},
+		Alarms:        map[string][]*alarms.AlarmData{},
+		AlarmSignals:  map[string]chan struct{}{},
+	}
+
+	requestStarted := make(chan struct{})
+	requestDone := make(chan struct{})
+	go func() {
+		close(requestStarted)
+		// The instance/processor aren't wired up on the host, so this will
+		// error out after creating the demand - that's fine, we only care
+		// about how long mu is held while it's in flight.
+		_ = endpoint.RequestNewParameterStream(context.Background(), "/SIM/NEW_PARAM", "some/req/path")
+		close(requestDone)
+	}()
+
+	<-requestStarted
+	time.Sleep(50 * time.Millisecond) // give the goroutine time to be mid-HTTP-call
+
+	start := time.Now()
+	endpoint.ClearAlarmsStream("some/path")
+	elapsed := time.Since(start)
+
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("unrelated endpoint state (alarms) took %v to update while a parameter stream was being requested - mu is being held across the slow call", elapsed)
+	}
+
+	select {
+	case <-requestDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("RequestNewParameterStream never completed")
+	}
+}
+
+// TestGetOrCreateParameterDemandDoesNotBlockUnrelatedEndpointState verifies
+// that a slow parameter-demand creation (e.g. a slow GetParameter HTTP call
+// for a brand new parameter) does not hold mu, so unrelated endpoint
+// bookkeeping (here: alarms) for the very same endpoint stays fully
+// responsive while it's in flight. Previously mu was held across this call,
+// so one slow/stuck subscribe-ish attempt for one data type could stall
+// every other panel on the same endpoint.
+func TestGetOrCreateParameterDemandDoesNotBlockUnrelatedEndpointState(t *testing.T) {
+	cli, err := client.NewYamcsClient("unused", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	cli.HTTP.Client.Transport = &slowJSONTransport{delay: 300 * time.Millisecond}
+
+	endpoint := &YamcsEndpoint{
+		Host:          &YamcsHost{Client: cli, Configuration: &config.YamcsHostConfiguration{ID: "test-host"}},
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters:    map[string]*ParameterDemand{},
+		Alarms:        map[string][]*alarms.AlarmData{},
+		AlarmSignals:  map[string]chan struct{}{},
+	}
+
+	demandStarted := make(chan struct{})
+	demandDone := make(chan struct{})
+	go func() {
+		close(demandStarted)
+		_, _ = endpoint.getOrCreateParameterDemand(context.Background(), "/SIM/NEW_PARAM")
+		close(demandDone)
+	}()
+
+	<-demandStarted
+	time.Sleep(50 * time.Millisecond) // give the goroutine time to be mid-HTTP-call
+
+	start := time.Now()
+	endpoint.ClearAlarmsStream("some/path")
+	elapsed := time.Since(start)
+
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("unrelated endpoint state (alarms) took %v to update while a parameter demand was being created - mu is being held across the slow call", elapsed)
+	}
+
+	select {
+	case <-demandDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("getOrCreateParameterDemand never completed")
 	}
 }

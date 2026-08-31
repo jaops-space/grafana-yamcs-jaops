@@ -12,23 +12,18 @@ import (
 
 func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) error {
 
-	ep.mu.Lock()
 	if _, err := ep.getOrCreateAlarmsSubscription(ctx); err != nil {
-		ep.mu.Unlock()
 		return err
 	}
 	if _, err := ep.getOrCreateGlobalAlarmStatusSubscription(ctx); err != nil {
-		ep.mu.Unlock()
 		return err
 	}
+
+	ep.mu.Lock()
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 	ep.AlarmSignals[path] = make(chan struct{}, StreamSignalBufferSize)
-	ep.mu.Unlock()
-
-	// Load initial alarms into cache if cache is empty
-	ep.mu.RLock()
 	cacheEmpty := len(ep.AlarmCache) == 0
-	ep.mu.RUnlock()
+	ep.mu.Unlock()
 
 	if cacheEmpty {
 		cli, err := ep.GetClient()
@@ -57,12 +52,23 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) e
 	return nil
 }
 
+// getOrCreateAlarmsSubscription does not touch mu - subscription
+// lookup/creation is guarded by the client's own subsMu (for the map) and
+// alarmSubscribeMu (for the create race), so a slow/stuck subscribe attempt
+// never blocks unrelated endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getOrCreateAlarmsSubscription(ctx context.Context) (*client.AlarmSubscription, error) {
 
 	cli, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
+	if subscription, found := cli.FindAlarmSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+
+	ep.alarmSubscribeMu.Lock()
+	defer ep.alarmSubscribeMu.Unlock()
+
 	if subscription, found := cli.FindAlarmSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
@@ -74,12 +80,21 @@ func (ep *YamcsEndpoint) getOrCreateAlarmsSubscription(ctx context.Context) (*cl
 	return subscription, nil
 }
 
+// getOrCreateGlobalAlarmStatusSubscription does not touch mu for the same
+// reason as getOrCreateAlarmsSubscription above.
 func (ep *YamcsEndpoint) getOrCreateGlobalAlarmStatusSubscription(ctx context.Context) (*client.GlobalStatusSubscription, error) {
 
 	cli, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
+	if subscription, found := cli.FindGlobalAlarmStatusSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+
+	ep.alarmSubscribeMu.Lock()
+	defer ep.alarmSubscribeMu.Unlock()
+
 	if subscription, found := cli.FindGlobalAlarmStatusSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}

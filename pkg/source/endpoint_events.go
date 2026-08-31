@@ -26,17 +26,16 @@ func (endpoint *YamcsEndpoint) getEventListener() func(event *events.Event) {
 // RequestEventsStream initiates an event stream subscription.
 func (ep *YamcsEndpoint) RequestEventsStream(ctx context.Context, path string) (<-chan *events.Event, error) {
 
-	ep.mu.RLock()
 	_, err := ep.getOrCreateEventsSubscription(ctx)
-	ep.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
 	ep.mu.Lock()
 	ep.Events[path] = make(chan *events.Event, StreamSignalBufferSize)
+	signal := ep.Events[path]
 	ep.mu.Unlock()
 
-	return ep.Events[path], nil
+	return signal, nil
 
 }
 
@@ -55,12 +54,23 @@ func (ep *YamcsEndpoint) DrainEventsSignal(first *events.Event, signal <-chan *e
 	}
 }
 
+// getOrCreateEventsSubscription does not touch mu - subscription
+// lookup/creation is guarded by the client's own subsMu (for the map) and
+// eventSubscribeMu (for the create race), so a slow/stuck subscribe attempt
+// never blocks unrelated endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getOrCreateEventsSubscription(ctx context.Context) (*client.EventSubscription, error) {
 
 	client, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
+	if subscription, found := client.FindEventSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+
+	ep.eventSubscribeMu.Lock()
+	defer ep.eventSubscribeMu.Unlock()
+
 	if subscription, found := client.FindEventSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}

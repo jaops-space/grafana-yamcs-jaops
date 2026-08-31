@@ -18,6 +18,25 @@ type YamcsEndpoint struct {
 
 	mu sync.RWMutex
 
+	// subscribeMu guards "find-or-create subscription" races per
+	// subscription type below. Each is intentionally separate from mu (and
+	// from each other): the actual subscribe attempt can block for the
+	// underlying WebSocket's full reply timeout (up to 10s), and previously
+	// that wait was made *while holding mu itself* - meaning one slow/stuck
+	// subscribe attempt (e.g. alarms) could stall every other RunXStream
+	// operation on this endpoint (parameters, events, ...), not just
+	// retries of its own kind. These locks keep the "don't create a
+	// duplicate subscription" guarantee scoped to just their own
+	// subscription type, so mu itself is only ever held for the endpoint's
+	// lightweight bookkeeping maps below, never across network I/O.
+	parameterDemandMu    sync.Mutex
+	parameterSubscribeMu sync.Mutex
+	alarmSubscribeMu     sync.Mutex
+	eventSubscribeMu     sync.Mutex
+	commandHistorySubMu  sync.Mutex
+	linkSubscribeMu      sync.Mutex
+	timeSubscribeMu      sync.Mutex
+
 	ID                    string
 	Parameters            map[string]*ParameterDemand
 	Events                map[string]chan *events.Event

@@ -38,9 +38,6 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 	return func(parameter string, value *pvalue.ParameterValue) error {
 		started := time.Now()
 		streamCount := 0
-
-		ep.mu.Lock()
-		defer ep.mu.Unlock()
 		defer func() {
 			if ep.ParameterProcessObserver != nil && streamCount > 0 {
 				ep.ParameterProcessObserver(parameter, streamCount, time.Since(started))
@@ -52,9 +49,14 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 			return err
 		}
 
-		streamDemands := paramDemand.Streams
+		ep.mu.Lock()
+		streamDemands := make([]*ParameterStreamDemand, 0, len(paramDemand.Streams))
+		for _, streamDemand := range paramDemand.Streams {
+			streamDemands = append(streamDemands, streamDemand)
+		}
 		streamCount = len(streamDemands)
 		paramDemand.LastReceived = time.Now()
+		ep.mu.Unlock()
 
 		status := value.GetAcquisitionStatus()
 		if status != pvalue.AcquisitionStatus_ACQUIRED && status != pvalue.AcquisitionStatus_EXPIRED {
@@ -89,19 +91,18 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 // RequestNewParameterStream adds a new parameter stream to the endpoint.
 func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name string, path string) error {
 
-	ep.mu.Lock()
-	defer ep.mu.Unlock()
-
-	_, err := ep.getOrCreateParameterDemand(ctx, name)
+	demand, err := ep.getOrCreateParameterDemand(ctx, name)
 	if err != nil {
 		return err
 	}
 
-	ep.Parameters[name].Streams[path] = &ParameterStreamDemand{
-		parameter: ep.Parameters[name],
+	ep.mu.Lock()
+	demand.Streams[path] = &ParameterStreamDemand{
+		parameter: demand,
 		Path:      path,
 		Buffer:    make([]*pvalue.ParameterValue, 0),
 	}
+	ep.mu.Unlock()
 
 	subscription, err := ep.getParameterSubscription(ctx)
 	if err != nil {
@@ -152,19 +153,21 @@ func (ep *YamcsEndpoint) GetAndClearParameterStreamBuffer(parameter string, path
 func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(ctx context.Context, name string, path string) error {
 
 	ep.mu.Lock()
-	defer ep.mu.Unlock()
-
-	_, found := ep.Parameters[name]
+	demand, found := ep.Parameters[name]
 	if !found {
+		ep.mu.Unlock()
 		return nil
 	}
+	delete(demand.Streams, path)
+	streamsEmpty := len(demand.Streams) == 0
+	ep.mu.Unlock()
+
 	client, err := ep.GetClient()
 	if err != nil {
 		return err
 	}
 
-	delete(ep.Parameters[name].Streams, path)
-	if len(ep.Parameters[name].Streams) == 0 && client != nil && client.IsWebSocketConnected() {
+	if streamsEmpty && client != nil && client.IsWebSocketConnected() {
 		subscription, err := ep.getParameterSubscription(ctx)
 		if err != nil {
 			return err
@@ -174,42 +177,73 @@ func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(ctx context.Context, nam
 	return nil
 }
 
-// GetParameterDemand retrieves or initializes a ParameterDemand.
+// GetParameterDemand retrieves or initializes a ParameterDemand. It manages
+// its own locking (parameterDemandMu for the create race, mu for the map
+// itself) so callers must not hold mu around it - the HTTP lookup below can
+// take a while, and holding mu across it would stall unrelated endpoint
+// state (alarms, events, ...) for the duration.
 func (ep *YamcsEndpoint) getOrCreateParameterDemand(ctx context.Context, parameter string) (*ParameterDemand, error) {
 
-	if ep.Parameters[parameter] == nil {
-
-		client, err := ep.GetClient()
-		if err != nil {
-			return nil, err
-		}
-		unit := ""
-		thresholds := make([]*data.Threshold, 0)
-
-		paramInfo, err := client.GetParameter(ctx, ep.GetInstanceName(), parameter)
-		if err != nil {
-			return nil, err
-		}
-		paramType := paramInfo.GetType()
-		unitSet := paramType.GetUnitSet()
-		thresholds = tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
-		if len(unitSet) > 0 {
-			unit = unitSet[0].GetUnit()
-			backend.Logger.Debug("found unit", "parameter", parameter, "unit", unit)
-		}
-
-		ep.Parameters[parameter] = &ParameterDemand{
-			endpoint:   ep,
-			Name:       parameter,
-			Unit:       unit,
-			Thresholds: thresholds,
-			Streams:    make(map[string]*ParameterStreamDemand),
-		}
+	ep.mu.RLock()
+	demand := ep.Parameters[parameter]
+	ep.mu.RUnlock()
+	if demand != nil {
+		return demand, nil
 	}
-	return ep.Parameters[parameter], nil
+
+	// Only one goroutine may fetch/create the demand for this endpoint at a
+	// time. Scoped separately from mu so it never blocks unrelated endpoint
+	// state.
+	ep.parameterDemandMu.Lock()
+	defer ep.parameterDemandMu.Unlock()
+
+	// Re-check now that we hold the create-lock: another goroutine may have
+	// created it while we were waiting.
+	ep.mu.RLock()
+	demand = ep.Parameters[parameter]
+	ep.mu.RUnlock()
+	if demand != nil {
+		return demand, nil
+	}
+
+	client, err := ep.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	unit := ""
+
+	paramInfo, err := client.GetParameter(ctx, ep.GetInstanceName(), parameter)
+	if err != nil {
+		return nil, err
+	}
+	paramType := paramInfo.GetType()
+	unitSet := paramType.GetUnitSet()
+	thresholds := tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
+	if len(unitSet) > 0 {
+		unit = unitSet[0].GetUnit()
+		backend.Logger.Debug("found unit", "parameter", parameter, "unit", unit)
+	}
+
+	demand = &ParameterDemand{
+		endpoint:   ep,
+		Name:       parameter,
+		Unit:       unit,
+		Thresholds: thresholds,
+		Streams:    make(map[string]*ParameterStreamDemand),
+	}
+
+	ep.mu.Lock()
+	ep.Parameters[parameter] = demand
+	ep.mu.Unlock()
+
+	return demand, nil
 }
 
-// GetParameterSubscription retrieves or creates a parameter subscription.
+// GetParameterSubscription retrieves or creates a parameter subscription. It
+// does not touch mu - subscription lookup/creation is entirely guarded by
+// the client's own subsMu (for the map) and parameterSubscribeMu (for the
+// create race), so a slow/stuck subscribe attempt never blocks unrelated
+// endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.ParameterSubscription, error) {
 
 	client, err := ep.GetClient()
@@ -219,6 +253,16 @@ func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.
 	if subscription, found := client.FindParameterSubscription(ep.GetInstanceName(), ep.GetProcessorName()); found {
 		return subscription, nil
 	}
+
+	// Only one goroutine may attempt to create the parameter subscription
+	// for this endpoint at a time.
+	ep.parameterSubscribeMu.Lock()
+	defer ep.parameterSubscribeMu.Unlock()
+
+	if subscription, found := client.FindParameterSubscription(ep.GetInstanceName(), ep.GetProcessorName()); found {
+		return subscription, nil
+	}
+
 	instance, err := ep.GetInstance()
 	if err != nil {
 		return nil, err
@@ -236,9 +280,6 @@ func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.
 }
 
 func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, parameter string, frame *data.Frame) {
-
-	endpoint.mu.Lock()
-	defer endpoint.mu.Unlock()
 
 	parameterDemand, err := endpoint.getOrCreateParameterDemand(ctx, parameter)
 	if err != nil {

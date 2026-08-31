@@ -28,9 +28,7 @@ func (ep *YamcsEndpoint) getCommandHistoryListener() client.CommandHistoryListen
 
 func (ep *YamcsEndpoint) RequestCommandHistoryStream(ctx context.Context, path string) error {
 
-	ep.mu.RLock()
 	_, err := ep.getOrCreateCommandHistorySubscription(ctx)
-	ep.mu.RUnlock()
 	if err != nil {
 		return err
 	}
@@ -56,12 +54,23 @@ func (ep *YamcsEndpoint) DrainCommandHistorySignal(first *commanding.CommandHist
 	}
 }
 
+// getOrCreateCommandHistorySubscription does not touch mu - subscription
+// lookup/creation is guarded by the client's own subsMu (for the map) and
+// commandHistorySubMu (for the create race), so a slow/stuck subscribe
+// attempt never blocks unrelated endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getOrCreateCommandHistorySubscription(ctx context.Context) (*client.CommandHistorySubscription, error) {
 
 	client, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
+	if subscription, found := client.FindCommandHistorySubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+
+	ep.commandHistorySubMu.Lock()
+	defer ep.commandHistorySubMu.Unlock()
+
 	if subscription, found := client.FindCommandHistorySubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}

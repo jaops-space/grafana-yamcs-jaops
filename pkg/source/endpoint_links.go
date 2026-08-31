@@ -28,10 +28,7 @@ func (ep *YamcsEndpoint) getLinksListener() client.LinkListener {
 
 func (ep *YamcsEndpoint) RequestLinksStream(ctx context.Context, path string) error {
 
-	ep.mu.RLock()
 	_, err := ep.getOrCreateLinksSubscription(ctx)
-	ep.mu.RUnlock()
-
 	if err != nil {
 		return err
 	}
@@ -57,12 +54,23 @@ func (ep *YamcsEndpoint) DrainLinksSignal(first *links.LinkEvent, signal <-chan 
 	}
 }
 
+// getOrCreateLinksSubscription does not touch mu - subscription
+// lookup/creation is guarded by the client's own subsMu (for the map) and
+// linkSubscribeMu (for the create race), so a slow/stuck subscribe attempt
+// never blocks unrelated endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getOrCreateLinksSubscription(ctx context.Context) (*client.LinkSubscription, error) {
 
 	cli, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
+	if subscription, found := cli.FindLinkSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+
+	ep.linkSubscribeMu.Lock()
+	defer ep.linkSubscribeMu.Unlock()
+
 	if subscription, found := cli.FindLinkSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
