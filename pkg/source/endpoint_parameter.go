@@ -216,10 +216,8 @@ func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range client.ParameterSubscriptions {
-		if subscription.Instance == ep.GetInstanceName() && subscription.Processor == ep.GetProcessorName() {
-			return subscription, nil
-		}
+	if subscription, found := client.FindParameterSubscription(ep.GetInstanceName(), ep.GetProcessorName()); found {
+		return subscription, nil
 	}
 	instance, err := ep.GetInstance()
 	if err != nil {

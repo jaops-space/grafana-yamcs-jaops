@@ -30,8 +30,39 @@ func (client *YamcsClient) CreateEventSubscription(ctx context.Context, instance
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.EventSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
+}
+
+// FindEventSubscription returns the existing event subscription for the
+// given instance, if one has already been created.
+func (client *YamcsClient) FindEventSubscription(instance string) (*EventSubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	for _, subscription := range client.EventSubscriptions {
+		if subscription.Instance == instance {
+			return subscription, true
+		}
+	}
+	return nil, false
+}
+
+// HaltEventSubscriptionsForInstance halts and removes every event
+// subscription registered for the given instance.
+func (client *YamcsClient) HaltEventSubscriptionsForInstance(instance string) {
+	client.subsMu.RLock()
+	matches := make([]*EventSubscription, 0, 1)
+	for _, subscription := range client.EventSubscriptions {
+		if subscription.Instance == instance {
+			matches = append(matches, subscription)
+		}
+	}
+	client.subsMu.RUnlock()
+	for _, subscription := range matches {
+		subscription.Halt()
+	}
 }
 
 // NewEventSubscription initializes a new EventSubscription and subscribes to events.
@@ -80,7 +111,9 @@ func (client *YamcsClient) HandleEventMessage(message *api.ServerMessage) {
 
 	// Retrieve the subscription using the call ID from the message
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.EventSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if found && subscription.eventListener != nil {
 		// Invoke the listener with the unmarshalled event data
 		subscription.eventListener(event)
@@ -95,7 +128,9 @@ func (subscription *EventSubscription) SetListener(listener EventListener) {
 // Cancel subscription
 func (subscription *EventSubscription) Halt() {
 
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.EventSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{

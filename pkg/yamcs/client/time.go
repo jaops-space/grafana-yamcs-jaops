@@ -30,7 +30,9 @@ func (client *YamcsClient) CreateTimeSubscription(ctx context.Context, instance 
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.TimeSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 
 }
@@ -77,7 +79,9 @@ func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance str
 
 func (subscription *TimeSubscription) Halt() {
 
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.TimeSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{
@@ -106,7 +110,9 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 
 	// Retrieve the subscription by call ID
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.TimeSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if !found {
 		return
 	}
@@ -131,6 +137,8 @@ func (subscription *TimeSubscription) notifyListeners(currentTime time.Time) {
 }
 
 func (client *YamcsClient) GetTimeSubscription(instance string, processor string) (*TimeSubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
 	for _, sub := range client.TimeSubscriptions {
 		if sub.Instance == instance && sub.Processor == processor {
 			return sub, true

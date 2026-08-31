@@ -29,7 +29,9 @@ func (client *YamcsClient) CreateProcessorSubscription(ctx context.Context, inst
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ProcessorSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
@@ -40,7 +42,9 @@ func (client *YamcsClient) CreateProcessorSubscriptionByNames(ctx context.Contex
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ProcessorSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
@@ -85,7 +89,9 @@ func (client *YamcsClient) HandleProcessorMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.ProcessorSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if found && subscription.listener != nil {
 		subscription.listener(processor)
 	}
@@ -98,7 +104,9 @@ func (subscription *ProcessorSubscription) SetListener(listener ProcessorListene
 
 // Halt cancels the processor subscription.
 func (subscription *ProcessorSubscription) Halt() {
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.ProcessorSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: subscription.subscriptionID,

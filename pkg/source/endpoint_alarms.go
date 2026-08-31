@@ -63,10 +63,8 @@ func (ep *YamcsEndpoint) getOrCreateAlarmsSubscription(ctx context.Context) (*cl
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range cli.AlarmSubscriptions {
-		if subscription.GetInstance() == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if subscription, found := cli.FindAlarmSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
 	subscription, err := cli.CreateAlarmSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
 	if err != nil {
@@ -82,10 +80,8 @@ func (ep *YamcsEndpoint) getOrCreateGlobalAlarmStatusSubscription(ctx context.Co
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range cli.GlobalAlarmStatusSubscriptions {
-		if subscription.GetInstance() == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if subscription, found := cli.FindGlobalAlarmStatusSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
 	subscription, err := cli.CreateGlobalAlarmStatusSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
 	if err != nil {
@@ -194,16 +190,8 @@ func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) error {
 		if err != nil {
 			return err
 		}
-		for _, subscription := range c.AlarmSubscriptions {
-			if subscription.GetInstance() == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
-		for _, subscription := range c.GlobalAlarmStatusSubscriptions {
-			if subscription.GetInstance() == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
+		c.HaltAlarmSubscriptionsForInstance(ep.GetInstanceName())
+		c.HaltGlobalAlarmStatusSubscriptionsForInstance(ep.GetInstanceName())
 	}
 	return nil
 }

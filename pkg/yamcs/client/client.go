@@ -45,7 +45,23 @@ type YamcsClient struct {
 	// WebSocket handler for managing real-time data streams
 	WebSocket *ws.WebSocketHandler
 
-	// Various subscriptions for data streams
+	// subsMu guards every read, write, range and delete of the eight
+	// subscription maps below. They are mutated concurrently from at least
+	// three places: the WebSocket read loop (Listen(), dispatching incoming
+	// frames and looking subscriptions up by call ID), any number of
+	// concurrent RunXStream goroutines (creating/finding/halting
+	// subscriptions for their own instance/processor), and
+	// clearAllSubscriptions (wiping all of them on connect/reconnect/close).
+	// Without this lock, opening a second instance's dashboard while another
+	// is already streaming reliably races the read loop against a
+	// subscribing goroutine, which for plain Go maps is a fatal
+	// "concurrent map read/iteration and map write" crash, not just a data
+	// race - this crashes the whole backend process (all instances, not just
+	// the new one), which is the root cause of dashboards going silent with
+	// timeouts until Grafana restarts the backend.
+	subsMu sync.RWMutex
+
+	// Various subscriptions for data streams. Access only through subsMu.
 	ParameterSubscriptions         map[int32]*ParameterSubscription
 	CommandHistorySubscriptions    map[int32]*CommandHistorySubscription
 	EventSubscriptions             map[int32]*EventSubscription
@@ -277,6 +293,8 @@ func getProtocolPrefix(isTLS bool) string {
 
 // clearAllSubscriptions clears all subscriptions for the client.
 func (client *YamcsClient) clearAllSubscriptions() {
+	client.subsMu.Lock()
+	defer client.subsMu.Unlock()
 	// Clear subscriptions
 	client.ParameterSubscriptions = make(map[int32]*ParameterSubscription)
 	client.EventSubscriptions = make(map[int32]*EventSubscription)

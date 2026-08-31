@@ -62,10 +62,8 @@ func (ep *YamcsEndpoint) getOrCreateCommandHistorySubscription(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range client.CommandHistorySubscriptions {
-		if subscription.Instance == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if subscription, found := client.FindCommandHistorySubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
 	subscription, err := client.CreateCommandHistorySubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
 	if err != nil {
@@ -93,11 +91,7 @@ func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) error 
 		if err != nil {
 			return err
 		}
-		for _, subscription := range client.CommandHistorySubscriptions {
-			if subscription.Instance == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
+		client.HaltCommandHistorySubscriptionsForInstance(ep.GetInstanceName())
 	}
 	return nil
 }

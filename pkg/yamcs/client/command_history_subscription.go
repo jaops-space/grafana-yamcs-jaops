@@ -29,8 +29,39 @@ func (client *YamcsClient) CreateCommandHistorySubscription(ctx context.Context,
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.CommandHistorySubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
+}
+
+// FindCommandHistorySubscription returns the existing command history
+// subscription for the given instance, if one has already been created.
+func (client *YamcsClient) FindCommandHistorySubscription(instance string) (*CommandHistorySubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	for _, subscription := range client.CommandHistorySubscriptions {
+		if subscription.Instance == instance {
+			return subscription, true
+		}
+	}
+	return nil, false
+}
+
+// HaltCommandHistorySubscriptionsForInstance halts and removes every command
+// history subscription registered for the given instance.
+func (client *YamcsClient) HaltCommandHistorySubscriptionsForInstance(instance string) {
+	client.subsMu.RLock()
+	matches := make([]*CommandHistorySubscription, 0, 1)
+	for _, subscription := range client.CommandHistorySubscriptions {
+		if subscription.Instance == instance {
+			matches = append(matches, subscription)
+		}
+	}
+	client.subsMu.RUnlock()
+	for _, subscription := range matches {
+		subscription.Halt()
+	}
 }
 
 // newCommandHistorySubscription initializes and subscribes to command history.
@@ -76,7 +107,9 @@ func (client *YamcsClient) HandleCommandMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.CommandHistorySubscriptions[callID]
+	client.subsMu.RUnlock()
 	if found && subscription.commandListener != nil {
 		subscription.commandListener(entry)
 	}
@@ -90,7 +123,9 @@ func (subscription *CommandHistorySubscription) SetListener(listener CommandHist
 // Halt cancels the command history subscription.
 func (subscription *CommandHistorySubscription) Halt() {
 
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.CommandHistorySubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: subscription.subscriptionID,

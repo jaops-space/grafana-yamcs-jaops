@@ -63,10 +63,8 @@ func (ep *YamcsEndpoint) getOrCreateLinksSubscription(ctx context.Context) (*cli
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range cli.LinkSubscriptions {
-		if subscription.Instance == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if subscription, found := cli.FindLinkSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
 	subscription, err := cli.CreateLinkSubscription(ctx, ep.GetInstanceName())
 	if err != nil {
@@ -94,11 +92,7 @@ func (ep *YamcsEndpoint) WithdrawLinksStreamRequest(path string) error {
 		if err != nil {
 			return err
 		}
-		for _, subscription := range cli.LinkSubscriptions {
-			if subscription.Instance == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
+		cli.HaltLinkSubscriptionsForInstance(ep.GetInstanceName())
 	}
 	return nil
 }

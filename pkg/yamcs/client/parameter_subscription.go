@@ -183,7 +183,9 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 
 	// Retrieve the subscription by call ID
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.ParameterSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if !found {
 		return
 	}
@@ -223,7 +225,9 @@ func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, inst
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ParameterSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
@@ -235,12 +239,29 @@ func (client *YamcsClient) CreateParameterSubscriptionByNames(ctx context.Contex
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ParameterSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
+}
+
+// FindParameterSubscription returns the existing parameter subscription for
+// the given instance/processor pair, if one has already been created.
+func (client *YamcsClient) FindParameterSubscription(instance, processor string) (*ParameterSubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	for _, subscription := range client.ParameterSubscriptions {
+		if subscription.Instance == instance && subscription.Processor == processor {
+			return subscription, true
+		}
+	}
+	return nil, false
 }
 
 // ClearParameterSubscriptions clears all active parameter subscriptions.
 func (client *YamcsClient) ClearParameterSubscriptions() {
+	client.subsMu.Lock()
+	defer client.subsMu.Unlock()
 	for id := range client.ParameterSubscriptions {
 		delete(client.ParameterSubscriptions, id)
 	}
@@ -248,7 +269,9 @@ func (client *YamcsClient) ClearParameterSubscriptions() {
 
 func (subscription *ParameterSubscription) Halt() {
 
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.ParameterSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{

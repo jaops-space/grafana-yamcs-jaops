@@ -58,11 +58,11 @@ func (ep *YamcsEndpoint) DrainEventsSignal(first *events.Event, signal <-chan *e
 func (ep *YamcsEndpoint) getOrCreateEventsSubscription(ctx context.Context) (*client.EventSubscription, error) {
 
 	client, err := ep.GetClient()
-
-	for _, subscription := range client.EventSubscriptions {
-		if subscription.Instance == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if err != nil {
+		return nil, err
+	}
+	if subscription, found := client.FindEventSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
 	subscription, err := client.CreateEventSubscription(ctx, ep.GetInstanceName())
 	if err != nil {
@@ -89,11 +89,7 @@ func (ep *YamcsEndpoint) WithdrawEventsStreamRequest(path string) error {
 		if err != nil {
 			return err
 		}
-		for _, subscription := range client.EventSubscriptions {
-			if subscription.Instance == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
+		client.HaltEventSubscriptionsForInstance(ep.GetInstanceName())
 	}
 	return nil
 }
