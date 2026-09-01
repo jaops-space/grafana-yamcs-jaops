@@ -8,18 +8,19 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
-type CommandHistorySignal = chan *commanding.CommandHistoryEntry
-
 // GetCommandHistoryListener returns a function that listens for command history entries.
 func (ep *YamcsEndpoint) getCommandHistoryListener() client.CommandHistoryListener {
 	return func(entry *commanding.CommandHistoryEntry) error {
+		// Pushed exactly once, regardless of how many stream paths are
+		// watching command history on this endpoint - see getEventListener.
+		ep.CommandHistoryRing.Push(entry)
+
 		ep.mu.RLock()
 		defer ep.mu.RUnlock()
-		for _, sig := range ep.CommandHistorySignals {
+		for _, demand := range ep.CommandHistorySignals {
 			select {
-			case sig <- entry:
+			case demand.notify <- struct{}{}:
 			default:
-				backend.Logger.Warn("dropping command history entry because stream buffer is full", "commandId", entry.GetId())
 			}
 		}
 		return nil
@@ -33,25 +34,30 @@ func (ep *YamcsEndpoint) RequestCommandHistoryStream(ctx context.Context, path s
 		return err
 	}
 	ep.mu.Lock()
-	ep.CommandHistorySignals[path] = make(chan *commanding.CommandHistoryEntry, StreamSignalBufferSize)
+	ep.CommandHistorySignals[path] = newBroadcastStreamDemand(ep.CommandHistoryRing)
 	ep.mu.Unlock()
 	return nil
 
 }
 
-func (ep *YamcsEndpoint) DrainCommandHistorySignal(first *commanding.CommandHistoryEntry, signal <-chan *commanding.CommandHistoryEntry) []*commanding.CommandHistoryEntry {
-	drained := []*commanding.CommandHistoryEntry{first}
-	for {
-		select {
-		case command, ok := <-signal:
-			if !ok {
-				return drained
-			}
-			drained = append(drained, command)
-		default:
-			return drained
-		}
+// DrainCommandHistoryStream drains every entry pushed to the shared ring
+// since this path's own cursor, and advances the cursor accordingly.
+// Lock-free: the cursor is only ever touched by the single
+// RunCommandHistoryStream goroutine that owns this path.
+func (ep *YamcsEndpoint) DrainCommandHistoryStream(path string) []*commanding.CommandHistoryEntry {
+	ep.mu.RLock()
+	demand := ep.CommandHistorySignals[path]
+	ep.mu.RUnlock()
+	if demand == nil {
+		return nil
 	}
+
+	values, newCursor, dropped := ep.CommandHistoryRing.DrainSince(demand.cursor)
+	demand.cursor = newCursor
+	if dropped {
+		backend.Logger.Warn("command history stream fell behind its ring buffer capacity; oldest pending entries were dropped", "path", path, "ringCapacity", BroadcastRingCapacity)
+	}
+	return values
 }
 
 // getOrCreateCommandHistorySubscription does not touch mu - subscription
@@ -81,17 +87,23 @@ func (ep *YamcsEndpoint) getOrCreateCommandHistorySubscription(ctx context.Conte
 	return subscription, nil
 }
 
-func (ep *YamcsEndpoint) GetCommandHistorySignal(path string) CommandHistorySignal {
+// GetCommandHistorySignal returns the coalesced "new data available" notify
+// channel for the given path, for RunCommandHistoryStream to select on.
+func (ep *YamcsEndpoint) GetCommandHistorySignal(path string) <-chan struct{} {
 	ep.mu.RLock()
 	defer ep.mu.RUnlock()
-	return ep.CommandHistorySignals[path]
+	demand := ep.CommandHistorySignals[path]
+	if demand == nil {
+		return nil
+	}
+	return demand.notify
 }
 
 func (ep *YamcsEndpoint) WithdrawCommandHistoryStreamRequest(path string) error {
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
-	if signal, ok := ep.CommandHistorySignals[path]; ok {
-		close(signal)
+	if demand, ok := ep.CommandHistorySignals[path]; ok {
+		close(demand.notify)
 		delete(ep.CommandHistorySignals, path)
 	}
 	if len(ep.CommandHistorySignals) == 0 {

@@ -15,6 +15,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -28,18 +29,18 @@ type benchmarkMicroResult struct {
 }
 
 type benchmarkMicroMetric struct {
-	Metric         string               `json:"metric"`
-	Group          string               `json:"group"`
-	X              int                  `json:"x"`
-	XLabel         string               `json:"x_label"`
-	Samples        int                  `json:"samples"`
-	MedianNS       float64              `json:"median_ns"`
-	MinNS          float64              `json:"min_ns"`
-	MaxNS          float64              `json:"max_ns"`
+	Metric         string                `json:"metric"`
+	Group          string                `json:"group"`
+	X              int                   `json:"x"`
+	XLabel         string                `json:"x_label"`
+	Samples        int                   `json:"samples"`
+	MedianNS       float64               `json:"median_ns"`
+	MinNS          float64               `json:"min_ns"`
+	MaxNS          float64               `json:"max_ns"`
 	NSDistribution benchmarkDistribution `json:"ns_distribution"`
-	Values         int                  `json:"values,omitempty"`
-	Streams   int     `json:"streams,omitempty"`
-	BatchSize int     `json:"batch_size,omitempty"`
+	Values         int                   `json:"values,omitempty"`
+	Streams        int                   `json:"streams,omitempty"`
+	BatchSize      int                   `json:"batch_size,omitempty"`
 }
 
 func TestBenchmarkMicroCurves(t *testing.T) {
@@ -110,11 +111,6 @@ func benchmarkMicroMeasureProcess(streams int, samples int) benchmarkMicroMetric
 			}
 		}
 		durations[i] = time.Since(started).Nanoseconds()
-		if i%128 == 0 {
-			for _, stream := range endpoint.Parameters["/BENCH/VALUE"].Streams {
-				stream.Buffer = stream.Buffer[:0]
-			}
-		}
 	}
 	point := benchmarkMicroPoint(
 		"process_stream_10_values",
@@ -208,6 +204,7 @@ func benchmarkMicroEndpoint(streams int) *YamcsEndpoint {
 		endpoint: endpoint,
 		Name:     "/BENCH/VALUE",
 		Streams:  map[string]*ParameterStreamDemand{},
+		Ring:     types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 	}
 	endpoint.Parameters[parameter.Name] = parameter
 	for i := 0; i < streams; i++ {
@@ -215,7 +212,6 @@ func benchmarkMicroEndpoint(streams int) *YamcsEndpoint {
 		parameter.Streams[path] = &ParameterStreamDemand{
 			parameter: parameter,
 			Path:      path,
-			Buffer:    make([]client.ParameterValue, 0, microProcessValuesPerSample),
 		}
 	}
 	return endpoint

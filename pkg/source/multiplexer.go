@@ -7,9 +7,12 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
@@ -98,12 +101,15 @@ func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfi
 			Multiplexer:           mux,
 			Host:                  host,
 			Parameters:            make(map[string]*ParameterDemand),
-			Events:                make(map[string]chan *events.Event),
-			CommandHistorySignals: make(map[string]CommandHistorySignal),
+			Events:                make(map[string]*BroadcastStreamDemand[*events.Event]),
+			CommandHistorySignals: make(map[string]*BroadcastStreamDemand[*commanding.CommandHistoryEntry]),
 			Alarms:                make(map[string][]*alarms.AlarmData),
 			AlarmSignals:          make(map[string]chan struct{}),
-			LinkSignals:           make(map[string]LinkSignal),
+			LinkSignals:           make(map[string]*BroadcastStreamDemand[*links.LinkEvent]),
 			AlarmCache:            make(map[string]*alarms.AlarmData),
+			EventsRing:            types.NewRing[*events.Event](BroadcastRingCapacity),
+			CommandHistoryRing:    types.NewRing[*commanding.CommandHistoryEntry](BroadcastRingCapacity),
+			LinksRing:             types.NewRing[*links.LinkEvent](BroadcastRingCapacity),
 			ID:                    endpointID,
 		}
 	}

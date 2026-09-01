@@ -2,13 +2,13 @@ package source
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
@@ -21,16 +21,29 @@ type ParameterDemand struct {
 	Unit         string
 	Thresholds   []*data.Threshold
 	Streams      map[string]*ParameterStreamDemand
+
+	// Ring is the single shared buffer for every stream watching this
+	// parameter. The WebSocket read-loop listener pushes each incoming
+	// value exactly once here, regardless of how many streams (panels) are
+	// watching it - each ParameterStreamDemand then reads whatever is new
+	// since its own cursor. This replaces the old design where the
+	// listener re-appended the same value into every stream's own
+	// mutex-guarded buffer (O(streams) work per value); pushing once here
+	// is O(1) per value no matter the fan-out.
+	Ring *types.Ring[client.ParameterValue]
 }
 
-// ParameterStreamDemand represents a demand for a specific parameter stream.
+// ParameterStreamDemand represents a single stream's (i.e. a single panel's)
+// view into its parameter's shared Ring. cursor is only ever read/written
+// by the one RunParameterStream goroutine that owns this path (via
+// GetAndClearParameterStreamBuffer) - never touched by the WebSocket
+// read-loop or by any other stream's goroutine - so it needs no locking of
+// its own.
 type ParameterStreamDemand struct {
-	mu sync.Mutex
-
 	parameter *ParameterDemand
 
 	Path   string
-	Buffer []client.ParameterValue
+	cursor uint64
 }
 
 // GetChannelParameterListener returns a function to listen for parameter updates.
@@ -83,12 +96,14 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 			)
 		}
 
+		// Pushed exactly once per parameter, regardless of how many streams
+		// (panels) are watching it - each stream's own cursor determines
+		// which pushed values it has and hasn't drained yet (see
+		// ParameterStreamDemand and GetAndClearParameterStreamBuffer).
 		receivedAt := time.Now()
-		for _, streamDemand := range streamDemands {
-			streamDemand.mu.Lock()
-			streamDemand.Buffer = append(streamDemand.Buffer, value)
-			streamDemand.mu.Unlock()
-			if ep.ParameterBufferObserver != nil {
+		paramDemand.Ring.Push(value)
+		if ep.ParameterBufferObserver != nil {
+			for _, streamDemand := range streamDemands {
 				ep.ParameterBufferObserver(parameter, streamDemand.Path, receivedAt)
 			}
 		}
@@ -109,7 +124,10 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 	demand.Streams[path] = &ParameterStreamDemand{
 		parameter: demand,
 		Path:      path,
-		Buffer:    make([]*pvalue.ParameterValue, 0),
+		// Start at the ring's current write position, not 0, so a newly
+		// opened stream only sees values pushed after it started watching,
+		// not the parameter's entire pre-existing backlog.
+		cursor: demand.Ring.Cursor(),
 	}
 	ep.mu.Unlock()
 
@@ -131,7 +149,12 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 	return nil
 }
 
-// GetParameterStreamBuffer retrieves the buffer for a specific parameter stream.
+// GetAndClearParameterStreamBuffer drains every value pushed to this
+// parameter's shared ring since this stream's own cursor, and advances the
+// cursor accordingly. Lock-free: stream.cursor is only ever touched by the
+// single RunParameterStream goroutine that owns this path (see
+// ParameterStreamDemand's doc comment), and Ring.DrainSince itself needs no
+// lock either (see types.Ring).
 func (ep *YamcsEndpoint) GetAndClearParameterStreamBuffer(parameter string, path string) []client.ParameterValue {
 
 	ep.mu.RLock()
@@ -147,15 +170,15 @@ func (ep *YamcsEndpoint) GetAndClearParameterStreamBuffer(parameter string, path
 		return nil
 	}
 
-	stream.mu.Lock()
-	defer stream.mu.Unlock()
-
-	buf := stream.Buffer
-	out := make([]client.ParameterValue, len(buf))
-	copy(out, buf)
-	stream.Buffer = stream.Buffer[:0]
-	return out
-
+	values, newCursor, dropped := paramDemand.Ring.DrainSince(stream.cursor)
+	stream.cursor = newCursor
+	if dropped {
+		backend.Logger.Warn(
+			"parameter stream fell behind its ring buffer capacity; oldest pending values were dropped",
+			"parameter", parameter, "path", path, "ringCapacity", ParameterRingCapacity,
+		)
+	}
+	return values
 }
 
 // WithdrawParameterStreamRequest removes a parameter stream request.
@@ -239,6 +262,7 @@ func (ep *YamcsEndpoint) getOrCreateParameterDemand(ctx context.Context, paramet
 		Unit:       unit,
 		Thresholds: thresholds,
 		Streams:    make(map[string]*ParameterStreamDemand),
+		Ring:       types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 	}
 
 	ep.mu.Lock()

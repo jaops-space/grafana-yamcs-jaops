@@ -155,7 +155,7 @@ func TestIntegrationYamcs_EndpointLinksStreamFanoutBuildsColumnarFrame(t *testin
 		t.Fatalf("expected links stream signal to be registered")
 	}
 
-	event := waitForEndpointLinkEvent(t, signal, 20*time.Second)
+	event := waitForEndpointLinkEvent(t, endpoint, path, signal, 20*time.Second)
 	frame, err := tools.ConvertLinksToFrame(event.GetLinks())
 	if err != nil {
 		t.Fatalf("convert links to frame: %v", err)
@@ -210,18 +210,26 @@ func waitForLinkState(t *testing.T, events <-chan *links.LinkEvent, linkName str
 	}
 }
 
-func waitForEndpointLinkEvent(t *testing.T, signal <-chan *links.LinkEvent, timeout time.Duration) *links.LinkEvent {
+func waitForEndpointLinkEvent(t *testing.T, endpoint *source.YamcsEndpoint, path string, signal <-chan struct{}, timeout time.Duration) *links.LinkEvent {
 	t.Helper()
 
-	select {
-	case event := <-signal:
-		if len(event.GetLinks()) == 0 {
-			t.Fatalf("expected endpoint link event to include links")
+	deadline := time.After(timeout)
+	for {
+		select {
+		case <-signal:
+			batch := endpoint.DrainLinksStream(path)
+			if len(batch) == 0 {
+				continue
+			}
+			event := batch[len(batch)-1]
+			if len(event.GetLinks()) == 0 {
+				t.Fatalf("expected endpoint link event to include links")
+			}
+			return event
+		case <-deadline:
+			t.Fatalf("timed out waiting for endpoint links stream event")
+			return nil
 		}
-		return event
-	case <-time.After(timeout):
-		t.Fatalf("timed out waiting for endpoint links stream event")
-		return nil
 	}
 }
 

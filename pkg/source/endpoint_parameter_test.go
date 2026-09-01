@@ -12,6 +12,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
@@ -22,8 +23,9 @@ func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp": {Path: "req/sim/temp"},
 				},
 			},
 		},
@@ -52,8 +54,9 @@ func TestParameterListenerBuffersExpiredValues(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp": {Path: "req/sim/temp"},
 				},
 			},
 		},
@@ -78,8 +81,9 @@ func TestParameterListenerIgnoresInvalidValues(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp": {Path: "req/sim/temp"},
 				},
 			},
 		},
@@ -104,9 +108,10 @@ func TestParameterListenerProcessObserverReportsStreamCount(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp/1": {Path: "req/sim/temp/1", Buffer: []*pvalue.ParameterValue{}},
-					"req/sim/temp/2": {Path: "req/sim/temp/2", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp/1": {Path: "req/sim/temp/1"},
+					"req/sim/temp/2": {Path: "req/sim/temp/2"},
 				},
 			},
 		},
@@ -145,9 +150,10 @@ func TestParameterListenerBufferObserverReportsStreamPaths(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp/1": {Path: "req/sim/temp/1", Buffer: []*pvalue.ParameterValue{}},
-					"req/sim/temp/2": {Path: "req/sim/temp/2", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp/1": {Path: "req/sim/temp/1"},
+					"req/sim/temp/2": {Path: "req/sim/temp/2"},
 				},
 			},
 		},

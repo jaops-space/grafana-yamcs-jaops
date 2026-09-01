@@ -202,12 +202,16 @@ func RunEventStream(ctx context.Context,
 		select {
 		case <-ctx.Done():
 			return context.Cause(ctx)
-		case event, ok := <-signal:
+		case _, ok := <-signal:
 			if !ok {
 				return nil
 			}
 
-			frame := tools.ConvertEventsToFrame(endpoint.DrainEventsSignal(event, signal))
+			batch := endpoint.DrainEventsStream(req.Path)
+			if len(batch) == 0 {
+				continue
+			}
+			frame := tools.ConvertEventsToFrame(batch)
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,
@@ -245,11 +249,15 @@ func RunCommandHistoryStream(
 		select {
 		case <-ctx.Done():
 			return context.Cause(ctx)
-		case command, ok := <-signal:
+		case _, ok := <-signal:
 			if !ok {
 				return nil
 			}
-			frame := tools.ConvertCommandListToFrame(endpoint.DrainCommandHistorySignal(command, signal))
+			batch := endpoint.DrainCommandHistoryStream(req.Path)
+			if len(batch) == 0 {
+				continue
+			}
+			frame := tools.ConvertCommandListToFrame(batch)
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,
@@ -406,12 +414,20 @@ func RunLinksStream(
 		select {
 		case <-ctx.Done():
 			return context.Cause(ctx)
-		case link, ok := <-signal:
+		case _, ok := <-signal:
 			if !ok {
 				return nil
 			}
 
-			linksEvents := endpoint.DrainLinksSignal(link, signal)
+			linksEvents := endpoint.DrainLinksStream(req.Path)
+			if len(linksEvents) == 0 {
+				// The coalesced notify channel can fire more times than
+				// there are distinct batches of new data (e.g. two pushes
+				// arriving close together each queue a notify, but the
+				// first drain already picked up both) - just skip this
+				// wakeup rather than indexing into an empty slice.
+				continue
+			}
 			latestLink := linksEvents[len(linksEvents)-1]
 
 			frame, err := tools.ConvertLinksToFrame(latestLink.GetLinks())

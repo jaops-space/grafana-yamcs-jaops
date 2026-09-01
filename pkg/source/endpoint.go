@@ -6,8 +6,11 @@ import (
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
@@ -37,15 +40,31 @@ type YamcsEndpoint struct {
 	linkSubscribeMu      sync.Mutex
 	timeSubscribeMu      sync.Mutex
 
-	ID                    string
-	Parameters            map[string]*ParameterDemand
-	Events                map[string]chan *events.Event
-	CommandHistorySignals map[string]CommandHistorySignal
-	Alarms                map[string][]*alarms.AlarmData
-	AlarmSignals          map[string]chan struct{}
-	LinkSignals           map[string]LinkSignal
-	AlarmCache            map[string]*alarms.AlarmData // Cache of all active alarms by ID
-	GlobalAlarmStatus     *alarms.GlobalAlarmStatus
+	ID         string
+	Parameters map[string]*ParameterDemand
+
+	// Events/CommandHistorySignals/LinkSignals are instance-wide broadcast
+	// streams: every stream (panel) watching a given type sees the exact
+	// same sequence of values. Each is backed by one shared ring buffer
+	// (EventsRing/CommandHistoryRing/LinksRing below) that the WebSocket
+	// read-loop listener pushes into exactly once per incoming value,
+	// regardless of how many stream paths are watching - each demand then
+	// tracks only its own read cursor into that shared ring, and a small
+	// coalesced "new data" notify channel used to wake its RunXStream
+	// goroutine (which otherwise blocks on a channel receive rather than
+	// polling a ticker, unlike parameter streams).
+	Events                map[string]*BroadcastStreamDemand[*events.Event]
+	CommandHistorySignals map[string]*BroadcastStreamDemand[*commanding.CommandHistoryEntry]
+	LinkSignals           map[string]*BroadcastStreamDemand[*links.LinkEvent]
+
+	EventsRing         *types.Ring[*events.Event]
+	CommandHistoryRing *types.Ring[*commanding.CommandHistoryEntry]
+	LinksRing          *types.Ring[*links.LinkEvent]
+
+	Alarms            map[string][]*alarms.AlarmData
+	AlarmSignals      map[string]chan struct{}
+	AlarmCache        map[string]*alarms.AlarmData // Cache of all active alarms by ID
+	GlobalAlarmStatus *alarms.GlobalAlarmStatus
 
 	CurrentTime          time.Time
 	CurrentTimeUpdatedAt time.Time
@@ -54,6 +73,29 @@ type YamcsEndpoint struct {
 	ParameterBufferObserver  func(parameter string, path string, receivedAt time.Time)
 
 	Configuration *config.YamcsEndpointConfiguration
+}
+
+// BroadcastStreamDemand is one stream path's view into an instance-wide
+// broadcast ring (events, command history, links - see the doc comment on
+// YamcsEndpoint's Events/CommandHistorySignals/LinkSignals fields above).
+// cursor is only ever read/written by the single RunXStream goroutine that
+// owns this path, so it needs no locking of its own, mirroring
+// ParameterStreamDemand.
+type BroadcastStreamDemand[T any] struct {
+	cursor uint64
+	notify chan struct{}
+}
+
+// newBroadcastStreamDemand creates a demand starting at ring's current
+// write position (so it only observes values pushed after it started
+// watching, not the ring's entire pre-existing backlog), with a
+// coalesced, non-blocking notify channel of capacity
+// StreamSignalBufferSize.
+func newBroadcastStreamDemand[T any](ring *types.Ring[T]) *BroadcastStreamDemand[T] {
+	return &BroadcastStreamDemand[T]{
+		cursor: ring.Cursor(),
+		notify: make(chan struct{}, StreamSignalBufferSize),
+	}
 }
 
 func (endpoint *YamcsEndpoint) Name() string {
