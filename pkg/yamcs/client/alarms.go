@@ -19,9 +19,9 @@ func (c *YamcsClient) ListAlarms(ctx context.Context, instance, name string) *ty
 
 // fetchAlarms fetches a list of alarms from the Yamcs API.
 func (c *YamcsClient) fetchAlarms(ctx context.Context, instance, name string) types.FetchFunction[[]*alarms.AlarmData] {
-	return func() ([]*alarms.AlarmData, string, error) {
+	return func(query map[string]string) ([]*alarms.AlarmData, string, error) {
 		response := &alarms.ListAlarmsResponse{}
-		if err := c.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), response); err != nil {
+		if err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), query, response); err != nil {
 			return nil, "", err
 		}
 		return response.Alarms, response.GetContinuationToken(), nil

@@ -25,9 +25,7 @@ func (client *YamcsClient) GetProcessor(instance Instance, name string) (Process
 func (client *YamcsClient) ListInstanceProcessorsByName(ctx context.Context, instanceName string) ([]Processor, error) {
 	processorsResponse := &processing.ListProcessorsResponse{}
 
-	// Set the query parameter for the instance
-	client.HTTP.Query["instance"] = instanceName
-	err := client.HTTP.GetProto(ctx, "/processors", processorsResponse)
+	err := client.HTTP.GetProtoWithQuery(ctx, "/processors", map[string]string{"instance": instanceName}, processorsResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -40,9 +38,7 @@ func (client *YamcsClient) ListInstanceProcessorsByName(ctx context.Context, ins
 func (client *YamcsClient) ListInstanceProcessors(ctx context.Context, instance Instance) ([]Processor, error) {
 	processorsResponse := &processing.ListProcessorsResponse{}
 
-	// Set the query parameter for the instance
-	client.HTTP.Query["instance"] = instance.GetName()
-	err := client.HTTP.GetProto(ctx, "/processors", processorsResponse)
+	err := client.HTTP.GetProtoWithQuery(ctx, "/processors", map[string]string{"instance": instance.GetName()}, processorsResponse)
 	if err != nil {
 		return nil, err
 	}

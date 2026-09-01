@@ -5,8 +5,12 @@ import (
 )
 
 // FetchFunction represents a function that fetches data for pagination.
-// It returns a result of type T, a continuation token, and any error encountered.
-type FetchFunction[T any] func() (T, string, error)
+// It receives the per-request query parameters (pagination token merged
+// with any caller-supplied initial query) and returns a result of type T, a
+// continuation token, and any error encountered. Implementations must pass
+// query straight through to a ...WithQuery HTTP method - they must never
+// mutate shared HTTPManager.Query state directly.
+type FetchFunction[T any] func(query map[string]string) (T, string, error)
 
 // PaginatedRequestIterator handles paginated requests, managing the fetching of results
 // and continuation tokens. It allows iterating through paginated data in a flexible way.
@@ -37,20 +41,24 @@ func (iterator *PaginatedRequestIterator[T]) SetQuery(query map[string]string) {
 }
 
 // Next fetches the next result from the iterator.
-// It applies the query parameters and continuation token, if present.
+// It builds a per-call query from the initial query parameters and the
+// continuation token, if present, and passes it directly to fetchData -
+// it never mutates shared HTTPManager state.
 func (iterator *PaginatedRequestIterator[T]) Next() (T, error) {
-	// Set the continuation token if present
-	if iterator.continuation != "" {
-		iterator.apiContext.Query["next"] = iterator.continuation
-	}
+	query := make(map[string]string, len(iterator.initialQuery)+1)
 
 	// Add the initial query parameters
 	for key, value := range iterator.initialQuery {
-		iterator.apiContext.Query[key] = value
+		query[key] = value
+	}
+
+	// Set the continuation token if present
+	if iterator.continuation != "" {
+		query["next"] = iterator.continuation
 	}
 
 	// Fetch data and handle the continuation token
-	result, token, err := iterator.fetchData()
+	result, token, err := iterator.fetchData(query)
 	iterator.continuation = token
 	iterator.isInitialized = true
 
