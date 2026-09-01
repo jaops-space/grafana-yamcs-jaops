@@ -72,11 +72,10 @@ func (ep *YamcsEndpoint) getOrCreateAlarmsSubscription(ctx context.Context) (*cl
 	if subscription, found := cli.FindAlarmSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
-	subscription, err := cli.CreateAlarmSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
+	subscription, err := cli.CreateAlarmSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName(), ep.getAlarmsListener())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getAlarmsListener())
 	return subscription, nil
 }
 
@@ -98,11 +97,7 @@ func (ep *YamcsEndpoint) getOrCreateGlobalAlarmStatusSubscription(ctx context.Co
 	if subscription, found := cli.FindGlobalAlarmStatusSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
-	subscription, err := cli.CreateGlobalAlarmStatusSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
-	if err != nil {
-		return nil, err
-	}
-	subscription.SetListener(func(status *alarms.GlobalAlarmStatus) {
+	subscription, err := cli.CreateGlobalAlarmStatusSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName(), func(status *alarms.GlobalAlarmStatus) {
 		ep.mu.Lock()
 		defer ep.mu.Unlock()
 		ep.GlobalAlarmStatus = status
@@ -110,6 +105,9 @@ func (ep *YamcsEndpoint) getOrCreateGlobalAlarmStatusSubscription(ctx context.Co
 			ep.NotifyAlarmsStream(path)
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
 	return subscription, nil
 }
 
@@ -162,6 +160,13 @@ func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 }
 
+// NotifyAlarmsStream signals the given path's alarm stream that new data is
+// available. It reads ep.AlarmSignals without acquiring ep.mu itself -
+// callers MUST already hold ep.mu (read or write) when calling this. Both
+// current call sites (getAlarmsListener and the global alarm status
+// listener in getOrCreateGlobalAlarmStatusSubscription) hold ep.mu.Lock()
+// around their loop over ep.Alarms/paths before calling this; do not call
+// it without ep.mu held, or ep.AlarmSignals reads/writes elsewhere will race.
 func (ep *YamcsEndpoint) NotifyAlarmsStream(path string) {
 	if signal, ok := ep.AlarmSignals[path]; ok {
 		select {

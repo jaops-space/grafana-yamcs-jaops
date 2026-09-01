@@ -74,11 +74,10 @@ func (ep *YamcsEndpoint) getOrCreateEventsSubscription(ctx context.Context) (*cl
 	if subscription, found := client.FindEventSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
-	subscription, err := client.CreateEventSubscription(ctx, ep.GetInstanceName())
+	subscription, err := client.CreateEventSubscription(ctx, ep.GetInstanceName(), ep.getEventListener())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getEventListener())
 
 	return subscription, nil
 

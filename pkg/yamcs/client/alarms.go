@@ -105,13 +105,17 @@ type AlarmSubscription struct {
 	client   *YamcsClient
 }
 
-// CreateAlarmSubscription initializes a new alarm subscription.
-func (c *YamcsClient) CreateAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
-	return c.newAlarmSubscription(ctx, instance, processor)
+// CreateAlarmSubscription initializes a new alarm subscription. The
+// listener is wired before the subscription becomes visible to
+// HandleAlarmMessage (i.e. before it's added to c.AlarmSubscriptions), so
+// there's no window where a fast server reply could be dispatched to a
+// subscription with a nil listener.
+func (c *YamcsClient) CreateAlarmSubscription(ctx context.Context, instance string, processor string, listener AlarmListener) (*AlarmSubscription, error) {
+	return c.newAlarmSubscription(ctx, instance, processor, listener)
 }
 
 // newAlarmSubscription handles the subscription logic for alarms.
-func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
+func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string, processor string, listener AlarmListener) (*AlarmSubscription, error) {
 	cooldownKey := subscribeCooldownKey("alarms", instance, processor)
 	if err := c.checkSubscribeCooldown(cooldownKey); err != nil {
 		return nil, err
@@ -120,6 +124,7 @@ func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string,
 	subscription := &AlarmSubscription{
 		client:   c,
 		instance: instance,
+		listener: listener,
 	}
 
 	subscribeRequest := &alarms.SubscribeAlarmsRequest{
@@ -236,13 +241,16 @@ type GlobalStatusSubscription struct {
 	client              *YamcsClient
 }
 
-// CreateGlobalAlarmStatusSubscription initializes a global alarm status subscription.
-func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
-	return c.newGlobalAlarmStatusSubscription(ctx, instance, processor)
+// CreateGlobalAlarmStatusSubscription initializes a global alarm status
+// subscription. The listener is wired before the subscription is published
+// to c.GlobalAlarmStatusSubscriptions, closing the race window where a fast
+// server reply could otherwise be dispatched with a nil listener.
+func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string, listener GlobalStatusListener) (*GlobalStatusSubscription, error) {
+	return c.newGlobalAlarmStatusSubscription(ctx, instance, processor, listener)
 }
 
 // newGlobalAlarmStatusSubscription handles the subscription logic for global alarm status updates.
-func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
+func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string, listener GlobalStatusListener) (*GlobalStatusSubscription, error) {
 	cooldownKey := subscribeCooldownKey("globalAlarmStatus", instance, processor)
 	if err := c.checkSubscribeCooldown(cooldownKey); err != nil {
 		return nil, err
@@ -253,6 +261,7 @@ func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, inst
 		instance:            instance,
 		eventMapping:        make(map[int]string),
 		subscribedInstances: types.Set[string]{},
+		listener:            listener,
 	}
 
 	subscribeRequest := &alarms.SubscribeGlobalStatusRequest{

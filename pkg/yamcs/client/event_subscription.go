@@ -23,9 +23,12 @@ type EventSubscription struct {
 	client              *YamcsClient
 }
 
-// CreateEventSubscription creates a new event subscription for a given instance.
-func (client *YamcsClient) CreateEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
-	subscription, err := client.newEventSubscription(ctx, instance)
+// CreateEventSubscription creates a new event subscription for a given
+// instance. The listener is set on the subscription object before it's
+// published to client.EventSubscriptions, so HandleEventMessage can never
+// observe a subscription with a nil listener.
+func (client *YamcsClient) CreateEventSubscription(ctx context.Context, instance string, listener EventListener) (*EventSubscription, error) {
+	subscription, err := client.newEventSubscription(ctx, instance, listener)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +69,7 @@ func (client *YamcsClient) HaltEventSubscriptionsForInstance(instance string) {
 }
 
 // NewEventSubscription initializes a new EventSubscription and subscribes to events.
-func (client *YamcsClient) newEventSubscription(ctx context.Context, instance string) (*EventSubscription, error) {
+func (client *YamcsClient) newEventSubscription(ctx context.Context, instance string, listener EventListener) (*EventSubscription, error) {
 	cooldownKey := subscribeCooldownKey("events", instance, "")
 	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
 		return nil, err
@@ -77,6 +80,7 @@ func (client *YamcsClient) newEventSubscription(ctx context.Context, instance st
 		Instance:            instance,
 		eventMapping:        make(map[int]string),
 		activeSubscriptions: types.Set[string]{},
+		eventListener:       listener,
 	}
 
 	// Prepare subscription request

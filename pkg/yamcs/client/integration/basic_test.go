@@ -107,7 +107,7 @@ func TestIntegrationYamcs_WebSocketReconnectClearsSubscriptionRegistry(t *testin
 
 	instanceName, processorName := integrationInstanceAndProcessor(t, client)
 
-	sub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName, "/myproject/Battery1_Voltage")
+	sub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName, nil, "/myproject/Battery1_Voltage")
 	if err != nil {
 		t.Fatalf("create parameter subscription: %v", err)
 	}

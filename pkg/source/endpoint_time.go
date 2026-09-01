@@ -14,27 +14,29 @@ func (ep *YamcsEndpoint) RequestTime(ctx context.Context) error {
 		return err
 	}
 
-	subscription, found := client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName())
-	if !found {
-		// Only one goroutine may attempt to create the time subscription
-		// for this endpoint at a time - scoped separately from mu so it
-		// never blocks unrelated endpoint state.
-		ep.timeSubscribeMu.Lock()
-		subscription, found = client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName())
-		if !found {
-			var err error
-			subscription, err = client.CreateTimeSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
-			if err != nil {
-				ep.timeSubscribeMu.Unlock()
-				return err
-			}
-		}
-		ep.timeSubscribeMu.Unlock()
+	listener := ep.getTimeHandler()
+
+	if subscription, found := client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName()); found {
+		subscription.AddTimeListener(listener)
+		return nil
 	}
 
-	subscription.AddTimeListener(ep.getTimeHandler())
+	// Only one goroutine may attempt to create the time subscription
+	// for this endpoint at a time - scoped separately from mu so it
+	// never blocks unrelated endpoint state.
+	ep.timeSubscribeMu.Lock()
+	defer ep.timeSubscribeMu.Unlock()
 
-	return nil
+	if subscription, found := client.GetTimeSubscription(ep.GetInstanceName(), ep.GetProcessorName()); found {
+		subscription.AddTimeListener(listener)
+		return nil
+	}
+
+	// Wire the listener directly into the subscription so it's set before
+	// the subscription becomes visible to HandleTimeMessage, closing the
+	// race window where a fast server reply could be dropped.
+	_, err = client.CreateTimeSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName(), listener)
+	return err
 }
 
 func (ep *YamcsEndpoint) getTimeHandler() func(t time.Time) {
@@ -80,10 +82,10 @@ func (ep *YamcsEndpoint) GetCurrentTimeIfFresh(maxAge time.Duration) (time.Time,
 // GetReplaySpeedMultiplier returns the processor replay speed multiplier for this endpoint.
 func (ep *YamcsEndpoint) GetReplaySpeedMultiplier() (float64, error) {
 
-	ep.mu.RLock()
+	// GetProcessor doesn't touch anything guarded by ep.mu - it reads
+	// ep.Configuration (write-once at construction) and host.Instances
+	// (guarded by host.mu internally). No lock needed here.
 	processor, err := ep.GetProcessor()
-	ep.mu.RUnlock()
-
 	if err != nil {
 		return 1, err
 	}

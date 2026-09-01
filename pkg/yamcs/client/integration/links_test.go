@@ -30,15 +30,14 @@ func TestIntegrationYamcs_LinkSubscriptionReceivesFullSnapshots(t *testing.T) {
 	}
 
 	events := make(chan *links.LinkEvent, 8)
-	sub, err := client.CreateLinkSubscription(ctx, instanceName)
+	sub, err := client.CreateLinkSubscription(ctx, instanceName, func(event *links.LinkEvent) error {
+		events <- event
+		return nil
+	})
 	if err != nil {
 		t.Fatalf("create link subscription: %v", err)
 	}
 	defer sub.Halt()
-	sub.SetListener(func(event *links.LinkEvent) error {
-		events <- event
-		return nil
-	})
 
 	first := waitForLinkSnapshot(t, events, len(initialLinks), 20*time.Second)
 	second := waitForLinkSnapshot(t, events, len(initialLinks), 5*time.Second)
@@ -64,15 +63,14 @@ func TestIntegrationYamcs_LinkSubscriptionReflectsDisableEnable(t *testing.T) {
 	}
 
 	events := make(chan *links.LinkEvent, 16)
-	sub, err := client.CreateLinkSubscription(ctx, instanceName)
+	sub, err := client.CreateLinkSubscription(ctx, instanceName, func(event *links.LinkEvent) error {
+		events <- event
+		return nil
+	})
 	if err != nil {
 		t.Fatalf("create link subscription: %v", err)
 	}
 	defer sub.Halt()
-	sub.SetListener(func(event *links.LinkEvent) error {
-		events <- event
-		return nil
-	})
 
 	originalDisabled := target.GetDisabled()
 	targetDisabled := !originalDisabled

@@ -28,7 +28,9 @@ type ParameterSubscription struct {
 }
 
 // NewParameterSubscription creates a new ParameterSubscription for an instance and processor with initial parameters.
-func newParameterSubscription(ctx context.Context, client *YamcsClient, instanceName, processorName string, initialParameters ...string) (*ParameterSubscription, error) {
+// The listener is wired before the subscription becomes visible to
+// HandleParameterMessage, avoiding a nil-listener race on a fast reply.
+func newParameterSubscription(ctx context.Context, client *YamcsClient, instanceName, processorName string, listener ParameterListener, initialParameters ...string) (*ParameterSubscription, error) {
 	cooldownKey := subscribeCooldownKey("parameters", instanceName, processorName)
 	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
 		return nil, err
@@ -40,6 +42,7 @@ func newParameterSubscription(ctx context.Context, client *YamcsClient, instance
 		Processor:           processorName,
 		parameterIDToName:   make(map[int]string),
 		ActiveSubscriptions: types.Set[string]{},
+		valueChangeListener: listener,
 	}
 
 	// Create subscription request
@@ -220,13 +223,13 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 }
 
 // CreateParameterSubscription creates a new subscription for a set of parameters and adds it to the client's subscription registry.
-func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, instance Instance, processor Processor, initialParameters ...Parameter) (*ParameterSubscription, error) {
+func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, instance Instance, processor Processor, listener ParameterListener, initialParameters ...Parameter) (*ParameterSubscription, error) {
 	parameterNames := make([]string, len(initialParameters))
 	for i, param := range initialParameters {
 		parameterNames[i] = param.GetQualifiedName()
 	}
 
-	subscription, err := newParameterSubscription(ctx, client, instance.GetName(), processor.GetName(), parameterNames...)
+	subscription, err := newParameterSubscription(ctx, client, instance.GetName(), processor.GetName(), listener, parameterNames...)
 	if err != nil {
 		return nil, err
 	}
@@ -238,9 +241,9 @@ func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, inst
 }
 
 // CreateParameterSubscription creates a new subscription for a set of parameters and adds it to the client's subscription registry.
-func (client *YamcsClient) CreateParameterSubscriptionByNames(ctx context.Context, instance string, processor string, initialParameters ...string) (*ParameterSubscription, error) {
+func (client *YamcsClient) CreateParameterSubscriptionByNames(ctx context.Context, instance string, processor string, listener ParameterListener, initialParameters ...string) (*ParameterSubscription, error) {
 
-	subscription, err := newParameterSubscription(ctx, client, instance, processor, initialParameters...)
+	subscription, err := newParameterSubscription(ctx, client, instance, processor, listener, initialParameters...)
 	if err != nil {
 		return nil, err
 	}

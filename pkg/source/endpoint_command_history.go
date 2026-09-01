@@ -74,11 +74,10 @@ func (ep *YamcsEndpoint) getOrCreateCommandHistorySubscription(ctx context.Conte
 	if subscription, found := client.FindCommandHistorySubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
-	subscription, err := client.CreateCommandHistorySubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
+	subscription, err := client.CreateCommandHistorySubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName(), ep.getCommandHistoryListener())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getCommandHistoryListener())
 	return subscription, nil
 }
 

@@ -74,11 +74,10 @@ func (ep *YamcsEndpoint) getOrCreateLinksSubscription(ctx context.Context) (*cli
 	if subscription, found := cli.FindLinkSubscription(ep.GetInstanceName()); found {
 		return subscription, nil
 	}
-	subscription, err := cli.CreateLinkSubscription(ctx, ep.GetInstanceName())
+	subscription, err := cli.CreateLinkSubscription(ctx, ep.GetInstanceName(), ep.getLinksListener())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getLinksListener())
 	return subscription, nil
 }
 

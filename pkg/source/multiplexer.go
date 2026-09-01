@@ -362,20 +362,18 @@ func (mux *Multiplexer) connectEndpoint(
 		return
 	}
 
-	prosub, err := cli.CreateProcessorSubscription(ctx, instance, processor)
+	_, err := cli.CreateProcessorSubscription(ctx, instance, processor, endpointHost.GetProcessorListener(instance, processor))
 	if err != nil {
 		endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not subscribe to updates on processor %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
 		return
 	}
-	prosub.SetListener(endpointHost.GetProcessorListener(instance, processor))
 
 	// Create a parameter subscription, that will be used to add and remove parameters
-	parsub, err := cli.CreateParameterSubscription(ctx, instance, processor)
+	_, err = cli.CreateParameterSubscription(ctx, instance, processor, endpoint.getChannelParameterListener())
 	if err != nil {
 		endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not create parameter subscriptions on %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
 		return
 	}
-	parsub.SetListener(endpoint.getChannelParameterListener())
 }
 
 func (mux *Multiplexer) Dispose() {

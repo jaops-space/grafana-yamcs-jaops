@@ -280,11 +280,10 @@ func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.
 	if err != nil {
 		return nil, err
 	}
-	subscription, err := client.CreateParameterSubscription(ctx, instance, processor)
+	subscription, err := client.CreateParameterSubscription(ctx, instance, processor, ep.getChannelParameterListener())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getChannelParameterListener())
 	return subscription, nil
 }
 

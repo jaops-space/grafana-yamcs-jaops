@@ -11,7 +11,7 @@ func TestIntegrationYamcs_ParameterSubscriptionLifecycle(t *testing.T) {
 
 	instanceName, processorName := integrationInstanceAndProcessor(t, client)
 
-	sub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName)
+	sub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create parameter subscription: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestIntegrationYamcs_SubscriptionSnapshotCardinality(t *testing.T) {
 
 	instanceName, processorName := integrationInstanceAndProcessor(t, client)
 
-	sub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName)
+	sub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create parameter subscription: %v", err)
 	}
@@ -96,42 +96,42 @@ func TestIntegrationYamcs_WebSocketStateVerifiesAllSubscriptionKinds(t *testing.
 
 	instanceName, processorName := integrationInstanceAndProcessor(t, client)
 
-	parameterSub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName, "/myproject/Battery1_Voltage")
+	parameterSub, err := client.CreateParameterSubscriptionByNames(ctx, instanceName, processorName, nil, "/myproject/Battery1_Voltage")
 	if err != nil {
 		t.Fatalf("create parameter subscription: %v", err)
 	}
 	parameterCall := onlyKey(t, client.ParameterSubscriptions)
-	eventSub, err := client.CreateEventSubscription(ctx, instanceName)
+	eventSub, err := client.CreateEventSubscription(ctx, instanceName, nil)
 	if err != nil {
 		t.Fatalf("create event subscription: %v", err)
 	}
 	eventCall := onlyKey(t, client.EventSubscriptions)
-	commandSub, err := client.CreateCommandHistorySubscription(ctx, instanceName, processorName)
+	commandSub, err := client.CreateCommandHistorySubscription(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create command history subscription: %v", err)
 	}
 	commandCall := onlyKey(t, client.CommandHistorySubscriptions)
-	alarmSub, err := client.CreateAlarmSubscription(ctx, instanceName, processorName)
+	alarmSub, err := client.CreateAlarmSubscription(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create alarm subscription: %v", err)
 	}
 	alarmCall := onlyKey(t, client.AlarmSubscriptions)
-	globalAlarmSub, err := client.CreateGlobalAlarmStatusSubscription(ctx, instanceName, processorName)
+	globalAlarmSub, err := client.CreateGlobalAlarmStatusSubscription(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create global alarm status subscription: %v", err)
 	}
 	globalAlarmCall := onlyKey(t, client.GlobalAlarmStatusSubscriptions)
-	timeSub, err := client.CreateTimeSubscription(ctx, instanceName, processorName)
+	timeSub, err := client.CreateTimeSubscription(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create time subscription: %v", err)
 	}
 	timeCall := onlyKey(t, client.TimeSubscriptions)
-	linkSub, err := client.CreateLinkSubscription(ctx, instanceName)
+	linkSub, err := client.CreateLinkSubscription(ctx, instanceName, nil)
 	if err != nil {
 		t.Fatalf("create link subscription: %v", err)
 	}
 	linkCall := onlyKey(t, client.LinkSubscriptions)
-	processorSub, err := client.CreateProcessorSubscriptionByNames(ctx, instanceName, processorName)
+	processorSub, err := client.CreateProcessorSubscriptionByNames(ctx, instanceName, processorName, nil)
 	if err != nil {
 		t.Fatalf("create processor subscription: %v", err)
 	}

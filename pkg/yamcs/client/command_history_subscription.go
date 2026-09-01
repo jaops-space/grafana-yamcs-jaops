@@ -23,8 +23,11 @@ type CommandHistorySubscription struct {
 }
 
 // CreateCommandHistorySubscription creates a new command history subscription.
-func (client *YamcsClient) CreateCommandHistorySubscription(ctx context.Context, instance string, processor string) (*CommandHistorySubscription, error) {
-	subscription, err := client.newCommandHistorySubscription(ctx, instance, processor)
+// The listener is wired before the subscription becomes visible in
+// client.CommandHistorySubscriptions to avoid HandleCommandMessage
+// observing a nil listener.
+func (client *YamcsClient) CreateCommandHistorySubscription(ctx context.Context, instance string, processor string, listener CommandHistoryListener) (*CommandHistorySubscription, error) {
+	subscription, err := client.newCommandHistorySubscription(ctx, instance, processor, listener)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +68,7 @@ func (client *YamcsClient) HaltCommandHistorySubscriptionsForInstance(instance s
 }
 
 // newCommandHistorySubscription initializes and subscribes to command history.
-func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, instance, processor string) (*CommandHistorySubscription, error) {
+func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, instance, processor string, listener CommandHistoryListener) (*CommandHistorySubscription, error) {
 	cooldownKey := subscribeCooldownKey("commandHistory", instance, processor)
 	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
 		return nil, err
@@ -75,6 +78,7 @@ func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, in
 		client:              client,
 		Instance:            instance,
 		activeSubscriptions: types.Set[string]{},
+		commandListener:     listener,
 	}
 
 	// Prepare subscription request

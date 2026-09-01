@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -19,13 +20,19 @@ type TimeSubscription struct {
 	subscriptionID int32
 	Instance       string
 	Processor      string
+	listenersMu    sync.Mutex // guards listeners: appended to by AddTimeListener/SetTimeListener (called from endpoint setup goroutines) and ranged over by notifyListeners (called from the WebSocket's read-loop goroutine)
 	listeners      []TimeListener
 	client         *YamcsClient
 }
 
-func (client *YamcsClient) CreateTimeSubscription(ctx context.Context, instance string, processor string) (*TimeSubscription, error) {
+// CreateTimeSubscription creates a new time subscription with an initial
+// listener already wired into subscription.listeners before the
+// subscription is published to client.TimeSubscriptions, so
+// HandleTimeMessage can never dispatch to a listener-less subscription.
+// Additional listeners can be attached later via AddTimeListener.
+func (client *YamcsClient) CreateTimeSubscription(ctx context.Context, instance string, processor string, listener TimeListener) (*TimeSubscription, error) {
 
-	subscription, err := client.newTimeSubscription(ctx, instance, processor)
+	subscription, err := client.newTimeSubscription(ctx, instance, processor, listener)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +45,7 @@ func (client *YamcsClient) CreateTimeSubscription(ctx context.Context, instance 
 }
 
 // SubscribeTime subscribes to time updates from a specific instance and processor.
-func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance string, processor string) (*TimeSubscription, error) {
+func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance string, processor string, listener TimeListener) (*TimeSubscription, error) {
 	cooldownKey := subscribeCooldownKey("time", instance, processor)
 	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
 		return nil, err
@@ -73,8 +80,11 @@ func (client *YamcsClient) newTimeSubscription(ctx context.Context, instance str
 		subscriptionID: callID,
 		Instance:       instance,
 		Processor:      processor,
-		listeners:      make([]TimeListener, 0),
+		listeners:      make([]TimeListener, 0, 1),
 		client:         client,
+	}
+	if listener != nil {
+		subscription.listeners = append(subscription.listeners, listener)
 	}
 
 	backend.Logger.Debug("subscribing to processor time", "proc", processor)
@@ -126,15 +136,24 @@ func (client *YamcsClient) HandleTimeMessage(message *api.ServerMessage) {
 }
 
 func (subscription *TimeSubscription) SetTimeListener(listener TimeListener) {
+	subscription.listenersMu.Lock()
+	defer subscription.listenersMu.Unlock()
 	subscription.listeners = []TimeListener{listener}
 }
 
 func (subscription *TimeSubscription) AddTimeListener(listener TimeListener) {
+	subscription.listenersMu.Lock()
+	defer subscription.listenersMu.Unlock()
 	subscription.listeners = append(subscription.listeners, listener)
 }
 
 func (subscription *TimeSubscription) notifyListeners(currentTime time.Time) {
-	for _, listener := range subscription.listeners {
+	subscription.listenersMu.Lock()
+	listeners := make([]TimeListener, len(subscription.listeners))
+	copy(listeners, subscription.listeners)
+	subscription.listenersMu.Unlock()
+
+	for _, listener := range listeners {
 		if listener != nil {
 			listener(currentTime)
 		}
