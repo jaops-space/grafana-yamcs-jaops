@@ -450,9 +450,21 @@ func ConvertSampleBufferToFrame(buffer []*pvalue.TimeSeries_Sample, parameter st
 }
 
 // ConvertBufferToFrame converts a parameter value buffer into a data frame.
+//
+// For the common numeric types (which cover the vast majority of streamed
+// telemetry) this dispatches once on the first value's protobuf type and
+// extracts straight into a typed slice (extractNumericValues), skipping the
+// []interface{} boxing/unboxing round-trip that the generic
+// extractParameterValues+CreateValueField/calculateStats path needs. The
+// less common types (string/binary/timestamp/aggregate/boolean-as-string)
+// still go through that generic path unchanged.
 func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}), data.NewField(parameter, nil, []int32{}))
+	}
+
+	if frame := numericFrameFromBuffer(buffer, parameter, includeMin, includeMax, realtime); frame != nil {
+		return frame
 	}
 
 	values, times := extractParameterValues(buffer, realtime)
@@ -466,6 +478,50 @@ func ConvertBufferToFrame(buffer []*pvalue.ParameterValue, parameter string, inc
 		}
 		if includeMax {
 			frame.Fields = append(frame.Fields, maxField)
+		}
+	}
+	return frame
+}
+
+// numericFrameFromBuffer handles ConvertBufferToFrame's fast path for
+// numeric protobuf value types. Returns nil if the buffer's values aren't
+// one of the numeric types, so the caller can fall back to the generic
+// boxed path.
+func numericFrameFromBuffer(buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax bool, realtime bool) *data.Frame {
+	switch buffer[0].GetEngValue().GetType() {
+	case protobuf.Value_DOUBLE:
+		return frameFromTyped(buffer, parameter, includeMin, includeMax, realtime, func(v *protobuf.Value) float64 { return v.GetDoubleValue() })
+	case protobuf.Value_FLOAT:
+		return frameFromTyped(buffer, parameter, includeMin, includeMax, realtime, func(v *protobuf.Value) float64 { return float64(v.GetFloatValue()) })
+	case protobuf.Value_SINT64:
+		return frameFromTyped(buffer, parameter, includeMin, includeMax, realtime, func(v *protobuf.Value) int64 { return v.GetSint64Value() })
+	case protobuf.Value_UINT64:
+		return frameFromTyped(buffer, parameter, includeMin, includeMax, realtime, func(v *protobuf.Value) uint64 { return v.GetUint64Value() })
+	case protobuf.Value_SINT32:
+		return frameFromTyped(buffer, parameter, includeMin, includeMax, realtime, func(v *protobuf.Value) int32 { return v.GetSint32Value() })
+	case protobuf.Value_UINT32:
+		return frameFromTyped(buffer, parameter, includeMin, includeMax, realtime, func(v *protobuf.Value) uint32 { return v.GetUint32Value() })
+	default:
+		return nil
+	}
+}
+
+// frameFromTyped builds a response frame straight from a typed extraction,
+// with no []interface{} boxing at all.
+func frameFromTyped[T constraints.Float | constraints.Integer](
+	buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax, realtime bool, extract func(*protobuf.Value) T,
+) *data.Frame {
+	values, times := extractNumericValues(buffer, realtime, extract)
+	valueField := data.NewField(parameter, nil, values)
+
+	frame := data.NewFrame("response", data.NewField("time", nil, times), valueField)
+	if includeMin || includeMax {
+		min, max := minMax(values)
+		if includeMin {
+			frame.Fields = append(frame.Fields, data.NewField("min("+parameter+")", nil, []T{min}))
+		}
+		if includeMax {
+			frame.Fields = append(frame.Fields, data.NewField("max("+parameter+")", nil, []T{max}))
 		}
 	}
 	return frame
@@ -561,10 +617,18 @@ func ConvertDiscreteBufferToFrame(buffer []*pvalue.ParameterValue, parameter str
 }
 
 // ConvertBufferToAverageFrame extracts statistics from the parameter buffer and returns a data frame.
+//
+// Like ConvertBufferToFrame, this takes a boxing-free fast path for the
+// common numeric types and only falls back to the generic []interface{}
+// path (calculateStats) for string-ish types.
 func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
 	parameter string, getMin, getMax bool, realtime bool) *data.Frame {
 	if len(buffer) == 0 {
 		return data.NewFrame("response", data.NewField("time", nil, []time.Time{}))
+	}
+
+	if frame := numericAverageFrameFromBuffer(buffer, parameter, getMin, getMax, realtime); frame != nil {
+		return frame
 	}
 
 	values, times := extractParameterValues(buffer, realtime)
@@ -586,6 +650,54 @@ func ConvertBufferToAverageFrame(buffer []*pvalue.ParameterValue,
 	return frame
 }
 
+// numericAverageFrameFromBuffer handles ConvertBufferToAverageFrame's fast
+// path for numeric protobuf value types. Returns nil if the buffer's values
+// aren't one of the numeric types, so the caller can fall back to the
+// generic boxed path.
+func numericAverageFrameFromBuffer(buffer []*pvalue.ParameterValue, parameter string, getMin, getMax bool, realtime bool) *data.Frame {
+	switch buffer[0].GetEngValue().GetType() {
+	case protobuf.Value_DOUBLE:
+		return avgFrameFromTyped(buffer, parameter, getMin, getMax, realtime, func(v *protobuf.Value) float64 { return v.GetDoubleValue() })
+	case protobuf.Value_FLOAT:
+		return avgFrameFromTyped(buffer, parameter, getMin, getMax, realtime, func(v *protobuf.Value) float64 { return float64(v.GetFloatValue()) })
+	case protobuf.Value_SINT64:
+		return avgFrameFromTyped(buffer, parameter, getMin, getMax, realtime, func(v *protobuf.Value) int64 { return v.GetSint64Value() })
+	case protobuf.Value_UINT64:
+		return avgFrameFromTyped(buffer, parameter, getMin, getMax, realtime, func(v *protobuf.Value) uint64 { return v.GetUint64Value() })
+	case protobuf.Value_SINT32:
+		return avgFrameFromTyped(buffer, parameter, getMin, getMax, realtime, func(v *protobuf.Value) int32 { return v.GetSint32Value() })
+	case protobuf.Value_UINT32:
+		return avgFrameFromTyped(buffer, parameter, getMin, getMax, realtime, func(v *protobuf.Value) uint32 { return v.GetUint32Value() })
+	default:
+		return nil
+	}
+}
+
+// avgFrameFromTyped builds an average/min/max frame straight from a typed
+// extraction, with no []interface{} boxing at all.
+func avgFrameFromTyped[T constraints.Float | constraints.Integer](
+	buffer []*pvalue.ParameterValue, parameter string, getMin, getMax, realtime bool, extract func(*protobuf.Value) T,
+) *data.Frame {
+	values, times := extractNumericValues(buffer, realtime, extract)
+	avg := float64(sum(values)) / float64(len(values))
+	min, max := minMax(values)
+
+	lastTime := times[len(times)-1]
+	if realtime {
+		lastTime = time.Now()
+	}
+	frame := data.NewFrame("response", data.NewField("time", nil, []time.Time{lastTime}), data.NewField(parameter, nil, []float64{avg}))
+
+	if getMin {
+		frame.Fields = append(frame.Fields, data.NewField("min("+parameter+")", nil, []T{min}))
+	}
+	if getMax {
+		frame.Fields = append(frame.Fields, data.NewField("max("+parameter+")", nil, []T{max}))
+	}
+
+	return frame
+}
+
 // extractParameterValues extracts values and timestamps from a parameter buffer.
 func extractParameterValues(buffer []*pvalue.ParameterValue, realtime bool) ([]interface{}, []time.Time) {
 	values := make([]interface{}, len(buffer))
@@ -599,6 +711,26 @@ func extractParameterValues(buffer []*pvalue.ParameterValue, realtime bool) ([]i
 			times[i] = item.GetGenerationTime().AsTime()
 		}
 
+	}
+	return values, times
+}
+
+// extractNumericValues is the boxing-free counterpart to
+// extractParameterValues, used by the numeric fast paths in
+// ConvertBufferToFrame/ConvertBufferToAverageFrame: extract is called once
+// per value and its result stored directly into a typed slice, with no
+// []interface{} intermediate and no second unboxing pass.
+func extractNumericValues[T constraints.Float | constraints.Integer](buffer []*pvalue.ParameterValue, realtime bool, extract func(*protobuf.Value) T) ([]T, []time.Time) {
+	values := make([]T, len(buffer))
+	times := make([]time.Time, len(buffer))
+
+	for i, item := range buffer {
+		values[i] = extract(item.GetEngValue())
+		if realtime {
+			times[i] = time.Now()
+		} else {
+			times[i] = item.GetGenerationTime().AsTime()
+		}
 	}
 	return values, times
 }
