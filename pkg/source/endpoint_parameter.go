@@ -72,11 +72,24 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 			backend.Logger.Debug("dropping parameter value for unknown demand", "parameter", parameter)
 			return nil
 		}
-		streamDemands := make([]*ParameterStreamDemand, 0, len(paramDemand.Streams))
-		for _, streamDemand := range paramDemand.Streams {
-			streamDemands = append(streamDemands, streamDemand)
+		// streamCount is a plain map length - O(1), no iteration/allocation
+		// needed. We deliberately do NOT build a slice/copy of
+		// paramDemand.Streams here on the hot path: that would be exactly
+		// the O(streams) cost per incoming value that pushing once into
+		// the shared Ring is meant to eliminate. The only thing that
+		// legitimately still needs to iterate every stream is the optional
+		// ParameterBufferObserver callback below (used by tests/benchmarks
+		// to record arrivals per path) - so that loop, and only that loop,
+		// pays the O(streams) cost, and only when something is actually
+		// listening for it.
+		streamCount = len(paramDemand.Streams)
+		var observedPaths []string
+		if ep.ParameterBufferObserver != nil {
+			observedPaths = make([]string, 0, streamCount)
+			for _, streamDemand := range paramDemand.Streams {
+				observedPaths = append(observedPaths, streamDemand.Path)
+			}
 		}
-		streamCount = len(streamDemands)
 		paramDemand.LastReceived = time.Now()
 		ep.mu.Unlock()
 
@@ -102,10 +115,8 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 		// ParameterStreamDemand and GetAndClearParameterStreamBuffer).
 		receivedAt := time.Now()
 		paramDemand.Ring.Push(value)
-		if ep.ParameterBufferObserver != nil {
-			for _, streamDemand := range streamDemands {
-				ep.ParameterBufferObserver(parameter, streamDemand.Path, receivedAt)
-			}
+		for _, path := range observedPaths {
+			ep.ParameterBufferObserver(parameter, path, receivedAt)
 		}
 		return nil
 
