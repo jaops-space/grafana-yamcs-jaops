@@ -17,7 +17,18 @@ const StreamSignalBufferSize = 16
 // 30s - see getStreamTickerInterval) - if a stream falls behind by more
 // than this many values, the oldest ones it wanted are already
 // overwritten and get reported/dropped instead of delivered.
-const ParameterRingCapacity = 4096
+//
+// 1024 covers a sustained ~34 values/sec for the full 30s worst case,
+// comfortably above realistic Yamcs telemetry rates (typically well under
+// 10Hz per parameter). Every subscribed parameter keeps its own ring
+// permanently allocated for as long as it has at least one stream, so this
+// constant is a memory/safety-margin trade-off multiplied by parameter
+// count, not just a per-stream cost - keep it as small as realistic
+// traffic allows rather than defaulting to a very generous number "just in
+// case". If production logs ever show the "fell behind its ring buffer
+// capacity" warning under normal use, raise this rather than adding
+// runtime resizing.
+const ParameterRingCapacity = 1024
 
 // BroadcastRingCapacity is the shared ring buffer capacity used for
 // instance-wide broadcast stream types (events, command history, links) -
