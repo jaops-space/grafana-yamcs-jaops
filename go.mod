@@ -2,6 +2,8 @@ module github.com/jaops-space/grafana-yamcs-jaops
 
 go 1.26.5
 
+toolchain go1.26.7
+
 require github.com/grafana/grafana-plugin-sdk-go v0.296.4
 
 require (
