@@ -39,11 +39,11 @@ func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
-	buffer := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp")
+	buffer := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp")
 	if len(buffer) != 1 {
 		t.Fatalf("expected exactly one buffered value for unique stream demand, got %d", len(buffer))
 	}
-	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
+	if got := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
 		t.Fatalf("expected buffer to be cleared, got %d values", len(got))
 	}
 }
@@ -70,7 +70,7 @@ func TestParameterListenerBuffersExpiredValues(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
-	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 1 {
+	if got := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp"); len(got) != 1 {
 		t.Fatalf("expected expired value to be buffered, got %d values", len(got))
 	}
 }
@@ -97,7 +97,7 @@ func TestParameterListenerIgnoresInvalidValues(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
-	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
+	if got := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
 		t.Fatalf("expected invalid value to be ignored, got %d buffered values", len(got))
 	}
 }
@@ -162,7 +162,7 @@ func TestParameterListenerBufferObserverReportsStreamPaths(t *testing.T) {
 	endpoint.Parameters["/SIM/TEMP"].Streams["req/sim/temp/2"].parameter = endpoint.Parameters["/SIM/TEMP"]
 
 	observed := map[string]bool{}
-	endpoint.ParameterBufferObserver = func(parameter string, path string, receivedAt time.Time) {
+	endpoint.ParameterArrivalObserver = func(parameter string, path string, receivedAt time.Time) {
 		if parameter != "/SIM/TEMP" {
 			t.Fatalf("expected observer parameter /SIM/TEMP, got %s", parameter)
 		}

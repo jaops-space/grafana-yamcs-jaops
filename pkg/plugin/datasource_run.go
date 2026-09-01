@@ -135,22 +135,22 @@ func RunParameterStream(ctx context.Context,
 		case <-ticker.C:
 
 			started := time.Now()
-			buffer := endpoint.GetAndClearParameterStreamBuffer(q.Parameter, req.Path)
-			if len(buffer) == 0 {
+			batch := endpoint.DrainParameterStream(q.Parameter, req.Path)
+			if len(batch) == 0 {
 				continue
 			}
 
 			if q.Type == DiscreteValue {
-				frame := tools.ConvertDiscreteBufferToFrame(buffer, q.Parameter, q.AutomaticColors, false)
+				frame := tools.ConvertDiscreteBufferToFrame(batch, q.Parameter, q.AutomaticColors, false)
 				sender.SendFrame(
 					frame,
 					data.IncludeDataOnly,
 				)
-				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(buffer))
+				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(batch))
 				continue
 			}
 			if q.Type == SingleValue {
-				frame := tools.ConvertSingleValueBufferToFrame(buffer, q.Parameter, false)
+				frame := tools.ConvertSingleValueBufferToFrame(batch, q.Parameter, false)
 				sender.SendFrame(
 					frame,
 					data.IncludeAll,
@@ -158,19 +158,19 @@ func RunParameterStream(ctx context.Context,
 				continue
 			}
 
-			average := len(buffer) > 3
+			average := len(batch) > 3
 			var frame *data.Frame
 			if average {
-				frame = tools.ConvertBufferToAverageFrame(buffer, q.Parameter, getMin, getMax, false)
+				frame = tools.ConvertBufferToAverageFrame(batch, q.Parameter, getMin, getMax, false)
 			} else {
-				frame = tools.ConvertBufferToFrame(buffer, q.Parameter, getMin, getMax, false)
+				frame = tools.ConvertBufferToFrame(batch, q.Parameter, getMin, getMax, false)
 			}
 
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,
 			)
-			streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(buffer))
+			streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(batch))
 		}
 	}
 

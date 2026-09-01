@@ -36,7 +36,7 @@ type ParameterDemand struct {
 // ParameterStreamDemand represents a single stream's (i.e. a single panel's)
 // view into its parameter's shared Ring. cursor is only ever read/written
 // by the one RunParameterStream goroutine that owns this path (via
-// GetAndClearParameterStreamBuffer) - never touched by the WebSocket
+// DrainParameterStream) - never touched by the WebSocket
 // read-loop or by any other stream's goroutine - so it needs no locking of
 // its own.
 type ParameterStreamDemand struct {
@@ -78,13 +78,13 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 		// the O(streams) cost per incoming value that pushing once into
 		// the shared Ring is meant to eliminate. The only thing that
 		// legitimately still needs to iterate every stream is the optional
-		// ParameterBufferObserver callback below (used by tests/benchmarks
+		// ParameterArrivalObserver callback below (used by tests/benchmarks
 		// to record arrivals per path) - so that loop, and only that loop,
 		// pays the O(streams) cost, and only when something is actually
 		// listening for it.
 		streamCount = len(paramDemand.Streams)
 		var observedPaths []string
-		if ep.ParameterBufferObserver != nil {
+		if ep.ParameterArrivalObserver != nil {
 			observedPaths = make([]string, 0, streamCount)
 			for _, streamDemand := range paramDemand.Streams {
 				observedPaths = append(observedPaths, streamDemand.Path)
@@ -112,11 +112,11 @@ func (ep *YamcsEndpoint) getChannelParameterListener() client.ParameterListener 
 		// Pushed exactly once per parameter, regardless of how many streams
 		// (panels) are watching it - each stream's own cursor determines
 		// which pushed values it has and hasn't drained yet (see
-		// ParameterStreamDemand and GetAndClearParameterStreamBuffer).
+		// ParameterStreamDemand and DrainParameterStream).
 		receivedAt := time.Now()
 		paramDemand.Ring.Push(value)
 		for _, path := range observedPaths {
-			ep.ParameterBufferObserver(parameter, path, receivedAt)
+			ep.ParameterArrivalObserver(parameter, path, receivedAt)
 		}
 		return nil
 
@@ -160,13 +160,13 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 	return nil
 }
 
-// GetAndClearParameterStreamBuffer drains every value pushed to this
-// parameter's shared ring since this stream's own cursor, and advances the
-// cursor accordingly. Lock-free: stream.cursor is only ever touched by the
-// single RunParameterStream goroutine that owns this path (see
+// DrainParameterStream drains every value pushed to this parameter's shared
+// ring since this stream's own cursor, and advances the cursor accordingly.
+// Lock-free: stream.cursor is only ever touched by the single
+// RunParameterStream goroutine that owns this path (see
 // ParameterStreamDemand's doc comment), and Ring.DrainSince itself needs no
 // lock either (see types.Ring).
-func (ep *YamcsEndpoint) GetAndClearParameterStreamBuffer(parameter string, path string) []client.ParameterValue {
+func (ep *YamcsEndpoint) DrainParameterStream(parameter string, path string) []client.ParameterValue {
 
 	ep.mu.RLock()
 	paramDemand := ep.Parameters[parameter]
