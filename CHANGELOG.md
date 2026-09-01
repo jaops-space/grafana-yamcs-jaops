@@ -34,12 +34,27 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Updated frontend dependencies, backend dependencies, pnpm, ESLint, TypeScript, Webpack, and Grafana package versions.
 - Updated Docker, nginx, supervisor, development, and CI configuration for the newer toolchain.
 - Reorganized documentation under `docs/`, refreshed README and plugin documentation, updated screenshots/logos, and clarified setup, testing, signing, submission, provisioning, and benchmarking instructions.
+- Centralized per-host connection management and WebSocket stream health checks instead of duplicating them per endpoint.
+- Background connection managers now use an independent context instead of one tied to the triggering HTTP request's lifetime, so they no longer get cancelled early.
+- Replaced per-stream value buffers/channels with a single shared ring buffer per parameter and a lightweight per-stream read cursor, removing lock contention and reducing allocations under many concurrent panels.
+- Reduced per-parameter-value processing to avoid rebuilding a full listener slice on every incoming value.
+- Avoided boxing numeric values into interfaces on the buffer-to-frame conversion fast path.
+- No longer hold the endpoint-wide lock across slow Yamcs subscribe/HTTP calls.
+- Parameter values with no active demand are now dropped instead of triggering a live fetch.
 
 ### Fixed
 
 - Fixed parameter query re-rendering behavior and simplified aggregate querying.
 - Fixed backend validation and error reporting around malformed datasource configuration.
 - Fixed static image rendering safety and image-panel rendering edge cases found during reviewer/security work.
+- Fixed alarms, links, and command-history panels not updating live after their initial load.
+- Fixed error handling in the Links stream and added Links integration tests.
+- Fixed a data race that could crash the alarms stream, and added detection for stale connections.
+- Fixed retry-storm timeouts and zero-point-count validation errors during parameter queries.
+- Fixed data races in WebSocket connection state and subscription listener wiring.
+- Fixed unsynchronized concurrent access to Yamcs client subscription maps.
+- Fixed stale processor snapshots and connection/ordering bugs in per-host connection setup.
+- Fixed the datasource holding a shared HTTP query object across concurrent requests, which could leak one request's parameters into another's.
 
 ### Security
 
@@ -47,6 +62,9 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added security scanning CI reporting detected vulnerabilities.
 - Hardened resource proxy behavior and static-image URL/style sanitization.
 - Updated frontend dependency overrides for known vulnerable transitive packages.
+- Migrated pnpm dependency overrides from package.json's now-ignored `pnpm` field to `pnpm-workspace.yaml`, so security-motivated version pins are actually enforced again.
+- Patched known vulnerabilities in websocket-driver, brace-expansion, fast-uri, nanoid, postcss, js-yaml, and react-router.
+- Updated the Go toolchain and bumped grpc/opentelemetry dependencies to resolve known Go standard-library and module vulnerabilities.
 
 ### Removed
 
