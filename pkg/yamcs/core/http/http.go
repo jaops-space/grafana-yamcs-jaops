@@ -18,12 +18,21 @@ import (
 
 // HTTPManager represents a connection to a Yamcs server
 type HTTPManager struct {
-	URL           string
-	AuthRoot      string
-	APIRoot       string
-	Client        *http.Client
-	Headers       map[string]string
+	URL      string
+	AuthRoot string
+	APIRoot  string
+	Client   *http.Client
+	Headers  map[string]string
+	// Query holds long-term/persistent query parameters only (e.g. set once
+	// at startup and expected to apply to every request going forward).
+	// It must never be mutated directly - use SetPersistentQueryParam /
+	// DeletePersistentQueryParam, which take queryMu. Per-request/variable
+	// query parameters (time ranges, filters, pagination tokens, etc.) must
+	// instead be passed directly to the calling method and merged with this
+	// map at request-build time in sendRequest - see the query parameter on
+	// sendRequest/ProtoRequest/...WithQuery methods.
 	Query         map[string]string
+	queryMu       sync.RWMutex
 	Credentials   Credentials
 	UsingProtobuf bool
 	OnTokenUpdate func(Credentials)
@@ -31,6 +40,35 @@ type HTTPManager struct {
 	RefreshStop     chan struct{} // Channel to stop the refresh ticker
 	RefreshInterval time.Duration
 	refreshMu       sync.Mutex
+}
+
+// SetPersistentQueryParam thread-safely sets a long-term query parameter
+// that will be applied to every subsequent request made with this manager
+// (merged with any per-request query parameters at request-build time).
+func (m *HTTPManager) SetPersistentQueryParam(key, value string) {
+	m.queryMu.Lock()
+	defer m.queryMu.Unlock()
+	m.Query[key] = value
+}
+
+// DeletePersistentQueryParam thread-safely removes a long-term query
+// parameter previously set via SetPersistentQueryParam.
+func (m *HTTPManager) DeletePersistentQueryParam(key string) {
+	m.queryMu.Lock()
+	defer m.queryMu.Unlock()
+	delete(m.Query, key)
+}
+
+// snapshotPersistentQuery returns a copy of the persistent query map, safe
+// to range over without holding queryMu.
+func (m *HTTPManager) snapshotPersistentQuery() map[string]string {
+	m.queryMu.RLock()
+	defer m.queryMu.RUnlock()
+	snapshot := make(map[string]string, len(m.Query))
+	for k, v := range m.Query {
+		snapshot[k] = v
+	}
+	return snapshot
 }
 
 type requestOptions struct {
@@ -112,10 +150,17 @@ func NewHTTPManagerWithContext(ctx context.Context, address string, tlsConfig TL
 
 // SendRequest sends an HTTP request and automatically applies credentials.
 func (m *HTTPManager) SendRequest(ctx context.Context, method string, url string, body []byte) ([]byte, error) {
-	return m.sendRequest(ctx, method, url, body, requestOptions{applyCredentials: true})
+	return m.sendRequest(ctx, method, url, body, nil, requestOptions{applyCredentials: true})
 }
 
-func (m *HTTPManager) sendRequest(ctx context.Context, method string, url string, body []byte, opts requestOptions) ([]byte, error) {
+// SendRequestWithQuery is identical to SendRequest but additionally merges
+// the given per-request query parameters with the manager's persistent
+// Query map. Per-request parameters win on key conflicts.
+func (m *HTTPManager) SendRequestWithQuery(ctx context.Context, method string, url string, body []byte, query map[string]string) ([]byte, error) {
+	return m.sendRequest(ctx, method, url, body, query, requestOptions{applyCredentials: true})
+}
+
+func (m *HTTPManager) sendRequest(ctx context.Context, method string, url string, body []byte, query map[string]string, opts requestOptions) ([]byte, error) {
 	if opts.applyCredentials && m.Credentials != nil && m.Credentials.IsExpired() {
 		if err := m.Credentials.Refresh(ctx, m); err != nil {
 			return nil, err
@@ -138,13 +183,18 @@ func (m *HTTPManager) sendRequest(ctx context.Context, method string, url string
 		req.Header.Set(k, v)
 	}
 
-	// Apply query parameters
+	// Apply query parameters: persistent (long-term) params first, then
+	// per-request params, which win on conflict. Both maps are read-only
+	// snapshots/caller-owned copies at this point, so no locking is needed
+	// here beyond snapshotPersistentQuery's own internal lock.
 	q := req.URL.Query()
-	for k, v := range m.Query {
+	for k, v := range m.snapshotPersistentQuery() {
+		q.Set(k, v)
+	}
+	for k, v := range query {
 		q.Set(k, v)
 	}
 	req.URL.RawQuery = q.Encode()
-	m.Query = make(map[string]string)
 
 	// Apply credentials
 	if opts.applyCredentials && m.Credentials != nil {
@@ -202,7 +252,7 @@ func (m *HTTPManager) SendFormRequest(ctx context.Context, method string, url st
 		requestHeaders[k] = v
 	}
 
-	respBody, err := m.sendRequest(ctx, method, url, reqBody, requestOptions{
+	respBody, err := m.sendRequest(ctx, method, url, reqBody, nil, requestOptions{
 		applyCredentials: false,
 		headers:          requestHeaders,
 	})

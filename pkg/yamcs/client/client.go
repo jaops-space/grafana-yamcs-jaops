@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
@@ -44,7 +45,23 @@ type YamcsClient struct {
 	// WebSocket handler for managing real-time data streams
 	WebSocket *ws.WebSocketHandler
 
-	// Various subscriptions for data streams
+	// subsMu guards every read, write, range and delete of the eight
+	// subscription maps below. They are mutated concurrently from at least
+	// three places: the WebSocket read loop (Listen(), dispatching incoming
+	// frames and looking subscriptions up by call ID), any number of
+	// concurrent RunXStream goroutines (creating/finding/halting
+	// subscriptions for their own instance/processor), and
+	// clearAllSubscriptions (wiping all of them on connect/reconnect/close).
+	// Without this lock, opening a second instance's dashboard while another
+	// is already streaming reliably races the read loop against a
+	// subscribing goroutine, which for plain Go maps is a fatal
+	// "concurrent map read/iteration and map write" crash, not just a data
+	// race - this crashes the whole backend process (all instances, not just
+	// the new one), which is the root cause of dashboards going silent with
+	// timeouts until Grafana restarts the backend.
+	subsMu sync.RWMutex
+
+	// Various subscriptions for data streams. Access only through subsMu.
 	ParameterSubscriptions         map[int32]*ParameterSubscription
 	CommandHistorySubscriptions    map[int32]*CommandHistorySubscription
 	EventSubscriptions             map[int32]*EventSubscription
@@ -53,6 +70,36 @@ type YamcsClient struct {
 	TimeSubscriptions              map[int32]*TimeSubscription
 	LinkSubscriptions              map[int32]*LinkSubscription
 	ProcessorSubscriptions         map[int32]*ProcessorSubscription
+
+	// subscribeCooldowns tracks, per subscription kind/instance/processor
+	// (see subscribeCooldownKey), the time before which a fresh subscribe
+	// attempt should be skipped in favour of failing fast. Access only
+	// through subsMu.
+	//
+	// Every newXSubscription below blocks for the WebSocket's full SendSync
+	// timeout before it can fail, so a call that fails always "ran long
+	// enough" from Grafana's point of view - which means Grafana's own
+	// RunStream retry backoff (which grows only for calls that fail fast)
+	// never grows for these failures, and it re-invokes RunStream
+	// immediately, forever. This mirrors the fail-fast idiom already used by
+	// YamcsEndpoint.EnsureReady for host-level readiness: while a very
+	// recent identical attempt is still cooling down, skip the network
+	// round-trip entirely and return the failure instantly instead, so
+	// Grafana's backoff can grow normally.
+	subscribeCooldowns map[string]time.Time
+
+	// disconnectMu guards disconnectSignal so it can be safely read, closed and
+	// replaced concurrently from the WebSocket's disconnect handler (writer)
+	// and from any number of RunStream goroutines (readers).
+	disconnectMu sync.Mutex
+
+	// disconnectSignal is closed exactly once whenever the underlying
+	// WebSocket connection is lost, and replaced with a fresh, open channel on
+	// every successful (re)connect. Streams should select on Disconnected()
+	// instead of periodically polling IsWebSocketConnected(), so a dropped
+	// connection is reacted to immediately instead of up to a polling
+	// interval later.
+	disconnectSignal chan struct{}
 }
 
 // NewYamcsClient constructs a new YamcsClient.
@@ -88,6 +135,8 @@ func NewYamcsClientWithContext(
 		TimeSubscriptions:              make(map[int32]*TimeSubscription),
 		LinkSubscriptions:              make(map[int32]*LinkSubscription),
 		ProcessorSubscriptions:         make(map[int32]*ProcessorSubscription),
+		subscribeCooldowns:             make(map[string]time.Time),
+		disconnectSignal:               make(chan struct{}),
 	}
 
 	// WebSocket URL based on whether TLS is enabled
@@ -121,6 +170,7 @@ func NewYamcsClientWithContext(
 	// Handle WebSocket disconnections
 	client.WebSocket.SetDisconnectHandler(func() {
 		client.clearAllSubscriptions()
+		client.signalDisconnected()
 	})
 
 	return client, nil
@@ -133,9 +183,63 @@ func (client *YamcsClient) EstablishWebSocketConnection(ctx context.Context) err
 	err := client.WebSocket.Connect(ctx)
 	if err == nil {
 		client.clearAllSubscriptions()
+		client.resetDisconnectSignal()
 		go client.WebSocket.Listen()
 	}
 	return err
+}
+
+// Disconnected returns a channel that is closed exactly once the underlying
+// WebSocket connection is lost. Streams should select on this channel (rather
+// than, or in addition to, periodically polling IsWebSocketConnected()) so a
+// dropped connection is reacted to the moment it happens instead of only on
+// the next poll tick - which previously left streams blocked on an event
+// signal for up to a full polling interval (or indefinitely, for streams that
+// didn't poll at all) after the connection was actually already gone.
+//
+// The returned channel is only valid for the connection that was active when
+// Disconnected() was called; after a reconnect, a fresh channel is created,
+// so callers that keep running across reconnects should call Disconnected()
+// again rather than caching the returned channel.
+func (client *YamcsClient) Disconnected() <-chan struct{} {
+	client.disconnectMu.Lock()
+	defer client.disconnectMu.Unlock()
+	if client.disconnectSignal == nil {
+		// Defensively lazy-init: guards against a YamcsClient constructed via
+		// struct literal (e.g. in tests) rather than NewYamcsClient, which
+		// would otherwise leave this nil and make Disconnected() block
+		// forever instead of ever firing.
+		client.disconnectSignal = make(chan struct{})
+	}
+	return client.disconnectSignal
+}
+
+// signalDisconnected closes the current disconnect signal, waking up any
+// stream goroutines blocked on Disconnected(). Safe to call more than once
+// for the same disconnect event (e.g. if both an explicit Disconnect() and
+// the read loop's own cleanup both observe the same drop).
+func (client *YamcsClient) signalDisconnected() {
+	client.disconnectMu.Lock()
+	defer client.disconnectMu.Unlock()
+	if client.disconnectSignal == nil {
+		client.disconnectSignal = make(chan struct{})
+	}
+	select {
+	case <-client.disconnectSignal:
+		// already closed for this connection attempt
+	default:
+		close(client.disconnectSignal)
+	}
+}
+
+// resetDisconnectSignal replaces the disconnect signal with a fresh, open
+// channel. Called after every successful (re)connect so a previously closed
+// signal doesn't cause newly started streams to immediately think they're
+// disconnected.
+func (client *YamcsClient) resetDisconnectSignal() {
+	client.disconnectMu.Lock()
+	defer client.disconnectMu.Unlock()
+	client.disconnectSignal = make(chan struct{})
 }
 
 func (client *YamcsClient) CloseWebSocketConnection() error {
@@ -207,6 +311,8 @@ func getProtocolPrefix(isTLS bool) string {
 
 // clearAllSubscriptions clears all subscriptions for the client.
 func (client *YamcsClient) clearAllSubscriptions() {
+	client.subsMu.Lock()
+	defer client.subsMu.Unlock()
 	// Clear subscriptions
 	client.ParameterSubscriptions = make(map[int32]*ParameterSubscription)
 	client.EventSubscriptions = make(map[int32]*EventSubscription)
@@ -216,4 +322,48 @@ func (client *YamcsClient) clearAllSubscriptions() {
 	client.TimeSubscriptions = make(map[int32]*TimeSubscription)
 	client.LinkSubscriptions = make(map[int32]*LinkSubscription)
 	client.ProcessorSubscriptions = make(map[int32]*ProcessorSubscription)
+	// A fresh connection deserves a fresh attempt, regardless of how the
+	// previous one ended.
+	client.subscribeCooldowns = make(map[string]time.Time)
+}
+
+// subscribeFailureCooldown is how long a subscribe attempt for a given
+// kind/instance/processor is skipped after it fails, before another real
+// attempt is allowed. See subscribeCooldowns for why this exists.
+const subscribeFailureCooldown = 5 * time.Second
+
+// subscribeCooldownKey identifies a distinct subscribe operation for cooldown
+// purposes. Subscriptions are per instance (and, where applicable, per
+// processor), not per caller/panel, so that's the granularity used here -
+// matching FindXSubscription's own lookup granularity.
+func subscribeCooldownKey(kind, instance, processor string) string {
+	return kind + "|" + instance + "|" + processor
+}
+
+// checkSubscribeCooldown fails fast, without touching the network, if an
+// identical subscribe attempt failed too recently. Returns nil when the
+// caller should go ahead and attempt the real subscribe.
+func (client *YamcsClient) checkSubscribeCooldown(key string) error {
+	client.subsMu.RLock()
+	until, cooling := client.subscribeCooldowns[key]
+	client.subsMu.RUnlock()
+
+	if cooling && time.Now().Before(until) {
+		return fmt.Errorf("subscribe %q failed recently, backing off for %s", key, time.Until(until).Round(time.Millisecond))
+	}
+	return nil
+}
+
+// recordSubscribeOutcome clears the cooldown for key when the subscribe
+// attempt succeeded or the caller's context was cancelled/deadlined (not a
+// real failure, e.g. normal shutdown), otherwise starts/refreshes it.
+func (client *YamcsClient) recordSubscribeOutcome(ctx context.Context, key string, err error) {
+	client.subsMu.Lock()
+	defer client.subsMu.Unlock()
+
+	if err == nil || ctx.Err() != nil {
+		delete(client.subscribeCooldowns, key)
+		return
+	}
+	client.subscribeCooldowns[key] = time.Now().Add(subscribeFailureCooldown)
 }

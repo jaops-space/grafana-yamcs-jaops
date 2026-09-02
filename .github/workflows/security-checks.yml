@@ -23,7 +23,7 @@ jobs:
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-security-checks'))
+        (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run/security-checks'))
       }}
     steps:
       - name: Checkout
@@ -330,7 +330,7 @@ jobs:
           exit 1
 
   security-comment:
-    name: Security PR comment
+    name: Report findings
     runs-on: ubuntu-latest
     needs: security
     if: always() && github.event_name == 'pull_request'

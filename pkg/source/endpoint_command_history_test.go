@@ -5,13 +5,15 @@ import (
 	"testing"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
 )
 
 func TestCommandHistoryListenerBuffersBurstsWithoutReceiver(t *testing.T) {
-	signal := make(chan *commanding.CommandHistoryEntry, StreamSignalBufferSize)
+	ring := types.NewRing[*commanding.CommandHistoryEntry](BroadcastRingCapacity)
 	endpoint := &YamcsEndpoint{
-		CommandHistorySignals: map[string]CommandHistorySignal{
-			"req/commands": signal,
+		CommandHistoryRing: ring,
+		CommandHistorySignals: map[string]*BroadcastStreamDemand[*commanding.CommandHistoryEntry]{
+			"req/commands": newBroadcastStreamDemand(ring),
 		},
 	}
 
@@ -23,7 +25,7 @@ func TestCommandHistoryListenerBuffersBurstsWithoutReceiver(t *testing.T) {
 		}
 	}
 
-	if got := len(signal); got != 8 {
+	if got := len(endpoint.DrainCommandHistoryStream("req/commands")); got != 8 {
 		t.Fatalf("expected 8 buffered command history entries, got %d", got)
 	}
 }

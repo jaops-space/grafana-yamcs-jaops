@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
@@ -13,17 +12,18 @@ import (
 
 func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) error {
 
+	if _, err := ep.getOrCreateAlarmsSubscription(ctx); err != nil {
+		return err
+	}
+	if _, err := ep.getOrCreateGlobalAlarmStatusSubscription(ctx); err != nil {
+		return err
+	}
+
 	ep.mu.Lock()
-	ep.getOrCreateAlarmsSubscription(ctx)
-	ep.getOrCreateGlobalAlarmStatusSubscription(ctx)
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 	ep.AlarmSignals[path] = make(chan struct{}, StreamSignalBufferSize)
-	ep.mu.Unlock()
-
-	// Load initial alarms into cache if cache is empty
-	ep.mu.RLock()
 	cacheEmpty := len(ep.AlarmCache) == 0
-	ep.mu.RUnlock()
+	ep.mu.Unlock()
 
 	if cacheEmpty {
 		cli, err := ep.GetClient()
@@ -40,6 +40,9 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) e
 			if alarm.GetClearInfo() != nil {
 				continue
 			}
+			if alarm.GetId() == nil {
+				continue
+			}
 			qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
 			alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
 			ep.AlarmCache[alarmID] = alarm
@@ -49,41 +52,52 @@ func (ep *YamcsEndpoint) RequestAlarmsStream(ctx context.Context, path string) e
 	return nil
 }
 
+// getOrCreateAlarmsSubscription does not touch mu - subscription
+// lookup/creation is guarded by the client's own subsMu (for the map) and
+// alarmSubscribeMu (for the create race), so a slow/stuck subscribe attempt
+// never blocks unrelated endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getOrCreateAlarmsSubscription(ctx context.Context) (*client.AlarmSubscription, error) {
 
 	cli, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range cli.AlarmSubscriptions {
-		if subscription.GetInstance() == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if subscription, found := cli.FindAlarmSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
-	subscription, err := cli.CreateAlarmSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
+
+	ep.alarmSubscribeMu.Lock()
+	defer ep.alarmSubscribeMu.Unlock()
+
+	if subscription, found := cli.FindAlarmSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+	subscription, err := cli.CreateAlarmSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName(), ep.getAlarmsListener())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getAlarmsListener())
 	return subscription, nil
 }
 
+// getOrCreateGlobalAlarmStatusSubscription does not touch mu for the same
+// reason as getOrCreateAlarmsSubscription above.
 func (ep *YamcsEndpoint) getOrCreateGlobalAlarmStatusSubscription(ctx context.Context) (*client.GlobalStatusSubscription, error) {
 
 	cli, err := ep.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	for _, subscription := range cli.GlobalAlarmStatusSubscriptions {
-		if subscription.GetInstance() == ep.GetInstanceName() {
-			return subscription, nil
-		}
+	if subscription, found := cli.FindGlobalAlarmStatusSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
-	subscription, err := cli.CreateGlobalAlarmStatusSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName())
-	if err != nil {
-		return nil, err
+
+	ep.alarmSubscribeMu.Lock()
+	defer ep.alarmSubscribeMu.Unlock()
+
+	if subscription, found := cli.FindGlobalAlarmStatusSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
 	}
-	subscription.SetListener(func(status *alarms.GlobalAlarmStatus) {
+	subscription, err := cli.CreateGlobalAlarmStatusSubscription(ctx, ep.GetInstanceName(), ep.GetProcessorName(), func(status *alarms.GlobalAlarmStatus) {
 		ep.mu.Lock()
 		defer ep.mu.Unlock()
 		ep.GlobalAlarmStatus = status
@@ -91,6 +105,9 @@ func (ep *YamcsEndpoint) getOrCreateGlobalAlarmStatusSubscription(ctx context.Co
 			ep.NotifyAlarmsStream(path)
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
 	return subscription, nil
 }
 
@@ -138,9 +155,18 @@ func (ep *YamcsEndpoint) GetAlarmsStream(path string) []*alarms.AlarmData {
 
 func (ep *YamcsEndpoint) ClearAlarmsStream(path string) {
 	// Clear only the update buffer, not the cache
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
 	ep.Alarms[path] = make([]*alarms.AlarmData, 0)
 }
 
+// NotifyAlarmsStream signals the given path's alarm stream that new data is
+// available. It reads ep.AlarmSignals without acquiring ep.mu itself -
+// callers MUST already hold ep.mu (read or write) when calling this. Both
+// current call sites (getAlarmsListener and the global alarm status
+// listener in getOrCreateGlobalAlarmStatusSubscription) hold ep.mu.Lock()
+// around their loop over ep.Alarms/paths before calling this; do not call
+// it without ep.mu held, or ep.AlarmSignals reads/writes elsewhere will race.
 func (ep *YamcsEndpoint) NotifyAlarmsStream(path string) {
 	if signal, ok := ep.AlarmSignals[path]; ok {
 		select {
@@ -184,16 +210,8 @@ func (ep *YamcsEndpoint) WithdrawAlarmsStreamRequest(path string) error {
 		if err != nil {
 			return err
 		}
-		for _, subscription := range c.AlarmSubscriptions {
-			if subscription.GetInstance() == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
-		for _, subscription := range c.GlobalAlarmStatusSubscriptions {
-			if subscription.GetInstance() == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
+		c.HaltAlarmSubscriptionsForInstance(ep.GetInstanceName())
+		c.HaltGlobalAlarmStatusSubscriptionsForInstance(ep.GetInstanceName())
 	}
 	return nil
 }
@@ -204,34 +222,19 @@ func (ep *YamcsEndpoint) getAlarmsListener() client.AlarmListener {
 		hasUpdate := false
 
 		// Generate unique alarm ID (namespace/name/seqNum)
+		if alarm.GetId() == nil {
+			return nil
+		}
 		qualifiedName := alarm.GetId().GetNamespace() + "/" + alarm.GetId().GetName()
 		alarmID := fmt.Sprintf("%s/%d", qualifiedName, alarm.GetSeqNum())
 
 		ep.mu.Lock()
 		defer ep.mu.Unlock()
-		// If the alarm has been cleared, remove it from the cache
-		if alarm.GetClearInfo() != nil {
+		if shouldRemoveAlarmFromCache(alarm) {
 			delete(ep.AlarmCache, alarmID)
 			hasUpdate = true
-			// Skip adding cleared alarms to streaming buffer
 		} else {
-
-			// Update the cache: merge incoming alarm data onto the existing cached entry
-			// so that fields only sent in TRIGGERED/SEVERITY_INCREASED (e.g. mostSevereValue)
-			// are not lost when VALUE_UPDATED notifications arrive with partial data.
-			if existing, ok := ep.AlarmCache[alarmID]; ok {
-				merged := proto.Clone(existing).(*alarms.AlarmData)
-				proto.Merge(merged, alarm)
-				// When an alarm is unshelved, Yamcs sends a notification with no shelveInfo.
-				// proto.Merge does not clear existing fields, so we must explicitly clear
-				// ShelveInfo when the notification type is UNSHELVED.
-				if alarm.GetNotificationType() == alarms.AlarmNotificationType_UNSHELVED {
-					merged.ShelveInfo = nil
-				}
-				ep.AlarmCache[alarmID] = merged
-			} else {
-				ep.AlarmCache[alarmID] = alarm
-			}
+			ep.AlarmCache[alarmID] = alarm
 			hasUpdate = true
 		}
 
@@ -242,4 +245,12 @@ func (ep *YamcsEndpoint) getAlarmsListener() client.AlarmListener {
 		}
 		return nil
 	}
+}
+
+func shouldRemoveAlarmFromCache(alarm *alarms.AlarmData) bool {
+	if alarm.GetClearInfo() != nil {
+		return true
+	}
+
+	return alarm.GetProcessOK() && !alarm.GetTriggered() && alarm.GetAcknowledged()
 }

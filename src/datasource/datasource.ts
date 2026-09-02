@@ -93,7 +93,13 @@ function formatDiscreteOptionsPath(query: Query): string {
 
 function roundDataPoints(maxDataPoints: number, dataPointsRounding: number, bufferMaxLength: number): number {
     const rounded = Math.round(maxDataPoints / dataPointsRounding) * dataPointsRounding;
-    return Math.min(rounded, bufferMaxLength);
+    // Never resolve to 0 (or negative) datapoints. A panel shrunk small
+    // enough that maxDataPoints falls under half of dataPointsRounding
+    // (e.g. maxDataPoints=100 with the default 500-wide rounding bucket)
+    // rounds down to 0 here, which the backend/Yamcs rejects outright
+    // ("invalid point count 0, must be between 1 and 10000") and kills the
+    // stream subscription entirely instead of just showing a smaller plot.
+    return Math.min(Math.max(rounded, dataPointsRounding), bufferMaxLength);
 }
 
 /**

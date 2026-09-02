@@ -19,10 +19,6 @@ METRIC_DETAILS = {
     "values_read_per_sec_per_stream": "Per-stream buffer throughput against the 1 Hz simulator cadence.",
     "values_read_fresh_pct": "Share of values read before the next 1 second simulator update.",
     "median_tick_runstream_busy": "Median total read/frame/send work done by RunStream goroutines during each 1 second tick.",
-    "backend_datapoints_per_second_per_stream": (
-        "Backend datapoints produced per unique backend stream. Panels sharing an already-open "
-        "stream don't dilute this - it only degrades if the backend itself falls behind."
-    ),
     "frontend_datapoints_per_second_per_panel": (
         "Datapoints actually delivered to each panel's own Grafana Live subscription, measured "
         "in the browser after channel fan-out. Scales with real panel count regardless of stream sharing."

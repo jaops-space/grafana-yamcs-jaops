@@ -22,33 +22,46 @@ type ProcessorSubscription struct {
 	client         *YamcsClient
 }
 
-// CreateProcessorSubscription creates a new processor subscription.
-func (client *YamcsClient) CreateProcessorSubscription(ctx context.Context, instance Instance, processor Processor) (*ProcessorSubscription, error) {
-	subscription, err := client.newProcessorSubscription(ctx, instance.GetName(), processor.GetName())
+// CreateProcessorSubscription creates a new processor subscription. The
+// listener is wired before the subscription becomes visible in
+// client.ProcessorSubscriptions to avoid HandleProcessorMessage observing a
+// nil listener.
+func (client *YamcsClient) CreateProcessorSubscription(ctx context.Context, instance Instance, processor Processor, listener ProcessorListener) (*ProcessorSubscription, error) {
+	subscription, err := client.newProcessorSubscription(ctx, instance.GetName(), processor.GetName(), listener)
 	if err != nil {
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ProcessorSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
 // CreateProcessorSubscriptionByNames creates a processor subscription using plain names.
-func (client *YamcsClient) CreateProcessorSubscriptionByNames(ctx context.Context, instance string, processor string) (*ProcessorSubscription, error) {
-	subscription, err := client.newProcessorSubscription(ctx, instance, processor)
+func (client *YamcsClient) CreateProcessorSubscriptionByNames(ctx context.Context, instance string, processor string, listener ProcessorListener) (*ProcessorSubscription, error) {
+	subscription, err := client.newProcessorSubscription(ctx, instance, processor, listener)
 	if err != nil {
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ProcessorSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
-func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instance string, processor string) (*ProcessorSubscription, error) {
+func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instance string, processor string, listener ProcessorListener) (*ProcessorSubscription, error) {
+	cooldownKey := subscribeCooldownKey("processors", instance, processor)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &ProcessorSubscription{
 		client:    client,
 		Instance:  instance,
 		Processor: processor,
+		listener:  listener,
 	}
 
 	subscribeRequest := &processing.SubscribeProcessorsRequest{
@@ -67,6 +80,7 @@ func (client *YamcsClient) newProcessorSubscription(ctx context.Context, instanc
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +99,9 @@ func (client *YamcsClient) HandleProcessorMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.ProcessorSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if found && subscription.listener != nil {
 		subscription.listener(processor)
 	}
@@ -98,7 +114,9 @@ func (subscription *ProcessorSubscription) SetListener(listener ProcessorListene
 
 // Halt cancels the processor subscription.
 func (subscription *ProcessorSubscription) Halt() {
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.ProcessorSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: subscription.subscriptionID,

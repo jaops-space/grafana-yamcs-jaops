@@ -9,7 +9,7 @@ import (
 
 func TestPaginatedRequestIterator_HasNextInitial(t *testing.T) {
 	manager := &corehttp.HTTPManager{Query: map[string]string{}}
-	iterator := NewPaginatedRequestIterator[int](manager, func() (int, string, error) {
+	iterator := NewPaginatedRequestIterator[int](manager, func(query map[string]string) (int, string, error) {
 		return 0, "", nil
 	})
 
@@ -22,22 +22,22 @@ func TestPaginatedRequestIterator_NextAppliesQueryAndContinuation(t *testing.T) 
 	manager := &corehttp.HTTPManager{Query: map[string]string{}}
 	calls := 0
 
-	fetch := func() (int, string, error) {
+	fetch := func(query map[string]string) (int, string, error) {
 		calls++
 		switch calls {
 		case 1:
-			if got := manager.Query["q"]; got != "abc" {
+			if got := query["q"]; got != "abc" {
 				t.Fatalf("first call: expected query q=abc, got %q", got)
 			}
-			if _, ok := manager.Query["next"]; ok {
+			if _, ok := query["next"]; ok {
 				t.Fatalf("first call: did not expect continuation token")
 			}
 			return 11, "tok-1", nil
 		case 2:
-			if got := manager.Query["q"]; got != "abc" {
+			if got := query["q"]; got != "abc" {
 				t.Fatalf("second call: expected query q=abc, got %q", got)
 			}
-			if got := manager.Query["next"]; got != "tok-1" {
+			if got := query["next"]; got != "tok-1" {
 				t.Fatalf("second call: expected continuation next=tok-1, got %q", got)
 			}
 			return 22, "", nil
@@ -77,7 +77,9 @@ func TestPaginatedRequestIterator_ErrorClearsContinuation(t *testing.T) {
 	manager := &corehttp.HTTPManager{Query: map[string]string{}}
 	wantErr := errors.New("fetch failed")
 
-	iterator := NewPaginatedRequestIterator[int](manager, func() (int, string, error) {
+	var gotQuery map[string]string
+	iterator := NewPaginatedRequestIterator[int](manager, func(query map[string]string) (int, string, error) {
+		gotQuery = query
 		return 0, "tok-will-be-cleared", wantErr
 	})
 	iterator.SetQuery(map[string]string{"q": "abc"})
@@ -91,7 +93,7 @@ func TestPaginatedRequestIterator_ErrorClearsContinuation(t *testing.T) {
 		t.Fatalf("expected HasNext false after fetch error clears continuation")
 	}
 
-	if got := manager.Query["q"]; got != "abc" {
+	if got := gotQuery["q"]; got != "abc" {
 		t.Fatalf("expected query to be set before fetch, got q=%q", got)
 	}
 }
@@ -99,11 +101,11 @@ func TestPaginatedRequestIterator_ErrorClearsContinuation(t *testing.T) {
 func TestPaginatedRequestIterator_SetQueryOverridesExistingKey(t *testing.T) {
 	manager := &corehttp.HTTPManager{Query: map[string]string{}}
 
-	iterator := NewPaginatedRequestIterator[int](manager, func() (int, string, error) {
-		if got := manager.Query["q"]; got != "new" {
+	iterator := NewPaginatedRequestIterator[int](manager, func(query map[string]string) (int, string, error) {
+		if got := query["q"]; got != "new" {
 			t.Fatalf("expected latest query value q=new, got %q", got)
 		}
-		if got := manager.Query["limit"]; got != "100" {
+		if got := query["limit"]; got != "100" {
 			t.Fatalf("expected secondary query value limit=100, got %q", got)
 		}
 		return 1, "", nil

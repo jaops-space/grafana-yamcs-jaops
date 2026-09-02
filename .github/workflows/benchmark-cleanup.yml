@@ -27,7 +27,7 @@ jobs:
                         });
                         core.info(`Deleted ${branch}`);
                       } catch (error) {
-                        if (error.status === 404) {
+                        if (error.status === 404 || error.status === 422) {
                           core.info(`${branch} did not exist; nothing to clean up.`);
                           return;
                         }

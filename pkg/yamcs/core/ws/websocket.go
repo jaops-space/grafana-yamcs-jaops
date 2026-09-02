@@ -58,6 +58,21 @@ func (ws *WebSocketHandler) SetHandshakeTimeout(seconds int) {
 	ws.handshakeTimeout = seconds
 }
 
+// getConnection returns the current WebSocket connection (or nil), safe for
+// concurrent access. Every read of ws.connection outside of Connect() (which
+// already holds ws.mu for its entire body) must go through this instead of
+// touching the field directly. ForceDisconnect can run concurrently from a
+// different goroutine than Listen/Send/SendSync/Disconnect (e.g. from
+// host-teardown/reconnect code while the read loop is still using the
+// connection) - a bare, unguarded read racing that write could observe a
+// connection that transitions to nil between a nil-check and its use,
+// dereferencing nil and panicking the whole plugin process.
+func (ws *WebSocketHandler) getConnection() *websocket.Conn {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	return ws.connection
+}
+
 // Connect establishes the WebSocket connection, ensuring it happens only once.
 func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 	var err error
@@ -105,11 +120,12 @@ func (ws *WebSocketHandler) Listen() {
 	defer backend.Logger.Debug("stopped listening for websocket messages")
 
 	for {
-		if ws.connection == nil || !ws.IsConnected() {
+		conn := ws.getConnection()
+		if conn == nil || !ws.IsConnected() {
 			// assume connection was closed
 			return
 		}
-		messageType, data, err := ws.connection.ReadMessage()
+		messageType, data, err := conn.ReadMessage()
 
 		if messageType == websocket.CloseMessage {
 			backend.Logger.Debug("ws connected closd normally")
@@ -171,12 +187,13 @@ func (ws *WebSocketHandler) Disconnect() error {
 	if !ws.IsConnected() {
 		return exception.New("websocket is not connected", "WS_NOT_CONNECTED")
 	}
-	if ws.connection == nil {
+	conn := ws.getConnection()
+	if conn == nil {
 		ws.ForceDisconnect()
 		return exception.New("websocket is not initialized", "WS_CONNECTION_NOT_INITIALIZED")
 	}
 	ws.nmu.Lock()
-	err := ws.connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	ws.nmu.Unlock()
 
 	ws.ForceDisconnect()
@@ -185,9 +202,14 @@ func (ws *WebSocketHandler) Disconnect() error {
 
 func (ws *WebSocketHandler) ForceDisconnect() {
 	ws.isConnected.Store(0)
-	if ws.connection != nil {
-		ws.connection.Close()
-		ws.connection = nil
+
+	ws.mu.Lock()
+	conn := ws.connection
+	ws.connection = nil
+	ws.mu.Unlock()
+
+	if conn != nil {
+		conn.Close()
 	}
 	ws.once = sync.Once{} // Reset Once so connection can be retried.
 	if ws.disconnectFunc != nil {
@@ -249,12 +271,13 @@ func (ws *WebSocketHandler) SendSync(
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	if !ws.IsConnected() || ws.connection == nil {
+	conn := ws.getConnection()
+	if !ws.IsConnected() || conn == nil {
 		return nil, 0, 0, exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
 	}
 
 	ws.nmu.Lock()
-	err = ws.connection.WriteMessage(websocket.BinaryMessage, data)
+	err = conn.WriteMessage(websocket.BinaryMessage, data)
 	ws.nmu.Unlock()
 
 	if err != nil {
@@ -292,7 +315,8 @@ func (ws *WebSocketHandler) marshalClientMessage(
 }
 
 func (ws *WebSocketHandler) Send(message *api.ClientMessage) error {
-	if !ws.IsConnected() || ws.connection == nil {
+	conn := ws.getConnection()
+	if !ws.IsConnected() || conn == nil {
 		return exception.New("WebSocket is not connected.", "WS_NOT_CONNECTED")
 	}
 
@@ -310,7 +334,7 @@ func (ws *WebSocketHandler) Send(message *api.ClientMessage) error {
 	ws.nmu.Lock()
 	defer ws.nmu.Unlock()
 
-	return ws.connection.WriteMessage(websocket.BinaryMessage, data)
+	return conn.WriteMessage(websocket.BinaryMessage, data)
 }
 
 func (ws *WebSocketHandler) GetState(timeout time.Duration) (*api.State, error) {

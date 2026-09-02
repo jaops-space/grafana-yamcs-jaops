@@ -2,12 +2,19 @@ package source
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
+	corehttp "github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/core/http"
 )
 
 func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
@@ -16,8 +23,9 @@ func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp": {Path: "req/sim/temp"},
 				},
 			},
 		},
@@ -31,11 +39,11 @@ func TestParameterListenerBuffersOncePerUniqueStreamDemand(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
-	buffer := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp")
+	buffer := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp")
 	if len(buffer) != 1 {
 		t.Fatalf("expected exactly one buffered value for unique stream demand, got %d", len(buffer))
 	}
-	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
+	if got := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
 		t.Fatalf("expected buffer to be cleared, got %d values", len(got))
 	}
 }
@@ -46,8 +54,9 @@ func TestParameterListenerBuffersExpiredValues(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp": {Path: "req/sim/temp"},
 				},
 			},
 		},
@@ -61,7 +70,7 @@ func TestParameterListenerBuffersExpiredValues(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
-	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 1 {
+	if got := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp"); len(got) != 1 {
 		t.Fatalf("expected expired value to be buffered, got %d values", len(got))
 	}
 }
@@ -72,8 +81,9 @@ func TestParameterListenerIgnoresInvalidValues(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp": {Path: "req/sim/temp", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp": {Path: "req/sim/temp"},
 				},
 			},
 		},
@@ -87,7 +97,7 @@ func TestParameterListenerIgnoresInvalidValues(t *testing.T) {
 		t.Fatalf("listener returned error: %v", err)
 	}
 
-	if got := endpoint.GetAndClearParameterStreamBuffer("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
+	if got := endpoint.DrainParameterStream("/SIM/TEMP", "req/sim/temp"); len(got) != 0 {
 		t.Fatalf("expected invalid value to be ignored, got %d buffered values", len(got))
 	}
 }
@@ -98,9 +108,10 @@ func TestParameterListenerProcessObserverReportsStreamCount(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp/1": {Path: "req/sim/temp/1", Buffer: []*pvalue.ParameterValue{}},
-					"req/sim/temp/2": {Path: "req/sim/temp/2", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp/1": {Path: "req/sim/temp/1"},
+					"req/sim/temp/2": {Path: "req/sim/temp/2"},
 				},
 			},
 		},
@@ -139,9 +150,10 @@ func TestParameterListenerBufferObserverReportsStreamPaths(t *testing.T) {
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
+				Ring: types.NewRing[*pvalue.ParameterValue](ParameterRingCapacity),
 				Streams: map[string]*ParameterStreamDemand{
-					"req/sim/temp/1": {Path: "req/sim/temp/1", Buffer: []*pvalue.ParameterValue{}},
-					"req/sim/temp/2": {Path: "req/sim/temp/2", Buffer: []*pvalue.ParameterValue{}},
+					"req/sim/temp/1": {Path: "req/sim/temp/1"},
+					"req/sim/temp/2": {Path: "req/sim/temp/2"},
 				},
 			},
 		},
@@ -150,7 +162,7 @@ func TestParameterListenerBufferObserverReportsStreamPaths(t *testing.T) {
 	endpoint.Parameters["/SIM/TEMP"].Streams["req/sim/temp/2"].parameter = endpoint.Parameters["/SIM/TEMP"]
 
 	observed := map[string]bool{}
-	endpoint.ParameterBufferObserver = func(parameter string, path string, receivedAt time.Time) {
+	endpoint.ParameterArrivalObserver = func(parameter string, path string, receivedAt time.Time) {
 		if parameter != "/SIM/TEMP" {
 			t.Fatalf("expected observer parameter /SIM/TEMP, got %s", parameter)
 		}
@@ -236,5 +248,166 @@ func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
 	}
 	if got := len(valueConfig.Thresholds.Steps); got != 2 {
 		t.Fatalf("expected 2 thresholds, got %d", got)
+	}
+}
+
+// slowJSONTransport is an http.RoundTripper that sleeps for delay before
+// returning a successful, empty JSON body - simulating a slow-but-working
+// HTTP call (e.g. a loaded/high-latency Yamcs instance), as opposed to an
+// outright failure.
+type slowJSONTransport struct {
+	delay time.Duration
+}
+
+func (t *slowJSONTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	time.Sleep(t.delay)
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader("{}")),
+		Header:     make(http.Header),
+	}, nil
+}
+
+// TestRequestNewParameterStreamDoesNotBlockUnrelatedEndpointState verifies
+// that a slow parameter-demand creation (e.g. a slow GetParameter HTTP call
+// for a brand new parameter, encountered via the real RequestNewParameterStream
+// entry point) does not hold mu, so unrelated endpoint bookkeeping (here:
+// alarms) for the very same endpoint stays fully responsive while it's in
+// flight. Previously mu was held for RequestNewParameterStream's entire body
+// (including this HTTP call), so one slow/stuck subscribe-ish attempt for
+// one data type could stall every other panel on the same endpoint.
+func TestRequestNewParameterStreamDoesNotBlockUnrelatedEndpointState(t *testing.T) {
+	cli, err := client.NewYamcsClient("unused", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	cli.HTTP.Client.Transport = &slowJSONTransport{delay: 300 * time.Millisecond}
+
+	endpoint := &YamcsEndpoint{
+		Host:          &YamcsHost{Client: cli, Configuration: &config.YamcsHostConfiguration{ID: "test-host"}},
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters:    map[string]*ParameterDemand{},
+		Alarms:        map[string][]*alarms.AlarmData{},
+		AlarmSignals:  map[string]chan struct{}{},
+	}
+
+	requestStarted := make(chan struct{})
+	requestDone := make(chan struct{})
+	go func() {
+		close(requestStarted)
+		// The instance/processor aren't wired up on the host, so this will
+		// error out after creating the demand - that's fine, we only care
+		// about how long mu is held while it's in flight.
+		_ = endpoint.RequestNewParameterStream(context.Background(), "/SIM/NEW_PARAM", "some/req/path")
+		close(requestDone)
+	}()
+
+	<-requestStarted
+	time.Sleep(50 * time.Millisecond) // give the goroutine time to be mid-HTTP-call
+
+	start := time.Now()
+	endpoint.ClearAlarmsStream("some/path")
+	elapsed := time.Since(start)
+
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("unrelated endpoint state (alarms) took %v to update while a parameter stream was being requested - mu is being held across the slow call", elapsed)
+	}
+
+	select {
+	case <-requestDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("RequestNewParameterStream never completed")
+	}
+}
+
+// TestGetOrCreateParameterDemandDoesNotBlockUnrelatedEndpointState verifies
+// that a slow parameter-demand creation (e.g. a slow GetParameter HTTP call
+// for a brand new parameter) does not hold mu, so unrelated endpoint
+// bookkeeping (here: alarms) for the very same endpoint stays fully
+// responsive while it's in flight. Previously mu was held across this call,
+// so one slow/stuck subscribe-ish attempt for one data type could stall
+// every other panel on the same endpoint.
+func TestGetOrCreateParameterDemandDoesNotBlockUnrelatedEndpointState(t *testing.T) {
+	cli, err := client.NewYamcsClient("unused", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	cli.HTTP.Client.Transport = &slowJSONTransport{delay: 300 * time.Millisecond}
+
+	endpoint := &YamcsEndpoint{
+		Host:          &YamcsHost{Client: cli, Configuration: &config.YamcsHostConfiguration{ID: "test-host"}},
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters:    map[string]*ParameterDemand{},
+		Alarms:        map[string][]*alarms.AlarmData{},
+		AlarmSignals:  map[string]chan struct{}{},
+	}
+
+	demandStarted := make(chan struct{})
+	demandDone := make(chan struct{})
+	go func() {
+		close(demandStarted)
+		_, _ = endpoint.getOrCreateParameterDemand(context.Background(), "/SIM/NEW_PARAM")
+		close(demandDone)
+	}()
+
+	<-demandStarted
+	time.Sleep(50 * time.Millisecond) // give the goroutine time to be mid-HTTP-call
+
+	start := time.Now()
+	endpoint.ClearAlarmsStream("some/path")
+	elapsed := time.Since(start)
+
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("unrelated endpoint state (alarms) took %v to update while a parameter demand was being created - mu is being held across the slow call", elapsed)
+	}
+
+	select {
+	case <-demandDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("getOrCreateParameterDemand never completed")
+	}
+}
+
+// TestParameterListenerDropsUnknownParameterWithoutNetworkCall verifies that
+// getChannelParameterListener - which runs synchronously on the WebSocket's
+// single read loop - never attempts a live (HTTP) demand lookup for a
+// parameter it doesn't already know about. Doing so would block delivery of
+// every other incoming message on the same connection for as long as that
+// call takes. Instead, values for unknown parameters must simply be dropped.
+func TestParameterListenerDropsUnknownParameterWithoutNetworkCall(t *testing.T) {
+	cli, err := client.NewYamcsClient("unused", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	// If the listener ever attempted a network call, this transport would
+	// make the test hang/timeout, catching the regression.
+	cli.HTTP.Client.Transport = &slowJSONTransport{delay: 5 * time.Second}
+
+	endpoint := &YamcsEndpoint{
+		Host:          &YamcsHost{Client: cli, Configuration: &config.YamcsHostConfiguration{ID: "test-host"}},
+		Configuration: &config.YamcsEndpointConfiguration{Instance: "sim", Processor: "realtime"},
+		Parameters:    map[string]*ParameterDemand{},
+	}
+
+	listener := endpoint.getChannelParameterListener()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- listener("/SIM/UNKNOWN", &pvalue.ParameterValue{
+			AcquisitionStatus: pvalue.AcquisitionStatus_ACQUIRED.Enum(),
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected listener to drop the value without error, got %v", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("listener blocked on a network call for an unknown parameter")
+	}
+
+	if _, found := endpoint.Parameters["/SIM/UNKNOWN"]; found {
+		t.Fatal("expected listener not to create a demand for an unknown parameter")
 	}
 }

@@ -41,7 +41,7 @@ Refresh the checked-in long-term benchmark baseline:
 
     pnpm run bench:baseline
 
-Benchmark CI is conditional. On pull requests, add the `run-benchmark` label to run the benchmark job and create or update the benchmark PR comment with all plots. The job also supports manual `workflow_dispatch` runs from GitHub Actions. Warn thresholds keep CI green; fail thresholds fail the benchmark job.
+Benchmark CI is conditional. On pull requests, add the `run/benchmarks` label to run the benchmark job and create or update the benchmark PR comment with all plots. The job also supports manual `workflow_dispatch` runs from GitHub Actions. Warn thresholds keep CI green; fail thresholds fail the benchmark job.
 
 This starts Yamcs quickstart's `simulator.py` by default, opens N concurrent Grafana stream demands against the quickstart `myproject/realtime` processor, and reads each stream buffer from its own goroutine. Performance plots use concurrent Grafana streams (`N`) on the x-axis and one metric per file:
 

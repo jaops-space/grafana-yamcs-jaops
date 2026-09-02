@@ -23,22 +23,62 @@ type CommandHistorySubscription struct {
 }
 
 // CreateCommandHistorySubscription creates a new command history subscription.
-func (client *YamcsClient) CreateCommandHistorySubscription(ctx context.Context, instance string, processor string) (*CommandHistorySubscription, error) {
-	subscription, err := client.newCommandHistorySubscription(ctx, instance, processor)
+// The listener is wired before the subscription becomes visible in
+// client.CommandHistorySubscriptions to avoid HandleCommandMessage
+// observing a nil listener.
+func (client *YamcsClient) CreateCommandHistorySubscription(ctx context.Context, instance string, processor string, listener CommandHistoryListener) (*CommandHistorySubscription, error) {
+	subscription, err := client.newCommandHistorySubscription(ctx, instance, processor, listener)
 	if err != nil {
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.CommandHistorySubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
+// FindCommandHistorySubscription returns the existing command history
+// subscription for the given instance, if one has already been created.
+func (client *YamcsClient) FindCommandHistorySubscription(instance string) (*CommandHistorySubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	for _, subscription := range client.CommandHistorySubscriptions {
+		if subscription.Instance == instance {
+			return subscription, true
+		}
+	}
+	return nil, false
+}
+
+// HaltCommandHistorySubscriptionsForInstance halts and removes every command
+// history subscription registered for the given instance.
+func (client *YamcsClient) HaltCommandHistorySubscriptionsForInstance(instance string) {
+	client.subsMu.RLock()
+	matches := make([]*CommandHistorySubscription, 0, 1)
+	for _, subscription := range client.CommandHistorySubscriptions {
+		if subscription.Instance == instance {
+			matches = append(matches, subscription)
+		}
+	}
+	client.subsMu.RUnlock()
+	for _, subscription := range matches {
+		subscription.Halt()
+	}
+}
+
 // newCommandHistorySubscription initializes and subscribes to command history.
-func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, instance, processor string) (*CommandHistorySubscription, error) {
+func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, instance, processor string, listener CommandHistoryListener) (*CommandHistorySubscription, error) {
+	cooldownKey := subscribeCooldownKey("commandHistory", instance, processor)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &CommandHistorySubscription{
 		client:              client,
 		Instance:            instance,
 		activeSubscriptions: types.Set[string]{},
+		commandListener:     listener,
 	}
 
 	// Prepare subscription request
@@ -59,6 +99,7 @@ func (client *YamcsClient) newCommandHistorySubscription(ctx context.Context, in
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +117,9 @@ func (client *YamcsClient) HandleCommandMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.CommandHistorySubscriptions[callID]
+	client.subsMu.RUnlock()
 	if found && subscription.commandListener != nil {
 		subscription.commandListener(entry)
 	}
@@ -90,7 +133,9 @@ func (subscription *CommandHistorySubscription) SetListener(listener CommandHist
 // Halt cancels the command history subscription.
 func (subscription *CommandHistorySubscription) Halt() {
 
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.CommandHistorySubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: subscription.subscriptionID,

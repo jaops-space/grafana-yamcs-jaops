@@ -183,7 +183,7 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
             .catch(() => setDatasource(null));
     }, [(data.request?.targets?.[0]?.datasource as any)?.uid]);
 
-    const deduped = useMemo(() => {
+    const deduped = (() => {
         const frame = data.series[0];
         if (!frame || !frame.fields.length) {
             return [];
@@ -218,16 +218,16 @@ const AlarmsPanel: React.FC<PanelProps<AlarmsOptions>> = ({ data, options }) => 
         });
 
         return activeAlarms;
-    }, [data]);
+    })();
 
     // Extract GlobalAlarmStatus from frame metadata
-    const globalAlarmStatus = useMemo(() => {
+    const globalAlarmStatus = (() => {
         const frame = data.series[0];
         if (frame?.meta?.custom?.globalAlarmStatus) {
             return frame.meta.custom.globalAlarmStatus;
         }
         return null;
-    }, [data]);
+    })();
 
     // Compute alarm statistics from the actual alarms data
     const alarmStats = useMemo(() => {

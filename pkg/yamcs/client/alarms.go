@@ -19,9 +19,9 @@ func (c *YamcsClient) ListAlarms(ctx context.Context, instance, name string) *ty
 
 // fetchAlarms fetches a list of alarms from the Yamcs API.
 func (c *YamcsClient) fetchAlarms(ctx context.Context, instance, name string) types.FetchFunction[[]*alarms.AlarmData] {
-	return func() ([]*alarms.AlarmData, string, error) {
+	return func(query map[string]string) ([]*alarms.AlarmData, string, error) {
 		response := &alarms.ListAlarmsResponse{}
-		if err := c.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), response); err != nil {
+		if err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), query, response); err != nil {
 			return nil, "", err
 		}
 		return response.Alarms, response.GetContinuationToken(), nil
@@ -105,16 +105,26 @@ type AlarmSubscription struct {
 	client   *YamcsClient
 }
 
-// CreateAlarmSubscription initializes a new alarm subscription.
-func (c *YamcsClient) CreateAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
-	return c.newAlarmSubscription(ctx, instance, processor)
+// CreateAlarmSubscription initializes a new alarm subscription. The
+// listener is wired before the subscription becomes visible to
+// HandleAlarmMessage (i.e. before it's added to c.AlarmSubscriptions), so
+// there's no window where a fast server reply could be dispatched to a
+// subscription with a nil listener.
+func (c *YamcsClient) CreateAlarmSubscription(ctx context.Context, instance string, processor string, listener AlarmListener) (*AlarmSubscription, error) {
+	return c.newAlarmSubscription(ctx, instance, processor, listener)
 }
 
 // newAlarmSubscription handles the subscription logic for alarms.
-func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string, processor string) (*AlarmSubscription, error) {
+func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string, processor string, listener AlarmListener) (*AlarmSubscription, error) {
+	cooldownKey := subscribeCooldownKey("alarms", instance, processor)
+	if err := c.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &AlarmSubscription{
 		client:   c,
 		instance: instance,
+		listener: listener,
 	}
 
 	subscribeRequest := &alarms.SubscribeAlarmsRequest{
@@ -133,13 +143,45 @@ func (c *YamcsClient) newAlarmSubscription(ctx context.Context, instance string,
 	}
 
 	_, callID, _, err := c.WebSocket.SendSync(ctx, message)
+	c.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
 
 	subscription.callID = callID
+	c.subsMu.Lock()
 	c.AlarmSubscriptions[callID] = subscription
+	c.subsMu.Unlock()
 	return subscription, nil
+}
+
+// FindAlarmSubscription returns the existing alarm subscription for the
+// given instance, if one has already been created.
+func (c *YamcsClient) FindAlarmSubscription(instance string) (*AlarmSubscription, bool) {
+	c.subsMu.RLock()
+	defer c.subsMu.RUnlock()
+	for _, subscription := range c.AlarmSubscriptions {
+		if subscription.GetInstance() == instance {
+			return subscription, true
+		}
+	}
+	return nil, false
+}
+
+// HaltAlarmSubscriptionsForInstance halts and removes every alarm
+// subscription registered for the given instance.
+func (c *YamcsClient) HaltAlarmSubscriptionsForInstance(instance string) {
+	c.subsMu.RLock()
+	matches := make([]*AlarmSubscription, 0, 1)
+	for _, subscription := range c.AlarmSubscriptions {
+		if subscription.GetInstance() == instance {
+			matches = append(matches, subscription)
+		}
+	}
+	c.subsMu.RUnlock()
+	for _, subscription := range matches {
+		subscription.Halt()
+	}
 }
 
 // HandleAlarmMessage listens for incoming alarm events.
@@ -151,7 +193,10 @@ func (c *YamcsClient) HandleAlarmMessage(msg *api.ServerMessage) {
 		return
 	}
 
-	if subscription, exists := c.AlarmSubscriptions[msg.GetCall()]; exists && subscription.listener != nil {
+	c.subsMu.RLock()
+	subscription, exists := c.AlarmSubscriptions[msg.GetCall()]
+	c.subsMu.RUnlock()
+	if exists && subscription.listener != nil {
 		subscription.listener(alarmData)
 	}
 }
@@ -168,7 +213,9 @@ func (sub *AlarmSubscription) GetInstance() string {
 
 // Halt cancels the alarm subscription.
 func (sub *AlarmSubscription) Halt() {
+	sub.client.subsMu.Lock()
 	delete(sub.client.AlarmSubscriptions, sub.callID)
+	sub.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: sub.callID,
@@ -194,18 +241,27 @@ type GlobalStatusSubscription struct {
 	client              *YamcsClient
 }
 
-// CreateGlobalAlarmStatusSubscription initializes a global alarm status subscription.
-func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
-	return c.newGlobalAlarmStatusSubscription(ctx, instance, processor)
+// CreateGlobalAlarmStatusSubscription initializes a global alarm status
+// subscription. The listener is wired before the subscription is published
+// to c.GlobalAlarmStatusSubscriptions, closing the race window where a fast
+// server reply could otherwise be dispatched with a nil listener.
+func (c *YamcsClient) CreateGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string, listener GlobalStatusListener) (*GlobalStatusSubscription, error) {
+	return c.newGlobalAlarmStatusSubscription(ctx, instance, processor, listener)
 }
 
 // newGlobalAlarmStatusSubscription handles the subscription logic for global alarm status updates.
-func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string) (*GlobalStatusSubscription, error) {
+func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, instance string, processor string, listener GlobalStatusListener) (*GlobalStatusSubscription, error) {
+	cooldownKey := subscribeCooldownKey("globalAlarmStatus", instance, processor)
+	if err := c.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &GlobalStatusSubscription{
 		client:              c,
 		instance:            instance,
 		eventMapping:        make(map[int]string),
 		subscribedInstances: types.Set[string]{},
+		listener:            listener,
 	}
 
 	subscribeRequest := &alarms.SubscribeGlobalStatusRequest{
@@ -224,13 +280,45 @@ func (c *YamcsClient) newGlobalAlarmStatusSubscription(ctx context.Context, inst
 	}
 
 	_, callID, _, err := c.WebSocket.SendSync(ctx, message)
+	c.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
 
 	subscription.callID = callID
+	c.subsMu.Lock()
 	c.GlobalAlarmStatusSubscriptions[callID] = subscription
+	c.subsMu.Unlock()
 	return subscription, nil
+}
+
+// FindGlobalAlarmStatusSubscription returns the existing global alarm status
+// subscription for the given instance, if one has already been created.
+func (c *YamcsClient) FindGlobalAlarmStatusSubscription(instance string) (*GlobalStatusSubscription, bool) {
+	c.subsMu.RLock()
+	defer c.subsMu.RUnlock()
+	for _, subscription := range c.GlobalAlarmStatusSubscriptions {
+		if subscription.GetInstance() == instance {
+			return subscription, true
+		}
+	}
+	return nil, false
+}
+
+// HaltGlobalAlarmStatusSubscriptionsForInstance halts and removes every
+// global alarm status subscription registered for the given instance.
+func (c *YamcsClient) HaltGlobalAlarmStatusSubscriptionsForInstance(instance string) {
+	c.subsMu.RLock()
+	matches := make([]*GlobalStatusSubscription, 0, 1)
+	for _, subscription := range c.GlobalAlarmStatusSubscriptions {
+		if subscription.GetInstance() == instance {
+			matches = append(matches, subscription)
+		}
+	}
+	c.subsMu.RUnlock()
+	for _, subscription := range matches {
+		subscription.Halt()
+	}
 }
 
 // HandleGlobalStatusMessage listens for global alarm status events.
@@ -242,7 +330,10 @@ func (c *YamcsClient) HandleGlobalStatusMessage(msg *api.ServerMessage) {
 		return
 	}
 
-	if subscription, exists := c.GlobalAlarmStatusSubscriptions[msg.GetCall()]; exists && subscription.listener != nil {
+	c.subsMu.RLock()
+	subscription, exists := c.GlobalAlarmStatusSubscriptions[msg.GetCall()]
+	c.subsMu.RUnlock()
+	if exists && subscription.listener != nil {
 		subscription.listener(statusData)
 	}
 }
@@ -259,7 +350,9 @@ func (sub *GlobalStatusSubscription) GetInstance() string {
 
 // Halt stops the global alarm status subscription and removes it from the client.
 func (sub *GlobalStatusSubscription) Halt() {
+	sub.client.subsMu.Lock()
 	delete(sub.client.GlobalAlarmStatusSubscriptions, sub.callID)
+	sub.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: sub.callID,

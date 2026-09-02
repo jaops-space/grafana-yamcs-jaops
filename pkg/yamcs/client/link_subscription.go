@@ -20,22 +20,61 @@ type LinkSubscription struct {
 	client         *YamcsClient
 }
 
-// CreateLinkSubscription creates a new links subscription.
-func (client *YamcsClient) CreateLinkSubscription(ctx context.Context, instance string) (*LinkSubscription, error) {
-	subscription, err := client.newLinkSubscription(ctx, instance)
+// CreateLinkSubscription creates a new links subscription. The listener is
+// wired before the subscription becomes visible in client.LinkSubscriptions
+// to avoid HandleLinkMessage observing a nil listener.
+func (client *YamcsClient) CreateLinkSubscription(ctx context.Context, instance string, listener LinkListener) (*LinkSubscription, error) {
+	subscription, err := client.newLinkSubscription(ctx, instance, listener)
 	if err != nil {
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.LinkSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
+// FindLinkSubscription returns the existing links subscription for the
+// given instance, if one has already been created.
+func (client *YamcsClient) FindLinkSubscription(instance string) (*LinkSubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	for _, subscription := range client.LinkSubscriptions {
+		if subscription.Instance == instance {
+			return subscription, true
+		}
+	}
+	return nil, false
+}
+
+// HaltLinkSubscriptionsForInstance halts and removes every links
+// subscription registered for the given instance.
+func (client *YamcsClient) HaltLinkSubscriptionsForInstance(instance string) {
+	client.subsMu.RLock()
+	matches := make([]*LinkSubscription, 0, 1)
+	for _, subscription := range client.LinkSubscriptions {
+		if subscription.Instance == instance {
+			matches = append(matches, subscription)
+		}
+	}
+	client.subsMu.RUnlock()
+	for _, subscription := range matches {
+		subscription.Halt()
+	}
+}
+
 // newLinkSubscription initializes and subscribes to links updates.
-func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance string) (*LinkSubscription, error) {
+func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance string, listener LinkListener) (*LinkSubscription, error) {
+	cooldownKey := subscribeCooldownKey("links", instance, "")
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &LinkSubscription{
 		client:   client,
 		Instance: instance,
+		listener: listener,
 	}
 
 	subscribeRequest := &links.SubscribeLinksRequest{
@@ -53,6 +92,7 @@ func (client *YamcsClient) newLinkSubscription(ctx context.Context, instance str
 	}
 
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +111,9 @@ func (client *YamcsClient) HandleLinkMessage(message *api.ServerMessage) {
 	}
 
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.LinkSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if found && subscription.listener != nil {
 		subscription.listener(event)
 	}
@@ -84,7 +126,9 @@ func (subscription *LinkSubscription) SetListener(listener LinkListener) {
 
 // Halt cancels the links subscription.
 func (subscription *LinkSubscription) Halt() {
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.LinkSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	cancelRequest := &api.CancelOptions{
 		Call: subscription.subscriptionID,

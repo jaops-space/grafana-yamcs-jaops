@@ -26,9 +26,9 @@ func (c *YamcsClient) ListEventsWithinTimeRange(ctx context.Context, instance st
 
 // fetchEventBatch retrieves a batch of events from the given instance.
 func (c *YamcsClient) fetchEventBatch(ctx context.Context, instance string) types.FetchFunction[[]*events.Event] {
-	return func() ([]*events.Event, string, error) {
+	return func(query map[string]string) ([]*events.Event, string, error) {
 		response := &events.ListEventsResponse{}
-		err := c.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/events", instance), response)
+		err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/events", instance), query, response)
 		if err != nil {
 			return nil, "", err
 		}

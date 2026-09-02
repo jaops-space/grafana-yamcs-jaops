@@ -384,7 +384,21 @@ test.describe('Grafana panel streaming benchmark', () => {
                 await resetBackendStats(request);
                 await page.goto(`/d/${dashboardUid}?from=now-5m&to=now&kiosk`);
                 const timeToPanelsReady = await waitForPanelsReady(page, request, panelCount);
-                const targetSamples = panelCount * sampleTicks;
+                // Sample count target must scale with the number of *unique*
+                // backend RunStream instances, not the raw panel count: once
+                // Grafana Live's channel-sharing dedups panels that resolve
+                // to the same channel path (e.g. panelCount > the number of
+                // distinct benchmark parameters), only one RunStream() call
+                // exists per shared path and it only produces one sample per
+                // tick no matter how many panels are subscribed to it. Using
+                // panelCount here would silently inflate the measurement
+                // window (and thus the summed backend_run_stream_runtime_ns)
+                // past the point where dedup kicks in, without any real
+                // per-tick backend cost increase - see PR #77 benchmark data
+                // where unique_stream_paths plateaued at 41 while the raw
+                // sum kept climbing purely because of this stale target.
+                const uniqueStreamPathsBeforeReset = (await readBackendStats(request)).unique_stream_paths;
+                const targetSamples = uniqueStreamPathsBeforeReset * sampleTicks;
                 await drainBufferedStreamingValues(request);
                 await resetBackendStats(request, targetSamples);
                 await resetFrontendStats(page);

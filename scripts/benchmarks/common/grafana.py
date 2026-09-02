@@ -67,14 +67,6 @@ def style_axis(ax: Axes, title: str, ylabel: str, unit: str) -> None:
 
 
 def threshold_plot_value(row: dict[str, Any], key: str, threshold_value: float) -> float | None:
-    if key == "backend_datapoints_per_second_per_stream":
-        # Grafana Live shares a single backend stream across every panel that
-        # requests the same parameter/options, so the meaningful denominator
-        # is the number of real (unique) backend streams, not the raw panel
-        # count - panels sharing a stream all receive the same live copy for
-        # free and shouldn't dilute the per-stream throughput.
-        streams = row.get("backend_unique_stream_paths", row.get("panels"))
-        return threshold_value * float(streams) if isinstance(streams, (int, float)) else None
     if key == "frontend_datapoints_per_second_per_panel":
         # Unlike the backend metric above, this one is measured client-side
         # (see frontend_datapoints_per_second/tests/benchmark), i.e. what
@@ -236,17 +228,6 @@ def summarize_changes(head: dict[str, Any], baseline: dict[str, Any] | None, lab
 
 
 def threshold_metric_value(row: dict[str, Any], key: str) -> float | None:
-    if key == "backend_datapoints_per_second_per_stream":
-        # Same reasoning as threshold_plot_value: divide by the number of
-        # real backend streams (panels sharing an already-open stream just
-        # listen on it for free) instead of raw panel count, otherwise this
-        # metric falsely "falls off" once panel count exceeds the number of
-        # distinct parameters/options in use.
-        streams = float(row.get("backend_unique_stream_paths") or row.get("panels") or 0)
-        if streams <= 0:
-            return None
-        value = row.get("backend_datapoints_per_second")
-        return float(value) / streams if isinstance(value, (int, float)) else None
     if key == "frontend_datapoints_per_second_per_panel":
         # frontend_datapoints_per_second is measured per browser tab across
         # all panels, so divide by the real panel count (not unique

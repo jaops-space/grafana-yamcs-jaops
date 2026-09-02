@@ -10,8 +10,10 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/instances"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/yamcsManagement"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
@@ -79,11 +81,11 @@ func buildTestEndpointWithClient(connected bool) *source.YamcsEndpoint {
 		ID:                    "e1",
 		Configuration:         &config.YamcsEndpointConfiguration{Host: "h1", Instance: instanceName, Processor: processorName},
 		Parameters:            map[string]*source.ParameterDemand{},
-		Events:                map[string]chan *events.Event{},
-		CommandHistorySignals: map[string]source.CommandHistorySignal{},
+		Events:                map[string]*source.BroadcastStreamDemand[*events.Event]{},
+		CommandHistorySignals: map[string]*source.BroadcastStreamDemand[*commanding.CommandHistoryEntry]{},
 		Alarms:                map[string][]*alarms.AlarmData{},
 		AlarmSignals:          map[string]chan struct{}{},
-		LinkSignals:           map[string]source.LinkSignal{},
+		LinkSignals:           map[string]*source.BroadcastStreamDemand[*links.LinkEvent]{},
 		AlarmCache:            map[string]*alarms.AlarmData{},
 	}
 }
@@ -229,11 +231,11 @@ func TestRunParameterStream_NilClientFailsFast(t *testing.T) {
 		ID:                    "e1",
 		Configuration:         &config.YamcsEndpointConfiguration{Host: "h1", Instance: instanceName, Processor: processorName},
 		Parameters:            map[string]*source.ParameterDemand{},
-		Events:                map[string]chan *events.Event{},
-		CommandHistorySignals: map[string]source.CommandHistorySignal{},
+		Events:                map[string]*source.BroadcastStreamDemand[*events.Event]{},
+		CommandHistorySignals: map[string]*source.BroadcastStreamDemand[*commanding.CommandHistoryEntry]{},
 		Alarms:                map[string][]*alarms.AlarmData{},
 		AlarmSignals:          map[string]chan struct{}{},
-		LinkSignals:           map[string]source.LinkSignal{},
+		LinkSignals:           map[string]*source.BroadcastStreamDemand[*links.LinkEvent]{},
 		AlarmCache:            map[string]*alarms.AlarmData{},
 	}
 

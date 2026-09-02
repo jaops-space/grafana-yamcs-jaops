@@ -163,6 +163,23 @@ func TestConvertCommandListToFrame(t *testing.T) {
 			wantLen: 1,
 		},
 		{
+			name: "Command with custom acknowledge extras",
+			commands: []*commanding.CommandHistoryEntry{
+				{
+					Id:             new("cmd-custom-ack"),
+					CommandName:    new("test_cmd"),
+					GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
+					Assignments:    []*commanding.CommandAssignment{},
+					Attr: []*commanding.CommandHistoryAttribute{
+						{Name: new("Acknowledge_Uplink_Status"), Value: &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: new("OK")}},
+						{Name: new("Acknowledge_Uplink_Time"), Value: &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: new("456")}},
+						{Name: new("Acknowledge_Uplink_Message"), Value: &protobuf.Value{Type: protobuf.Value_STRING.Enum(), StringValue: new("uplink accepted")}},
+					},
+				},
+			},
+			wantLen: 1,
+		},
+		{
 			name: "Command with completion",
 			commands: []*commanding.CommandHistoryEntry{
 				{
@@ -220,6 +237,13 @@ func TestConvertCommandListToFrame(t *testing.T) {
 				err := json.Unmarshal(got.Fields[0].At(0).(json.RawMessage), &cmdEntry)
 				require.NoError(t, err)
 				assert.NotEmpty(t, cmdEntry.Id)
+				if tt.name == "Command with custom acknowledge extras" {
+					ack := cmdEntry.ExtraAcknowledgements["Acknowledge_Uplink"]
+					require.NotNil(t, ack)
+					assert.Equal(t, "OK", ack.Status)
+					assert.Equal(t, "456", ack.Time)
+					assert.Equal(t, "uplink accepted", ack.Message)
+				}
 			}
 		})
 	}

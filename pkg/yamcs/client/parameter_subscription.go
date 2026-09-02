@@ -28,13 +28,21 @@ type ParameterSubscription struct {
 }
 
 // NewParameterSubscription creates a new ParameterSubscription for an instance and processor with initial parameters.
-func newParameterSubscription(ctx context.Context, client *YamcsClient, instanceName, processorName string, initialParameters ...string) (*ParameterSubscription, error) {
+// The listener is wired before the subscription becomes visible to
+// HandleParameterMessage, avoiding a nil-listener race on a fast reply.
+func newParameterSubscription(ctx context.Context, client *YamcsClient, instanceName, processorName string, listener ParameterListener, initialParameters ...string) (*ParameterSubscription, error) {
+	cooldownKey := subscribeCooldownKey("parameters", instanceName, processorName)
+	if err := client.checkSubscribeCooldown(cooldownKey); err != nil {
+		return nil, err
+	}
+
 	subscription := &ParameterSubscription{
 		client:              client,
 		Instance:            instanceName,
 		Processor:           processorName,
 		parameterIDToName:   make(map[int]string),
 		ActiveSubscriptions: types.Set[string]{},
+		valueChangeListener: listener,
 	}
 
 	// Create subscription request
@@ -64,6 +72,7 @@ func newParameterSubscription(ctx context.Context, client *YamcsClient, instance
 		Options: anyMessage,
 	}
 	_, callID, _, err := client.WebSocket.SendSync(ctx, message)
+	client.recordSubscribeOutcome(ctx, cooldownKey, err)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +192,9 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 
 	// Retrieve the subscription by call ID
 	callID := message.GetCall()
+	client.subsMu.RLock()
 	subscription, found := client.ParameterSubscriptions[callID]
+	client.subsMu.RUnlock()
 	if !found {
 		return
 	}
@@ -212,35 +223,54 @@ func (client *YamcsClient) HandleParameterMessage(message *api.ServerMessage) {
 }
 
 // CreateParameterSubscription creates a new subscription for a set of parameters and adds it to the client's subscription registry.
-func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, instance Instance, processor Processor, initialParameters ...Parameter) (*ParameterSubscription, error) {
+func (client *YamcsClient) CreateParameterSubscription(ctx context.Context, instance Instance, processor Processor, listener ParameterListener, initialParameters ...Parameter) (*ParameterSubscription, error) {
 	parameterNames := make([]string, len(initialParameters))
 	for i, param := range initialParameters {
 		parameterNames[i] = param.GetQualifiedName()
 	}
 
-	subscription, err := newParameterSubscription(ctx, client, instance.GetName(), processor.GetName(), parameterNames...)
+	subscription, err := newParameterSubscription(ctx, client, instance.GetName(), processor.GetName(), listener, parameterNames...)
 	if err != nil {
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ParameterSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
 }
 
 // CreateParameterSubscription creates a new subscription for a set of parameters and adds it to the client's subscription registry.
-func (client *YamcsClient) CreateParameterSubscriptionByNames(ctx context.Context, instance string, processor string, initialParameters ...string) (*ParameterSubscription, error) {
+func (client *YamcsClient) CreateParameterSubscriptionByNames(ctx context.Context, instance string, processor string, listener ParameterListener, initialParameters ...string) (*ParameterSubscription, error) {
 
-	subscription, err := newParameterSubscription(ctx, client, instance, processor, initialParameters...)
+	subscription, err := newParameterSubscription(ctx, client, instance, processor, listener, initialParameters...)
 	if err != nil {
 		return nil, err
 	}
 
+	client.subsMu.Lock()
 	client.ParameterSubscriptions[subscription.subscriptionID] = subscription
+	client.subsMu.Unlock()
 	return subscription, nil
+}
+
+// FindParameterSubscription returns the existing parameter subscription for
+// the given instance/processor pair, if one has already been created.
+func (client *YamcsClient) FindParameterSubscription(instance, processor string) (*ParameterSubscription, bool) {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	for _, subscription := range client.ParameterSubscriptions {
+		if subscription.Instance == instance && subscription.Processor == processor {
+			return subscription, true
+		}
+	}
+	return nil, false
 }
 
 // ClearParameterSubscriptions clears all active parameter subscriptions.
 func (client *YamcsClient) ClearParameterSubscriptions() {
+	client.subsMu.Lock()
+	defer client.subsMu.Unlock()
 	for id := range client.ParameterSubscriptions {
 		delete(client.ParameterSubscriptions, id)
 	}
@@ -248,7 +278,9 @@ func (client *YamcsClient) ClearParameterSubscriptions() {
 
 func (subscription *ParameterSubscription) Halt() {
 
+	subscription.client.subsMu.Lock()
 	delete(subscription.client.ParameterSubscriptions, subscription.subscriptionID)
+	subscription.client.subsMu.Unlock()
 
 	// Prepare subscription request
 	subscribeRequest := &api.CancelOptions{

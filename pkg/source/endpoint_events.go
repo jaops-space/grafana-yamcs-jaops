@@ -11,64 +11,82 @@ import (
 // GetEventListener returns a function that listens for events from a specific Yamcs instance.
 func (endpoint *YamcsEndpoint) getEventListener() func(event *events.Event) {
 	return func(event *events.Event) {
+		// Pushed exactly once, regardless of how many stream paths are
+		// watching events on this endpoint - each demand's own cursor
+		// determines which pushed values it has and hasn't drained yet.
+		endpoint.EventsRing.Push(event)
+
 		endpoint.mu.RLock()
 		defer endpoint.mu.RUnlock()
-		for _, channel := range endpoint.Events {
+		for _, demand := range endpoint.Events {
 			select {
-			case channel <- event:
+			case demand.notify <- struct{}{}:
 			default:
-				backend.Logger.Warn("dropping event because stream buffer is full", "message", event.GetMessage())
 			}
 		}
 	}
 }
 
 // RequestEventsStream initiates an event stream subscription.
-func (ep *YamcsEndpoint) RequestEventsStream(ctx context.Context, path string) (<-chan *events.Event, error) {
+func (ep *YamcsEndpoint) RequestEventsStream(ctx context.Context, path string) (<-chan struct{}, error) {
 
-	ep.mu.RLock()
 	_, err := ep.getOrCreateEventsSubscription(ctx)
-	ep.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
 	ep.mu.Lock()
-	ep.Events[path] = make(chan *events.Event, StreamSignalBufferSize)
+	demand := newBroadcastStreamDemand(ep.EventsRing)
+	ep.Events[path] = demand
 	ep.mu.Unlock()
 
-	return ep.Events[path], nil
+	return demand.notify, nil
 
 }
 
-func (ep *YamcsEndpoint) DrainEventsSignal(first *events.Event, signal <-chan *events.Event) []*events.Event {
-	drained := []*events.Event{first}
-	for {
-		select {
-		case event, ok := <-signal:
-			if !ok {
-				return drained
-			}
-			drained = append(drained, event)
-		default:
-			return drained
-		}
+// DrainEventsStream drains every event pushed to the shared ring since this
+// path's own cursor, and advances the cursor accordingly. Lock-free: the
+// cursor is only ever touched by the single RunEventStream goroutine that
+// owns this path.
+func (ep *YamcsEndpoint) DrainEventsStream(path string) []*events.Event {
+	ep.mu.RLock()
+	demand := ep.Events[path]
+	ep.mu.RUnlock()
+	if demand == nil {
+		return nil
 	}
+
+	values, newCursor, dropped := ep.EventsRing.DrainSince(demand.cursor)
+	demand.cursor = newCursor
+	if dropped {
+		backend.Logger.Warn("events stream fell behind its ring buffer capacity; oldest pending events were dropped", "path", path, "ringCapacity", BroadcastRingCapacity)
+	}
+	return values
 }
 
+// getOrCreateEventsSubscription does not touch mu - subscription
+// lookup/creation is guarded by the client's own subsMu (for the map) and
+// eventSubscribeMu (for the create race), so a slow/stuck subscribe attempt
+// never blocks unrelated endpoint state guarded by mu.
 func (ep *YamcsEndpoint) getOrCreateEventsSubscription(ctx context.Context) (*client.EventSubscription, error) {
 
 	client, err := ep.GetClient()
-
-	for _, subscription := range client.EventSubscriptions {
-		if subscription.Instance == ep.GetInstanceName() {
-			return subscription, nil
-		}
-	}
-	subscription, err := client.CreateEventSubscription(ctx, ep.GetInstanceName())
 	if err != nil {
 		return nil, err
 	}
-	subscription.SetListener(ep.getEventListener())
+	if subscription, found := client.FindEventSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+
+	ep.eventSubscribeMu.Lock()
+	defer ep.eventSubscribeMu.Unlock()
+
+	if subscription, found := client.FindEventSubscription(ep.GetInstanceName()); found {
+		return subscription, nil
+	}
+	subscription, err := client.CreateEventSubscription(ctx, ep.GetInstanceName(), ep.getEventListener())
+	if err != nil {
+		return nil, err
+	}
 
 	return subscription, nil
 
@@ -79,8 +97,8 @@ func (ep *YamcsEndpoint) WithdrawEventsStreamRequest(path string) error {
 
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
-	if signal, ok := ep.Events[path]; ok {
-		close(signal)
+	if demand, ok := ep.Events[path]; ok {
+		close(demand.notify)
 		delete(ep.Events, path)
 	}
 
@@ -89,11 +107,7 @@ func (ep *YamcsEndpoint) WithdrawEventsStreamRequest(path string) error {
 		if err != nil {
 			return err
 		}
-		for _, subscription := range client.EventSubscriptions {
-			if subscription.Instance == ep.GetInstanceName() {
-				subscription.Halt()
-			}
-		}
+		client.HaltEventSubscriptionsForInstance(ep.GetInstanceName())
 	}
 	return nil
 }

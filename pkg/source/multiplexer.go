@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -24,6 +27,13 @@ type Multiplexer struct {
 	Secure    *config.YamcsSecureConfiguration
 
 	SyncMux sync.RWMutex
+}
+
+// hostEndpoint pairs an endpoint's config ID with the endpoint itself, for
+// code that needs to iterate a host's endpoints and still report errors by ID.
+type hostEndpoint struct {
+	ID       string
+	Endpoint *YamcsEndpoint
 }
 
 // NewMultiplexer creates a fresh multiplexer with a connection manager.
@@ -91,12 +101,15 @@ func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfi
 			Multiplexer:           mux,
 			Host:                  host,
 			Parameters:            make(map[string]*ParameterDemand),
-			Events:                make(map[string]chan *events.Event),
-			CommandHistorySignals: make(map[string]CommandHistorySignal),
+			Events:                make(map[string]*BroadcastStreamDemand[*events.Event]),
+			CommandHistorySignals: make(map[string]*BroadcastStreamDemand[*commanding.CommandHistoryEntry]),
 			Alarms:                make(map[string][]*alarms.AlarmData),
 			AlarmSignals:          make(map[string]chan struct{}),
-			LinkSignals:           make(map[string]LinkSignal),
+			LinkSignals:           make(map[string]*BroadcastStreamDemand[*links.LinkEvent]),
 			AlarmCache:            make(map[string]*alarms.AlarmData),
+			EventsRing:            types.NewRing[*events.Event](BroadcastRingCapacity),
+			CommandHistoryRing:    types.NewRing[*commanding.CommandHistoryEntry](BroadcastRingCapacity),
+			LinksRing:             types.NewRing[*links.LinkEvent](BroadcastRingCapacity),
 			ID:                    endpointID,
 		}
 	}
@@ -119,136 +132,276 @@ func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
 
 }
 
-// Connect attemps to connect to all disconnected hosts and endpoints and setup initial subscriptions
-// Initial subscriptions can be skipped by setting subscribe=false, this is mainly used in health checks
-// returns map of all errors in hosts and endpoints, op is sucessful when size of both maps is 0
-func (mux *Multiplexer) Connect(ctx context.Context, subscribe bool) (map[string]error, map[string]error) {
+// StartConnectionManagers launches (once) each host's background connection
+// manager, which owns all dialing/backoff/reconnection for that host from
+// then on. This is the entry point used by the live datasource path: it
+// returns immediately without blocking on any network activity. Individual
+// hosts connect (and their endpoints get resolved/subscribed) asynchronously,
+// as soon as each host's manager succeeds.
+//
+// Managers run off context.Background() rather than any caller-supplied
+// context: NewDatasource's ctx is scoped to the single request that happened
+// to trigger instance creation and is canceled as soon as that request
+// completes, which would otherwise cancel every future dial attempt for this
+// host's entire lifetime. Managers still stop cleanly via
+// stopConnectionManager() (see Dispose).
+//
+// SubscribeStream/RunStream never call Connect()/dial a host directly - they
+// call YamcsEndpoint.EnsureReady(), which checks current state and, if the
+// host isn't connected yet, calls host.RequestConnect() (a non-blocking nudge
+// to the manager) before returning a fast error. This way, one slow or
+// unreachable host can never stall requests for any other host, and repeated
+// requests for a broken host never trigger their own redundant network dials
+// - the manager is the single owner of that host's retry pacing.
+func (mux *Multiplexer) StartConnectionManagers() {
+	mux.SyncMux.RLock()
+	hosts := make(map[string]*YamcsHost, len(mux.Hosts))
+	for hostID, host := range mux.Hosts {
+		hosts[hostID] = host
+	}
+	mux.SyncMux.RUnlock()
 
-	mux.SyncMux.Lock()
-	defer mux.SyncMux.Unlock()
+	for hostID, host := range hosts {
+		host.startConnectionManager(context.Background(), hostID, mux.finishHostConnect)
+	}
+}
+
+// resolveHostInstances lists a host's instances/processors from Yamcs and
+// stores them on the host (replacing any previously known set), so
+// EnsureReady/connectEndpoint can resolve them purely from memory afterwards.
+// Called once per successful connect, from both the live (finishHostConnect)
+// and one-shot (connectHostSync) paths.
+func resolveHostInstances(ctx context.Context, host *YamcsHost, cli *client.YamcsClient) error {
+	instances, err := cli.ListInstances(ctx)
+	if err != nil {
+		return err
+	}
+
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	for _, instance := range instances {
+		hostInstance := &YamcsHostInstance{
+			Instance:   instance,
+			Processors: map[string]client.Processor{},
+		}
+		for _, processor := range instance.Processors {
+			hostInstance.Processors[processor.GetName()] = processor
+		}
+		host.Instances[instance.GetName()] = hostInstance
+	}
+	return nil
+}
+
+// finishHostConnect lists instances/processors and sets up endpoint
+// subscriptions for a host that has just (re)connected. It is called by each
+// host's connection manager, with that host's connectMu held, immediately
+// after a successful dial - the same "resolve once per connect transition"
+// behavior the previous synchronous implementation had.
+func (mux *Multiplexer) finishHostConnect(ctx context.Context, hostID string, host *YamcsHost) {
+	cli := host.GetClient()
+	if cli == nil {
+		return
+	}
+
+	if err := resolveHostInstances(ctx, host, cli); err != nil {
+		backend.Logger.Warn("Could not list instances after connect", "host", host.Name(), "error", err)
+		return
+	}
+
+	mux.SyncMux.RLock()
+	var hostEndpoints []hostEndpoint
+	for endpointID, endpoint := range mux.Endpoints {
+		if endpoint.GetHost() == host {
+			hostEndpoints = append(hostEndpoints, hostEndpoint{ID: endpointID, Endpoint: endpoint})
+		}
+	}
+	mux.SyncMux.RUnlock()
+
+	endpointErrors := map[string]error{}
+	for _, e := range hostEndpoints {
+		mux.connectEndpoint(ctx, e.ID, e.Endpoint, host, cli, true, endpointErrors)
+	}
+	for endpointID, err := range endpointErrors {
+		backend.Logger.Warn("Could not set up endpoint after host connect", "endpoint", endpointID, "host", host.Name(), "error", err)
+	}
+}
+
+// ConnectSync connects to all disconnected hosts and endpoints and sets up
+// initial subscriptions, blocking until every host has either succeeded or
+// failed once. Initial subscriptions can be skipped by setting
+// subscribe=false. Returns maps of all errors in hosts and endpoints; the op
+// is successful when both maps are empty.
+//
+// This is a one-shot, synchronous variant intended for callers that need an
+// immediate, blocking answer - currently only the datasource health check
+// ("Save & Test"), which creates a throwaway Multiplexer purely to test
+// connectivity and disposes of it right after. It does NOT start a background
+// connection manager and must not be used on the live datasource's
+// long-lived Multiplexer - use StartConnectionManagers for that instead.
+//
+// Locking note: each host's connect+subscribe work is guarded by that host's
+// own mutex (YamcsHost.connectMu) rather than a single lock shared across the
+// whole Multiplexer, so unreachable hosts here still can't block each other.
+func (mux *Multiplexer) ConnectSync(ctx context.Context, subscribe bool) (map[string]error, map[string]error) {
+
+	mux.SyncMux.RLock()
+	hosts := make(map[string]*YamcsHost, len(mux.Hosts))
+	for hostID, host := range mux.Hosts {
+		hosts[hostID] = host
+	}
+	endpointsByHost := make(map[*YamcsHost][]hostEndpoint)
+	for endpointID, endpoint := range mux.Endpoints {
+		endpointHost := endpoint.GetHost()
+		endpointsByHost[endpointHost] = append(endpointsByHost[endpointHost], hostEndpoint{ID: endpointID, Endpoint: endpoint})
+	}
+	mux.SyncMux.RUnlock()
 
 	hostErrors := map[string]error{}
 	endpointErrors := map[string]error{}
 
-	alreadyConnectedHosts := types.NewSet[*YamcsHost]()
-
-	for hostID, host := range mux.Hosts {
-
-		if host.IsConnected() {
-			alreadyConnectedHosts.Add(host)
-			continue
-		}
-
-		err := host.Connect(ctx)
-		if err != nil {
-			hostErrors[hostID] = err
-			continue
-		}
-
-		cli := host.GetClient()
-		if cli == nil {
-			hostErrors[hostID] = exception.New(fmt.Sprintf("client for %s not found", host.Name()), "MUX_CONNECT_WITHOUT_CLIENT")
-			continue
-		}
-
-		instances, err := cli.ListInstances(ctx)
-		if err != nil {
-			hostErrors[hostID] = exception.Wrap(fmt.Sprintf("could not list instances for host %s", host.Name()), "MUX_CONNECT_LIST_INSTANCES", err)
-			continue
-		}
-		for _, instance := range instances {
-			host.Instances[instance.GetName()] = &YamcsHostInstance{
-				Instance:   instance,
-				Processors: map[string]client.Processor{},
-			}
-			for _, processor := range instance.Processors {
-				host.Instances[instance.GetName()].Processors[processor.GetName()] = processor
-			}
-
-		}
-
+	for hostID, host := range hosts {
+		mux.connectHostSync(ctx, hostID, host, endpointsByHost[host], subscribe, hostErrors, endpointErrors)
 	}
 
-	for endpointID, endpoint := range mux.Endpoints {
-
-		endpointHost := endpoint.GetHost()
-		if endpointHost == nil {
-			endpointErrors[endpointID] = exception.New(fmt.Sprintf("host for endpoint %s not found", endpoint.Name()), "MUX_CONNECT_ENDPOINT_NO_HOST")
-			continue
+	// Endpoints whose host could not be resolved at all (nil host) aren't
+	// reachable via endpointsByHost keyed by *YamcsHost, so report them here.
+	if nilHostEndpoints, ok := endpointsByHost[nil]; ok {
+		for _, e := range nilHostEndpoints {
+			endpointErrors[e.ID] = exception.New(fmt.Sprintf("host for endpoint %s not found", e.Endpoint.Name()), "MUX_CONNECT_ENDPOINT_NO_HOST")
 		}
-
-		// skip if already connected to host beforehand
-		if alreadyConnectedHosts.Exists(endpointHost) {
-			continue
-		}
-
-		cli := endpointHost.GetClient()
-		if cli == nil {
-			endpointErrors[endpointID] = exception.New(fmt.Sprintf("client for endpoint %s not found", endpoint.Name()), "MUX_CONNECT_ENDPOINT_NO_CLIENT")
-			continue
-		}
-
-		if _, hasError := hostErrors[endpointHost.Configuration.ID]; hasError {
-			continue
-		}
-
-		instanceName := endpoint.Configuration.Instance
-		hInstance, ok := endpointHost.Instances[instanceName]
-		if !ok {
-			endpointErrors[endpointID] = exception.New(fmt.Sprintf("instance %s not found for endpoint %s", instanceName, endpoint.Name()), "MUX_CONNECT_NO_INSTANCE")
-			continue
-		}
-		instance := hInstance.Instance
-
-		var processor client.Processor
-		processorName := endpoint.Configuration.Processor
-		if processorName == "" {
-			processor = cli.GetInstanceDefaultProcessor(hInstance.Instance)
-			if processor == nil {
-				endpointErrors[endpointID] = exception.New(fmt.Sprintf("endpoint %s is set to default processor, yet host %s has no default processor", endpoint.Name(), instanceName), "MUX_CONNECT_NO_DEFAULT_PROCESSOR")
-				continue
-			}
-			processorName = processor.GetName()
-			endpoint.Configuration.Processor = processorName // save it
-		} else {
-			processor, ok = hInstance.Processors[processorName]
-			if !ok {
-				endpointErrors[endpointID] = exception.New(fmt.Sprintf("processor %s not found on instance %s for endpoint %s", processorName, instanceName, endpoint.Name()), "MUX_CONNECT_NO_PROCESSOR")
-				continue
-			}
-		}
-
-		if !subscribe {
-			continue
-		}
-
-		prosub, err := cli.CreateProcessorSubscription(ctx, instance, processor)
-		if err != nil {
-			endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not subscribe to updates on processor %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
-			continue
-		}
-		prosub.SetListener(endpointHost.GetProcessorListener(instance, processor))
-
-		// Create a parameter subscription, that will be used to add and remove parameters
-		parsub, err := cli.CreateParameterSubscription(ctx, instance, processor)
-		if err != nil {
-			endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not create parameter subscriptions on %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
-			continue
-		}
-		parsub.SetListener(endpoint.getChannelParameterListener())
-
 	}
 
 	return hostErrors, endpointErrors
+}
 
+// connectHostSync connects a single host (if not already connected) and, only
+// on the call that actually transitions it from disconnected to connected,
+// sets up subscriptions for all of that host's endpoints. Used solely by
+// ConnectSync; the live path uses each host's background connection manager
+// instead (see YamcsHost.runConnectionManager / Multiplexer.finishHostConnect).
+func (mux *Multiplexer) connectHostSync(
+	ctx context.Context,
+	hostID string,
+	host *YamcsHost,
+	hostEndpoints []hostEndpoint,
+	subscribe bool,
+	hostErrors map[string]error,
+	endpointErrors map[string]error,
+) {
+	host.connectMu.Lock()
+	defer host.connectMu.Unlock()
+
+	if host.IsConnected() {
+		// Already connected (and therefore already had its endpoints subscribed)
+		// by a previous call. Nothing left to do for this host.
+		return
+	}
+
+	if err := host.dial(ctx); err != nil {
+		hostErrors[hostID] = err
+		return
+	}
+
+	cli := host.GetClient()
+	if cli == nil {
+		hostErrors[hostID] = exception.New(fmt.Sprintf("client for %s not found", host.Name()), "MUX_CONNECT_WITHOUT_CLIENT")
+		return
+	}
+
+	if err := resolveHostInstances(ctx, host, cli); err != nil {
+		hostErrors[hostID] = exception.Wrap(fmt.Sprintf("could not list instances for host %s", host.Name()), "MUX_CONNECT_LIST_INSTANCES", err)
+		return
+	}
+
+	for _, e := range hostEndpoints {
+		mux.connectEndpoint(ctx, e.ID, e.Endpoint, host, cli, subscribe, endpointErrors)
+	}
+}
+
+// connectEndpoint sets up (or reports errors for) a single endpoint's processor
+// and parameter subscriptions. It is called from connectHostSync (with that
+// host's connectMu held) or from finishHostConnect (called by the background
+// connection manager right after a successful connect); either way, it takes
+// its own host.mu read lock around reading host.Instances, since that map can
+// also be written concurrently by GetProcessorListener's background callback.
+func (mux *Multiplexer) connectEndpoint(
+	ctx context.Context,
+	endpointID string,
+	endpoint *YamcsEndpoint,
+	endpointHost *YamcsHost,
+	cli *client.YamcsClient,
+	subscribe bool,
+	endpointErrors map[string]error,
+) {
+	instanceName := endpoint.Configuration.Instance
+
+	endpointHost.mu.RLock()
+	hInstance, ok := endpointHost.Instances[instanceName]
+	endpointHost.mu.RUnlock()
+	if !ok {
+		endpointErrors[endpointID] = exception.New(fmt.Sprintf("instance %s not found for endpoint %s", instanceName, endpoint.Name()), "MUX_CONNECT_NO_INSTANCE")
+		return
+	}
+	instance := hInstance.Instance
+
+	var processor client.Processor
+	processorName := endpoint.Configuration.Processor
+	if processorName == "" {
+		processor = cli.GetInstanceDefaultProcessor(hInstance.Instance)
+		if processor == nil {
+			endpointErrors[endpointID] = exception.New(fmt.Sprintf("endpoint %s is set to default processor, yet host %s has no default processor", endpoint.Name(), instanceName), "MUX_CONNECT_NO_DEFAULT_PROCESSOR")
+			return
+		}
+		processorName = processor.GetName()
+		endpoint.Configuration.Processor = processorName // save it
+	} else {
+		endpointHost.mu.RLock()
+		processor, ok = hInstance.Processors[processorName]
+		endpointHost.mu.RUnlock()
+		if !ok {
+			endpointErrors[endpointID] = exception.New(fmt.Sprintf("processor %s not found on instance %s for endpoint %s", processorName, instanceName, endpoint.Name()), "MUX_CONNECT_NO_PROCESSOR")
+			return
+		}
+	}
+
+	if !subscribe {
+		return
+	}
+
+	_, err := cli.CreateProcessorSubscription(ctx, instance, processor, endpointHost.GetProcessorListener(instance, processor))
+	if err != nil {
+		endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not subscribe to updates on processor %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
+		return
+	}
+
+	// Create a parameter subscription, that will be used to add and remove parameters
+	_, err = cli.CreateParameterSubscription(ctx, instance, processor, endpoint.getChannelParameterListener())
+	if err != nil {
+		endpointErrors[endpointID] = exception.Wrap(fmt.Sprintf("could not create parameter subscriptions on %s", processorName), "MUX_CONNECT_SUB_FAIL", err)
+		return
+	}
 }
 
 func (mux *Multiplexer) Dispose() {
 	for _, host := range mux.Hosts {
+		host.stopConnectionManager()
 		if host.Client != nil {
 			host.Client.Close()
 		}
 	}
 	mux.Hosts = make(map[string]*YamcsHost)
 	mux.Endpoints = make(map[string]*YamcsEndpoint)
+}
+
+// GetSecureData returns the secure (credential) configuration for a given
+// host ID, or nil if unset/not found.
+func (mux *Multiplexer) GetSecureData(host string) *config.YamcsSecureHost {
+	if host == "" {
+		return nil
+	}
+	secureHost, exists := mux.Secure.Hosts[host]
+	if !exists {
+		return nil
+	}
+	return secureHost
 }

@@ -13,9 +13,9 @@ import (
 
 // getParametersFetchMethod returns a fetch function for paginated parameter results.
 func (client *YamcsClient) getParametersFetchMethod(ctx context.Context, instance string) types.FetchFunction[[]Parameter] {
-	return func() ([]Parameter, string, error) {
+	return func(query map[string]string) ([]Parameter, string, error) {
 		response := &mdb.ListParametersResponse{}
-		err := client.HTTP.GetProto(ctx, fmt.Sprintf("/mdb/%s/parameters", instance), response)
+		err := client.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/mdb/%s/parameters", instance), query, response)
 		if err != nil {
 			return nil, "", err
 		}
@@ -67,9 +67,16 @@ func (client *YamcsClient) GetParameterRanges(ctx context.Context, instance Inst
 func (client *YamcsClient) GetParameterRangesByQueryWithTimeByNames(ctx context.Context, instance, parameter string, query map[string]string, start, end time.Time) (*pvalue.Ranges, error) {
 	url := fmt.Sprintf("/archive/%s/parameters/%s/ranges", instance, parameter)
 	ranges := &pvalue.Ranges{}
-	client.HTTP.Query = query
-	client.setTime(start, end)
-	err := client.HTTP.GetProto(ctx, url, ranges)
+
+	merged := make(map[string]string, len(query)+2)
+	for k, v := range query {
+		merged[k] = v
+	}
+	for k, v := range buildTimeQuery(start, end) {
+		merged[k] = v
+	}
+
+	err := client.HTTP.GetProtoWithQuery(ctx, url, merged, ranges)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +91,9 @@ func (client *YamcsClient) ListParameterHistory(ctx context.Context, instance In
 
 // getParameterHistoryFetchMethod returns a fetch function for paginated parameter history results.
 func (client *YamcsClient) getParameterHistoryFetchMethod(ctx context.Context, instance string, parameter string) types.FetchFunction[[]*pvalue.ParameterValue] {
-	return func() ([]*pvalue.ParameterValue, string, error) {
+	return func(query map[string]string) ([]*pvalue.ParameterValue, string, error) {
 		response := &archive.ListParameterHistoryResponse{}
-		err := client.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/parameters/%s", instance, parameter), response)
+		err := client.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/parameters/%s", instance, parameter), query, response)
 		if err != nil {
 			return nil, "", err
 		}

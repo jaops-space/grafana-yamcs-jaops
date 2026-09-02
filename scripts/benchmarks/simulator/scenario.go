@@ -214,7 +214,7 @@ func runScenario(address string, instance string, processor string, parameters [
 	}
 	defer mux.Dispose()
 
-	hostErrors, endpointErrors := mux.Connect(ctx, true)
+	hostErrors, endpointErrors := mux.ConnectSync(ctx, true)
 	if len(hostErrors) > 0 || len(endpointErrors) > 0 {
 		return scenarioMetric{}, fmt.Errorf("connect hostErrors=%v endpointErrors=%v", hostErrors, endpointErrors)
 	}
@@ -232,7 +232,7 @@ func runScenario(address string, instance string, processor string, parameters [
 		processEvents.Add(1)
 		processDurations.add(elapsed.Nanoseconds())
 	}
-	endpoint.ParameterBufferObserver = func(parameter string, path string, receivedAt time.Time) {
+	endpoint.ParameterArrivalObserver = func(parameter string, path string, receivedAt time.Time) {
 		arrivals.record(parameter, path, receivedAt)
 	}
 
@@ -250,7 +250,7 @@ func runScenario(address string, instance string, processor string, parameters [
 
 	time.Sleep(warmup)
 	for _, req := range requests {
-		endpoint.GetAndClearParameterStreamBuffer(req.parameter, req.path)
+		endpoint.DrainParameterStream(req.parameter, req.path)
 	}
 	arrivals.clear()
 	processEvents.Store(0)
@@ -282,7 +282,7 @@ func runScenario(address string, instance string, processor string, parameters [
 						startOffset = time.Since(scenarioStarted)
 					}
 					started := time.Now()
-					values := endpoint.GetAndClearParameterStreamBuffer(req.parameter, req.path)
+					values := endpoint.DrainParameterStream(req.parameter, req.path)
 					readAt := time.Now()
 					receivedAtValues := arrivals.pop(req.parameter, req.path, len(values))
 					for _, receivedAt := range receivedAtValues {

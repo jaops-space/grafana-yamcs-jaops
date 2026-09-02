@@ -79,10 +79,23 @@ func (c *YamcsClient) ListCommandsHistory(ctx context.Context, instance string, 
 }
 
 func (c *YamcsClient) getCommandsHistoryFetcher(ctx context.Context, instance string, startTime, endTime time.Time) types.FetchFunction[[]*commanding.CommandHistoryEntry] {
-	return func() ([]*commanding.CommandHistoryEntry, string, error) {
+	// Computed once - the time range is fixed for the lifetime of this
+	// iterator and merged with the per-call pagination query below, instead
+	// of mutating shared HTTPManager.Query state on every page.
+	timeQuery := map[string]string{
+		"start": startTime.Format(time.RFC3339),
+		"stop":  endTime.Format(time.RFC3339),
+	}
+	return func(query map[string]string) ([]*commanding.CommandHistoryEntry, string, error) {
+		merged := make(map[string]string, len(timeQuery)+len(query))
+		for k, v := range timeQuery {
+			merged[k] = v
+		}
+		for k, v := range query {
+			merged[k] = v
+		}
 		response := &commanding.ListCommandsResponse{}
-		c.setTime(startTime, endTime)
-		if err := c.HTTP.GetProto(ctx, fmt.Sprintf("/archive/%s/commands", instance), response); err != nil {
+		if err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/commands", instance), merged, response); err != nil {
 			return nil, "", err
 		}
 		return response.Commands, response.GetContinuationToken(), nil
@@ -115,9 +128,9 @@ func (c *YamcsClient) SearchCommandInfo(ctx context.Context, instance string, qu
 }
 
 func (c *YamcsClient) getCommandInfoFetcher(ctx context.Context, instance string) types.FetchFunction[[]CommandInfo] {
-	return func() ([]CommandInfo, string, error) {
+	return func(query map[string]string) ([]CommandInfo, string, error) {
 		response := &mdb.ListCommandsResponse{}
-		if err := c.HTTP.GetProto(ctx, fmt.Sprintf("/mdb/%s/commands", instance), response); err != nil {
+		if err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/mdb/%s/commands", instance), query, response); err != nil {
 			return nil, "", err
 		}
 		return response.GetCommands(), response.GetContinuationToken(), nil
