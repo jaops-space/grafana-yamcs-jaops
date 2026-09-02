@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { expect, test } from '@grafana/plugin-e2e';
+import type { Page } from '@playwright/test';
 
 type BenchmarkStats = {
     run_stream_runtime_ns: number;
@@ -129,6 +130,30 @@ function computeDistribution(values: number[]): DistributionStats {
         p70: percentile(values, 0.7),
         p95: percentile(values, 0.95),
         p99: percentile(values, 0.99),
+    };
+}
+
+type FrontendSystemInfo = {
+    node_version: string;
+    playwright_version: string;
+    chromium_version: string;
+};
+
+function readInstalledPackageVersion(pkgRelativePath: string): string {
+    try {
+        const raw = fs.readFileSync(path.resolve(pkgRelativePath), 'utf8');
+        const pkg = JSON.parse(raw) as { version?: string };
+        return pkg.version ?? 'unknown';
+    } catch {
+        return 'unknown';
+    }
+}
+
+async function collectFrontendSystemInfo(page: Page): Promise<FrontendSystemInfo> {
+    return {
+        node_version: process.version,
+        playwright_version: readInstalledPackageVersion('node_modules/@playwright/test/package.json'),
+        chromium_version: page.context().browser()?.version() ?? 'unknown',
     };
 }
 
@@ -369,6 +394,7 @@ test.describe('Grafana panel streaming benchmark', () => {
     test('measures panel streaming runtime', { tag: ['@performance', '@benchmark'] }, async ({ page, request }) => {
         test.setTimeout(Math.max(600_000, panelCounts.length * (benchmarkDurationMs + streamSettleMs * 8 + 60_000)));
         const results: BenchmarkResult[] = [];
+        const systemInfo = await collectFrontendSystemInfo(page);
 
         await page.goto('about:blank');
         await page.waitForTimeout(streamSettleMs);
@@ -468,6 +494,7 @@ test.describe('Grafana panel streaming benchmark', () => {
                     panel_counts: panelCounts,
                     scenario: 'mixed-parameters',
                     parameters: parameters.length,
+                    system: systemInfo,
                     results,
                 },
                 null,

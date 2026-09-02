@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -67,9 +68,16 @@ type systemInfo struct {
 	Arch                 string  `json:"arch"`
 	CPUs                 int     `json:"cpus"`
 	AvailableLogicalCPUs int     `json:"available_logical_cpus"`
-	CPUModel             string  `json:"cpu_model,omitempty"`
-	CPUFrequencyMHz      float64 `json:"cpu_frequency_mhz,omitempty"`
-	GoVersion            string  `json:"go_version"`
+	// RunnerAvailableCPUs is the cgroup-quota-aware core count actually
+	// usable by this process (e.g. under `docker run --cpus=2`). Unlike
+	// AvailableLogicalCPUs (runtime.NumCPU, which only reflects the CPU
+	// affinity mask), this reflects container CPU throttling, so it's the
+	// number that should be reported as "cores available to the runner".
+	// Omitted when no cgroup CPU quota is set (bare metal/VM, or non-Linux).
+	RunnerAvailableCPUs float64 `json:"runner_available_cpus,omitempty"`
+	CPUModel            string  `json:"cpu_model,omitempty"`
+	CPUFrequencyMHz     float64 `json:"cpu_frequency_mhz,omitempty"`
+	GoVersion           string  `json:"go_version"`
 }
 
 type streamRequest struct {
@@ -143,7 +151,7 @@ func main() {
 
 func collectSystemInfo() systemInfo {
 	model, frequencyMHz := readLinuxCPUInfo()
-	return systemInfo{
+	info := systemInfo{
 		OS:                   runtime.GOOS,
 		Arch:                 runtime.GOARCH,
 		CPUs:                 runtime.NumCPU(),
@@ -152,6 +160,66 @@ func collectSystemInfo() systemInfo {
 		CPUFrequencyMHz:      frequencyMHz,
 		GoVersion:            runtime.Version(),
 	}
+	if quota, ok := cgroupCPUQuota(); ok {
+		info.RunnerAvailableCPUs = quota
+	}
+	return info
+}
+
+// cgroupCPUQuota returns the effective CPU core allotment granted to this
+// process by a cgroup CPU quota (e.g. Docker's `--cpus`/Kubernetes CPU
+// limits), as quota/period. It checks cgroup v2 first, falling back to v1.
+// ok is false when no quota is set (unlimited) or cgroups aren't in use
+// (bare metal, VM, non-Linux), in which case callers should fall back to
+// runtime.NumCPU().
+func cgroupCPUQuota() (float64, bool) {
+	if runtime.GOOS != "linux" {
+		return 0, false
+	}
+	if quota, ok := cgroupV2CPUQuota(); ok {
+		return quota, true
+	}
+	return cgroupV1CPUQuota()
+}
+
+func cgroupV2CPUQuota() (float64, bool) {
+	data, err := os.ReadFile("/sys/fs/cgroup/cpu.max")
+	if err != nil {
+		return 0, false
+	}
+	fields := strings.Fields(strings.TrimSpace(string(data)))
+	if len(fields) != 2 || fields[0] == "max" {
+		return 0, false
+	}
+	quota, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil {
+		return 0, false
+	}
+	period, err := strconv.ParseFloat(fields[1], 64)
+	if err != nil || period <= 0 {
+		return 0, false
+	}
+	return quota / period, true
+}
+
+func cgroupV1CPUQuota() (float64, bool) {
+	quotaBytes, err := os.ReadFile("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+	if err != nil {
+		return 0, false
+	}
+	periodBytes, err := os.ReadFile("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+	if err != nil {
+		return 0, false
+	}
+	quota, err := strconv.ParseFloat(strings.TrimSpace(string(quotaBytes)), 64)
+	if err != nil || quota <= 0 {
+		return 0, false
+	}
+	period, err := strconv.ParseFloat(strings.TrimSpace(string(periodBytes)), 64)
+	if err != nil || period <= 0 {
+		return 0, false
+	}
+	return quota / period, true
 }
 
 func readLinuxCPUInfo() (string, float64) {
