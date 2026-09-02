@@ -35,12 +35,8 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Updated Docker, nginx, supervisor, development, and CI configuration for the newer toolchain.
 - Reorganized documentation under `docs/`, refreshed README and plugin documentation, updated screenshots/logos, and clarified setup, testing, signing, submission, provisioning, and benchmarking instructions.
 - Centralized per-host connection management and WebSocket stream health checks instead of duplicating them per endpoint.
-- Background connection managers now use an independent context instead of one tied to the triggering HTTP request's lifetime, so they no longer get cancelled early.
 - Replaced per-stream value buffers/channels with a single shared ring buffer per parameter and a lightweight per-stream read cursor, removing lock contention and reducing allocations under many concurrent panels.
-- Reduced per-parameter-value processing to avoid rebuilding a full listener slice on every incoming value.
-- Avoided boxing numeric values into interfaces on the buffer-to-frame conversion fast path.
-- No longer hold the endpoint-wide lock across slow Yamcs subscribe/HTTP calls.
-- Parameter values with no active demand are now dropped instead of triggering a live fetch.
+- Optimized per-parameter-value processing to avoid rebuilding a full listener slice on every incoming value.
 
 ### Fixed
 
@@ -62,7 +58,7 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added security scanning CI reporting detected vulnerabilities.
 - Hardened resource proxy behavior and static-image URL/style sanitization.
 - Updated frontend dependency overrides for known vulnerable transitive packages.
-- Migrated pnpm dependency overrides from package.json's now-ignored `pnpm` field to `pnpm-workspace.yaml`, so security-motivated version pins are actually enforced again.
+- Migrated pnpm dependency overrides from package.json's now-ignored `pnpm` field to `pnpm-workspace.yaml`.
 - Patched known vulnerabilities in websocket-driver, brace-expansion, fast-uri, nanoid, postcss, js-yaml, and react-router.
 - Updated the Go toolchain and bumped grpc/opentelemetry dependencies to resolve known Go standard-library and module vulnerabilities.
 
