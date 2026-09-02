@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 import sys
-from datetime import datetime
 from typing import Any
 
 from common import yamcs as bench
@@ -99,59 +98,8 @@ def commit_link(value: Any) -> str:
     return f"[`{value}`]({server_url}/{repository}/commit/{value})"
 
 
-def format_datetime(value: Any) -> str:
-    if not isinstance(value, str) or not value:
-        return ""
-    normalized = value.replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        return value
-    return parsed.strftime("%Y-%m-%d %H:%M UTC")
-
-
 def format_frequency(value: Any) -> str:
-    return f"{float(value) / 1000:.2f} GHz" if isinstance(value, (int, float)) and value > 0 else "unknown frequency"
-
-
-def format_system_arch(system: Any) -> str:
-    if not isinstance(system, dict) or not system:
-        return "unknown"
-    os_name = system.get("os", "unknown")
-    arch = system.get("arch", "unknown")
-    cpus = system.get("available_logical_cpus", system.get("cpus", "unknown"))
-    cpu_model = system.get("cpu_model") or "unknown CPU"
-    go_version = system.get("go_version", "unknown")
-    parts = [f"{os_name}/{arch}", f"{cpus} available logical CPU(s)", str(cpu_model)]
-    if "ghz" not in str(cpu_model).lower():
-        parts.append(format_frequency(system.get("cpu_frequency_mhz")))
-    parts.append(str(go_version))
-    return ", ".join(parts)
-
-
-def format_long_term_baseline(value: dict[str, Any]) -> str:
-    metadata = value.get("metadata", {})
-    if not value.get("compatible") or not isinstance(metadata, dict) or not metadata:
-        return str(value.get("message", "not available"))
-
-    parts = []
-    created_at = format_datetime(metadata.get("created_at"))
-    if created_at:
-        parts.append(created_at)
-    quickstart = metadata.get("yamcs_quickstart")
-    if isinstance(quickstart, str) and quickstart:
-        parts.append(quickstart)
-    simulator_rate = metadata.get("simulator_rate_hz")
-    stream_interval = metadata.get("stream_read_interval")
-    if simulator_rate or stream_interval:
-        parts.append(f"{simulator_rate or 'unknown'} Hz simulator / {stream_interval or 'unknown'} stream ticker")
-    parameter_count = metadata.get("parameter_count")
-    if isinstance(parameter_count, int):
-        parts.append(f"{parameter_count} parameters")
-    system = format_system_arch(value.get("system", {}))
-    if system != "unknown":
-        parts.append(system)
-    return "; ".join(parts) if parts else str(value.get("message", "not available"))
+    return f"{float(value) / 1000:.2f} GHz" if isinstance(value, (int, float)) and value > 0 else "unknown"
 
 
 def parameter_count_for(simulator: dict[str, Any] | None, grafana: dict[str, Any] | None) -> int:
@@ -171,11 +119,11 @@ def config_value(value: Any, fallback: str = "—") -> str:
 def benchmark_config(
     simulator: dict[str, Any] | None,
     grafana: dict[str, Any] | None,
-    reference: str = "",
+    semver: Any = None,
 ) -> dict[str, str]:
     simulator = simulator or {}
     return {
-        "Reference": reference or "current",
+        "Benchmark semver": config_value(semver, "unknown"),
         "Parameters": str(parameter_count_for(simulator, grafana)),
         "Simulator scenario duration": f"{float(simulator.get('duration_seconds', 0)):.2f}s",
         "Simulator scenario warmup": f"{float(simulator.get('warmup_seconds', 0)):.2f}s",
@@ -187,49 +135,70 @@ def benchmark_config(
             f"{config_value(simulator.get('instance'), 'unknown')} / "
             f"{config_value(simulator.get('processor'), 'unknown')}"
         ),
-        "System architecture": format_system_arch(simulator.get("system", {})),
     }
 
 
-def append_config_table(
-    lines: list[str],
-    head_config: dict[str, str],
-    baseline_config: dict[str, str] | None,
-    long_term_config: dict[str, str] | None,
-    run_url: str,
-) -> None:
-    def cell(value: str) -> str:
-        if value == "—":
-            return value
-        if value.startswith("[") or value.startswith("`"):
-            return value
-        return f"`{value}`"
+def cpu_cores(system: dict[str, Any]) -> str:
+    runner_cores = system.get("runner_available_cpus")
+    if isinstance(runner_cores, (int, float)) and runner_cores > 0:
+        return str(int(runner_cores)) if float(runner_cores).is_integer() else f"{runner_cores:.2f}"
+    return config_value(system.get("available_logical_cpus", system.get("cpus")), "unknown")
 
-    baseline_columns: list[tuple[str, dict[str, str]]] = []
-    if baseline_config:
-        baseline_columns.append(("PR base", baseline_config))
-    if long_term_config:
-        baseline_columns.append(("Long-term baseline", long_term_config))
 
-    if not baseline_columns:
-        lines.extend(["| Setting | Value |", "|---|---:|"])
-        for key, value in head_config.items():
-            lines.append(f"| {key} | {cell(value)} |")
-        if run_url:
-            lines.append(f"| Workflow run | [open run]({run_url}) |")
-        return
+def system_identity(system: Any, commit_value: Any) -> dict[str, str]:
+    system = system if isinstance(system, dict) else {}
+    cpu_frequency = system.get("cpu_frequency_mhz")
+    return {
+        "Commit": commit_link(commit_value) or "—",
+        "OS": config_value(system.get("os"), "unknown"),
+        "Architecture": config_value(system.get("arch"), "unknown"),
+        "CPU cores (runner)": cpu_cores(system),
+        "CPU model": config_value(system.get("cpu_model"), "unknown"),
+        "CPU frequency": format_frequency(cpu_frequency) if cpu_frequency else "unknown",
+        "Go version": config_value(system.get("go_version"), "unknown"),
+        "Node version": config_value(system.get("node_version"), "unknown"),
+        "Playwright version": config_value(system.get("playwright_version"), "unknown"),
+        "Chromium version": config_value(system.get("chromium_version"), "unknown"),
+    }
 
-    headers = ["Setting", "HEAD"] + [label for label, _config in baseline_columns]
+
+def has_system_identity(system: Any, commit_value: Any) -> bool:
+    return bool((isinstance(system, dict) and system) or (isinstance(commit_value, str) and commit_value))
+
+
+def merged_system(backend_system: Any, frontend_system: Any) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    if isinstance(backend_system, dict):
+        merged.update(backend_system)
+    if isinstance(frontend_system, dict):
+        merged.update(frontend_system)
+    return merged
+
+
+def cell(value: str) -> str:
+    if value == "—":
+        return value
+    if value.startswith("[") or value.startswith("`"):
+        return value
+    return f"`{value}`"
+
+
+def append_architecture_table(lines: list[str], columns: list[tuple[str, dict[str, str]]]) -> None:
+    headers = ["Setting"] + [label for label, _identity in columns]
     lines.append("| " + " | ".join(headers) + " |")
-    lines.append("|" + "|".join(["---"] + ["---:" for _ in headers[1:]]) + "|")
+    lines.append("|" + "|".join(["---"] + ["---:" for _ in columns]) + "|")
+    keys = list(columns[0][1].keys()) if columns else []
+    for key in keys:
+        row = [key] + [cell(identity.get(key, "—")) for _label, identity in columns]
+        lines.append("| " + " | ".join(row) + " |")
+
+
+def append_config_table(lines: list[str], head_config: dict[str, str], run_url: str) -> None:
+    lines.extend(["| Setting | Value |", "|---|---:|"])
     for key, value in head_config.items():
-        row = [key, cell(value)]
-        for _label, config in baseline_columns:
-            row.append(cell(config.get(key, "—")))
-        lines.append("| " + " | ".join(row) + " |")
+        lines.append(f"| {key} | {cell(value)} |")
     if run_url:
-        row = ["Workflow run", f"[open run]({run_url})"] + ["—" for _label, _config in baseline_columns]
-        lines.append("| " + " | ".join(row) + " |")
+        lines.append(f"| Workflow run | [open run]({run_url}) |")
 
 
 def build_comment(
@@ -237,7 +206,6 @@ def build_comment(
     grafana: dict[str, Any] | None,
     baseline_simulator: dict[str, Any] | None,
     baseline_grafana: dict[str, Any] | None,
-    long_term_simulator: dict[str, Any] | None,
     long_term_grafana: dict[str, Any] | None,
     thresholds: list[dict[str, Any]],
     copied_plots: list[tuple[str, str]],
@@ -261,14 +229,20 @@ def build_comment(
             summaries_by_metric.setdefault(metric, []).append(summary)
     baseline = result.get("baseline", {})
     long_term_baseline = result.get("long_term_baseline", {})
-    head_config = benchmark_config(result, grafana)
-    baseline_config = None
-    if baseline.get("compatible") or baseline_grafana:
-        reference = commit_link(baseline.get("commit")) if baseline.get("commit") else str(baseline.get("message", "loaded"))
-        baseline_config = benchmark_config(baseline_simulator, baseline_grafana, reference)
-    long_term_config = None
-    if long_term_baseline.get("compatible") or long_term_grafana:
-        long_term_config = benchmark_config(long_term_simulator, long_term_grafana, format_long_term_baseline(long_term_baseline))
+    head_config = benchmark_config(result, grafana, result.get("metric_semantics_version"))
+    head_system = merged_system(result.get("system", {}), (grafana or {}).get("system", {}))
+    architecture_columns: list[tuple[str, dict[str, str]]] = [
+        ("HEAD", system_identity(head_system, os.environ.get("GITHUB_SHA", "")))
+    ]
+
+    baseline_system = merged_system((baseline_simulator or {}).get("system", {}), (baseline_grafana or {}).get("system", {}))
+    if has_system_identity(baseline_system, baseline.get("commit")):
+        architecture_columns.append(("PR base", system_identity(baseline_system, baseline.get("commit"))))
+
+    long_term_commit = (long_term_baseline.get("metadata") or {}).get("github", {}).get("sha", "")
+    long_term_system = merged_system(long_term_baseline.get("system", {}), (long_term_grafana or {}).get("system", {}))
+    if has_system_identity(long_term_system, long_term_commit):
+        architecture_columns.append(("Long-term baseline", system_identity(long_term_system, long_term_commit)))
 
     lines = [
         COMMENT_MARKER,
@@ -282,7 +256,11 @@ def build_comment(
         "<summary>Benchmark configuration</summary>",
         "",
     ]
-    append_config_table(lines, head_config, baseline_config, long_term_config, args.run_url)
+    lines.append("**Configuration**")
+    lines.append("")
+    append_config_table(lines, head_config, args.run_url)
+    lines.extend(["", "**Architecture**", ""])
+    append_architecture_table(lines, architecture_columns)
     lines.extend(["", "</details>"])
 
     if interesting:
@@ -543,7 +521,6 @@ def main() -> None:
         grafana,
         baseline_simulator,
         baseline_grafana,
-        long_term_simulator,
         long_term_grafana,
         thresholds,
         copied_plots,
