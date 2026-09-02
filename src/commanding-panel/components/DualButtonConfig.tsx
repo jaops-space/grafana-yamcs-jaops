@@ -91,6 +91,19 @@ function DualSideConfig(props: {
                     />
                 </Field>
 
+                {sideCommandInfo.argument?.map((arg: any) => (
+                    <ArgumentField
+                        key={`${side}-${arg.name}`}
+                        commandName={command.name}
+                        index={index}
+                        arg={arg}
+                        value={sideState.arguments?.[arg.name] ?? arg.initialValue}
+                        loading={loading}
+                        onChange={updateSideArgument}
+                        labelPrefix={labelPrefix}
+                    />
+                ))}
+
                 <Field label={`${labelPrefix} Label`} description="Supports $variable" style={{ marginBottom: 0 }}>
                     <Input
                         type="text"
@@ -132,19 +145,6 @@ function DualSideConfig(props: {
                     loading={loading}
                     onOptionChange={setSideField}
                 />
-
-                {sideCommandInfo.argument?.map((arg: any) => (
-                    <ArgumentField
-                        key={`${side}-${arg.name}`}
-                        commandName={command.name}
-                        index={index}
-                        arg={arg}
-                        value={sideState.arguments?.[arg.name] ?? arg.initialValue}
-                        loading={loading}
-                        onChange={updateSideArgument}
-                        labelPrefix={labelPrefix}
-                    />
-                ))}
             </FormSection>
         </div>
     );
