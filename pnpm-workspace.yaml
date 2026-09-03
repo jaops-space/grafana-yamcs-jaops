@@ -1,0 +1,37 @@
+# pnpm-specific settings that used to live under package.json's "pnpm"
+# field. Newer pnpm releases silently stop reading that field (see
+# https://pnpm.io/settings) - keep this file as the single source of truth
+# for overrides going forward, otherwise the security-motivated version
+# pins below stop being enforced without any warning.
+overrides:
+  "@babel/runtime@<7.26.10": ">=7.26.10"
+  "@babel/helpers@<7.26.10": ">=7.26.10"
+  "brace-expansion@<1.1.18": ">=1.1.18 <2.0.0"
+  "brace-expansion@>=2.0.0 <2.0.3": ">=2.0.3"
+  "brace-expansion@>=4.0.0 <5.0.9": ">=5.0.9"
+  "form-data@<4.0.2": ">=4.0.2"
+  "@remix-run/router@<1.23.4": ">=1.23.4"
+  "glob@<10.5.0": ">=10.5.0"
+  "qs@<6.14.1": ">=6.14.1"
+  "dompurify@<3.4.14": ">=3.4.14"
+  "uuid@<11.1.1": ">=11.1.1"
+  "js-cookie@<=3.0.5": ">=3.0.7"
+  "js-yaml@<=4.1.1": ">=4.2.0 <5.0.0"
+  "js-yaml@>=5.0.0 <5.2.2": ">=5.2.2 <6.0.0"
+  "@opentelemetry/core@<2.8.0": ">=2.8.0"
+  "postcss@<8.5.26": ">=8.5.26 <9.0.0"
+  # nanoid v4+ is ESM-only and breaks CommonJS consumers like postcss/css-loader
+  # here - pin inside the 3.x line only, don't let this float across that
+  # major boundary the way an unbounded ">=" would.
+  "nanoid@<3.3.18": ">=3.3.18 <4.0.0"
+  "fast-uri@<3.1.6": ">=3.1.6 <4.0.0"
+  "websocket-driver@<0.7.5": ">=0.7.5 <1.0.0"
+  # react-router-dom-v5-compat/react-router-dom depend on two different
+  # react-router major lines (6.x and 7.x) at once - each needs its own
+  # bounded override, otherwise an unbounded ">=" silently jumps the 7.x
+  # line to react-router@8, which requires react/react-dom >=19 (we're on
+  # 18.3.1) and breaks the build.
+  "react-router@>=6.0.0 <6.30.6": ">=6.30.6 <7.0.0"
+  "react-router@>=7.0.0 <7.18.3": ">=7.18.3 <8.0.0"
+  # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (disclosed 2026-09-01), fixed 4.28.7.
+  "browserslist@<4.28.7": ">=4.28.7 <5.0.0"
