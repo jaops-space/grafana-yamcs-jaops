@@ -116,6 +116,16 @@ jobs:
           rm -f "$PLUGIN_ARCHIVE"
           zip -r "$PLUGIN_ARCHIVE" "$plugin_id"
 
+      - name: Install plugin-validator analyzer dependencies
+        run: |
+          # code-rules (semgrep) and govulncheck analyzers silently no-op if
+          # their binaries aren't on PATH - install both so plugin-validator
+          # actually runs the same checks the Grafana marketplace review does.
+          python3 -m pip install --user --break-system-packages --quiet semgrep
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Run plugin-validator
         id: plugin-validator
         continue-on-error: true

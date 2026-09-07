@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -367,7 +366,7 @@ func (ws *WebSocketHandler) handleStateMessage(message *api.ServerMessage) {
 		backend.Logger.Error("error unmarshalling websocket state", "error", err)
 		return
 	}
-	fmt.Printf("received websocket state: %s\n", state.String())
+	backend.Logger.Debug("received websocket state", "state", state.String())
 
 	select {
 	case ws.stateCh <- state:
