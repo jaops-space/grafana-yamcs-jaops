@@ -2,7 +2,10 @@ name: Security Checks
 
 'on':
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    # Optional, label-triggered review parity checks. The job still gates on
+    # run/security-checks below so unrelated labels do not run the expensive
+    # validator/scanner stack.
+    types: [labeled]
   workflow_dispatch:
     inputs:
       plugin_archive:
