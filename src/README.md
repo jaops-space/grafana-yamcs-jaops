@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/benchmark.yml"><img alt="Benchmark" src="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/benchmark.yml/badge.svg"></a>
+  <a href="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/benchmark.yml"><img alt="Benchmark" src="https://github.com/jaops-space/grafana-yamcs-jaops/actions/workflows/benchmark.yml/badge.svg?branch=main"></a>
   <a href="https://grafana.com/grafana/plugins/jaops-yamcs-app/"><img alt="Grafana catalog version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fplugins%2Fjaops-yamcs-app%3Fversion%3Dlatest&query=%24.version&label=version&color=F46800&logo=grafana"></a>
   <a href="https://grafana.com/grafana/plugins/jaops-yamcs-app/"><img alt="Downloads" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgrafana.com%2Fapi%2Fplugins%2Fjaops-yamcs-app%3Fversion%3Dlatest&query=%24.downloads&label=downloads&color=5794F2&logo=grafana"></a>
   <a href="https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-2EA043"></a>

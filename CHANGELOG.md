@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-07
+
+### Changed
+
+- Changed the benchmark workflow to run on main-branch pushes without PR-base comparison, while keeping PR benchmark reports gated behind the `run/benchmarks` label.
+- Aligned security CI with Grafana plugin-validator review behavior so blocking and informational findings are reported separately.
+
+### Fixed
+
+- Fixed the dual-command button argument configuration being shown in the appearance section.
+- Fixed plugin metadata links reported as broken by Grafana plugin validation.
+- Fixed unsafe integer conversions reported by gosec in benchmark simulator code.
+- Fixed Yamcs WebSocket call ID conversion to avoid unsafe integer narrowing.
+
+### Security
+
+- Updated Go dependencies, including gRPC and OpenTelemetry-related modules.
+
 ## [1.1.0] - 2026-08-20
 
 ### Added
@@ -158,7 +176,8 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added command history and variable-oriented panel support.
 - Added app navigation, setup documentation, demo dashboard assets, and contribution guidance.
 
-[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.0.8...v1.1.0
 [1.0.8]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.0.6...v1.0.7

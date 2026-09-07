@@ -6,6 +6,10 @@ on:
         branches:
             - master
             - main
+    push:
+        branches:
+            - master
+            - main
 
 permissions:
     contents: read
@@ -18,14 +22,14 @@ jobs:
     resolve-base:
         name: Resolve benchmark base
         runs-on: ubuntu-latest
+        # Keep unlabeled PRs quiet in the PR checks UI. The rest of the benchmark
+        # jobs depend on this job instead of carrying their own label gate, so a
+        # skipped resolve-base job prevents downstream benchmark jobs from being
+        # scheduled/listed individually.
         if: >-
             ${{
-              github.event_name == 'workflow_dispatch' ||
-              (
-                github.event_name == 'pull_request' &&
-                github.event.action != 'closed' &&
-                contains(github.event.pull_request.labels.*.name, 'run/benchmarks')
-              )
+              github.event_name == 'push' ||
+              contains(github.event.pull_request.labels.*.name, 'run/benchmarks')
             }}
         outputs:
             sha: ${{ steps.base.outputs.sha }}
@@ -47,7 +51,7 @@ jobs:
                       BASE_SHA="$(git merge-base HEAD FETCH_HEAD)"
                     fi
                   else
-                    BASE_SHA="$(git rev-parse HEAD)"
+                    BASE_SHA=""
                   fi
                   echo "sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
 
@@ -56,6 +60,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 15
         needs: resolve-base
+        if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
@@ -67,10 +72,12 @@ jobs:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
             - uses: actions/checkout@v4
+              if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
                   ref: ${{ needs.resolve-base.outputs.sha }}
                   path: benchmark-base-source
             - name: Run base microbenchmarks
+              if: ${{ needs.resolve-base.outputs.sha != '' }}
               working-directory: benchmark-base-source
               run: |
                   if [ -f scripts/benchmarks/micro/run.py ]; then
@@ -93,6 +100,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 30
         needs: resolve-base
+        if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
@@ -112,10 +120,12 @@ jobs:
                   docker compose up -d yamcs
                   timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
             - uses: actions/checkout@v4
+              if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
                   ref: ${{ needs.resolve-base.outputs.sha }}
                   path: benchmark-base-source
             - name: Run base simulator scenario
+              if: ${{ needs.resolve-base.outputs.sha != '' }}
               working-directory: benchmark-base-source
               run: |
                   if [ -f scripts/benchmarks/simulator/run.py ]; then
@@ -131,10 +141,15 @@ jobs:
               env:
                   BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
               run: |
-                  python3 scripts/benchmarks/simulator/run.py \
-                    --output-dir benchmark-output/simulator/head \
-                    --baseline-results benchmark-output/simulator/baseline/simulator.json \
-                    --baseline-commit "$BASELINE_COMMIT"
+                  if [ -n "$BASELINE_COMMIT" ]; then
+                    python3 scripts/benchmarks/simulator/run.py \
+                      --output-dir benchmark-output/simulator/head \
+                      --baseline-results benchmark-output/simulator/baseline/simulator.json \
+                      --baseline-commit "$BASELINE_COMMIT"
+                  else
+                    python3 scripts/benchmarks/simulator/run.py \
+                      --output-dir benchmark-output/simulator/head
+                  fi
             - name: Collect scenario logs
               if: always()
               run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs > benchmark-output/simulator/yamcs.log || true
@@ -153,6 +168,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 35
         needs: resolve-base
+        if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
             - uses: actions/checkout@v4
             - uses: pnpm/action-setup@v3
@@ -173,10 +189,12 @@ jobs:
                   docker compose up -d yamcs
                   timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
             - uses: actions/checkout@v4
+              if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
                   ref: ${{ needs.resolve-base.outputs.sha }}
                   path: benchmark-base-source
             - name: Run base Grafana benchmark
+              if: ${{ needs.resolve-base.outputs.sha != '' }}
               working-directory: benchmark-base-source
               run: |
                   if [ -f tests/benchmark/streaming.benchmark.spec.ts ]; then
@@ -245,7 +263,12 @@ jobs:
         name: Create report
         runs-on: ubuntu-latest
         needs: [resolve-base, micro-benchmark, scenario-benchmark, grafana-benchmark]
-        if: always() && needs.resolve-base.result == 'success'
+        if: >-
+            ${{
+              always() &&
+              github.event_name == 'pull_request' &&
+              needs.resolve-base.result == 'success'
+            }}
         outputs:
             should_comment: ${{ steps.benchmark-status.outputs.should_comment }}
             should_fail: ${{ steps.benchmark-status.outputs.should_fail }}
@@ -277,16 +300,25 @@ jobs:
                   BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
-                  python3 scripts/benchmarks/report.py \
-                    --output-dir benchmark-output \
-                    --simulator-results artifacts/simulator/head/simulator.json \
-                    --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
-                    --grafana-results artifacts/grafana/head/grafana.json \
-                    --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
-                    --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
-                    --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
-                    --baseline-commit "$BASELINE_COMMIT" \
-                    --run-url "$RUN_URL"
+                  if [ -n "$BASELINE_COMMIT" ]; then
+                    python3 scripts/benchmarks/report.py \
+                      --output-dir benchmark-output \
+                      --simulator-results artifacts/simulator/head/simulator.json \
+                      --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
+                      --grafana-results artifacts/grafana/head/grafana.json \
+                      --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
+                      --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
+                      --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
+                      --baseline-commit "$BASELINE_COMMIT" \
+                      --run-url "$RUN_URL"
+                  else
+                    python3 scripts/benchmarks/report.py \
+                      --output-dir benchmark-output \
+                      --simulator-results artifacts/simulator/head/simulator.json \
+                      --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
+                      --grafana-results artifacts/grafana/head/grafana.json \
+                      --run-url "$RUN_URL"
+                  fi
             - name: Read benchmark status
               id: benchmark-status
               run: |
@@ -316,7 +348,7 @@ jobs:
     benchmark-publish:
         name: Publish report
         runs-on: ubuntu-latest
-        needs: [benchmark-report]
+        needs: benchmark-report
         if: >-
             ${{
               always() &&
