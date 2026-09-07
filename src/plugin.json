@@ -48,7 +48,7 @@
             },
             {
                 "name": "Setup Instructions",
-                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/setup_instructions.md"
+                "url": "https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md"
             }
         ],
         "version": "%VERSION%",
