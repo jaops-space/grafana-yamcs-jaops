@@ -60,6 +60,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 15
         needs: resolve-base
+        if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
@@ -99,6 +100,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 30
         needs: resolve-base
+        if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
@@ -166,6 +168,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 35
         needs: resolve-base
+        if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
             - uses: actions/checkout@v4
             - uses: pnpm/action-setup@v3
@@ -261,7 +264,11 @@ jobs:
         runs-on: ubuntu-latest
         needs: [resolve-base, micro-benchmark, scenario-benchmark, grafana-benchmark]
         if: >-
-            ${{ github.event_name == 'pull_request' }}
+            ${{
+              always() &&
+              github.event_name == 'pull_request' &&
+              needs.resolve-base.result == 'success'
+            }}
         outputs:
             should_comment: ${{ steps.benchmark-status.outputs.should_comment }}
             should_fail: ${{ steps.benchmark-status.outputs.should_fail }}
@@ -344,6 +351,7 @@ jobs:
         needs: benchmark-report
         if: >-
             ${{
+              always() &&
               github.event_name == 'pull_request' &&
               needs.benchmark-report.outputs.should_comment == 'true'
             }}
