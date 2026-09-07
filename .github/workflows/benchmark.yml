@@ -2,7 +2,11 @@ name: Benchmark
 
 on:
     pull_request:
-        types: [opened, synchronize, reopened, labeled]
+        # Keep unlabeled PRs quiet: if this workflow is triggered on opened or
+        # synchronize, GitHub still shows every benchmark job as skipped. GitHub
+        # cannot filter pull_request labels by name at the event level, so this
+        # runs when labels change and the gate below checks for run/benchmarks.
+        types: [labeled]
         branches:
             - master
             - main

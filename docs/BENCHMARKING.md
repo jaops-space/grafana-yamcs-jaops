@@ -164,7 +164,9 @@ The Grafana benchmark CI first runs the normal plugin build, then overwrites `di
 
 ## CI Behavior
 
-The benchmark workflow is conditional. Add the `run/benchmarks` label to a pull request to run it and publish or update the benchmark PR comment, or start it manually with `workflow_dispatch`.
+The benchmark workflow is conditional on pull requests. Add the `run/benchmarks` label to run it and publish or update the benchmark PR comment. Unlabeled PR open/sync events do not start the workflow, so the benchmark jobs do not appear as skipped checks.
+
+Pushes to `main` run the benchmark jobs without PR-base comparison or PR comments. This keeps the README benchmark badge tied to a real default-branch benchmark result.
 
 On pull requests with the `run/benchmarks` label:
 
