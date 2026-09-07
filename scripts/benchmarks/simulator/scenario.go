@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"sort"
@@ -64,10 +65,10 @@ type warmupScenario struct {
 }
 
 type systemInfo struct {
-	OS                   string  `json:"os"`
-	Arch                 string  `json:"arch"`
-	CPUs                 int     `json:"cpus"`
-	AvailableLogicalCPUs int     `json:"available_logical_cpus"`
+	OS                   string `json:"os"`
+	Arch                 string `json:"arch"`
+	CPUs                 int    `json:"cpus"`
+	AvailableLogicalCPUs int    `json:"available_logical_cpus"`
 	// RunnerAvailableCPUs is the cgroup-quota-aware core count actually
 	// usable by this process (e.g. under `docker run --cpus=2`). Unlike
 	// AvailableLogicalCPUs (runtime.NumCPU, which only reflects the CPU
@@ -417,7 +418,7 @@ func runScenario(address string, instance string, processor string, parameters [
 		NonEmptyReadOperations: nonEmptyReadCount,
 		ValuesRead:             valueCount,
 		ValuesReadPerSecond:    float64(valueCount) / duration.Seconds(),
-		LiveMemoryGrowthBytes:  int64(memEnd.Alloc) - int64(memStart.Alloc),
+		LiveMemoryGrowthBytes:  signedUint64Delta(memEnd.Alloc, memStart.Alloc),
 		TotalAllocatedBytes:    memEnd.TotalAlloc - memStart.TotalAlloc,
 	}
 	if readCount > 0 {
@@ -438,6 +439,21 @@ func runScenario(address string, instance string, processor string, parameters [
 	metric.MedianTickRunStreamBusy = tickSummary.Busy.Median
 	metric.TickRunStreamBusy = tickSummary.Busy
 	return metric, nil
+}
+
+func signedUint64Delta(current uint64, previous uint64) int64 {
+	if current >= previous {
+		delta := current - previous
+		if delta > math.MaxInt64 {
+			return math.MaxInt64
+		}
+		return int64(delta)
+	}
+	delta := previous - current
+	if delta > math.MaxInt64 {
+		return math.MinInt64
+	}
+	return -int64(delta)
 }
 
 type tickWorkload struct {

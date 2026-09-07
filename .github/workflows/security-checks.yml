@@ -34,25 +34,20 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run gosec (HIGH/CRITICAL policy)
+      - name: Run gosec (repo-wide, informational)
         id: gosec
+        # Matches Grafana's own plugin-validator go-sec pass: full repo scope,
+        # HIGH severity, and never blocking (gosec is Warning-only upstream too).
+        # This step is for fast/early visibility only; it never fails the job.
         continue-on-error: true
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           export PATH="$(go env GOPATH)/bin:$PATH"
 
           set +e
-          gosec -severity high -fmt=json -out=gosec.json ./pkg/...
-          gosec_json_status=$?
-
-          gosec -severity high ./pkg/... | tee gosec.txt
-          gosec_txt_status=$?
-
-          if [ "$gosec_txt_status" -ne 0 ]; then
-            exit "$gosec_txt_status"
-          fi
-
-          exit "$gosec_json_status"
+          gosec -quiet -severity high -fmt=json -out=gosec.json ./...
+          gosec -quiet -severity high ./... | tee gosec.txt
+          exit 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -99,6 +94,18 @@ jobs:
           cp osv-scanner.raw osv-scanner.txt
           exit "$scan_status"
 
+      - name: Install mage
+        run: go install github.com/magefile/mage@latest
+
+      - name: Build backend binary (linux/amd64) for validator parity
+        # Only linux/amd64 is required for the backendbinary/binarypermissions/
+        # go-manifest plugin-validator analyzers (Grafana requires at minimum a
+        # linux/amd64 backend binary); building all 5 platforms on every PR
+        # would be needlessly slow.
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          mage -v build:backend
+
       - name: Build plugin package for validator
         env:
           PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
@@ -116,6 +123,16 @@ jobs:
           rm -f "$PLUGIN_ARCHIVE"
           zip -r "$PLUGIN_ARCHIVE" "$plugin_id"
 
+      - name: Install plugin-validator analyzer dependencies
+        run: |
+          # code-rules (semgrep) and govulncheck analyzers silently no-op if
+          # their binaries aren't on PATH - install both so plugin-validator
+          # actually runs the same checks the Grafana marketplace review does.
+          python3 -m pip install --user --break-system-packages --quiet semgrep
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Run plugin-validator
         id: plugin-validator
         continue-on-error: true
@@ -123,26 +140,23 @@ jobs:
           PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
         run: |
           cat > .plugin-validator-security.yml <<'EOF'
+          # This mirrors Grafana's own review config (config/publishing.yaml
+          # upstream): global severity defaults to error, and everything runs
+          # unless it's structurally inapplicable to an unsigned PR-time build.
           global:
             enabled: true
             jsonOutput: true
-            reportAll: false
+            reportAll: true
+            severity: error
 
           analyzers:
-            osv-scanner:
-              enabled: false
-            backendbinary:
-              enabled: false
-            binarypermissions:
-              enabled: false
-            go-manifest:
-              enabled: false
-            version:
-              enabled: false
             sponsorshiplink:
               rules:
                 sponsorshiplink:
                   enabled: false
+            # Signing/provenance rules always fail on unsigned PR-time builds
+            # (we only sign real release artifacts); not a parity gap, just an
+            # intentional PR-vs-release distinction.
             manifest:
               rules:
                 unsigned-plugin:
@@ -199,17 +213,15 @@ jobs:
         id: evaluate
         if: always()
         env:
-          GOSEC_OUTCOME: ${{ steps.gosec.outcome }}
           OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
           PLUGIN_VALIDATOR_OUTCOME: ${{ steps.plugin-validator.outcome }}
         run: |
           failed=false
           summary=""
 
-          if [ "$GOSEC_OUTCOME" = "failure" ]; then
-            failed=true
-            summary="${summary}\n- gosec reported HIGH/CRITICAL-policy findings or failed"
-          fi
+          # gosec is intentionally excluded here: Grafana's own plugin-validator
+          # go-sec pass is Warning-only (never blocking) at any severity, and our
+          # standalone gosec step matches that - it's informational only now.
 
           if [ "$OSV_SCANNER_OUTCOME" = "failure" ]; then
             failed=true
@@ -218,7 +230,7 @@ jobs:
 
           if [ "$PLUGIN_VALIDATOR_OUTCOME" = "failure" ]; then
             failed=true
-            summary="${summary}\n- plugin-validator reported blocking findings or failed"
+            summary="${summary}\n- plugin-validator reported blocking (error severity) findings or failed"
           fi
 
           {
@@ -245,12 +257,18 @@ jobs:
             osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
           fi
 
-          plugin_findings=0
+          # plugin-validator now runs with reportAll:true (same as Grafana's own
+          # review config), so OK/passing entries are present too - only count
+          # error (blocking) and warning (informational, matches Grafana's own
+          # report which also surfaces non-blocking items like sponsorshiplink).
+          plugin_error_findings=0
+          plugin_warning_findings=0
           if [ -f plugin-validator.json ] && jq -e . plugin-validator.json >/dev/null 2>&1; then
-            plugin_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
+            plugin_error_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
+            plugin_warning_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "warning")] | length' plugin-validator.json)
           fi
 
-          total_findings=$((gosec_findings + osv_findings + plugin_findings))
+          total_findings=$((gosec_findings + osv_findings + plugin_error_findings + plugin_warning_findings))
           if [ "$total_findings" -eq 0 ]; then
             echo "has_findings=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -263,18 +281,20 @@ jobs:
             echo "This PR introduced findings in automated security checks."
             echo
             echo "_This comment is updated when security results change and deleted when the latest security checks are clean._"
+            echo "_Only plugin-validator error-severity findings and osv-scanner HIGH/CRITICAL runtime vulnerabilities block this check, matching Grafana's own review gating. Everything else (gosec, plugin-validator warnings) is informational._"
             echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
-            echo "| gosec (HIGH/CRITICAL policy) | ${gosec_findings} |"
-            echo "| osv-scanner (runtime HIGH/CRITICAL) | ${osv_findings} |"
-            echo "| plugin-validator (error severity) | ${plugin_findings} |"
+            echo "| gosec (HIGH severity, informational) | ${gosec_findings} |"
+            echo "| osv-scanner (runtime HIGH/CRITICAL, blocking) | ${osv_findings} |"
+            echo "| plugin-validator (error severity, blocking) | ${plugin_error_findings} |"
+            echo "| plugin-validator (warning severity, informational) | ${plugin_warning_findings} |"
             echo
           } > pr-security-comment.md
 
           if [ "$gosec_findings" -gt 0 ]; then
             {
-              echo "### gosec highlights"
+              echo "### gosec highlights (informational)"
               echo
               jq -r '.Issues[]? | "- \(.severity // "UNKNOWN") \(.rule_id // "RULE") in \(.file // "unknown file"):\(.line // 0) - \(.details // "No details")"' gosec.json | sed -n '1,15p'
               echo
@@ -283,7 +303,7 @@ jobs:
 
           if [ "$osv_findings" -gt 0 ]; then
             {
-              echo "### osv-scanner highlights"
+              echo "### osv-scanner highlights (blocking)"
               echo
               prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
               jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
@@ -291,11 +311,20 @@ jobs:
             } >> pr-security-comment.md
           fi
 
-          if [ "$plugin_findings" -gt 0 ]; then
+          if [ "$plugin_error_findings" -gt 0 ]; then
             {
-              echo "### plugin-validator highlights"
+              echo "### plugin-validator highlights (blocking)"
               echo
               jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
+              echo
+            } >> pr-security-comment.md
+          fi
+
+          if [ "$plugin_warning_findings" -gt 0 ]; then
+            {
+              echo "### plugin-validator highlights (informational)"
+              echo
+              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "warning") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
               echo
             } >> pr-security-comment.md
           fi
