@@ -1,12 +1,28 @@
+import { css } from '@emotion/css';
+import { GrafanaTheme2, SelectableValue } from '@grafana/data';
 import React from 'react';
-import { SelectableValue } from '@grafana/data';
-import { Combobox, Field, Input } from '@grafana/ui';
+import { Combobox, Field, Input, useStyles2 } from '@grafana/ui';
 import { DataSourceWithBackend } from '@grafana/runtime';
 import { ArgumentField } from './ArgumentField';
 import { ButtonStyleFields } from './ButtonStyleFields';
 import { FormSection } from './FormSection';
 import { DualCommandInfos, UpdateFormOption } from '../types';
 import { getCommandKey, getDualInfoKey } from '../utils/commandKeys';
+
+const getStyles = (theme: GrafanaTheme2) => ({
+    side: css({
+        border: `1px solid ${theme.colors.border.weak}`,
+        borderRadius: theme.shape.radius.default,
+        padding: theme.spacing(1.25),
+        minWidth: 0,
+    }),
+    grid: css({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: theme.spacing(1.5),
+        width: '100%',
+    }),
+});
 
 function DualSideConfig(props: {
     side: 'on' | 'off';
@@ -44,6 +60,7 @@ function DualSideConfig(props: {
     const commandKey = getCommandKey(command.name, index);
     const sideCommandInfo = dualCommandInfos[getDualInfoKey(commandKey, side)] ?? command;
     const sideState = commandState?.[stateKey] ?? {};
+    const styles = useStyles2(getStyles);
 
     const updateSide = (patch: Record<string, any>) => {
         onOptionChange(command.name, stateKey, { ...sideState, ...patch }, index);
@@ -56,9 +73,7 @@ function DualSideConfig(props: {
     };
 
     return (
-        <div
-            style={{ border: '1px solid rgba(204, 204, 220, 0.16)', borderRadius: '4px', padding: '10px', minWidth: 0 }}
-        >
+        <div className={styles.side}>
             <FormSection title={title} separated={false}>
                 <Field
                     label={`${labelPrefix} Command`}
@@ -153,15 +168,10 @@ function DualSideConfig(props: {
 export function DualButtonConfig(
     props: Omit<React.ComponentProps<typeof DualSideConfig>, 'side' | 'title' | 'labelPrefix'>
 ) {
+    const styles = useStyles2(getStyles);
+
     return (
-        <div
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                gap: '12px',
-                width: '100%',
-            }}
-        >
+        <div className={styles.grid}>
             <DualSideConfig {...props} side="on" title="Left button" labelPrefix="LEFT" />
             <DualSideConfig {...props} side="off" title="Right button" labelPrefix="RIGHT" />
         </div>

@@ -1,5 +1,7 @@
+import { css } from '@emotion/css';
+import { GrafanaTheme2 } from '@grafana/data';
 import React from 'react';
-import { Button, Card, FieldSet, LoadingPlaceholder } from '@grafana/ui';
+import { Button, Card, FieldSet, LoadingPlaceholder, useStyles2 } from '@grafana/ui';
 import { CommandEditor } from './CommandEditor';
 import { VariableEditor } from './VariableEditor';
 import {
@@ -11,6 +13,29 @@ import {
     UpdateFormOption,
     ValidateArgument,
 } from '../types';
+
+const getStyles = (theme: GrafanaTheme2) => ({
+    card: css({
+        width: '100%',
+        padding: `${theme.spacing(1.5)} ${theme.spacing(1.75)}`,
+    }),
+    header: css({
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: theme.spacing(1.5),
+        width: '100%',
+    }),
+    title: css({
+        margin: 0,
+    }),
+    fieldSet: css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        width: '100%',
+    }),
+});
 
 export function CommandCard(props: {
     commandInfo: CommandInfo;
@@ -51,20 +76,13 @@ export function CommandCard(props: {
         showPreview = true,
     } = props;
     const command = commandInfo.command;
+    const styles = useStyles2(getStyles);
 
     return (
-        <Card key={`${command.name}${index}`} style={{ width: '100%', padding: '12px 14px' }}>
+        <Card key={`${command.name}${index}`} className={styles.card}>
             <Card.Heading>
-                <div
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '12px',
-                        width: '100%',
-                    }}
-                >
-                    <h4 style={{ margin: 0 }}>{variableMode ? 'Variable Panel' : `Command Button ${index + 1}`}</h4>
+                <div className={styles.header}>
+                    <h4 className={styles.title}>{variableMode ? 'Variable Panel' : `Command Button ${index + 1}`}</h4>
                     {!variableMode && (
                         <Button disabled={loading} onClick={() => onSubmit(commandInfo, index)} size="sm">
                             {loading ? <LoadingPlaceholder text="Issuing..." /> : 'Issue Command'}
@@ -76,7 +94,7 @@ export function CommandCard(props: {
                 {variableMode ? 'Configure Grafana variables through buttons' : 'Configure a runtime command button'}
             </Card.Meta>
             <Card.Description>
-                <FieldSet style={{ display: 'flex', flexDirection: 'column', gap: '0', width: '100%' }}>
+                <FieldSet className={styles.fieldSet}>
                     {variableMode ? (
                         <VariableEditor
                             commandInfo={commandInfo}

@@ -1,4 +1,37 @@
+import { css } from '@emotion/css';
+import { GrafanaTheme2 } from '@grafana/data';
+import { useStyles2 } from '@grafana/ui';
 import React from 'react';
+
+const getStyles = (theme: GrafanaTheme2) => ({
+    section: (separated: boolean) => css({
+        width: '100%',
+        paddingTop: separated ? theme.spacing(1.25) : 0,
+        borderTop: separated ? `1px solid ${theme.colors.border.weak}` : undefined,
+    }),
+    header: css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: theme.spacing(0.25),
+        marginBottom: theme.spacing(1),
+    }),
+    title: css({
+        margin: 0,
+        fontSize: theme.typography.bodySmall.fontSize,
+        fontWeight: theme.typography.fontWeightMedium,
+    }),
+    description: css({
+        color: theme.colors.text.secondary,
+        fontSize: theme.typography.bodySmall.fontSize,
+        lineHeight: theme.typography.bodySmall.lineHeight,
+    }),
+    fields: (columns?: number) => css({
+        display: 'grid',
+        gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: `${theme.spacing(1)} ${theme.spacing(1.5)}`,
+        alignItems: 'start',
+    }),
+});
 
 export function FormSection(props: {
     title?: string;
@@ -8,35 +41,17 @@ export function FormSection(props: {
     separated?: boolean;
 }) {
     const { title, description, children, columns, separated = true } = props;
+    const styles = useStyles2(getStyles);
 
     return (
-        <section
-            style={{
-                width: '100%',
-                paddingTop: separated ? '10px' : 0,
-                borderTop: separated ? '1px solid rgba(204, 204, 220, 0.16)' : undefined,
-            }}
-        >
+        <section className={styles.section(separated)}>
             {(title || description) && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '8px' }}>
-                    {title && <h5 style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>{title}</h5>}
-                    {description && (
-                        <span style={{ opacity: 0.75, fontSize: '11px', lineHeight: 1.3 }}>{description}</span>
-                    )}
+                <div className={styles.header}>
+                    {title && <h5 className={styles.title}>{title}</h5>}
+                    {description && <span className={styles.description}>{description}</span>}
                 </div>
             )}
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: columns
-                        ? `repeat(${columns}, minmax(0, 1fr))`
-                        : 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: '8px 12px',
-                    alignItems: 'start',
-                }}
-            >
-                {children}
-            </div>
+            <div className={styles.fields(columns)}>{children}</div>
         </section>
     );
 }
