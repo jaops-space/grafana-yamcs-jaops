@@ -92,12 +92,20 @@ func (d *Datasource) SubscribeStream(ctx context.Context, req *backend.Subscribe
 	// Create a Grafana data frame based on the requested query type
 	var frame *data.Frame
 	switch q.Type {
-	case Graph:
-		frame, err = DatasourceGraphFrame(ctx, endpoint, q)
-	case SingleValue, Image:
+	case Graph, SingleValue, DiscreteValue:
+		if len(q.Parameters) > 1 {
+			// Must match RunMultiParameterStream's frame schema exactly - see
+			// DatasourceMultiParameterGraphFrame's doc comment for why.
+			frame, err = DatasourceMultiParameterGraphFrame(ctx, endpoint, q)
+		} else if q.Type == Graph {
+			frame, err = DatasourceGraphFrame(ctx, endpoint, q)
+		} else if q.Type == SingleValue {
+			frame, err = DatasourceSingleValueFrame(ctx, endpoint, q)
+		} else {
+			frame, err = DatasourceDiscreteValueFrame(ctx, endpoint, q)
+		}
+	case Image:
 		frame, err = DatasourceSingleValueFrame(ctx, endpoint, q)
-	case DiscreteValue:
-		frame, err = DatasourceDiscreteValueFrame(ctx, endpoint, q)
 	case Events:
 		frame, err = DatasourceEventsFrame(ctx, endpoint, q)
 	case Commanding:
@@ -187,7 +195,8 @@ func (d *Datasource) RunStream(ctx context.Context, req *backend.RunStreamReques
 		}
 	}
 
-	// Route the stream to the appropriate handler
+	// Route the stream to the appropriate handler. RunParameterStream itself
+	// handles both one parameter and several - see its doc comment.
 	switch q.Type {
 	case Graph, SingleValue, DiscreteValue, Image:
 		return RunParameterStream(ctx, req, sender, endpoint, q)

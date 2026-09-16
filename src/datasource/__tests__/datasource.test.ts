@@ -161,7 +161,7 @@ describe('DataSource.query', () => {
         expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/500/fields=none');
     });
 
-    it('opens one live stream per selected parameter in a multi-parameter plot query', async () => {
+    it('opens a single batched live stream for a multi-parameter plot query', async () => {
         const ds = buildDatasource();
 
         await firstValueFrom(
@@ -174,21 +174,24 @@ describe('DataSource.query', () => {
             )
         );
 
-        // The multi-observer architecture: one Live channel/backend goroutine
-        // per parameter, fanned out from a single ParameterPicker selection.
-        expect(getDataStreamMock).toHaveBeenCalledTimes(3);
-        const paths = getDataStreamMock.mock.calls.map((call) => call[0].addr.path);
-        expect(paths).toEqual([
-            'myproject_realtime/-drone-BatteryPackVoltage/now-5m-now/500/fields=none',
-            'myproject_realtime/-drone-Motors[0].rpm/now-5m-now/500/fields=none',
-            'myproject_realtime/-drone-Attitude.yaw/now-5m-now/500/fields=none',
+        // One Live channel/backend goroutine for the whole query, not one per
+        // parameter - see RunMultiParameterStream.
+        expect(getDataStreamMock).toHaveBeenCalledTimes(1);
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        // A short hash, not the concatenated parameter names: Grafana Live
+        // channel paths go through Centrifuge's channel length limit, so a
+        // wide multi-parameter query must stay well under it regardless of
+        // how many/how long its parameter names are - see hashParameterList.
+        expect(streamArg.addr.path).toMatch(/^myproject_realtime\/multi-[0-9a-z]+\/now-5m-now\/500\/fields=none$/);
+        expect(streamArg.addr.path.length).toBeLessThan(100);
+        // parameter stays parameters[0] so backend code that only knows a single
+        // parameter (validation, the initial historical frame) keeps working.
+        expect(streamArg.addr.data.parameter).toBe('/drone/BatteryPackVoltage');
+        expect(streamArg.addr.data.parameters).toEqual([
+            '/drone/BatteryPackVoltage',
+            '/drone/Motors[0].rpm',
+            '/drone/Attitude.yaw',
         ]);
-        const parameters = getDataStreamMock.mock.calls.map((call) => call[0].addr.data.parameter);
-        expect(parameters).toEqual(['/drone/BatteryPackVoltage', '/drone/Motors[0].rpm', '/drone/Attitude.yaw']);
-        // Each fanned-out query carries just its own parameter, not the list.
-        for (const call of getDataStreamMock.mock.calls) {
-            expect(call[0].addr.data.parameters).toBeUndefined();
-        }
     });
 
     it('supports comma or newline separated legacy parameter text for multi-parameter plot queries', async () => {
@@ -203,16 +206,41 @@ describe('DataSource.query', () => {
             )
         );
 
-        expect(getDataStreamMock).toHaveBeenCalledTimes(3);
-        const parameters = getDataStreamMock.mock.calls.map((call) => call[0].addr.data.parameter);
-        expect(parameters).toEqual([
+        expect(getDataStreamMock).toHaveBeenCalledTimes(1);
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        expect(streamArg.addr.data.parameters).toEqual([
             '/drone/BatteryPackVoltage',
             '/drone/BatteryPackCurrent',
             '/drone/BatteryTemperature',
         ]);
     });
 
-    it('still opens a single live stream for a single-parameter plot query', async () => {
+    it('keeps the Live channel path short for a wide multi-parameter query, regardless of parameter name length', async () => {
+        // Regression test: concatenating every parameter name into the path
+        // (the original implementation) silently exceeded Grafana Live's
+        // Centrifuge channel length limit for a query this wide, so the
+        // subscribe never even reached the backend - no error, just zero
+        // data forever. 20 long parameter names is exactly the shape that
+        // triggered it.
+        const ds = buildDatasource();
+        const parameters = Array.from({ length: 20 }, (_, i) => `/drone/SomeReasonablyLongParameterName_${i}`);
+
+        await firstValueFrom(
+            ds.query(buildRequest(QueryType.PLOT, { parameter: parameters[0], parameters, fields: [] }) as any)
+        );
+
+        expect(getDataStreamMock).toHaveBeenCalledTimes(1);
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        expect(streamArg.addr.path.length).toBeLessThan(100);
+        expect(streamArg.addr.data.parameters).toEqual(parameters);
+    });
+
+    it('still opens a single plain live stream for a single-parameter plot query', async () => {
+        // A single parameter is the degenerate case of the same multi-parameter
+        // wire shape (parameters: [one entry]), not a separate code path - see
+        // RunParameterStream. The channel path still uses the readable
+        // single-name scheme rather than a hash, since there's no collision risk
+        // to guard against with only one candidate name.
         const ds = buildDatasource();
 
         await firstValueFrom(
@@ -227,7 +255,36 @@ describe('DataSource.query', () => {
         expect(getDataStreamMock).toHaveBeenCalledTimes(1);
         const streamArg = getDataStreamMock.mock.calls[0][0];
         expect(streamArg.addr.path).toBe('myproject_realtime/-drone-BatteryPackVoltage/now-5m-now/500/fields=none');
-        expect(streamArg.addr.data.parameters).toBeUndefined();
+        expect(streamArg.addr.data.parameters).toEqual(['/drone/BatteryPackVoltage']);
+    });
+
+    it('shares one Live channel for the same parameter set requested in a different order', async () => {
+        const ds = buildDatasource();
+
+        await firstValueFrom(
+            ds.query(
+                buildRequest(QueryType.PLOT, {
+                    parameter: '/drone/BatteryPackVoltage',
+                    parameters: ['/drone/BatteryPackVoltage', '/drone/Motors[0].rpm', '/drone/Attitude.yaw'],
+                    fields: [],
+                }) as any
+            )
+        );
+        const firstPath = getDataStreamMock.mock.calls[0][0].addr.path;
+
+        getDataStreamMock.mockClear();
+        await firstValueFrom(
+            ds.query(
+                buildRequest(QueryType.PLOT, {
+                    parameter: '/drone/Attitude.yaw',
+                    parameters: ['/drone/Attitude.yaw', '/drone/BatteryPackVoltage', '/drone/Motors[0].rpm'],
+                    fields: [],
+                }) as any
+            )
+        );
+        const secondPath = getDataStreamMock.mock.calls[0][0].addr.path;
+
+        expect(secondPath).toBe(firstPath);
     });
 
     it('includes automatic color setting in discrete stream path and payload', async () => {
