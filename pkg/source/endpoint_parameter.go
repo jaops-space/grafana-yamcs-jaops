@@ -263,8 +263,9 @@ func (ep *YamcsEndpoint) getOrCreateParameterDemand(ctx context.Context, paramet
 	unitSet := paramType.GetUnitSet()
 	thresholds := tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
 	if len(unitSet) > 0 {
-		unit = unitSet[0].GetUnit()
-		backend.Logger.Debug("found unit", "parameter", parameter, "unit", unit)
+		yamcsUnit := unitSet[0].GetUnit()
+		unit = tools.ConvertYamcsUnitToGrafanaUnit(yamcsUnit)
+		backend.Logger.Debug("found unit", "parameter", parameter, "yamcsUnit", yamcsUnit, "grafanaUnit", unit)
 	}
 
 	demand = &ParameterDemand{
@@ -330,15 +331,36 @@ func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, paramet
 		return
 	}
 
-	field, _ := frame.FieldByName(parameter)
-	if field == nil {
+	valueField, _ := frame.FieldByName(parameter)
+	minField, _ := frame.FieldByName("min(" + parameter + ")")
+	maxField, _ := frame.FieldByName("max(" + parameter + ")")
+
+	if valueField == nil && minField == nil && maxField == nil {
 		backend.Logger.Debug("could not set units and thresholds; parameter field not found", "parameter", parameter)
+		return
+	}
+
+	configureUnit := func(field *data.Field) {
+		if field == nil || parameterDemand.Unit == "" {
+			return
+		}
+		if field.Config == nil {
+			field.Config = &data.FieldConfig{}
+		}
+		field.Config.Unit = parameterDemand.Unit
+	}
+
+	configureUnit(valueField)
+	configureUnit(minField)
+	configureUnit(maxField)
+
+	field := valueField
+	if field == nil {
 		return
 	}
 	if field.Config == nil {
 		field.Config = &data.FieldConfig{}
 	}
-	field.Config.Unit = parameterDemand.Unit
 	field.Config.Thresholds = &data.ThresholdsConfig{
 		Mode:  data.ThresholdsModeAbsolute,
 		Steps: make([]data.Threshold, 0, len(parameterDemand.Thresholds)),
