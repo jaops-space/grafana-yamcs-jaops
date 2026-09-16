@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/mdb"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -339,7 +340,20 @@ func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.
 	return subscription, nil
 }
 
-func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, parameter string, frame *data.Frame) {
+// SetUnitAndThresholds sets parameter's field(s) in frame to its unit and
+// alarm thresholds.
+//
+// The unit always comes from the MDB type (Yamcs attaches no per-value unit
+// info, so there's no way around the demand's cached, MDB-resolved unit).
+// Thresholds are different: when liveValue is provided and carries its own
+// AlarmRange, that's preferred over the demand's cached static default
+// alarm, since Yamcs already resolves AlarmRange per-value for the exact
+// context (including array/aggregate members) that produced it - more
+// accurate than a type's one-size-fits-all default, and it needs no MDB
+// lookup at all. liveValue may be nil (e.g. the archive samples API behind
+// historical Graph frames has no per-sample alarm info), in which case this
+// falls back to the demand's cached thresholds exactly as before.
+func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, parameter string, frame *data.Frame, liveValue client.ParameterValue) {
 
 	parameterDemand, err := endpoint.getOrCreateParameterDemand(ctx, parameter)
 	if err != nil {
@@ -377,11 +391,19 @@ func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, paramet
 	if field.Config == nil {
 		field.Config = &data.FieldConfig{}
 	}
+
+	thresholds := parameterDemand.Thresholds
+	if liveValue != nil {
+		if liveThresholds := tools.ConvertAlarmRangesToThresholds(liveValue.GetAlarmRange(), mdb.AlarmLevelType_NORMAL); len(liveThresholds) > 0 {
+			thresholds = liveThresholds
+		}
+	}
+
 	field.Config.Thresholds = &data.ThresholdsConfig{
 		Mode:  data.ThresholdsModeAbsolute,
-		Steps: make([]data.Threshold, 0, len(parameterDemand.Thresholds)),
+		Steps: make([]data.Threshold, 0, len(thresholds)),
 	}
-	for _, t := range parameterDemand.Thresholds {
+	for _, t := range thresholds {
 		field.Config.Thresholds.Steps = append(field.Config.Thresholds.Steps, *t)
 	}
 }
