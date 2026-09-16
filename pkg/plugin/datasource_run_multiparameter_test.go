@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -245,5 +246,117 @@ func TestBuildMultiParameterFrameUsesDiscreteConversionAndKeepsColorMappingOnCar
 	// parameter) - simulate that directly via the state instead.
 	if states["/mode"].lastField.Config == nil || len(states["/mode"].lastField.Config.Mappings) == 0 {
 		t.Fatalf("expected the carried-forward field to keep its value mapping")
+	}
+}
+
+func sampleFrame(t *testing.T, times []time.Time, values []*float64) *data.Frame {
+	t.Helper()
+	timeField := data.NewField("time", nil, times)
+	valueField := data.NewField("/a", nil, values)
+	return data.NewFrame("response", timeField, valueField)
+}
+
+func floatPtr(v float64) *float64 { return &v }
+
+func TestCarryForwardFillSamplesDropsLeadingGapAndFillsInteriorGaps(t *testing.T) {
+	base := time.Unix(1000, 0)
+	times := []time.Time{base, base.Add(time.Second), base.Add(2 * time.Second), base.Add(3 * time.Second)}
+	// A leading gap (no value yet), then a real value, then a gap (carried
+	// forward), then a new real value.
+	values := []*float64{nil, floatPtr(1.0), nil, floatPtr(2.0)}
+
+	gotTimes, gotValues := carryForwardFillSamples(sampleFrame(t, times, values))
+
+	if len(gotTimes) != 3 {
+		t.Fatalf("expected the leading gap dropped (3 rows), got %d: %v", len(gotTimes), gotValues)
+	}
+	if gotValues[0] != 1.0 || gotValues[1] != 1.0 || gotValues[2] != 2.0 {
+		t.Fatalf("expected [1.0 1.0 2.0] (interior gap carried forward), got %v", gotValues)
+	}
+}
+
+func TestCarryForwardFillSamplesAllGapsProducesEmpty(t *testing.T) {
+	base := time.Unix(1000, 0)
+	times := []time.Time{base, base.Add(time.Second)}
+	values := []*float64{nil, nil}
+
+	gotTimes, gotValues := carryForwardFillSamples(sampleFrame(t, times, values))
+
+	if len(gotTimes) != 0 || len(gotValues) != 0 {
+		t.Fatalf("expected no rows when a parameter never had a real sample, got %v %v", gotTimes, gotValues)
+	}
+}
+
+func TestMergeHistoricalTimestampsDeduplicatesAndSorts(t *testing.T) {
+	base := time.Unix(1000, 0)
+	a := historicalParameterSeries{parameter: "/a", times: []time.Time{base, base.Add(2 * time.Second)}}
+	b := historicalParameterSeries{parameter: "/b", times: []time.Time{base.Add(time.Second), base.Add(2 * time.Second)}}
+
+	union := mergeHistoricalTimestamps([]historicalParameterSeries{a, b})
+
+	if len(union) != 3 {
+		t.Fatalf("expected 3 distinct timestamps (one shared), got %d: %v", len(union), union)
+	}
+	for i := 1; i < len(union); i++ {
+		if union[i].Before(union[i-1]) {
+			t.Fatalf("expected ascending order, got %v", union)
+		}
+	}
+}
+
+func TestBuildHistoricalFieldCarriesForwardAndBackfillsBeforeFirstSample(t *testing.T) {
+	base := time.Unix(1000, 0)
+	// /a has a sample at t=1 and t=3; the union also has rows at t=0 and t=2
+	// where /a has no sample of its own.
+	series := historicalParameterSeries{
+		parameter: "/a",
+		times:     []time.Time{base.Add(time.Second), base.Add(3 * time.Second)},
+		values:    []float64{10, 30},
+	}
+	union := []time.Time{base, base.Add(time.Second), base.Add(2 * time.Second), base.Add(3 * time.Second)}
+
+	field := buildHistoricalField(series, union)
+
+	got := []float64{
+		field.At(0).(float64), field.At(1).(float64), field.At(2).(float64), field.At(3).(float64),
+	}
+	want := []float64{10, 10, 10, 30}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v (t=0 backfilled from first sample, t=2 carried forward from t=1), got %v", want, got)
+		}
+	}
+}
+
+func TestDatasourceMultiParameterHistoricalGraphFrameJoinsAlignedAndMisalignedParameters(t *testing.T) {
+	base := time.Unix(1000, 0)
+	// /a and /b share a timestamp (the common case: same request window/
+	// maxPoints bucket the same way); /c only has a later, unique sample.
+	a := historicalParameterSeries{parameter: "/a", times: []time.Time{base, base.Add(time.Second)}, values: []float64{1, 2}}
+	b := historicalParameterSeries{parameter: "/b", times: []time.Time{base, base.Add(time.Second)}, values: []float64{10, 20}}
+	c := historicalParameterSeries{parameter: "/c", times: []time.Time{base.Add(2 * time.Second)}, values: []float64{100}}
+
+	union := mergeHistoricalTimestamps([]historicalParameterSeries{a, b, c})
+	if len(union) != 3 {
+		t.Fatalf("expected 3 rows (2 shared + 1 unique), got %d: %v", len(union), union)
+	}
+
+	fields := []*data.Field{data.NewField("time", nil, union)}
+	for _, s := range []historicalParameterSeries{a, b, c} {
+		fields = append(fields, buildHistoricalField(s, union))
+	}
+	frame := data.NewFrame("response", fields...)
+
+	if len(frame.Fields) != 4 {
+		t.Fatalf("expected time + 3 parameter fields, got %d", len(frame.Fields))
+	}
+	// Row 2 (/c's own sample time): /a and /b carry forward their last
+	// known value instead of going undefined.
+	if frame.Fields[1].At(2).(float64) != 2 || frame.Fields[2].At(2).(float64) != 20 {
+		t.Fatalf("expected /a and /b to carry forward into /c's row, got a=%v b=%v",
+			frame.Fields[1].At(2), frame.Fields[2].At(2))
+	}
+	if frame.Fields[3].At(2).(float64) != 100 {
+		t.Fatalf("expected /c's own value 100 at its row, got %v", frame.Fields[3].At(2))
 	}
 }

@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
@@ -114,24 +115,45 @@ func reduceParameterBatch(queryType PluginQueryType, automaticColors bool, batch
 // single live tick for the rest of the panel's life would fail that schema
 // check - not just during warmup.
 //
-// To guarantee that match, this reuses reduceParameterBatch - the exact
-// same per-parameter reduction RunParameterStream's multi-parameter ticks
-// go through, including the query-type dispatch (DiscreteValue's
-// color/label mapping, SingleValue's framing) - seeded from each
-// parameter's current value (one lightweight fetch per parameter) rather
-// than a full historical range, and joins them with the same "latest wins"
-// row-timestamp policy. A parameter with no current value yet is left out,
-// mirroring the live path's "never reported" carry-forward case, so the
-// first live frame that does include it is a pure addition rather than a
-// change to an existing field.
-//
-// Known limitation: only the parameter's *current* value is fetched, not
-// its historical range - a multi-parameter panel's initial render shows one
-// data point per parameter until live ticks fill in more, unlike a
-// single-parameter panel's full historical backfill (DatasourceGraphFrame).
-// Joining full historical ranges across parameters with this same policy is
-// a separate problem this doesn't attempt.
+// For Graph queries, this fetches each parameter's full historical sample
+// range (GetParameterSamplesInProcessorByNames, the same call
+// DatasourceGraphFrame makes for a single parameter) and joins them onto
+// shared rows using the same carry-forward policy RunParameterStream's live
+// ticks use, so a multi-parameter panel backfills its whole time range on
+// open exactly like a single-parameter panel already does - not just one
+// current-value point per parameter. For SingleValue/DiscreteValue queries,
+// where "historical range" doesn't mean the same thing (SingleValue only
+// ever wants the current reading; DiscreteValue uses a separate
+// ranges/value-mapping API with no equivalent samples endpoint), this
+// instead seeds from each parameter's current value only - see
+// datasourceMultiParameterCurrentValueFrame.
 func DatasourceMultiParameterGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+	if q.Type == Graph {
+		frame, err := datasourceMultiParameterHistoricalGraphFrame(ctx, endpoint, q)
+		if err != nil {
+			return nil, err
+		}
+		if frame != nil {
+			return frame, nil
+		}
+		// No parameter had any history yet: fall through to the
+		// current-value seed so the panel isn't left with an empty schema
+		// (matching DatasourceGraphFrame's own "no samples yet" fallback
+		// isn't an option here since we need *a* row to establish fields).
+	}
+	return datasourceMultiParameterCurrentValueFrame(ctx, endpoint, q)
+}
+
+// datasourceMultiParameterCurrentValueFrame seeds the initial frame from
+// each parameter's current value only (one lightweight fetch per
+// parameter), reusing reduceParameterBatch - the exact same per-parameter
+// reduction RunParameterStream's multi-parameter ticks go through, so the
+// resulting field schema (names, order, types) matches every later live
+// push. A parameter with no current value yet is left out, mirroring the
+// live path's "never reported" carry-forward case, so the first live frame
+// that does include it is a pure addition rather than a change to an
+// existing field.
+func datasourceMultiParameterCurrentValueFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
 	yamcs, err := endpoint.GetClient()
 	if err != nil {
 		return nil, err
@@ -160,20 +182,168 @@ func DatasourceMultiParameterGraphFrame(ctx context.Context, endpoint *source.Ya
 
 	timeField := data.NewField("time", nil, []time.Time{rowTime})
 	frame := data.NewFrame("response", append([]*data.Field{timeField}, fields...)...)
+	setMultiParameterUnitsAndThresholds(ctx, endpoint, frame, fields)
+	return frame, nil
+}
 
-	// Every single-parameter initial frame (DatasourceGraphFrame,
-	// DatasourceSingleValueFrame, DatasourceDiscreteValueFrame) sets each
-	// value field's unit and alarm thresholds here; a multi-parameter query
-	// needs the same treatment per parameter, not just the first one. This
-	// only needs to happen on this schema-establishing frame - Grafana Live
-	// keeps a channel's field Config from here for every later live push
-	// (data.IncludeDataOnly), the same way it already does for a
-	// single-parameter query.
+// historicalParameterSeries is one parameter's full sample range, with any
+// gap (Yamcs sample with n=0) carry-forward filled already - see
+// carryForwardFillSamples. Kept as a plain float64 series (matching what
+// Yamcs's sample endpoint always returns: Sample.Avg/Min/Max are `double`
+// regardless of the parameter's own engineering type) rather than typed per
+// parameter, consistent with DatasourceGraphFrame's existing single-
+// parameter historical frame, which already always renders float64 for the
+// same reason - proven not to conflict with live ticks' own numeric field
+// type (which can itself vary between the raw type and float64 depending on
+// whether a given tick's batch got averaged; see reduceParameterBatch),
+// since Grafana Live's schema check cares about field count/name/general
+// type family, not exact numeric width.
+type historicalParameterSeries struct {
+	parameter string
+	times     []time.Time
+	values    []float64
+}
+
+// carryForwardFillSamples turns ConvertSampleBufferToFrame's nullable
+// []*float64 (which represents a real Yamcs sample gap, n=0, as a null
+// entry) into a carry-forward-filled []float64, matching the same policy
+// RunParameterStream's live ticks already use for a quiet parameter -
+// "same policy for live" per the historical join this feeds into. Any
+// leading gap before this parameter's first real sample is dropped rather
+// than guessed at.
+func carryForwardFillSamples(frame *data.Frame) ([]time.Time, []float64) {
+	timeField := frame.Fields[0]
+	valueField := frame.Fields[1]
+	times := make([]time.Time, 0, timeField.Len())
+	values := make([]float64, 0, timeField.Len())
+
+	var last float64
+	haveLast := false
+	for i := 0; i < timeField.Len(); i++ {
+		if v, ok := valueField.At(i).(*float64); ok && v != nil {
+			last = *v
+			haveLast = true
+		}
+		if !haveLast {
+			continue
+		}
+		t, _ := timeField.At(i).(time.Time)
+		times = append(times, t)
+		values = append(values, last)
+	}
+	return times, values
+}
+
+// mergeHistoricalTimestamps returns the sorted union of every series'
+// timestamps, deduplicated by exact equality. Each parameter's own sample
+// buckets come from the same requested (start, end, maxPoints), so they
+// mostly land on identical bucket boundaries in practice - but this doesn't
+// assume that, so parameters with genuinely different sampling still merge
+// correctly.
+func mergeHistoricalTimestamps(series []historicalParameterSeries) []time.Time {
+	seen := make(map[int64]struct{})
+	var union []time.Time
+	for _, s := range series {
+		for _, t := range s.times {
+			key := t.UnixNano()
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			union = append(union, t)
+		}
+	}
+	sort.Slice(union, func(i, j int) bool { return union[i].Before(union[j]) })
+	return union
+}
+
+// buildHistoricalField projects one series onto the shared union timeline,
+// carrying its last known value forward into any row where it has no
+// sample of its own - the historical equivalent of a quiet parameter
+// keeping its last value on a live tick (buildMultiParameterFrame). A row
+// before this series' first real sample backward-fills from that first
+// sample instead, so the field has no undefined rows at all: Grafana Live
+// row-aligns fields by index within a frame, so leaving early rows at the
+// zero value while other parameters already have real data would silently
+// mean an incorrect (0.0) history for this parameter, not a visible gap.
+func buildHistoricalField(s historicalParameterSeries, unionTimes []time.Time) *data.Field {
+	values := make([]float64, len(unionTimes))
+	idx := 0
+	var last float64
+	haveLast := false
+	for i, t := range unionTimes {
+		for idx < len(s.times) && !s.times[idx].After(t) {
+			last = s.values[idx]
+			haveLast = true
+			idx++
+		}
+		switch {
+		case haveLast:
+			values[i] = last
+		case len(s.values) > 0:
+			values[i] = s.values[0]
+		}
+	}
+	return data.NewField(s.parameter, nil, values)
+}
+
+// datasourceMultiParameterHistoricalGraphFrame joins every parameter's full
+// historical sample range onto shared rows. Returns a nil frame (not an
+// error) when no parameter has any history yet, so the caller can fall back
+// to seeding from current values instead of returning an empty-schema
+// frame.
+func datasourceMultiParameterHistoricalGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q PluginQuery) (*data.Frame, error) {
+	yamcs, err := endpoint.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	start := time.Unix(int64(q.From), 0)
+	end := time.Unix(int64(q.To), 0)
+
+	series := make([]historicalParameterSeries, 0, len(q.Parameters))
+	for _, parameter := range q.Parameters {
+		samples, err := yamcs.GetParameterSamplesInProcessorByNames(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), parameter, start, end, q.MaxPoints)
+		if err != nil {
+			// No history (or not a sampleable/numeric parameter): genuinely
+			// absent, matching the live path's "never reported" case.
+			continue
+		}
+		sampleFrame := tools.ConvertSampleBufferToFrame(samples, parameter, false, false)
+		times, values := carryForwardFillSamples(sampleFrame)
+		if len(times) == 0 {
+			continue
+		}
+		series = append(series, historicalParameterSeries{parameter: parameter, times: times, values: values})
+	}
+
+	if len(series) == 0 {
+		return nil, nil
+	}
+
+	unionTimes := mergeHistoricalTimestamps(series)
+	fields := make([]*data.Field, 0, len(series)+1)
+	fields = append(fields, data.NewField("time", nil, unionTimes))
+	for _, s := range series {
+		fields = append(fields, buildHistoricalField(s, unionTimes))
+	}
+
+	frame := data.NewFrame("response", fields...)
+	setMultiParameterUnitsAndThresholds(ctx, endpoint, frame, fields[1:])
+	return frame, nil
+}
+
+// setMultiParameterUnitsAndThresholds applies each single-parameter initial
+// frame's unit/alarm-threshold treatment (DatasourceGraphFrame,
+// DatasourceSingleValueFrame, DatasourceDiscreteValueFrame) to every field
+// in a multi-parameter frame, not just the first one. This only needs to
+// happen on this schema-establishing frame - Grafana Live keeps a channel's
+// field Config from here for every later live push (data.IncludeDataOnly),
+// the same way it already does for a single-parameter query.
+func setMultiParameterUnitsAndThresholds(ctx context.Context, endpoint *source.YamcsEndpoint, frame *data.Frame, fields []*data.Field) {
 	for _, field := range fields {
 		endpoint.SetUnitAndThresholds(ctx, field.Name, frame)
 	}
-
-	return frame, nil
 }
 
 // buildMultiParameterFrame drains one tick's worth of data for every
