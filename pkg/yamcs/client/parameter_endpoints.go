@@ -42,6 +42,13 @@ func (client *YamcsClient) SearchParameters(ctx context.Context, instance string
 	return iterator
 }
 
+// SearchParametersWithOptions searches for parameters with Yamcs MDB options.
+func (client *YamcsClient) SearchParametersWithOptions(ctx context.Context, instance string, query map[string]string) *types.PaginatedRequestIterator[[]Parameter] {
+	iterator := types.NewPaginatedRequestIterator(client.HTTP, client.getParametersFetchMethod(ctx, instance))
+	iterator.SetQuery(query)
+	return iterator
+}
+
 // GetParameter retrieves a specific parameter's info for an instance.
 func (client *YamcsClient) GetParameter(ctx context.Context, instance string, parameter string) (Parameter, error) {
 	response := &mdb.ParameterInfo{}
