@@ -223,6 +223,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                         },
                         addr: {
                             scope: LiveChannelScope.DataSource,
+                            namespace: this.uid,
                             stream: this.uid,
                             path: pathParts.join('/'),
                             data: {
