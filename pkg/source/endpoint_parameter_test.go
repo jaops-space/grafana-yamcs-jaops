@@ -202,14 +202,14 @@ func TestWithdrawUnknownParameterStreamIsNoop(t *testing.T) {
 	}
 }
 
-func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
+func TestSetUnitAndThresholdsConfiguresValueAndStatisticUnits(t *testing.T) {
 	okThreshold := data.NewThreshold(0, "green", "")
 	warnThreshold := data.NewThreshold(50, "red", "")
 	endpoint := &YamcsEndpoint{
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
-				Unit: "degC",
+				Unit: "celsius",
 				Thresholds: []*data.Threshold{
 					&okThreshold,
 					&warnThreshold,
@@ -229,19 +229,25 @@ func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
 	if frame.Fields[0].Config != nil {
 		t.Fatalf("expected time field config to stay nil, got %#v", frame.Fields[0].Config)
 	}
-	if frame.Fields[2].Config != nil {
-		t.Fatalf("expected min field config to stay nil, got %#v", frame.Fields[2].Config)
+	if frame.Fields[2].Config == nil || frame.Fields[2].Config.Unit != "celsius" {
+		t.Fatalf("expected min field unit celsius, got %#v", frame.Fields[2].Config)
 	}
-	if frame.Fields[3].Config != nil {
-		t.Fatalf("expected max field config to stay nil, got %#v", frame.Fields[3].Config)
+	if frame.Fields[2].Config.Thresholds != nil {
+		t.Fatalf("expected min field thresholds to stay nil, got %#v", frame.Fields[2].Config.Thresholds)
+	}
+	if frame.Fields[3].Config == nil || frame.Fields[3].Config.Unit != "celsius" {
+		t.Fatalf("expected max field unit celsius, got %#v", frame.Fields[3].Config)
+	}
+	if frame.Fields[3].Config.Thresholds != nil {
+		t.Fatalf("expected max field thresholds to stay nil, got %#v", frame.Fields[3].Config.Thresholds)
 	}
 
 	valueConfig := frame.Fields[1].Config
 	if valueConfig == nil {
 		t.Fatalf("expected parameter field config")
 	}
-	if valueConfig.Unit != "degC" {
-		t.Fatalf("expected unit degC, got %q", valueConfig.Unit)
+	if valueConfig.Unit != "celsius" {
+		t.Fatalf("expected unit celsius, got %q", valueConfig.Unit)
 	}
 	if valueConfig.Thresholds == nil {
 		t.Fatalf("expected thresholds config")
