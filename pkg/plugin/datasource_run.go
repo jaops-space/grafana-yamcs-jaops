@@ -142,7 +142,7 @@ func RunParameterStream(ctx context.Context,
 
 			if q.Type == DiscreteValue {
 				frame := tools.ConvertDiscreteBufferToFrame(batch, q.Parameter, q.AutomaticColors, false)
-				endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
+				endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame, batch[len(batch)-1])
 				sender.SendFrame(
 					frame,
 					data.IncludeDataOnly,
@@ -152,7 +152,7 @@ func RunParameterStream(ctx context.Context,
 			}
 			if q.Type == SingleValue {
 				frame := tools.ConvertSingleValueBufferToFrame(batch, q.Parameter, false)
-				endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
+				endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame, batch[len(batch)-1])
 				sender.SendFrame(
 					frame,
 					data.IncludeAll,
@@ -168,7 +168,7 @@ func RunParameterStream(ctx context.Context,
 				frame = tools.ConvertBufferToFrame(batch, q.Parameter, getMin, getMax, false)
 			}
 
-			endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
+			endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame, batch[len(batch)-1])
 			sender.SendFrame(
 				frame,
 				data.IncludeDataOnly,

@@ -266,6 +266,26 @@ var AlarmLevelColors = map[mdb.AlarmLevelType]string{
 	mdb.AlarmLevelType_SEVERE:   "darkred",
 }
 
+// ConvertAlarmRangesToThresholds converts the context-dependent alarm ranges
+// Yamcs attaches directly to a live pvalue.ParameterValue (its AlarmRange
+// field) into Grafana thresholds. Unlike a type's static default alarm, this
+// is already resolved by Yamcs for the exact member/context that produced
+// this value - including array/aggregate members - so it needs no MDB type
+// lookup or path-walking at all. Prefer this over
+// ConvertAlarmInfoToThresholds whenever a live value is available; fall back
+// to the static default alarm only where Yamcs doesn't attach per-value
+// ranges (the archive samples API used for historical Graph frames, and any
+// value that hasn't been monitored yet).
+func ConvertAlarmRangesToThresholds(ranges []*mdb.AlarmRange, defaultLevel mdb.AlarmLevelType) []*data.Threshold {
+	if len(ranges) == 0 {
+		return nil
+	}
+	return ConvertAlarmInfoToThresholds(&mdb.AlarmInfo{
+		DefaultLevel:      defaultLevel.Enum(),
+		StaticAlarmRanges: ranges,
+	})
+}
+
 // ConvertAlarmInfoToGrafanaThresholds converts an AlarmInfo to Grafana thresholds.
 func ConvertAlarmInfoToThresholds(alarmInfo *mdb.AlarmInfo) []*data.Threshold {
 
