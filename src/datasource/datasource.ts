@@ -91,6 +91,31 @@ function formatDiscreteOptionsPath(query: Query): string {
     return query.automaticColors ? 'colors=auto' : 'colors=none';
 }
 
+function parseParameterList(value: string | undefined): string[] {
+    return (value ?? '')
+        .split(/[\n,]+/)
+        .map((parameter) => parameter.trim())
+        .filter(Boolean);
+}
+
+function getQueryParameters(query: Query): string[] {
+    const parameters = (query.parameters ?? []).map((parameter) => parameter.trim()).filter(Boolean);
+    if (parameters.length > 0) {
+        return parameters;
+    }
+    return parseParameterList(query.parameter);
+}
+
+function isParameterQueryType(type: QueryType | undefined): boolean {
+    return (
+        type === QueryType.PLOT || type === QueryType.SINGLE || type === QueryType.DISCRETE || type === QueryType.IMAGE
+    );
+}
+
+function isMultiParameterQueryType(type: QueryType | undefined): boolean {
+    return type === QueryType.PLOT || type === QueryType.SINGLE || type === QueryType.DISCRETE;
+}
+
 function roundDataPoints(maxDataPoints: number, dataPointsRounding: number, bufferMaxLength: number): number {
     const rounded = Math.round(maxDataPoints / dataPointsRounding) * dataPointsRounding;
     // Never resolve to 0 (or negative) datapoints. A panel shrunk small
@@ -136,104 +161,132 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
      */
     query(request: DataQueryRequest<Query>): Observable<DataQueryResponse> {
         const observables = request.targets
-            .map((query) => {
-                if ((!query.endpoint && !query.asVariable) || !query.type) {
-                    return new Observable<DataQueryResponse>((subscriber) => {
-                        subscriber.next({ data: [], state: LoadingState.NotStarted });
-                        subscriber.complete();
-                    });
-                }
-
-                // Commanding query type doesn't need streaming.
-                // Commanding panel fetches command info via a resource call and sends commands via postResource.
-                if (query.type === QueryType.COMMANDING) {
-                    return new Observable<DataQueryResponse>((subscriber) => {
-                        subscriber.next({ data: [], state: LoadingState.Done });
-                        subscriber.complete();
-                    });
-                }
-
-                let pathName = 'query';
-                if (query.parameter) {
-                    pathName = `${query.parameter.replaceAll('/', '-')}`;
-                } else if (query.type === QueryType.EVENTS) {
-                    pathName = `events`;
-                } else if (query.type === QueryType.DEMANDS) {
-                    pathName = `demands`;
-                } else if (query.type === QueryType.SUBSCRIPTIONS) {
-                    pathName = 'subscriptions';
-                } else if (query.type === QueryType.COMMAND_HISTORY) {
-                    pathName = `commands`;
-                } else if (query.type === QueryType.ALARMS) {
-                    pathName = `alarms`;
-                } else if (query.type === QueryType.LINKS) {
-                    pathName = `links`;
-                }
-
-                let action = StreamingFrameAction.Append;
-                if (
-                    query.type === QueryType.DEMANDS ||
-                    query.type === QueryType.SUBSCRIPTIONS ||
-                    query.type === QueryType.ALARMS ||
-                    query.type === QueryType.LINKS
-                ) {
-                    action = StreamingFrameAction.Replace;
-                }
-
+            .flatMap((target) => {
                 const templateSrv = getTemplateSrv();
+                const endpoint = target.asVariable
+                    ? templateSrv.replace(target.endpointVariable, request.scopedVars)
+                    : templateSrv.replace(target.endpoint, request.scopedVars);
+                const command = templateSrv.replace(target.command, request.scopedVars);
+                const parameterList = getQueryParameters(target)
+                    .flatMap((parameter) => parseParameterList(templateSrv.replace(parameter, request.scopedVars)))
+                    .filter(Boolean);
 
-                pathName = templateSrv.replace(pathName, request.scopedVars);
-                query.parameter = templateSrv.replace(query.parameter, request.scopedVars);
-                query.command = templateSrv.replace(query.command, request.scopedVars);
+                // Fan out a multi-parameter Plot/Single/Discrete query into one
+                // query object per parameter, each opening its own Grafana Live
+                // channel/backend goroutine (RunParameterStream) - the shipped
+                // multi-observer architecture. `parameters` is intentionally left
+                // unset on each fanned-out query; see ParameterPicker for where the
+                // full list is collected from the user.
+                const queries = isMultiParameterQueryType(target.type) && parameterList.length > 0
+                    ? parameterList.map((parameter) => ({
+                          ...target,
+                          endpoint,
+                          command,
+                          parameter,
+                          parameters: undefined,
+                      }))
+                    : [
+                          {
+                              ...target,
+                              endpoint,
+                              command,
+                              parameter: isParameterQueryType(target.type)
+                                  ? templateSrv.replace(target.parameter, request.scopedVars)
+                                  : target.parameter,
+                          },
+                      ];
 
-                if (query.asVariable) {
-                    query.endpoint = templateSrv.replace(query.endpointVariable, request.scopedVars);
-                }
+                return queries.map((query) => {
+                    if ((!query.endpoint && !query.asVariable) || !query.type) {
+                        return new Observable<DataQueryResponse>((subscriber) => {
+                            subscriber.next({ data: [], state: LoadingState.NotStarted });
+                            subscriber.complete();
+                        });
+                    }
 
-                const fromUnix = request.range.from.unix();
-                const toUnix = request.range.to.unix();
-                const roundedMaxDataPoints = roundDataPoints(
-                    request.maxDataPoints ?? this.dataPointsRounding,
-                    this.dataPointsRounding,
-                    this.bufferMaxLength
-                );
+                    // Commanding query type doesn't need streaming.
+                    // Commanding panel fetches command info via a resource call and sends commands via postResource.
+                    if (query.type === QueryType.COMMANDING) {
+                        return new Observable<DataQueryResponse>((subscriber) => {
+                            subscriber.next({ data: [], state: LoadingState.Done });
+                            subscriber.complete();
+                        });
+                    }
 
-                const pathParts = [query.endpoint, pathName];
-                if (query.type === QueryType.PLOT) {
-                    pathParts.push(
-                        formatRangePath(request),
-                        `${roundedMaxDataPoints}`,
-                        formatGraphFieldsPath(query)
+                    let pathName = 'query';
+                    if (query.parameter) {
+                        pathName = `${query.parameter.replaceAll('/', '-')}`;
+                    } else if (query.type === QueryType.EVENTS) {
+                        pathName = `events`;
+                    } else if (query.type === QueryType.DEMANDS) {
+                        pathName = `demands`;
+                    } else if (query.type === QueryType.SUBSCRIPTIONS) {
+                        pathName = 'subscriptions';
+                    } else if (query.type === QueryType.COMMAND_HISTORY) {
+                        pathName = `commands`;
+                    } else if (query.type === QueryType.ALARMS) {
+                        pathName = `alarms`;
+                    } else if (query.type === QueryType.LINKS) {
+                        pathName = `links`;
+                    }
+
+                    let action = StreamingFrameAction.Append;
+                    if (
+                        query.type === QueryType.DEMANDS ||
+                        query.type === QueryType.SUBSCRIPTIONS ||
+                        query.type === QueryType.ALARMS ||
+                        query.type === QueryType.LINKS
+                    ) {
+                        action = StreamingFrameAction.Replace;
+                    }
+
+                    pathName = templateSrv.replace(pathName, request.scopedVars);
+
+                    const fromUnix = request.range.from.unix();
+                    const toUnix = request.range.to.unix();
+                    const roundedMaxDataPoints = roundDataPoints(
+                        request.maxDataPoints ?? this.dataPointsRounding,
+                        this.dataPointsRounding,
+                        this.bufferMaxLength
                     );
-                } else if (query.type === QueryType.DISCRETE) {
-                    pathParts.push(
-                        formatRangePath(request),
-                        `${roundedMaxDataPoints}`,
-                        formatDiscreteOptionsPath(query)
-                    );
-                } else if (query.type === QueryType.COMMAND_HISTORY || query.type === QueryType.SINGLE) {
-                    pathParts.push(formatRangePath(request));
-                }
 
-                return getGrafanaLiveSrv()
-                    .getDataStream({
-                        buffer: {
-                            maxLength: this.bufferMaxLength,
-                            action,
-                        },
-                        addr: {
-                            scope: LiveChannelScope.DataSource,
-                            stream: this.uid,
-                            path: pathParts.join('/'),
-                            data: {
-                                ...query,
-                                from: fromUnix,
-                                to: toUnix,
-                                points: roundedMaxDataPoints,
+                    const pathParts = [query.endpoint, pathName];
+                    if (query.type === QueryType.PLOT) {
+                        pathParts.push(
+                            formatRangePath(request),
+                            `${roundedMaxDataPoints}`,
+                            formatGraphFieldsPath(query)
+                        );
+                    } else if (query.type === QueryType.DISCRETE) {
+                        pathParts.push(
+                            formatRangePath(request),
+                            `${roundedMaxDataPoints}`,
+                            formatDiscreteOptionsPath(query)
+                        );
+                    } else if (query.type === QueryType.COMMAND_HISTORY || query.type === QueryType.SINGLE) {
+                        pathParts.push(formatRangePath(request));
+                    }
+
+                    return getGrafanaLiveSrv()
+                        .getDataStream({
+                            buffer: {
+                                maxLength: this.bufferMaxLength,
+                                action,
                             },
-                        },
-                    })
-                    .pipe(tap(createBenchmarkFrontendTap()));
+                            addr: {
+                                scope: LiveChannelScope.DataSource,
+                                stream: this.uid,
+                                path: pathParts.join('/'),
+                                data: {
+                                    ...query,
+                                    from: fromUnix,
+                                    to: toUnix,
+                                    points: roundedMaxDataPoints,
+                                },
+                            },
+                        })
+                        .pipe(tap(createBenchmarkFrontendTap()));
+                });
             })
             .filter(Boolean) as Array<Observable<DataQueryResponse>>; // Remove undefined values
 

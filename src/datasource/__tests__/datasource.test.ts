@@ -161,6 +161,75 @@ describe('DataSource.query', () => {
         expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature/now-5m-now/500/fields=none');
     });
 
+    it('opens one live stream per selected parameter in a multi-parameter plot query', async () => {
+        const ds = buildDatasource();
+
+        await firstValueFrom(
+            ds.query(
+                buildRequest(QueryType.PLOT, {
+                    parameter: '/drone/BatteryPackVoltage',
+                    parameters: ['/drone/BatteryPackVoltage', '/drone/Motors[0].rpm', '/drone/Attitude.yaw'],
+                    fields: [],
+                }) as any
+            )
+        );
+
+        // The multi-observer architecture: one Live channel/backend goroutine
+        // per parameter, fanned out from a single ParameterPicker selection.
+        expect(getDataStreamMock).toHaveBeenCalledTimes(3);
+        const paths = getDataStreamMock.mock.calls.map((call) => call[0].addr.path);
+        expect(paths).toEqual([
+            'myproject_realtime/-drone-BatteryPackVoltage/now-5m-now/500/fields=none',
+            'myproject_realtime/-drone-Motors[0].rpm/now-5m-now/500/fields=none',
+            'myproject_realtime/-drone-Attitude.yaw/now-5m-now/500/fields=none',
+        ]);
+        const parameters = getDataStreamMock.mock.calls.map((call) => call[0].addr.data.parameter);
+        expect(parameters).toEqual(['/drone/BatteryPackVoltage', '/drone/Motors[0].rpm', '/drone/Attitude.yaw']);
+        // Each fanned-out query carries just its own parameter, not the list.
+        for (const call of getDataStreamMock.mock.calls) {
+            expect(call[0].addr.data.parameters).toBeUndefined();
+        }
+    });
+
+    it('supports comma or newline separated legacy parameter text for multi-parameter plot queries', async () => {
+        const ds = buildDatasource();
+
+        await firstValueFrom(
+            ds.query(
+                buildRequest(QueryType.PLOT, {
+                    parameter: '/drone/BatteryPackVoltage, /drone/BatteryPackCurrent\n/drone/BatteryTemperature',
+                    fields: [],
+                }) as any
+            )
+        );
+
+        expect(getDataStreamMock).toHaveBeenCalledTimes(3);
+        const parameters = getDataStreamMock.mock.calls.map((call) => call[0].addr.data.parameter);
+        expect(parameters).toEqual([
+            '/drone/BatteryPackVoltage',
+            '/drone/BatteryPackCurrent',
+            '/drone/BatteryTemperature',
+        ]);
+    });
+
+    it('still opens a single live stream for a single-parameter plot query', async () => {
+        const ds = buildDatasource();
+
+        await firstValueFrom(
+            ds.query(
+                buildRequest(QueryType.PLOT, {
+                    parameter: '/drone/BatteryPackVoltage',
+                    fields: [],
+                }) as any
+            )
+        );
+
+        expect(getDataStreamMock).toHaveBeenCalledTimes(1);
+        const streamArg = getDataStreamMock.mock.calls[0][0];
+        expect(streamArg.addr.path).toBe('myproject_realtime/-drone-BatteryPackVoltage/now-5m-now/500/fields=none');
+        expect(streamArg.addr.data.parameters).toBeUndefined();
+    });
+
     it('includes automatic color setting in discrete stream path and payload', async () => {
         const ds = buildDatasource();
 

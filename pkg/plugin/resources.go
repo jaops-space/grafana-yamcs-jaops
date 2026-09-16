@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -107,6 +108,102 @@ func (d *Datasource) handleSearchParameters(w http.ResponseWriter, req *http.Req
 
 }
 
+type ParameterSearchOption struct {
+	Label       string `json:"label"`
+	Value       string `json:"value"`
+	Type        string `json:"type,omitempty"`
+	Unit        string `json:"unit,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+func parameterPathValue(qualifiedName string, path []string) string {
+	var builder strings.Builder
+	builder.WriteString(qualifiedName)
+	for _, part := range path {
+		if strings.HasPrefix(part, "[") {
+			builder.WriteString(part)
+			continue
+		}
+		builder.WriteString(".")
+		builder.WriteString(part)
+	}
+	return builder.String()
+}
+
+func (d *Datasource) handleSearchParameterOptions(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(req)
+	endpointID := vars["endpointID"]
+	query := strings.TrimSpace(req.URL.Query().Get("q"))
+
+	endpoint, err := d.multiplexer.GetEndpoint(endpointID)
+	if err != nil {
+		resourceError(w, http.StatusInternalServerError, "endpoint unavailable", "Failed to retrieve endpoint", err, "endpointID", endpointID)
+		return
+	}
+	client, err := endpoint.GetClient()
+	if err != nil {
+		resourceError(w, http.StatusServiceUnavailable, "endpoint unavailable", "Failed to retrieve Yamcs client", err, "endpointID", endpointID)
+		return
+	}
+
+	searchQuery := map[string]string{
+		"details":       "true",
+		"limit":         "75",
+		"searchMembers": "true",
+	}
+	if query != "" {
+		searchQuery["q"] = query
+	}
+
+	reqIterator := client.SearchParametersWithOptions(req.Context(), endpoint.GetInstanceName(), searchQuery)
+	results, err := reqIterator.Next()
+	if err != nil {
+		resourceError(w, http.StatusBadRequest, "parameter search failed", "Parameter search failed", err, "endpointID", endpointID, "query", query)
+		return
+	}
+
+	options := []ParameterSearchOption{}
+	seen := map[string]bool{}
+	for _, result := range results {
+		value := parameterPathValue(result.GetQualifiedName(), result.GetPath())
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+
+		parameterType := tools.ParameterTypeAtPath(result.GetType(), result.GetPath())
+		engType := ""
+		unit := ""
+		if parameterType != nil {
+			engType = parameterType.GetEngType()
+			if len(parameterType.GetUnitSet()) > 0 {
+				unit = parameterType.GetUnitSet()[0].GetUnit()
+			}
+		}
+
+		description := result.GetShortDescription()
+		if description == "" {
+			description = result.GetLongDescription()
+		}
+
+		options = append(options, ParameterSearchOption{
+			Label:       value,
+			Value:       value,
+			Type:        engType,
+			Unit:        unit,
+			Description: description,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(options)
+}
+
 type CommandInfoResult struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -167,6 +264,7 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/benchmark/stats", d.handleBenchmarkStats)
 
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
+	mux.HandleFunc("/endpoint/{endpointID}/parameter-options", d.handleSearchParameterOptions)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
 	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)

@@ -8,6 +8,7 @@ export interface Query extends DataQuery {
     type?: QueryType;
     endpoint?: string;
     parameter: string;
+    parameters?: string[];
     command: string;
     fields: QueryField[];
     asVariable: boolean;
@@ -48,6 +49,14 @@ export enum QueryType {
  * Allowed fields for query operations.
  */
 export type QueryField = 'max' | 'min';
+
+export interface ParameterSearchOption {
+    label: string;
+    value: string;
+    type?: string;
+    unit?: string;
+    description?: string;
+}
 
 /**
  * Default values for a query.
