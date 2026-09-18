@@ -153,7 +153,7 @@ async function createDashboard(request: any, datasource: ProvisionedDatasource):
                 title: 'JAOPS Grafana Live query e2e',
                 schemaVersion: 41,
                 version: 0,
-                refresh: '',
+                refresh: '5s',
                 time: {
                     from: 'now-5m',
                     to: 'now',
@@ -224,15 +224,12 @@ test.describe('Grafana Live query paths', () => {
 
             await dashboardPage.waitForPanelsQueriesToComplete({ scrollAll: true, timeout: 30000 });
 
-            // Give Grafana enough time to render initial data, subscribe over
-            // Grafana Live, and show the Live-channel error that regressed in
-            // 1.1.1. Some query/panel combinations may legitimately show
-            // domain-specific panel status (for example "No data" on an empty
-            // event stream), so keep this test scoped to the Grafana Live
-            // channel-address failure mode instead of asserting that every
-            // representative panel is semantically populated.
+            // Give Grafana enough time to render initial data and for Grafana
+            // Live to retry transient startup subscriptions before checking for
+            // broad panel errors and the channel-address regression.
             await page.waitForTimeout(10000);
 
+            await expect(dashboardPage).not.toHavePanelErrors();
             await expect(page.getByText(/Streaming channel error/i)).toHaveCount(0);
             await expect(page.getByText(/invalid channel address/i)).toHaveCount(0);
             expect(consoleLiveErrors).toEqual([]);
