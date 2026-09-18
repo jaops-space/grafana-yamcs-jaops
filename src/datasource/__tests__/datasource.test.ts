@@ -78,6 +78,7 @@ describe('DataSource.query', () => {
         expect(streamArg.buffer.action).toBe(StreamingFrameAction.Replace);
         expect(streamArg.buffer.maxLength).toBe(5000);
         expect(streamArg.addr.scope).toBe(LiveChannelScope.DataSource);
+        expect(streamArg.addr.namespace).toBe('jaops-yamcs-main');
         expect(streamArg.addr.stream).toBe('jaops-yamcs-main');
         expect(streamArg.addr.path).toBe('myproject_realtime/-sim-temperature');
         expect(streamArg.addr.data.from).toBe(1000);

@@ -1,28 +1,39 @@
+import { css } from '@emotion/css';
+import { GrafanaTheme2, SelectableValue } from '@grafana/data';
 import React from 'react';
-import { SelectableValue } from '@grafana/data';
-import { Card, Combobox, Field, Input } from '@grafana/ui';
+import { Card, Combobox, Field, Input, useStyles2 } from '@grafana/ui';
 import { ButtonWidthMode, LayoutAlign, LayoutDirection, LayoutJustify } from '../utils/layout';
+
+const getStyles = (theme: GrafanaTheme2) => ({
+    card: css({
+        margin: theme.spacing(1),
+        padding: `${theme.spacing(1.5)} ${theme.spacing(1.75)}`,
+    }),
+    title: css({
+        margin: 0,
+    }),
+    fields: css({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gap: `${theme.spacing(1)} ${theme.spacing(1.5)}`,
+        alignItems: 'end',
+    }),
+});
 
 export function LayoutEditor(props: { options: any; onChange: (key: string, value: any) => void }) {
     const { options, onChange } = props;
+    const styles = useStyles2(getStyles);
 
     return (
-        <Card style={{ margin: '8px', padding: '12px 14px' }}>
+        <Card className={styles.card}>
             <Card.Heading>
-                <h4 style={{ margin: 0 }}>Runtime Button Layout</h4>
+                <h4 className={styles.title}>Runtime Button Layout</h4>
             </Card.Heading>
             <Card.Meta>
                 Controls the runtime buttons and the group preview only. Edit cards keep their own layout.
             </Card.Meta>
             <Card.Description>
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-                        gap: '8px 12px',
-                        alignItems: 'end',
-                    }}
-                >
+                <div className={styles.fields}>
                     <Field label="Direction" style={{ marginBottom: 0 }}>
                         <Combobox
                             value={options.layoutDirection ?? 'column'}

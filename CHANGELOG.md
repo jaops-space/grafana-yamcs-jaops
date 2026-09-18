@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-16
+
+### Changed
+
+- Updated commanding-panel editor styling to use Grafana theme spacing, borders, and typography.
+
+### Fixed
+
+- Fixed real-time parameter streaming on Grafana 12 by keeping the legacy Live channel `namespace` field alongside the Grafana 13 `stream` field.
+
 ## [1.1.1] - 2026-09-07
 
 ### Changed
@@ -176,7 +186,8 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added command history and variable-oriented panel support.
 - Added app navigation, setup documentation, demo dashboard assets, and contribution guidance.
 
-[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.0.8...v1.1.0
 [1.0.8]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.0.7...v1.0.8
