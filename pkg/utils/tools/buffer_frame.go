@@ -17,7 +17,6 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"golang.org/x/exp/constraints"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ConvertEventsToFrame converts a list of Yamcs events into a Grafana data frame.
@@ -255,8 +254,6 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 	commandList := make([]json.RawMessage, 0)
 
 	for _, command := range commands {
-		backend.Logger.Info("received command history entry", "entry", protojson.Format(command))
-
 		commandEntry := &CommandEntry{
 			Id:                    commandHistoryEntryID(command),
 			Time:                  command.GetGenerationTime().AsTime(),

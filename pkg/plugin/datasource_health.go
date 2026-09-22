@@ -157,6 +157,7 @@ func (d *Datasource) applyConnectivityChecks(
 	if err != nil {
 		return err
 	}
+	defer testMux.Dispose()
 
 	hostErrors, epsErrors := testMux.ConnectSync(ctx, false)
 
@@ -186,8 +187,6 @@ func (d *Datasource) applyConnectivityChecks(
 		}
 		details.Endpoints[epID] = okStatus()
 	}
-
-	testMux.Dispose()
 
 	return nil
 }
