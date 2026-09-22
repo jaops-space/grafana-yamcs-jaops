@@ -505,7 +505,7 @@ func numericFrameFromBuffer(buffer []*pvalue.ParameterValue, parameter string, i
 
 // frameFromTyped builds a response frame straight from a typed extraction,
 // with no []interface{} boxing at all.
-func frameFromTyped[T constraints.Float | constraints.Integer](
+func frameFromTyped[T constraints.Ordered](
 	buffer []*pvalue.ParameterValue, parameter string, includeMin, includeMax, realtime bool, extract func(*protobuf.Value) T,
 ) *data.Frame {
 	values, times := extractNumericValues(buffer, realtime, extract)
@@ -672,11 +672,11 @@ func numericAverageFrameFromBuffer(buffer []*pvalue.ParameterValue, parameter st
 
 // avgFrameFromTyped builds an average/min/max frame straight from a typed
 // extraction, with no []interface{} boxing at all.
-func avgFrameFromTyped[T constraints.Float | constraints.Integer](
+func avgFrameFromTyped[T constraints.Ordered](
 	buffer []*pvalue.ParameterValue, parameter string, getMin, getMax, realtime bool, extract func(*protobuf.Value) T,
 ) *data.Frame {
 	values, times := extractNumericValues(buffer, realtime, extract)
-	avg := float64(sum(values)) / float64(len(values))
+	avg := sumAsFloat(values) / float64(len(values))
 	min, max := minMax(values)
 
 	lastTime := times[len(times)-1]
@@ -717,7 +717,7 @@ func extractParameterValues(buffer []*pvalue.ParameterValue, realtime bool) ([]i
 // ConvertBufferToFrame/ConvertBufferToAverageFrame: extract is called once
 // per value and its result stored directly into a typed slice, with no
 // []interface{} intermediate and no second unboxing pass.
-func extractNumericValues[T constraints.Float | constraints.Integer](buffer []*pvalue.ParameterValue, realtime bool, extract func(*protobuf.Value) T) ([]T, []time.Time) {
+func extractNumericValues[T constraints.Ordered](buffer []*pvalue.ParameterValue, realtime bool, extract func(*protobuf.Value) T) ([]T, []time.Time) {
 	values := make([]T, len(buffer))
 	times := make([]time.Time, len(buffer))
 
@@ -925,14 +925,14 @@ func calculateStats(values []interface{}, parameter string) (*data.Field, *data.
 	}
 }
 
-func createStatFields[T constraints.Float | constraints.Integer](param string, values []T, sum T, min T, max T) (*data.Field, *data.Field, *data.Field) {
-	avg := float64(sum) / float64(len(values))
+func createStatFields[T constraints.Ordered](param string, values []T, sum T, min T, max T) (*data.Field, *data.Field, *data.Field) {
+	avg := numericAsFloat(sum) / float64(len(values))
 	return data.NewField(param, nil, []float64{avg}),
 		data.NewField("min("+param+")", nil, []T{min}),
 		data.NewField("max("+param+")", nil, []T{max})
 }
 
-func sum[T constraints.Float | constraints.Integer](values []T) T {
+func sum[T constraints.Ordered](values []T) T {
 	var sum T
 	for _, v := range values {
 		sum += v
@@ -940,7 +940,46 @@ func sum[T constraints.Float | constraints.Integer](values []T) T {
 	return sum
 }
 
-func minMax[T constraints.Float | constraints.Integer](values []T) (T, T) {
+func sumAsFloat[T constraints.Ordered](values []T) float64 {
+	var total float64
+	for _, v := range values {
+		total += numericAsFloat(v)
+	}
+	return total
+}
+
+func numericAsFloat[T constraints.Ordered](value T) float64 {
+	switch v := any(value).(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int8:
+		return float64(v)
+	case int16:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case uint:
+		return float64(v)
+	case uint8:
+		return float64(v)
+	case uint16:
+		return float64(v)
+	case uint32:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	default:
+		return 0
+	}
+}
+
+func minMax[T constraints.Ordered](values []T) (T, T) {
 	min, max := values[0], values[0]
 	for _, v := range values[1:] {
 		if v < min {
