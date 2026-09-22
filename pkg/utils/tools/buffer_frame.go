@@ -1,9 +1,9 @@
 package tools
 
 import (
-	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"strconv"
 	"strings"
@@ -1008,10 +1008,11 @@ func mostFrequent[T comparable](values []T) T {
 	return mostFrequent
 }
 
-// hashString generates a numeric hash from a string
+// hashString generates a stable, non-cryptographic numeric hash from a string.
 func hashString(s string) int {
-	hash := md5.Sum([]byte(s)) // Use MD5 for a stable hash
-	return int(hash[0])<<24 | int(hash[1])<<16 | int(hash[2])<<8 | int(hash[3])
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(s))
+	return int(hash.Sum32())
 }
 
 // hslToRgb converts HSL (hue, saturation, lightness) to RGB
