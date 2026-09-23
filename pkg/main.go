@@ -11,7 +11,7 @@ import (
 func main() {
 
 	if err := datasource.Manage("jaops-yamcs-datasource", plugin.NewDatasource, datasource.ManageOpts{}); err != nil {
-		log.DefaultLogger.Error(err.Error())
+		log.DefaultLogger.Error("failed to manage datasource", "error", err)
 		os.Exit(1)
 	}
 

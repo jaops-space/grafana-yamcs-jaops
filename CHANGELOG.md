@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-09-22
+
+### Changed
+
+- Downgraded command-history entry logging from Info to Debug to avoid writing operational command data to server logs by default.
+- Replaced plugin-validator-incompatible Go helper patterns so security scanning completes successfully.
+
+### Fixed
+
+- Removed duplicate Links and Alarms panel entries from plugin metadata.
+- Made datasource health-check cleanup more robust by deferring test multiplexer disposal.
+- Updated backend startup error logging to use structured error fields.
+- Replaced MD5-based color hashing with non-cryptographic FNV hashing.
+
+### Security
+
+- Updated the Go toolchain target to include upstream security fixes reported by govulncheck.
+
 ## [1.1.2] - 2026-09-16
 
 ### Changed
@@ -186,7 +204,8 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added command history and variable-oriented panel support.
 - Added app navigation, setup documentation, demo dashboard assets, and contribution guidance.
 
-[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.0.8...v1.1.0
