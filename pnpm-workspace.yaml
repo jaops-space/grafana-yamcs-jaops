@@ -25,6 +25,7 @@ overrides:
   # major boundary the way an unbounded ">=" would.
   "nanoid@<3.3.18": ">=3.3.18 <4.0.0"
   "fast-uri@<3.1.8": ">=3.1.8 <4.0.0"
+  "moment@<2.31.0": ">=2.31.0 <3.0.0"
   "websocket-driver@<0.7.5": ">=0.7.5 <1.0.0"
   # react-router-dom-v5-compat/react-router-dom depend on two different
   # react-router major lines (6.x and 7.x) at once - each needs its own
