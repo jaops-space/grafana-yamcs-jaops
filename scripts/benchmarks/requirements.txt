@@ -1,2 +1,4 @@
 matplotlib>=3.8.0
 requests>=2.32.0
+pillow>=12.3.0
+idna>=3.15

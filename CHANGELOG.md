@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-10-05
+
+### Security
+
+- Bumped `brace-expansion` (>=1.1.21 / >=5.0.12) and `fast-uri` (>=3.1.8) overrides to fix high-severity OSV advisories.
+- Bumped `dompurify` (>=3.4.16), `qs` (>=6.16.0) and `moment` (>=2.31.0) overrides.
+- Dropped dev-only `braces` (no patched release) by resolving `eslint-webpack-plugin`'s `micromatch` to `picomatch`.
+- Pinned `pillow>=12.3.0` and `idna>=3.15` in benchmark requirements.
+
 ## [1.1.3] - 2026-09-22
 
 ### Changed
