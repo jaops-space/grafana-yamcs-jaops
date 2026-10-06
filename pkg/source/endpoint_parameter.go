@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/mdb"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -260,11 +261,28 @@ func (ep *YamcsEndpoint) getOrCreateParameterDemand(ctx context.Context, paramet
 		return nil, err
 	}
 	paramType := paramInfo.GetType()
+
+	// Yamcs's parameter-info-by-name endpoint resolves a "[index]"/".member"
+	// suffix on parameter (returning the parsed segments in GetPath()) but
+	// always returns the base array/aggregate parameter's own type in
+	// GetType() regardless - and that top-level type has neither a unit nor
+	// alarm thresholds of its own for an array/aggregate member (those live
+	// one level deeper, on the leaf type). Walk GetPath() into the actual
+	// leaf type so a member parameter like "/drone/BatteryCellVoltages[0]"
+	// gets its element type's real unit and thresholds instead of silently
+	// resolving to empty ones.
+	if path := paramInfo.GetPath(); len(path) > 0 {
+		if leafType := tools.ParameterTypeAtPath(paramType, path); leafType != nil {
+			paramType = leafType
+		}
+	}
+
 	unitSet := paramType.GetUnitSet()
 	thresholds := tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
 	if len(unitSet) > 0 {
-		unit = unitSet[0].GetUnit()
-		backend.Logger.Debug("found unit", "parameter", parameter, "unit", unit)
+		yamcsUnit := unitSet[0].GetUnit()
+		unit = tools.ConvertYamcsUnitToGrafanaUnit(yamcsUnit)
+		backend.Logger.Debug("found unit", "parameter", parameter, "yamcsUnit", yamcsUnit, "grafanaUnit", unit)
 	}
 
 	demand = &ParameterDemand{
@@ -322,7 +340,20 @@ func (ep *YamcsEndpoint) getParameterSubscription(ctx context.Context) (*client.
 	return subscription, nil
 }
 
-func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, parameter string, frame *data.Frame) {
+// SetUnitAndThresholds sets parameter's field(s) in frame to its unit and
+// alarm thresholds.
+//
+// The unit always comes from the MDB type (Yamcs attaches no per-value unit
+// info, so there's no way around the demand's cached, MDB-resolved unit).
+// Thresholds are different: when liveValue is provided and carries its own
+// AlarmRange, that's preferred over the demand's cached static default
+// alarm, since Yamcs already resolves AlarmRange per-value for the exact
+// context (including array/aggregate members) that produced it - more
+// accurate than a type's one-size-fits-all default, and it needs no MDB
+// lookup at all. liveValue may be nil (e.g. the archive samples API behind
+// historical Graph frames has no per-sample alarm info), in which case this
+// falls back to the demand's cached thresholds exactly as before.
+func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, parameter string, frame *data.Frame, liveValue client.ParameterValue) {
 
 	parameterDemand, err := endpoint.getOrCreateParameterDemand(ctx, parameter)
 	if err != nil {
@@ -330,20 +361,49 @@ func (endpoint *YamcsEndpoint) SetUnitAndThresholds(ctx context.Context, paramet
 		return
 	}
 
-	field, _ := frame.FieldByName(parameter)
-	if field == nil {
+	valueField, _ := frame.FieldByName(parameter)
+	minField, _ := frame.FieldByName("min(" + parameter + ")")
+	maxField, _ := frame.FieldByName("max(" + parameter + ")")
+
+	if valueField == nil && minField == nil && maxField == nil {
 		backend.Logger.Debug("could not set units and thresholds; parameter field not found", "parameter", parameter)
+		return
+	}
+
+	configureUnit := func(field *data.Field) {
+		if field == nil || parameterDemand.Unit == "" {
+			return
+		}
+		if field.Config == nil {
+			field.Config = &data.FieldConfig{}
+		}
+		field.Config.Unit = parameterDemand.Unit
+	}
+
+	configureUnit(valueField)
+	configureUnit(minField)
+	configureUnit(maxField)
+
+	field := valueField
+	if field == nil {
 		return
 	}
 	if field.Config == nil {
 		field.Config = &data.FieldConfig{}
 	}
-	field.Config.Unit = parameterDemand.Unit
+
+	thresholds := parameterDemand.Thresholds
+	if liveValue != nil {
+		if liveThresholds := tools.ConvertAlarmRangesToThresholds(liveValue.GetAlarmRange(), mdb.AlarmLevelType_NORMAL); len(liveThresholds) > 0 {
+			thresholds = liveThresholds
+		}
+	}
+
 	field.Config.Thresholds = &data.ThresholdsConfig{
 		Mode:  data.ThresholdsModeAbsolute,
-		Steps: make([]data.Threshold, 0, len(parameterDemand.Thresholds)),
+		Steps: make([]data.Threshold, 0, len(thresholds)),
 	}
-	for _, t := range parameterDemand.Thresholds {
+	for _, t := range thresholds {
 		field.Config.Thresholds.Steps = append(field.Config.Thresholds.Steps, *t)
 	}
 }
