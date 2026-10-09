@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 - Bumped `source-map-js` override to >=1.2.2 to fix a high-severity OSV advisory (CVE-2026-93749).
 - Bumped `postcss-selector-parser` override to >=7.1.6 and `golang.org/x/net` to v0.60.0 (with `x/sys`, `x/text`).
+- Updated the Go toolchain to 1.26.9, fixing 13 standard-library advisories reported by govulncheck.
 
 ## [1.1.4] - 2026-10-05
 

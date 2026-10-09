@@ -35,7 +35,7 @@ jobs:
                   # Keep this in sync with package.json engines.node.
                   node-version: '22'
                   # Keep this in sync with the toolchain directive in go.mod.
-                  go-version: '1.26.7'
+                  go-version: '1.26.9'
                   # Changelog generation disabled - it tries to commit to main branch
                   # which fails when releasing from feature branches
                   # use_changelog_generator: true
