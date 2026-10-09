@@ -3,7 +3,7 @@ name: Security Audit
 # Runs the exact checks Grafana's marketplace review runs (plugin-validator with
 # upstream config/publishing.yaml), on main every day. New advisories land
 # continuously, so a clean PR check last week does not mean a clean review today.
-# Findings open (or update) a single tracking issue; it is closed once clean.
+# Findings open (or update) a single tracking issue (title carries the count); it is closed once clean.
 
 'on':
   schedule:
@@ -56,6 +56,15 @@ jobs:
             exit 0
           fi
 
+          if [ "$errors" -gt 0 ]; then
+            breakdown=$(jq -r '[."plugin-validator" // {} | to_entries[] | {a: .key, n: ([.value[]? | select((.Severity // "") | ascii_downcase == "error")] | length)} | select(.n > 0) | "\(.a) (\(.n))"] | join(", ")' plugin-validator.json)
+            noun="blocking finding"; [ "$errors" -gt 1 ] && noun="blocking findings"
+            title="[Security Audit] ${errors} ${noun}: ${breakdown}"
+          else
+            title="[Security Audit] Validator run failed, no parsable results"
+          fi
+          echo "title=${title:0:250}" >> "$GITHUB_OUTPUT"
+
           {
             echo "## Security audit found issues"
             echo
@@ -76,23 +85,28 @@ jobs:
         uses: actions/github-script@v7
         env:
           FAILED: ${{ steps.report.outputs.failed }}
+          ISSUE_TITLE: ${{ steps.report.outputs.title }}
         with:
           script: |
             const fs = require('node:fs');
-            const title = '[Security Audit] Action required';
+            const prefix = '[Security Audit]';
+            const title = process.env.ISSUE_TITLE;
             const { owner, repo } = context.repo;
 
+            // No label: the open bot-created issue whose title starts with the prefix is the tracker.
             const { data: issues } = await github.rest.issues.listForRepo({
-              owner, repo, state: 'open', labels: 'security-audit', per_page: 100,
+              owner, repo, state: 'open', per_page: 100,
             });
-            const existing = issues.find((i) => i.title === title);
+            const existing = issues.find(
+              (i) => !i.pull_request && i.user?.type === 'Bot' && i.title.startsWith(prefix),
+            );
 
             if (process.env.FAILED === 'true') {
               const body = fs.readFileSync('audit-report.md', 'utf8');
               if (existing) {
-                await github.rest.issues.update({ owner, repo, issue_number: existing.number, body });
+                await github.rest.issues.update({ owner, repo, issue_number: existing.number, title, body });
               } else {
-                await github.rest.issues.create({ owner, repo, title, body, labels: ['security-audit'] });
+                await github.rest.issues.create({ owner, repo, title, body });
               }
             } else if (process.env.FAILED === 'false' && existing) {
               await github.rest.issues.createComment({
