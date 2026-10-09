@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [1.1.5] - 2026-10-09
 
+### Changed
+
+- Security Checks and Security Audit now run Grafana's `plugin-validator` with upstream `publishing.yaml` severities (osv-scanner on every lockfile incl. dev deps, gosec, govulncheck, semgrep) via a shared composite action.
+- Security Checks run on every PR to `main`; Security Audit runs daily and opens/closes a tracking issue instead of a PR.
+- Removed the `.github/osv-scanner.toml` dev-dependency ignore and the production-only osv filtering.
+
 ### Security
 
 - Bumped `source-map-js` override to >=1.2.2 to fix a high-severity OSV advisory (CVE-2026-93749).

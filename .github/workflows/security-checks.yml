@@ -2,7 +2,8 @@ name: Security Checks
 
 'on':
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       plugin_archive:
@@ -16,15 +17,10 @@ permissions:
 
 jobs:
   security:
-    name: gosec + osv-scanner + plugin-validator
+    name: plugin-validator (Grafana review parity)
     runs-on: ubuntu-latest
     outputs:
       has_findings: ${{ steps.pr-comment.outputs.has_findings }}
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run/security-checks'))
-      }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,149 +45,12 @@ jobs:
           gosec -quiet -severity high ./... | tee gosec.txt
           exit 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Run OSV-Scanner
-        id: osv-scanner
-        continue-on-error: true
-        run: |
-          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          set +e
-          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.raw 2>&1
-          scan_status=$?
-
-          # osv-scanner may emit log lines before JSON; normalize output for jq parsing.
-          if jq -e . osv-scanner.raw >/dev/null 2>&1; then
-            cp osv-scanner.raw osv-scanner.json
-          else
-            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' osv-scanner.raw > osv-scanner.json || true
-          fi
-
-          if jq -e . osv-scanner.json >/dev/null 2>&1; then
-            jq . osv-scanner.json > osv-scanner.txt
-            pnpm list --prod --depth Infinity --json \
-              | jq -r '.. | objects | .name? // empty' \
-              | sort -u > osv-prod-packages.txt
-
-            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
-            osv_runtime_high_critical=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
-            if [ "$osv_runtime_high_critical" -gt 0 ]; then
-              exit 1
-            fi
-            exit 0
-          fi
-
-          cp osv-scanner.raw osv-scanner.txt
-          exit "$scan_status"
-
-      - name: Install mage
-        run: go install github.com/magefile/mage@latest
-
-      - name: Build backend binary (linux/amd64) for validator parity
-        # Only linux/amd64 is required for the backendbinary/binarypermissions/
-        # go-manifest plugin-validator analyzers (Grafana requires at minimum a
-        # linux/amd64 backend binary); building all 5 platforms on every PR
-        # would be needlessly slow.
-        run: |
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          mage -v build:backend
-
-      - name: Build plugin package for validator
-        env:
-          PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
-        run: |
-          pnpm run build
-
-          plugin_id="$(jq -r '.id' dist/plugin.json)"
-          if [ -z "$plugin_id" ] || [ "$plugin_id" = "null" ]; then
-            echo "Could not determine plugin id from dist/plugin.json"
-            exit 1
-          fi
-
-          rm -rf "$plugin_id"
-          cp -R dist "$plugin_id"
-          rm -f "$PLUGIN_ARCHIVE"
-          zip -r "$PLUGIN_ARCHIVE" "$plugin_id"
-
-      - name: Install plugin-validator analyzer dependencies
-        run: |
-          # code-rules (semgrep) and govulncheck analyzers silently no-op if
-          # their binaries aren't on PATH - install both so plugin-validator
-          # actually runs the same checks the Grafana marketplace review does.
-          python3 -m pip install --user --break-system-packages --quiet semgrep
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: Run plugin-validator
         id: plugin-validator
         continue-on-error: true
-        env:
-          PLUGIN_ARCHIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
-        run: |
-          cat > .plugin-validator-security.yml <<'EOF'
-          # This mirrors Grafana's own review config (config/publishing.yaml
-          # upstream): global severity defaults to error, and everything runs
-          # unless it's structurally inapplicable to an unsigned PR-time build.
-          global:
-            enabled: true
-            jsonOutput: true
-            reportAll: true
-            severity: error
-
-          analyzers:
-            sponsorshiplink:
-              rules:
-                sponsorshiplink:
-                  enabled: false
-            # Signing/provenance rules always fail on unsigned PR-time builds
-            # (we only sign real release artifacts); not a parity gap, just an
-            # intentional PR-vs-release distinction.
-            manifest:
-              rules:
-                unsigned-plugin:
-                  enabled: false
-            signature:
-              rules:
-                unsigned-plugin:
-                  enabled: false
-            provenance:
-              rules:
-                no-provenance-attestation:
-                  enabled: false
-          EOF
-
-          set +e
-          npx --yes @grafana/plugin-validator@latest \
-            -config .plugin-validator-security.yml \
-            -sourceCodeUri file://./ \
-            "$PLUGIN_ARCHIVE" > plugin-validator.raw 2>&1
-          status=$?
-
-          # plugin-validator can emit log lines before JSON; keep a normalized JSON file for parsing.
-          if jq -e . plugin-validator.raw >/dev/null 2>&1; then
-            cp plugin-validator.raw plugin-validator.json
-          else
-            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' plugin-validator.raw > plugin-validator.json || true
-          fi
-
-          if jq -e . plugin-validator.json >/dev/null 2>&1; then
-            jq . plugin-validator.json > plugin-validator.txt
-          else
-            cp plugin-validator.raw plugin-validator.txt
-          fi
-
-          exit "$status"
+        uses: ./.github/actions/plugin-validator
+        with:
+          archive: ${{ github.event_name == 'workflow_dispatch' && inputs.plugin_archive || 'jaops-yamcs-app.zip' }}
 
       - name: Upload raw security artifacts
         if: always()
@@ -201,10 +60,6 @@ jobs:
           path: |
             gosec.txt
             gosec.json
-            osv-scanner.raw
-            osv-scanner.txt
-            osv-scanner.json
-            osv-prod-packages.txt
             plugin-validator.txt
             plugin-validator.json
           retention-days: 14
@@ -213,7 +68,6 @@ jobs:
         id: evaluate
         if: always()
         env:
-          OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
           PLUGIN_VALIDATOR_OUTCOME: ${{ steps.plugin-validator.outcome }}
         run: |
           failed=false
@@ -222,11 +76,6 @@ jobs:
           # gosec is intentionally excluded here: Grafana's own plugin-validator
           # go-sec pass is Warning-only (never blocking) at any severity, and our
           # standalone gosec step matches that - it's informational only now.
-
-          if [ "$OSV_SCANNER_OUTCOME" = "failure" ]; then
-            failed=true
-            summary="${summary}\n- osv-scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
-          fi
 
           if [ "$PLUGIN_VALIDATOR_OUTCOME" = "failure" ]; then
             failed=true
@@ -251,12 +100,6 @@ jobs:
             gosec_findings=$(jq '[.Issues[]?] | length' gosec.json)
           fi
 
-          osv_findings=0
-          if [ -f osv-scanner.json ] && [ -f osv-prod-packages.txt ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
-            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
-            osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
-          fi
-
           # plugin-validator now runs with reportAll:true (same as Grafana's own
           # review config), so OK/passing entries are present too - only count
           # error (blocking) and warning (informational, matches Grafana's own
@@ -268,7 +111,7 @@ jobs:
             plugin_warning_findings=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "warning")] | length' plugin-validator.json)
           fi
 
-          total_findings=$((gosec_findings + osv_findings + plugin_error_findings + plugin_warning_findings))
+          total_findings=$((gosec_findings + plugin_error_findings + plugin_warning_findings))
           if [ "$total_findings" -eq 0 ]; then
             echo "has_findings=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -281,12 +124,11 @@ jobs:
             echo "This PR introduced findings in automated security checks."
             echo
             echo "_This comment is updated when security results change and deleted when the latest security checks are clean._"
-            echo "_Only plugin-validator error-severity findings and osv-scanner HIGH/CRITICAL runtime vulnerabilities block this check, matching Grafana's own review gating. Everything else (gosec, plugin-validator warnings) is informational._"
+            echo "_Only plugin-validator error-severity findings block this check (this includes osv-scanner HIGH/CRITICAL on every lockfile, dev dependencies included), matching Grafana's own review gating. Everything else (gosec, plugin-validator warnings) is informational._"
             echo
             echo "| Scanner | Findings |"
             echo "|---|---:|"
             echo "| gosec (HIGH severity, informational) | ${gosec_findings} |"
-            echo "| osv-scanner (runtime HIGH/CRITICAL, blocking) | ${osv_findings} |"
             echo "| plugin-validator (error severity, blocking) | ${plugin_error_findings} |"
             echo "| plugin-validator (warning severity, informational) | ${plugin_warning_findings} |"
             echo
@@ -297,16 +139,6 @@ jobs:
               echo "### gosec highlights (informational)"
               echo
               jq -r '.Issues[]? | "- \(.severity // "UNKNOWN") \(.rule_id // "RULE") in \(.file // "unknown file"):\(.line // 0) - \(.details // "No details")"' gosec.json | sed -n '1,15p'
-              echo
-            } >> pr-security-comment.md
-          fi
-
-          if [ "$osv_findings" -gt 0 ]; then
-            {
-              echo "### osv-scanner highlights (blocking)"
-              echo
-              prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
-              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
               echo
             } >> pr-security-comment.md
           fi
@@ -333,7 +165,6 @@ jobs:
             echo "<details><summary>Raw outputs</summary>"
             echo
             echo "- gosec JSON: artifact security-reports-${RUN_ID} / gosec.json"
-            echo "- osv-scanner JSON: artifact security-reports-${RUN_ID} / osv-scanner.json"
             echo "- plugin-validator JSON: artifact security-reports-${RUN_ID} / plugin-validator.json"
             echo
             echo "</details>"

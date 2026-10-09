@@ -1,0 +1,144 @@
+name: Run Grafana plugin-validator
+description: >-
+  Builds the plugin and runs @grafana/plugin-validator the same way Grafana's
+  marketplace review does (config/publishing.yaml upstream, osv-scanner on each
+  lockfile with no config, gosec, govulncheck and semgrep installed), so a pass
+  here means a pass in review.
+
+inputs:
+  archive:
+    description: Plugin archive filename to build and validate
+    required: false
+    default: jaops-yamcs-app.zip
+
+outputs:
+  exit-code:
+    description: plugin-validator exit status
+    value: ${{ steps.validate.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile --prefer-offline
+
+    - name: Install mage
+      shell: bash
+      run: go install github.com/magefile/mage@latest
+
+    - name: Build backend binary (linux/amd64)
+      # backendbinary/binarypermissions/go-manifest analyzers need at least linux/amd64.
+      shell: bash
+      run: |
+        export PATH="$(go env GOPATH)/bin:$PATH"
+        mage -v build:backend
+
+    - name: Build plugin package
+      shell: bash
+      env:
+        PLUGIN_ARCHIVE: ${{ inputs.archive }}
+      run: |
+        pnpm run build
+
+        plugin_id="$(jq -r '.id' dist/plugin.json)"
+        if [ -z "$plugin_id" ] || [ "$plugin_id" = "null" ]; then
+          echo "Could not determine plugin id from dist/plugin.json"
+          exit 1
+        fi
+
+        rm -rf "$plugin_id"
+        cp -R dist "$plugin_id"
+        rm -f "$PLUGIN_ARCHIVE"
+        zip -qr "$PLUGIN_ARCHIVE" "$plugin_id"
+
+    - name: Install analyzer binaries
+      # Versions match grafana/plugin-validator's Dockerfile. gosec, govulncheck and
+      # semgrep silently no-op when missing, so they must be on PATH.
+      shell: bash
+      run: |
+        go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+        go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+        python3 -m pip install --user --break-system-packages --quiet "setuptools<81" semgrep==1.84.1
+        echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+    - name: Run plugin-validator
+      id: validate
+      shell: bash
+      env:
+        PLUGIN_ARCHIVE: ${{ inputs.archive }}
+      run: |
+        # Upstream config/publishing.yaml (what the review uses), plus reportAll/jsonOutput
+        # for parsing and the signing rules that cannot pass on an unsigned CI build.
+        cat > .plugin-validator-security.yml <<'CFG'
+        global:
+          enabled: true
+          jsonOutput: true
+          reportAll: true
+          severity: error
+
+        analyzers:
+          htmlreadme:
+            severity: warning
+          legacyplatform:
+            severity: warning
+          jargon:
+            severity: warning
+          restrictivedep:
+            severity: warning
+          screenshots:
+            severity: warning
+          sponsorshiplink:
+            rules:
+              sponsorshiplink:
+                enabled: false
+          manifest:
+            rules:
+              unsigned-plugin:
+                enabled: false
+          signature:
+            rules:
+              unsigned-plugin:
+                enabled: false
+          provenance:
+            rules:
+              no-provenance-attestation:
+                enabled: false
+        CFG
+
+        set +e
+        npx --yes @grafana/plugin-validator@latest \
+          -config .plugin-validator-security.yml \
+          -sourceCodeUri "file://$PWD" \
+          "$PLUGIN_ARCHIVE" > plugin-validator.raw 2>&1
+        status=$?
+
+        # plugin-validator can emit log lines before JSON; keep a normalized JSON file.
+        if jq -e . plugin-validator.raw >/dev/null 2>&1; then
+          cp plugin-validator.raw plugin-validator.json
+        else
+          awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' plugin-validator.raw > plugin-validator.json || true
+        fi
+
+        if jq -e . plugin-validator.json >/dev/null 2>&1; then
+          jq . plugin-validator.json > plugin-validator.txt
+        else
+          cp plugin-validator.raw plugin-validator.txt
+        fi
+
+        echo "exit-code=${status}" >> "$GITHUB_OUTPUT"
+        exit "$status"
