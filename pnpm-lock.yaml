@@ -29,6 +29,8 @@ overrides:
   react-router@>=7.0.0 <7.18.3: '>=7.18.3 <8.0.0'
   browserslist@<4.28.7: '>=4.28.7 <5.0.0'
   eslint-webpack-plugin>micromatch: npm:picomatch@^4.0.5
+  source-map-js@<1.2.2: '>=1.2.2 <2.0.0'
+  postcss-selector-parser@>=7.0.0 <7.1.6: '>=7.1.6 <8.0.0'
 
 importers:
 
@@ -3831,8 +3833,8 @@ packages:
     peerDependencies:
       postcss: '>=8.5.26 <9.0.0'
 
-  postcss-selector-parser@7.0.0:
-    resolution: {integrity: sha512-9RbEr1Y7FFfptd/1eEdntyjMwLeghW1bHX9GWjXo19vx4ytPQhANltvVxDggzJl7mnWM+dX28kb6cyS/4iQjlQ==}
+  postcss-selector-parser@7.1.6:
+    resolution: {integrity: sha512-7qASPzhKF2l2KLboRZux8CCTRMdGiV08vWmyKzPz22qZ7ZjQBOeY7rNzNoCLSUiftJ7HUq0GERHmxw/t0dCdMw==}
     engines: {node: '>=4'}
 
   postcss-value-parser@4.2.0:
@@ -4375,8 +4377,8 @@ packages:
     peerDependencies:
       immutable: '>=3.8.1 || >4.0.0-rc'
 
-  source-map-js@1.2.1:
-    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   source-map-support@0.5.13:
@@ -8392,7 +8394,7 @@ snapshots:
 
   imports-loader@5.0.0(webpack@5.108.1):
     dependencies:
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
       strip-comments: 2.0.1
       webpack: 5.108.1(@swc/core@1.15.43(@swc/helpers@0.5.23))(postcss@8.5.26)(webpack-cli@7.1.0)
 
@@ -9356,20 +9358,20 @@ snapshots:
     dependencies:
       icss-utils: 5.1.0(postcss@8.5.26)
       postcss: 8.5.26
-      postcss-selector-parser: 7.0.0
+      postcss-selector-parser: 7.1.6
       postcss-value-parser: 4.2.0
 
   postcss-modules-scope@3.2.1(postcss@8.5.26):
     dependencies:
       postcss: 8.5.26
-      postcss-selector-parser: 7.0.0
+      postcss-selector-parser: 7.1.6
 
   postcss-modules-values@4.0.0(postcss@8.5.26):
     dependencies:
       icss-utils: 5.1.0(postcss@8.5.26)
       postcss: 8.5.26
 
-  postcss-selector-parser@7.0.0:
+  postcss-selector-parser@7.1.6:
     dependencies:
       cssesc: 3.0.0
       util-deprecate: 1.0.2
@@ -9380,7 +9382,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.18
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   prefix-style@2.0.1: {}
 
@@ -9806,7 +9808,7 @@ snapshots:
     dependencies:
       chokidar: 5.0.0
       immutable: 5.1.8
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
     optionalDependencies:
       '@parcel/watcher': 2.5.6
 
@@ -9987,7 +9989,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  source-map-js@1.2.1: {}
+  source-map-js@1.2.2: {}
 
   source-map-support@0.5.13:
     dependencies:

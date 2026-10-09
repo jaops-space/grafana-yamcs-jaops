@@ -7,7 +7,7 @@ ARG anonymous_auth_enabled=true
 ARG development=false
 ARG TARGETARCH
 
-ARG GO_VERSION=1.26.3
+ARG GO_VERSION=1.26.9
 ARG GO_ARCH=${TARGETARCH:-amd64}
 
 # Platform diagnostics: surfaces any host/builder/target arch mismatch in the build log.
