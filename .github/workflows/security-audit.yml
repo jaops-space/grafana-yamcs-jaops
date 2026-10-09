@@ -1,4 +1,4 @@
-name: Security Audit
+name: Nightly Security Audit
 
 # Runs the exact checks Grafana's marketplace review runs (plugin-validator with
 # upstream config/publishing.yaml), on main every night (00:00 UTC). New advisories land
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   audit:
-    name: Nightly plugin-validator audit
+    name: Nightly security audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
