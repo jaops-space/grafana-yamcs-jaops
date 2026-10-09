@@ -2,8 +2,7 @@ name: Security Checks
 
 'on':
   pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
       plugin_archive:
@@ -21,6 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_findings: ${{ steps.pr-comment.outputs.has_findings }}
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run/security-checks'))
+      }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

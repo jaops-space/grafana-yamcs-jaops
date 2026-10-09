@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 ### Changed
 
 - Security Checks and Security Audit now run Grafana's `plugin-validator` with upstream `publishing.yaml` severities (osv-scanner on every lockfile incl. dev deps, gosec, govulncheck, semgrep) via a shared composite action.
-- Security Checks run on every PR to `main`; Security Audit runs daily and opens/closes a tracking issue instead of a PR.
+- Security Audit runs daily and opens/closes a tracking issue instead of a PR.
 - Removed the `.github/osv-scanner.toml` dev-dependency ignore and the production-only osv filtering.
 
 ### Security
