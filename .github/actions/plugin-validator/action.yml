@@ -2,7 +2,7 @@ name: Run Grafana plugin-validator
 description: >-
   Builds the plugin and runs @grafana/plugin-validator the same way Grafana's
   marketplace review does (config/publishing.yaml upstream, osv-scanner on each
-  lockfile with no config, gosec, govulncheck and semgrep installed), so a pass
+  lockfile with no config, gosec, govulncheck and semgrep and ClamAV installed), so a pass
   here means a pass in review.
 
 inputs:
@@ -75,6 +75,14 @@ runs:
         python3 -m pip install --user --break-system-packages --quiet "setuptools<81" semgrep==1.84.1
         echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
         echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+    - name: Install ClamAV (virusscan analyzer)
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq clamav
+        sudo systemctl stop clamav-freshclam || true
+        sudo freshclam --quiet
 
     - name: Run plugin-validator
       id: validate
