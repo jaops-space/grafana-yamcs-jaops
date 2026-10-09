@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-10-09
+
+### Security
+
+- Bumped `source-map-js` override to >=1.2.2 to fix a high-severity OSV advisory (CVE-2026-93749).
+- Bumped `postcss-selector-parser` override to >=7.1.6 and `golang.org/x/net` to v0.60.0 (with `x/sys`, `x/text`).
+
 ## [1.1.4] - 2026-10-05
 
 ### Security
