@@ -1,13 +1,13 @@
 name: Security Audit
 
 # Runs the exact checks Grafana's marketplace review runs (plugin-validator with
-# upstream config/publishing.yaml), on main every day. New advisories land
+# upstream config/publishing.yaml), on main every night (00:00 UTC). New advisories land
 # continuously, so a clean PR check last week does not mean a clean review today.
 # Findings open (or update) a single tracking issue (title carries the count); it is closed once clean.
 
 'on':
   schedule:
-    - cron: '23 3 * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   audit:
-    name: Daily plugin-validator audit
+    name: Nightly plugin-validator audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
