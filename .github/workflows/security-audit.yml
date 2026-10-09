@@ -64,7 +64,7 @@ jobs:
             if [ "$errors" -gt 0 ]; then
               echo "### Blocking findings (${errors})"
               echo
-              jq -r '."plugin-validator" // {} | to_entries[] | .value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sort -u | sed -n '1,40p'
+              jq -r '."plugin-validator" // {} | to_entries[] | .value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \((.Detail // "No detail") | gsub("\\s*\\n\\s*"; " ")) (rule: \(.Name // "unknown"))"' plugin-validator.json | sort -u | sed -n '1,40p'
             else
               echo "plugin-validator failed without reporting parsable findings (build or tooling error). See the run logs."
             fi

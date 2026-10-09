@@ -147,7 +147,7 @@ jobs:
             {
               echo "### plugin-validator highlights (blocking)"
               echo
-              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
+              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \((.Detail // "No detail") | gsub("\\s*\\n\\s*"; " ")) (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
               echo
             } >> pr-security-comment.md
           fi
@@ -156,7 +156,7 @@ jobs:
             {
               echo "### plugin-validator highlights (informational)"
               echo
-              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "warning") | "- \(.Title // "Untitled finding") - \(.Detail // "No detail") (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
+              jq -r '."plugin-validator" // {} | to_entries[] as $an | $an.value[]? | select((.Severity // "") | ascii_downcase == "warning") | "- \(.Title // "Untitled finding") - \((.Detail // "No detail") | gsub("\\s*\\n\\s*"; " ")) (rule: \(.Name // "unknown"))"' plugin-validator.json | sed -n '1,25p'
               echo
             } >> pr-security-comment.md
           fi
