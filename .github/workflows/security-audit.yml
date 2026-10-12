@@ -1,118 +1,31 @@
-name: Security Audit
+name: Nightly Security Audit
+
+# Runs the exact checks Grafana's marketplace review runs (plugin-validator with
+# upstream config/publishing.yaml), on main every night (00:00 UTC). New advisories land
+# continuously, so a clean PR check last week does not mean a clean review today.
+# Findings open (or update) a single tracking issue (title carries the count); it is closed once clean.
 
 'on':
   schedule:
-    - cron: '23 3 * * 1'
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
-  security-events: write
+  contents: read
+  issues: write
 
 jobs:
   audit:
-    name: Weekly vulnerability audit
+    name: Nightly security audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Run govulncheck
-        id: govulncheck
+      - name: Run plugin-validator
+        id: plugin-validator
         continue-on-error: true
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          set +e
-          govulncheck -json ./... > govulncheck.json 2>&1
-          gov_json_status=$?
-          govulncheck ./... | tee govulncheck.txt
-          gov_txt_status=$?
-          if [ "$gov_txt_status" -ne 0 ]; then
-            exit "$gov_txt_status"
-          fi
-          exit "$gov_json_status"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Run pnpm audit (high+)
-        id: pnpm-audit
-        continue-on-error: true
-        run: |
-          set +e
-          pnpm audit --audit-level=high --json > pnpm-audit.json 2>&1
-          status=$?
-          if jq -e . pnpm-audit.json >/dev/null 2>&1; then
-            jq . pnpm-audit.json > pnpm-audit.txt
-          else
-            cp pnpm-audit.json pnpm-audit.txt
-          fi
-          exit "$status"
-
-      - name: Run OSV-Scanner
-        id: osv-scanner
-        continue-on-error: true
-        run: |
-          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          set +e
-          osv-scanner scan --recursive . --config .github/osv-scanner.toml --format json > osv-scanner.raw 2>&1
-          scan_status=$?
-
-          if jq -e . osv-scanner.raw >/dev/null 2>&1; then
-            cp osv-scanner.raw osv-scanner.json
-          else
-            awk 'BEGIN{p=0} /^\{/ {p=1} { if (p) print }' osv-scanner.raw > osv-scanner.json || true
-          fi
-
-          if jq -e . osv-scanner.json >/dev/null 2>&1; then
-            jq . osv-scanner.json > osv-scanner.txt
-            pnpm list --prod --depth Infinity --json \
-              | jq -r '.. | objects | .name? // empty' \
-              | sort -u > osv-prod-packages.txt
-
-            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
-            osv_runtime_high_critical=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json)
-            if [ "$osv_runtime_high_critical" -gt 0 ]; then
-              exit 1
-            fi
-            exit 0
-          fi
-
-          cp osv-scanner.raw osv-scanner.txt
-          exit "$scan_status"
-
-      - name: Run Trivy filesystem scan
-        id: trivy
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          format: sarif
-          output: trivy-results.sarif
-
-      - name: Upload Trivy SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
+        uses: ./.github/actions/plugin-validator
 
       - name: Upload raw audit artifacts
         if: always()
@@ -120,247 +33,90 @@ jobs:
         with:
           name: security-audit-reports-${{ github.run_id }}
           path: |
-            govulncheck.txt
-            govulncheck.json
-            pnpm-audit.txt
-            pnpm-audit.json
-            osv-scanner.raw
-            osv-scanner.txt
-            osv-scanner.json
-            osv-prod-packages.txt
-            trivy-results.sarif
+            plugin-validator.txt
+            plugin-validator.json
+            plugin-validator.raw
           retention-days: 14
 
-      - name: Evaluate audit status
-        id: evaluate
+      - name: Build audit report
+        id: report
         if: always()
         env:
-          GOVULNCHECK_OUTCOME: ${{ steps.govulncheck.outcome }}
-          PNPM_AUDIT_OUTCOME: ${{ steps.pnpm-audit.outcome }}
-          OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
-          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
+          OUTCOME: ${{ steps.plugin-validator.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          failed=false
-          summary=""
-
-          if [ "$GOVULNCHECK_OUTCOME" != "success" ]; then
-            failed=true
-            summary="${summary}\n- govulncheck reported issues or failed"
+          errors=0
+          if [ -f plugin-validator.json ] && jq -e . plugin-validator.json >/dev/null 2>&1; then
+            errors=$(jq '[.["plugin-validator"]?[]?[]? | select((.Severity // "") | ascii_downcase == "error")] | length' plugin-validator.json)
           fi
 
-          if [ "$PNPM_AUDIT_OUTCOME" != "success" ]; then
-            failed=true
-            summary="${summary}\n- pnpm audit reported high/critical advisories or failed"
+          # A failed run with no parsable errors (build or tooling break) must not read as clean.
+          if [ "$OUTCOME" = "success" ] && [ "$errors" -eq 0 ]; then
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          if [ "$OSV_SCANNER_OUTCOME" != "success" ]; then
-            failed=true
-            summary="${summary}\n- OSV-Scanner reported runtime HIGH/CRITICAL vulnerabilities or failed"
+          if [ "$errors" -gt 0 ]; then
+            breakdown=$(jq -r '[."plugin-validator" // {} | to_entries[] | {a: .key, n: ([.value[]? | select((.Severity // "") | ascii_downcase == "error")] | length)} | select(.n > 0) | "\(.a) (\(.n))"] | join(", ")' plugin-validator.json)
+            noun="blocking finding"; [ "$errors" -gt 1 ] && noun="blocking findings"
+            title="[Security Audit] ${errors} ${noun}: ${breakdown}"
+          else
+            title="[Security Audit] Validator run failed, no parsable results"
           fi
-
-          if [ "$TRIVY_OUTCOME" != "success" ]; then
-            failed=true
-            summary="${summary}\n- Trivy reported high/critical findings or failed"
-          fi
+          echo "title=${title:0:250}" >> "$GITHUB_OUTPUT"
 
           {
-            echo "failed=${failed}"
-            echo "summary<<EOF"
-            echo -e "${summary}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build audit markdown from JSON
-        id: build-markdown
-        if: always() && steps.evaluate.outputs.failed == 'true'
-        env:
-          GOVULNCHECK_OUTCOME: ${{ steps.govulncheck.outcome }}
-          PNPM_AUDIT_OUTCOME: ${{ steps.pnpm-audit.outcome }}
-          OSV_SCANNER_OUTCOME: ${{ steps.osv-scanner.outcome }}
-          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
-          RUN_ID: ${{ github.run_id }}
-          AUDIT_SUMMARY: ${{ steps.evaluate.outputs.summary }}
-        run: |
-          gov_status="$GOVULNCHECK_OUTCOME"
-          pnpm_status="$PNPM_AUDIT_OUTCOME"
-          osv_status="$OSV_SCANNER_OUTCOME"
-          trivy_status="$TRIVY_OUTCOME"
-
-          gov_findings="0"
-          if [ -f govulncheck.json ]; then
-            gov_findings=$(jq -s '[.[] | select(has("finding"))] | length' govulncheck.json 2>/dev/null || echo "0")
-          fi
-
-          pnpm_critical="0"
-          pnpm_high="0"
-          if [ -f pnpm-audit.json ] && jq -e . pnpm-audit.json >/dev/null 2>&1; then
-            pnpm_critical=$(jq -r '.metadata.vulnerabilities.critical // 0' pnpm-audit.json)
-            pnpm_high=$(jq -r '.metadata.vulnerabilities.high // 0' pnpm-audit.json)
-          fi
-
-          osv_findings="0"
-          if [ -f osv-scanner.json ] && [ -f osv-prod-packages.txt ] && jq -e . osv-scanner.json >/dev/null 2>&1; then
-            prod_packages_json=$(jq -R -s 'split("\n") | map(select(length>0))' osv-prod-packages.txt)
-            osv_findings=$(jq --argjson prod "$prod_packages_json" '[.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL")] | length' osv-scanner.json 2>/dev/null || echo "0")
-          fi
-
-          trivy_findings="0"
-          if [ -f trivy-results.sarif ] && jq -e . trivy-results.sarif >/dev/null 2>&1; then
-            trivy_findings=$(jq '[.runs[]?.results[]?] | length' trivy-results.sarif 2>/dev/null || echo "0")
-          fi
-
-          generated_at="$(date -u +"%Y-%m-%d %H:%M:%SZ")"
-
-          {
-            echo "## Automated security audit report"
+            echo "## Security audit found issues"
             echo
-            echo "Generated at ${generated_at} from workflow run ${RUN_ID}."
+            echo "Same checks as Grafana's plugin review (\`@grafana/plugin-validator\`, upstream \`publishing.yaml\`). Run: ${RUN_URL}"
             echo
-            echo "### Summary"
-            echo "$AUDIT_SUMMARY"
-            echo
-            echo "### Findings overview"
-            echo "| Scanner | Status | Findings |"
-            echo "|---|---|---:|"
-            echo "| govulncheck | ${gov_status} | ${gov_findings} |"
-            echo "| pnpm audit | ${pnpm_status} | critical=${pnpm_critical}, high=${pnpm_high} |"
-            echo "| OSV-Scanner (runtime HIGH/CRITICAL) | ${osv_status} | ${osv_findings} |"
-            echo "| Trivy (SARIF) | ${trivy_status} | ${trivy_findings} |"
-            echo
-            echo "### Human-readable highlights"
+            if [ "$errors" -gt 0 ]; then
+              echo "### Blocking findings (${errors})"
+              echo
+              jq -r '."plugin-validator" // {} | to_entries[] | .value[]? | select((.Severity // "") | ascii_downcase == "error") | "- \(.Title // "Untitled finding") - \((.Detail // "No detail") | gsub("\\s*\\n\\s*"; " ")) (rule: \(.Name // "unknown"))"' plugin-validator.json | sort -u | sed -n '1,40p'
+            else
+              echo "plugin-validator failed without reporting parsable findings (build or tooling error). See the run logs."
+            fi
           } > audit-report.md
+          echo "failed=true" >> "$GITHUB_OUTPUT"
 
-          {
-            echo "#### govulncheck"
-            if [ "$gov_findings" -gt 0 ] 2>/dev/null; then
-              jq -sr '.[] | select(has("finding")) | "- Vulnerability \(.finding.osv // "unknown") affects \(.finding.trace[0].module // "unknown module")"' govulncheck.json | sed -n '1,12p'
-            else
-              echo "- No govulncheck findings parsed from JSON."
-            fi
-            echo
-            echo "#### pnpm audit"
-            if [ "$pnpm_critical" -gt 0 ] 2>/dev/null || [ "$pnpm_high" -gt 0 ] 2>/dev/null; then
-              echo "- Found ${pnpm_critical} critical and ${pnpm_high} high npm vulnerabilities."
-            else
-              echo "- No high or critical npm vulnerabilities found."
-            fi
-            echo
-            echo "#### OSV-Scanner"
-            if [ "$osv_findings" -gt 0 ] 2>/dev/null; then
-              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") found in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,12p'
-            else
-              echo "- No runtime HIGH/CRITICAL OSV vulnerabilities parsed from JSON."
-            fi
-            echo
-            echo "#### Trivy"
-            if [ "$trivy_findings" -gt 0 ] 2>/dev/null; then
-              jq -r '.runs[]?.results[]? | "- Rule \(.ruleId // "unknown") in \(.locations[0].physicalLocation.artifactLocation.uri // "unknown file")"' trivy-results.sarif | sed -n '1,12p'
-            else
-              echo "- No Trivy findings parsed from SARIF JSON."
-            fi
-            echo
-            echo "### Raw artifacts"
-            echo "- Artifact: security-audit-reports-${RUN_ID}"
-            echo "- Files: govulncheck.json, pnpm-audit.json, osv-scanner.json, osv-prod-packages.txt, trivy-results.sarif"
-          } >> audit-report.md
-
-          {
-            echo "<!-- security-audit-comment -->"
-            echo "## Weekly security audit found issues"
-            echo
-            echo "| Scanner | Findings |"
-            echo "|---|---:|"
-            echo "| govulncheck | ${gov_findings} |"
-            echo "| pnpm audit | critical=${pnpm_critical}, high=${pnpm_high} |"
-            echo "| OSV-Scanner (runtime HIGH/CRITICAL) | ${osv_findings} |"
-            echo "| Trivy | ${trivy_findings} |"
-            echo
-            echo "### Highlights"
-            echo
-            if [ "$gov_findings" -gt 0 ] 2>/dev/null; then
-              echo "#### govulncheck"
-              jq -sr '.[] | select(has("finding")) | "- Vulnerability \(.finding.osv // "unknown") affects \(.finding.trace[0].module // "unknown module")"' govulncheck.json | sed -n '1,8p'
-              echo
-            fi
-
-            if [ "$pnpm_critical" -gt 0 ] 2>/dev/null || [ "$pnpm_high" -gt 0 ] 2>/dev/null; then
-              echo "#### pnpm audit"
-              echo "- Found ${pnpm_critical} critical and ${pnpm_high} high npm vulnerabilities."
-              echo
-            fi
-
-            if [ "$osv_findings" -gt 0 ] 2>/dev/null; then
-              echo "#### OSV-Scanner"
-              jq --argjson prod "$prod_packages_json" -r '.results[]?.packages[]? as $p | $p.vulnerabilities[]? | select(($prod | index($p.package.name)) != null) | select(((.database_specific.severity // "") | ascii_upcase) == "HIGH" or ((.database_specific.severity // "") | ascii_upcase) == "CRITICAL") | "- [\((.database_specific.severity // "UNKNOWN") | ascii_upcase)] Vulnerability \(.id // "unknown") found in package \($p.package.name // "unknown")"' osv-scanner.json | sed -n '1,8p'
-              echo
-            fi
-
-            if [ "$trivy_findings" -gt 0 ] 2>/dev/null; then
-              echo "#### Trivy"
-              jq -r '.runs[]?.results[]? | "- Rule \(.ruleId // "unknown") in \(.locations[0].physicalLocation.artifactLocation.uri // "unknown file")"' trivy-results.sarif | sed -n '1,8p'
-              echo
-            fi
-
-            echo "See the PR description and workflow artifacts for full details."
-          } > audit-pr-comment.md
-
-          mkdir -p .github/security-reports
-          cp audit-report.md .github/security-reports/latest-security-audit.md
-
-      - name: Create or update security audit PR
-        id: create-pr
-        if: always() && steps.evaluate.outputs.failed == 'true'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          commit-message: "chore(security): refresh weekly audit report"
-          branch: automation/security-audit-report
-          delete-branch: false
-          title: "[Security Audit] Action required"
-          body-path: audit-report.md
-          add-paths: |
-            .github/security-reports/latest-security-audit.md
-          labels: |
-            security
-            dependencies
-
-      - name: Post audit comment on audit PR
-        if: always() && steps.evaluate.outputs.failed == 'true' && steps.create-pr.outputs.pull-request-number != ''
+      - name: Open, update or close tracking issue
+        if: always()
         uses: actions/github-script@v7
         env:
-          AUDIT_PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          FAILED: ${{ steps.report.outputs.failed }}
+          ISSUE_TITLE: ${{ steps.report.outputs.title }}
         with:
           script: |
             const fs = require('node:fs');
-            const marker = '<!-- security-audit-comment -->';
-            const body = fs.readFileSync('audit-pr-comment.md', 'utf8');
-            const issue_number = Number(process.env.AUDIT_PR_NUMBER);
+            const prefix = '[Security Audit]';
+            const title = process.env.ISSUE_TITLE;
+            const { owner, repo } = context.repo;
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number,
-              per_page: 100,
+            // No label: the open bot-created issue whose title starts with the prefix is the tracker.
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', per_page: 100,
             });
+            const existing = issues.find(
+              (i) => !i.pull_request && i.user?.type === 'Bot' && i.title.startsWith(prefix),
+            );
 
-            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
+            if (process.env.FAILED === 'true') {
+              const body = fs.readFileSync('audit-report.md', 'utf8');
+              if (existing) {
+                await github.rest.issues.update({ owner, repo, issue_number: existing.number, title, body });
+              } else {
+                await github.rest.issues.create({ owner, repo, title, body });
+              }
+            } else if (process.env.FAILED === 'false' && existing) {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number,
-                body,
+                owner, repo, issue_number: existing.number, body: 'Latest audit is clean. Closing.',
               });
+              await github.rest.issues.update({ owner, repo, issue_number: existing.number, state: 'closed' });
             }
 
       - name: Fail workflow on findings
-        if: always() && steps.evaluate.outputs.failed == 'true'
+        if: always() && steps.report.outputs.failed == 'true'
         run: |
-          echo "Security audit detected issues. See audit PR and artifacts."
+          echo "Security audit detected issues. See the tracking issue and artifacts."
           exit 1

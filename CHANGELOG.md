@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-10-09
+
+### Changed
+
+- Security Checks and Security Audit now run Grafana's `plugin-validator` with upstream `publishing.yaml` severities (osv-scanner on every lockfile incl. dev deps, gosec, govulncheck, semgrep) via a shared composite action.
+- Security Audit runs nightly at 00:00 UTC and opens/closes a tracking issue instead of a PR.
+- Removed the `.github/osv-scanner.toml` dev-dependency ignore and the production-only osv filtering.
+
+### Security
+
+- Bumped `source-map-js` override to >=1.2.2 to fix a high-severity OSV advisory (CVE-2026-93749).
+- Bumped `postcss-selector-parser` override to >=7.1.6 and `golang.org/x/net` to v0.60.0 (with `x/sys`, `x/text`).
+- Updated the Go toolchain to 1.26.9, fixing 13 standard-library advisories reported by govulncheck.
+
 ## [1.1.4] - 2026-10-05
 
 ### Security
