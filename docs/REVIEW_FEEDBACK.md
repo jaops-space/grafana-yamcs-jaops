@@ -2,22 +2,32 @@
 
 Use these recurring review lessons when changing the plugin or preparing a release.
 
-- **Protect saved dashboards.** Treat every published panel ID, query format, stream address, and option key as a persistent interface. Test upgrades with existing dashboards, including those created by intermediate releases. Option migrations preserve settings only after a panel loads; an ID change requires continued support or a major release with migration guidance.
+- **Protect saved dashboards.** Treat published panel IDs, query formats, stream addresses, and option keys as persistent interfaces. Test upgrades with existing dashboards; option migration cannot fix an ID Grafana no longer recognizes.
+  - Grafana flagged the rename from `jaops-varcommanding-panel` to `jaops-variables-panel`: older dashboards would show "Panel plugin not found." They asked us to keep the ID or make the break a documented major release, and suggested migrating 1.0.8 panel settings.
 
-- **Test behavior in Grafana.** Healthy connection checks and mocks cannot prove that dashboards render. Exercise real-time queries, Live channel addresses, and stream subscriptions against a provisioned data source on supported Grafana versions; include representative old dashboards and focused regression tests.
+- **Test behavior in Grafana.** A healthy connection check or mocked unit test does not prove that a dashboard renders; exercise real queries and upgrades on supported Grafana versions.
+  - In 1.1.1, parameter graphs failed with an invalid Live channel address although the connection test and parameter search worked. The address used `stream` where Grafana expected `namespace`; mocks missed the regression.
 
-- **Keep diagnostics safe.** Health details, resource responses, and connection-test summaries are user-visible. Map failures to fixed, actionable categories rather than exposing raw transport errors, internal addresses, resolvers, credentials, or upstream responses. Log original errors with diagnostic context on the server.
+- **Keep diagnostics safe.** Return fixed, useful failure categories from user-visible resources, and keep raw transport details in structured server logs.
+  - Grafana found that `/fetch/health-details` showed the config editor raw connection errors, including private IPs and DNS resolver addresses. They requested fixed messages such as "Connection refused" or "Host name could not be resolved."
 
-- **Authorize actions server-side.** Query access must not imply permission to issue commands or operate alarms and links. Gate every mutating resource route with an explicit role or permission, deny missing identities, and check Viewer versus authorized behavior; hiding UI controls is not authorization.
+- **Authorize actions server-side.** Query access must not imply permission to issue commands or control alarms and links; enforce roles on the backend, not just in UI controls.
+  - Grafana observed that Viewers could invoke telecommand, alarm, and link action resource routes. We restricted those routes to Editors and Admins and deny requests without a user identity.
 
-- **Preserve connection configuration.** Build outbound clients from Grafana SDK HTTP options so proxies, headers, TLS, timeouts, and middleware survive refactors. Reuse clients where appropriate, isolate mutable per-host settings, and never modify shared defaults such as a global WebSocket dialer.
+- **Preserve connection configuration.** Use Grafana SDK HTTP options, reuse clients appropriately, and keep mutable connection state per instance or host rather than changing shared defaults.
+  - Grafana noted that a client refactor dropped secure SOCKS proxy and custom-header settings, while editing `websocket.DefaultDialer` could race between hosts. An earlier review also objected to a global multiplexer.
 
-- **Handle untrusted data at boundaries.** Render template variables and remote values as data, not HTML; sanitize unavoidable HTML and restrict URL schemes. Escape dynamic API path segments individually, especially names containing slashes, rather than interpolating them into URLs.
+- **Handle untrusted data at boundaries.** Render variables as data rather than HTML; sanitize unavoidable markup, constrain URL schemes, and escape dynamic API path segments individually.
+  - Grafana flagged HTML constructed by `ImageRenderer` with unsanitized template values. They also identified unescaped link names, action IDs, and command names in Yamcs API paths.
 
-- **Own and release resources.** Keep connection state per data source instance, not in globals. Stop refresh goroutines and tickers when replaced or disposed; defer temporary-client cleanup immediately. Use component refs instead of global DOM manipulation and revoke temporary object URLs.
+- **Own and release resources.** Stop refresh loops when replaced or disposed, defer temporary-client cleanup immediately, and use component refs rather than manipulating the global DOM.
+  - Earlier feedback found an auto-refresh goroutine that could outlive its client, a health-check multiplexer disposed without `defer`, and a ConfigEditor export that created an anchor through `document`.
 
-- **Log deliberately.** Use the Grafana SDK logger with structured fields, not backend print statements or stray frontend console logs. Keep per-entry command history and other user or operational data out of routine Info logs; Debug is not a safe place for secrets.
+- **Log deliberately.** Use the SDK logger and structured fields, not print or stray console statements; keep sensitive and high-volume operational data out of routine logs.
+  - Grafana's validator rejected backend `fmt.Print` logging. Reviewers also called out full command-history entries logged at Info level, which could include arguments, comments, and usernames.
 
-- **Validate the release artifact.** Run Grafana's validator and dependency/source scans on the actual release inputs, including lockfiles and the Go standard library. Align Go versions across the module, CI, build, and scanners; investigate scanner/toolchain mismatches rather than treating failed scans as clean. Separate blockers from suggestions.
+- **Validate the release artifact.** Scan the actual release inputs, including lockfiles and the Go standard library; align build and scanner toolchains and never treat a failed scan as clean.
+  - Review checks caught vulnerable dependencies and 11 reachable standard-library vulnerabilities in the Go 1.26.9 build. A separate `govulncheck` run could not load packages because the scanner and Go on PATH used different versions.
 
-- **Review the published presentation.** Check the README Grafana displays, deduplicate panel metadata, and keep documentation and screenshots accurate. Prefer Grafana theme tokens over fixed styles; distinguish optional catalog suggestions, such as sponsorship links, from publication blockers.
+- **Review the published presentation.** Inspect the README and metadata Grafana actually displays, keep the panel list accurate, and prefer Grafana theme tokens over fixed styling.
+  - Grafana pointed out that the catalog reads the `src/` README, spotted duplicate panel includes, and suggested replacing hard-coded styles. A sponsorship link was optional advice, not a publication blocker.
