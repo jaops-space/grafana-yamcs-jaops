@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/links"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -23,7 +24,7 @@ func (c *YamcsClient) ListLinks(ctx context.Context, instance string) ([]*links.
 
 // GetLink retrieves a specific link by name for a given Yamcs instance.
 func (c *YamcsClient) GetLink(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s", instance, linkName)
+	url := fmt.Sprintf("/links/%s/%s", instance, url.PathEscape(linkName))
 
 	response := &links.LinkInfo{}
 	err := c.HTTP.GetProto(ctx, url, response)
@@ -36,7 +37,7 @@ func (c *YamcsClient) GetLink(ctx context.Context, instance string, linkName str
 
 // EnableLink enables a link in a given Yamcs instance.
 func (c *YamcsClient) EnableLink(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s:enable", instance, linkName)
+	url := fmt.Sprintf("/links/%s/%s:enable", instance, url.PathEscape(linkName))
 
 	request := &links.EnableLinkRequest{}
 	response := &links.LinkInfo{}
@@ -50,7 +51,7 @@ func (c *YamcsClient) EnableLink(ctx context.Context, instance string, linkName 
 
 // DisableLink disables a link in a given Yamcs instance.
 func (c *YamcsClient) DisableLink(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s:disable", instance, linkName)
+	url := fmt.Sprintf("/links/%s/%s:disable", instance, url.PathEscape(linkName))
 
 	request := &links.DisableLinkRequest{}
 	response := &links.LinkInfo{}
@@ -64,7 +65,7 @@ func (c *YamcsClient) DisableLink(ctx context.Context, instance string, linkName
 
 // ResetLinkCounters resets the data in/out counters for a link.
 func (c *YamcsClient) ResetLinkCounters(ctx context.Context, instance string, linkName string) (*links.LinkInfo, error) {
-	url := fmt.Sprintf("/links/%s/%s:resetCounters", instance, linkName)
+	url := fmt.Sprintf("/links/%s/%s:resetCounters", instance, url.PathEscape(linkName))
 
 	request := &links.ResetLinkCountersRequest{}
 	response := &links.LinkInfo{}
@@ -78,7 +79,7 @@ func (c *YamcsClient) ResetLinkCounters(ctx context.Context, instance string, li
 
 // RunLinkAction runs a link-specific action with an optional message payload.
 func (c *YamcsClient) RunLinkAction(ctx context.Context, instance string, linkName string, actionID string, message map[string]any) (*structpb.Struct, error) {
-	url := fmt.Sprintf("/links/%s/%s/actions/%s", instance, linkName, actionID)
+	url := fmt.Sprintf("/links/%s/%s/actions/%s", instance, url.PathEscape(linkName), url.PathEscape(actionID))
 
 	// Convert message map to structpb.Struct
 	var messageStruct *structpb.Struct

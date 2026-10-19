@@ -2,7 +2,7 @@
     "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
     "type": "panel",
     "name": "JAOPS Variable Setting Panel",
-    "id": "jaops-variables-panel",
+    "id": "jaops-varcommanding-panel",
     "info": {
         "keywords": ["yamcs", "commanding", "panel", "jaops"],
         "description": "Variable Setting Panel for JAOPS Yamcs plugin",

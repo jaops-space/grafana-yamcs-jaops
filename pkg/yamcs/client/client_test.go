@@ -24,6 +24,63 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
+type pathRecordingTransport struct {
+	path string
+}
+
+func (m *pathRecordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	m.path = req.URL.EscapedPath()
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader("{}")),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func TestDynamicYamcsPathSegmentsAreEscaped(t *testing.T) {
+	transport := &pathRecordingTransport{}
+	c, err := NewYamcsClient("localhost:8090", corehttp.GetNoTLSConfiguration(), &corehttp.NoCredentials{},
+		OptionSetProtocol(false), OptionSetHTTPClient(&http.Client{Transport: transport}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.HTTP.Dispose()
+
+	tests := []struct {
+		name string
+		call func() error
+		path string
+	}{
+		{"link", func() error { _, err := c.GetLink(context.Background(), "sim", "link/one"); return err }, "/api/links/sim/link%2Fone"},
+		{"link action", func() error {
+			_, err := c.RunLinkAction(context.Background(), "sim", "link/one", "action/one", nil)
+			return err
+		}, "/api/links/sim/link%2Fone/actions/action%2Fone"},
+		{"issue command", func() error {
+			_, err := c.IssueCommand(context.Background(), "sim", "realtime", "/ops/Start", nil)
+			return err
+		}, "/api/processors/sim/realtime/commands/%2Fops%2FStart"},
+		{"command info", func() error {
+			_, err := c.GetCommandInfo(context.Background(), "sim", "/ops/Start")
+			return err
+		}, "/api/mdb/sim/commands/%2Fops%2FStart"},
+		{"alarm archive", func() error {
+			_, err := c.ListAlarms(context.Background(), "sim", "/ops/Alarm").Next()
+			return err
+		}, "/api/archive/sim/alarms/%2Fops%2FAlarm"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.call(); err != nil {
+				t.Fatal(err)
+			}
+			if transport.path != tt.path {
+				t.Fatalf("got path %q, want %q", transport.path, tt.path)
+			}
+		})
+	}
+}
+
 type closeTrackingClientTransport struct {
 	closedIdleConnections bool
 }

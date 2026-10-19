@@ -2,10 +2,15 @@ package plugin
 
 import (
 	"context"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
+	"syscall"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
@@ -38,6 +43,56 @@ func warningStatus(message string) ItemStatus {
 
 func errorStatus(message string) ItemStatus {
 	return ItemStatus{Status: "error", Message: message}
+}
+
+func connectionFailureMessage(err error) string {
+	var dnsErr *net.DNSError
+	var certErr x509.UnknownAuthorityError
+	var hostnameErr x509.HostnameError
+	var invalidErr x509.CertificateInvalidError
+	var netErr net.Error
+	var pluginErr *exception.PluginException
+	switch {
+	case errors.As(err, &pluginErr) && pluginErr.Code == "MUX_CONNECT_NO_INSTANCE":
+		return "Instance not found"
+	case errors.As(err, &pluginErr) && (pluginErr.Code == "MUX_CONNECT_NO_PROCESSOR" || pluginErr.Code == "MUX_CONNECT_NO_DEFAULT_PROCESSOR"):
+		return "Processor not found"
+	case errors.As(err, &pluginErr) && pluginErr.Code == "MUX_CONNECT_SUB_FAIL":
+		return "Subscription failed"
+	case errors.As(err, &dnsErr):
+		return "Host name could not be resolved"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "Connection refused"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return "Connection timed out"
+	case errors.As(err, &certErr), errors.As(err, &hostnameErr), errors.As(err, &invalidErr):
+		return "TLS handshake failed"
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "no such host"):
+		return "Host name could not be resolved"
+	case strings.Contains(message, "connection refused"):
+		return "Connection refused"
+	case strings.Contains(message, "timeout"), strings.Contains(message, "deadline exceeded"):
+		return "Connection timed out"
+	case strings.Contains(message, "tls:"), strings.Contains(message, "x509:"):
+		return "TLS handshake failed"
+	case strings.Contains(message, "unauthorized"), strings.Contains(message, "status code was 401"),
+		strings.Contains(message, "status code was 403"),
+		strings.Contains(message, "handshake returned http 401"),
+		strings.Contains(message, "handshake returned http 403"):
+		return "Authentication failed"
+	default:
+		return "Connection failed"
+	}
+}
+
+func healthHostName(hostID string, host *config.YamcsHostConfiguration) string {
+	if host != nil && host.Name != "" {
+		return host.Name
+	}
+	return hostID
 }
 
 func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*HealthDetails, bool, error) {
@@ -75,8 +130,9 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 		details.Hosts[hostID] = okStatus()
 
 		if err := host.Validate(y); err != nil {
-			details.Hosts[hostID] = errorStatus(err.Error())
-			details.ErrorHosts = append(details.ErrorHosts, host.DisplayName())
+			backend.Logger.Warn("Invalid host configuration", "hostID", hostID, "error", err)
+			details.Hosts[hostID] = errorStatus("Invalid host configuration")
+			details.ErrorHosts = append(details.ErrorHosts, healthHostName(hostID, host))
 			hasValidationErrors = true
 			continue
 		}
@@ -86,7 +142,8 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 		details.Endpoints[endpointID] = okStatus()
 
 		if err := endpoint.Validate(y); err != nil {
-			details.Endpoints[endpointID] = errorStatus(err.Error())
+			backend.Logger.Warn("Invalid endpoint configuration", "endpointID", endpointID, "error", err)
+			details.Endpoints[endpointID] = errorStatus("Invalid endpoint configuration")
 			details.ErrorEndpoints = append(details.ErrorEndpoints, endpoint.DisplayName())
 			hasValidationErrors = true
 			continue
@@ -100,7 +157,7 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 		}
 
 		if _, exists := y.Hosts[endpoint.Host]; !exists {
-			details.Endpoints[endpointID] = errorStatus(fmt.Sprintf("References unknown host '%s'", endpoint.Host))
+			details.Endpoints[endpointID] = errorStatus("References unknown host")
 			details.ErrorEndpoints = append(details.ErrorEndpoints, endpoint.DisplayName())
 			hasValidationErrors = true
 			continue
@@ -122,6 +179,7 @@ func (d *Datasource) applyConnectivityChecks(
 	cfg *config.YamcsPluginConfiguration,
 	seccfg *config.YamcsSecureConfiguration,
 	details *HealthDetails,
+	httpOptions ...httpclient.Options,
 ) error {
 	connectivityCfg := &config.YamcsPluginConfiguration{
 		Hosts:     map[string]*config.YamcsHostConfiguration{},
@@ -153,7 +211,7 @@ func (d *Datasource) applyConnectivityChecks(
 		return nil
 	}
 
-	testMux, err := source.NewMultiplexerWithContext(ctx, connectivityCfg, seccfg)
+	testMux, err := source.NewMultiplexerWithContext(ctx, connectivityCfg, seccfg, httpOptions...)
 	if err != nil {
 		return err
 	}
@@ -167,8 +225,9 @@ func (d *Datasource) applyConnectivityChecks(
 		}
 
 		if err, hasError := hostErrors[hostID]; hasError {
-			details.Hosts[hostID] = errorStatus(err.Error())
-			details.ErrorHosts = append(details.ErrorHosts, host.DisplayName())
+			backend.Logger.Warn("Host health check failed", "hostID", hostID, "error", err)
+			details.Hosts[hostID] = errorStatus(connectionFailureMessage(err))
+			details.ErrorHosts = append(details.ErrorHosts, healthHostName(hostID, host))
 			continue
 		}
 		details.Hosts[hostID] = okStatus()
@@ -181,7 +240,8 @@ func (d *Datasource) applyConnectivityChecks(
 			continue
 		}
 		if err, hasError := epsErrors[epID]; hasError {
-			details.Endpoints[epID] = errorStatus(err.Error())
+			backend.Logger.Warn("Endpoint health check failed", "endpointID", epID, "error", err)
+			details.Endpoints[epID] = errorStatus(connectionFailureMessage(err))
 			details.ErrorEndpoints = append(details.ErrorEndpoints, ep.DisplayName())
 			continue
 		}
@@ -207,7 +267,11 @@ func (d *Datasource) refreshHealthDetails(ctx context.Context) (*HealthDetails, 
 	}
 
 	if !hasValidationErrors {
-		if err := d.applyConnectivityChecks(ctx, d.multiplexer.Config, secure, details); err != nil {
+		var opts []httpclient.Options
+		if d.httpClientOptions != nil {
+			opts = append(opts, *d.httpClientOptions)
+		}
+		if err := d.applyConnectivityChecks(ctx, d.multiplexer.Config, secure, details, opts...); err != nil {
 			return nil, err
 		}
 	}
@@ -223,6 +287,7 @@ func (d *Datasource) evaluateHealth(
 	ctx context.Context,
 	y *config.YamcsPluginConfiguration,
 	secure *config.YamcsSecureConfiguration,
+	httpOptions ...httpclient.Options,
 ) (backend.HealthStatus, string, *HealthDetails, error) {
 	details, hasValidationErrors, err := d.validateConfigItems(y)
 	if err != nil {
@@ -230,9 +295,10 @@ func (d *Datasource) evaluateHealth(
 	}
 
 	if !hasValidationErrors {
-		err = d.applyConnectivityChecks(ctx, y, secure, details)
+		err = d.applyConnectivityChecks(ctx, y, secure, details, httpOptions...)
 		if err != nil {
-			return backend.HealthStatusError, "health connectivity check failed", details, err
+			backend.Logger.Error("Health connectivity check failed", "error", err)
+			return backend.HealthStatusError, "Health connectivity check failed", details, nil
 		}
 	}
 
@@ -251,8 +317,12 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
+	opts, err := settings.HTTPClientOptions(ctx)
+	if err != nil {
+		return nil, exception.Wrap("Error loading datasource HTTP options", "HTTP_OPTIONS_ERROR", err)
+	}
 
-	status, message, details, err := d.evaluateHealth(ctx, cfg, secure)
+	status, message, details, err := d.evaluateHealth(ctx, cfg, secure, opts)
 	if err != nil {
 		return nil, err
 	}

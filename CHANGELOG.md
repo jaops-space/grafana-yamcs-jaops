@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored the original variable panel ID so existing dashboards continue to load, and migrated 1.0.8 commanding and variable-panel settings to the current command keys.
+- Replaced host and endpoint connection errors in health details with fixed diagnostic messages; raw errors remain in server logs.
+- Restricted telecommand, alarm, and link control resources to Grafana Editors and Admins.
+- Restored Grafana data source HTTP options for Yamcs requests, escaped dynamic Yamcs API path segments, and isolated WebSocket dialer settings per host.
+
+### Security
+
+- Build the backend with Go 1.27.2 or later.
+
 ## [1.1.5] - 2026-10-09
 
 ### Changed

@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -83,7 +84,7 @@ func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 		return nil
 	}
 
-	dialer := websocket.DefaultDialer
+	dialer := *websocket.DefaultDialer
 	dialer.HandshakeTimeout = time.Duration(ws.handshakeTimeout) * time.Second
 	if ws.useProtobuf {
 		dialer.Subprotocols = []string{"protobuf"}
@@ -100,8 +101,11 @@ func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 		ws.Credentials.BeforeRequest(req)
 	}
 
-	conn, _, dialErr := dialer.DialContext(ctx, ws.serverRoot, headers)
+	conn, response, dialErr := dialer.DialContext(ctx, ws.serverRoot, headers)
 	if dialErr != nil {
+		if errors.Is(dialErr, websocket.ErrBadHandshake) && response != nil {
+			return fmt.Errorf("websocket handshake returned HTTP %d: %w", response.StatusCode, dialErr)
+		}
 		return dialErr
 	}
 	backend.Logger.Debug("Websocket: Connected to WebSocket.")
