@@ -298,7 +298,7 @@ func (d *Datasource) evaluateHealth(
 		err = d.applyConnectivityChecks(ctx, y, secure, details, httpOptions...)
 		if err != nil {
 			backend.Logger.Error("Health connectivity check failed", "error", err)
-			return backend.HealthStatusError, "Health connectivity check failed", details, nil
+			return backend.HealthStatusError, "Health connectivity check failed", nil, nil
 		}
 	}
 
