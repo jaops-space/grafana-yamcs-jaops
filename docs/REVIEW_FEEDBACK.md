@@ -1,11 +1,11 @@
 # Grafana reviewer feedback
 
-Use these recurring review lessons when changing the plugin or preparing a release.
+Recurrent Grafana reviewer feedback:
 
-- **Protect saved dashboards.** Treat published panel IDs, query formats, stream addresses, and option keys as persistent interfaces. Test upgrades with existing dashboards; option migration cannot fix an ID Grafana no longer recognizes.
+- Treat published panel IDs, query formats, stream addresses, and option keys as persistent interfaces. Changes to these qualify as "breaking changes" and require a major version bump.
   - Grafana flagged the rename from `jaops-varcommanding-panel` to `jaops-variables-panel`: older dashboards would show "Panel plugin not found." They asked us to keep the ID or make the break a documented major release, and suggested migrating 1.0.8 panel settings.
 
-- **Test behavior in Grafana.** A healthy connection check or mocked unit test does not prove that a dashboard renders; exercise real queries and upgrades on supported Grafana versions.
+- A healthy connection check or mocked unit test does not prove that a dashboard renders; exercise real queries and upgrades on supported Grafana versions.
   - In 1.1.1, parameter graphs failed with an invalid Live channel address although the connection test and parameter search worked. The address used `stream` where Grafana expected `namespace`; mocks missed the regression.
 
 - **Keep diagnostics safe.** Return fixed, useful failure categories from user-visible resources, and keep raw transport details in structured server logs.
