@@ -61,7 +61,10 @@ func DatasourceGraphFrame(ctx context.Context, endpoint *source.YamcsEndpoint, q
 
 	frame := tools.ConvertSampleBufferToFrame(samples, q.Parameter, getMin, getMax)
 
-	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
+	// No live value available here (the archive samples API carries no
+	// per-sample alarm info), so this falls back to the demand's cached
+	// static default-alarm thresholds - see SetUnitAndThresholds.
+	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame, nil)
 	return frame, nil
 }
 
@@ -84,7 +87,7 @@ func DatasourceSingleValueFrame(ctx context.Context, endpoint *source.YamcsEndpo
 	if q.Type == SingleValue {
 		frame = tools.ConvertSingleValueBufferToFrame(buffer, q.Parameter, false)
 	}
-	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
+	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame, lastValue)
 	return frame, nil
 
 }
@@ -116,7 +119,10 @@ func DatasourceDiscreteValueFrame(ctx context.Context, endpoint *source.YamcsEnd
 	}
 
 	frame := tools.ConvertRangesToFrame(ranges, q.Parameter, q.AutomaticColors)
-	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame)
+	// Discrete values have no numeric alarm ranges to begin with; this only
+	// sets unit (thresholds fall back to the demand's, which is empty for a
+	// discrete parameter).
+	endpoint.SetUnitAndThresholds(ctx, q.Parameter, frame, nil)
 	return frame, nil
 
 }
