@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ### Security
 
-- Updated the backend build to Go 1.27.2.
+- Updated the backend build to Go 1.27.3.
 
 ## [1.1.5] - 2026-10-09
 
