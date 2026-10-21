@@ -11,7 +11,7 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 )
 
-func TestActionRoutesRequireEditor(t *testing.T) {
+func TestActionRoutesDoNotRestrictViewerRole(t *testing.T) {
 	router := mux.NewRouter()
 	(&Datasource{multiplexer: &source.Multiplexer{Endpoints: map[string]*source.YamcsEndpoint{}}}).registerRoutes(router)
 	actionPaths := []string{
@@ -26,7 +26,7 @@ func TestActionRoutesRequireEditor(t *testing.T) {
 		"/endpoint/e1/links/link/action/action",
 	}
 	for _, path := range actionPaths {
-		for _, role := range []string{"", "Viewer", "Editor", "Admin"} {
+		for _, role := range []string{"", "Viewer"} {
 			t.Run(path+"/"+role, func(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, path, nil)
 				if role != "" {
@@ -34,12 +34,8 @@ func TestActionRoutesRequireEditor(t *testing.T) {
 				}
 				rec := httptest.NewRecorder()
 				router.ServeHTTP(rec, req)
-				if role == "Editor" || role == "Admin" {
-					if rec.Code == http.StatusForbidden {
-						t.Fatalf("%s must be allowed to reach the handler", role)
-					}
-				} else if rec.Code != http.StatusForbidden {
-					t.Fatalf("%s received %d, want 403", role, rec.Code)
+				if rec.Code == http.StatusForbidden {
+					t.Fatalf("%s role was unexpectedly denied", role)
 				}
 			})
 		}

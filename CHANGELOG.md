@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 ### Fixed
 
 - Restored the original variable panel ID and migrated older panel settings. Dashboards saved under the 1.1.5 panel ID require updating.
-- Sanitized connection diagnostics and limited command, alarm, and link actions to Editors and Admins.
+- Sanitized connection diagnostics; command, alarm, and link actions remain available to data-source users.
 - Restored Grafana HTTP client settings, escaped Yamcs API paths, and isolated WebSocket dialers.
 
 ### Security

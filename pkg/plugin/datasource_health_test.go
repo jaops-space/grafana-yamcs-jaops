@@ -254,3 +254,28 @@ func TestCheckHealth_StoresLastDetailsOnValidationError(t *testing.T) {
 		t.Fatalf("expected stored health details")
 	}
 }
+
+func TestEvaluateHealth_DoesNotReturnSuccessDetailsWhenMultiplexerCreationFails(t *testing.T) {
+	d := &Datasource{}
+	cfg := validConfig()
+	cfg.Hosts["h1"].Auth = true
+	cfg.Hosts["h1"].Username = "yamcs-user"
+
+	status, message, details, err := d.evaluateHealth(
+		context.Background(),
+		cfg,
+		&config.YamcsSecureConfiguration{Hosts: map[string]*config.YamcsSecureHost{}},
+	)
+	if err != nil {
+		t.Fatalf("expected sanitized health result, got error %v", err)
+	}
+	if status != backend.HealthStatusError {
+		t.Fatalf("expected error status, got %v", status)
+	}
+	if message != "Health connectivity check failed" {
+		t.Fatalf("expected sanitized error message, got %q", message)
+	}
+	if details != nil {
+		t.Fatalf("expected no cached health details after multiplexer construction failure, got %#v", details)
+	}
+}

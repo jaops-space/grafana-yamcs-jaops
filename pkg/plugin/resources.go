@@ -19,17 +19,6 @@ func resourceError(w http.ResponseWriter, status int, publicMessage string, logM
 	http.Error(w, publicMessage, status)
 }
 
-func requireEditor(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		user := backend.UserFromContext(req.Context())
-		if user == nil || (user.Role != "Editor" && user.Role != "Admin") {
-			http.Error(w, "Editor role required", http.StatusForbidden)
-			return
-		}
-		next(w, req)
-	}
-}
-
 // handleFetchSources handles incoming requests to check endpoint statuses.
 func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
@@ -180,19 +169,19 @@ func (d *Datasource) registerRoutes(mux *mux.Router) {
 	mux.HandleFunc("/endpoint/{endpointID}/parameters", d.handleSearchParameters)
 	mux.HandleFunc("/endpoint/{endpointID}/commands", d.handleSearchCommands)
 	mux.HandleFunc("/endpoint/{endpointID}/command/info", d.handleGetCommandInfo)
-	mux.HandleFunc("/endpoint/{endpointID}/command/issue", requireEditor(d.handleExecuteCommand))
-	mux.HandleFunc("/endpoint/{endpointID}/alarm/acknowledge", requireEditor(d.handleAcknowledgeAlarm))
-	mux.HandleFunc("/endpoint/{endpointID}/alarm/clear", requireEditor(d.handleClearAlarm))
-	mux.HandleFunc("/endpoint/{endpointID}/alarm/shelve", requireEditor(d.handleShelveAlarm))
-	mux.HandleFunc("/endpoint/{endpointID}/alarm/unshelve", requireEditor(d.handleUnshelveAlarm))
+	mux.HandleFunc("/endpoint/{endpointID}/command/issue", d.handleExecuteCommand)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/acknowledge", d.handleAcknowledgeAlarm)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/clear", d.handleClearAlarm)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/shelve", d.handleShelveAlarm)
+	mux.HandleFunc("/endpoint/{endpointID}/alarm/unshelve", d.handleUnshelveAlarm)
 
 	// Link management routes
 	mux.HandleFunc("/endpoint/{endpointID}/links", d.handleListLinks)
 	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}", d.handleGetLink)
-	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/enable", requireEditor(d.handleEnableLink))
-	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/disable", requireEditor(d.handleDisableLink))
-	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/reset", requireEditor(d.handleResetLinkCounters))
-	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", requireEditor(d.handleRunLinkAction))
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/enable", d.handleEnableLink)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/disable", d.handleDisableLink)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/reset", d.handleResetLinkCounters)
+	mux.HandleFunc("/endpoint/{endpointID}/links/{linkName}/action/{actionID}", d.handleRunLinkAction)
 }
 
 // endpoint to get latest health details and whether they are available (non-nil)
