@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 )
@@ -23,7 +24,8 @@ type Datasource struct {
 	backend.CallResourceHandler
 	backend.StreamHandler
 	instancemgmt.InstanceDisposer
-	multiplexer *source.Multiplexer
+	multiplexer       *source.Multiplexer
+	httpClientOptions *httpclient.Options
 
 	lastHealthDetails *HealthDetails
 	healthMutex       sync.RWMutex

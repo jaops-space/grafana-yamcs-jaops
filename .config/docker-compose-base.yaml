@@ -29,7 +29,7 @@ services:
     environment:
       DEVELOPMENT: ${DEVELOPMENT:-false}
       GF_DATAPROXY_LOGGING: 1
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: jaops-yamcs-app,jaops-yamcs-datasource,jaops-timesync-panel,jaops-commanding-panel,jaops-commandhistory-panel,jaops-telemetricimage-panel,jaops-staticimage-panel,jaops-variables-panel,jaops-links-panel,jaops-alarms-panel
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: jaops-yamcs-app,jaops-yamcs-datasource,jaops-timesync-panel,jaops-commanding-panel,jaops-commandhistory-panel,jaops-telemetricimage-panel,jaops-staticimage-panel,jaops-varcommanding-panel,jaops-links-panel,jaops-alarms-panel
       # No subpath configuration - for direct localhost:3000 access (default)
 
 volumes:

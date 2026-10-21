@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-10-20
+
+### Fixed
+
+- Restored the original variable panel ID and migrated older panel settings. Dashboards saved under the 1.1.5 panel ID require updating.
+- Sanitized connection diagnostics; command, alarm, and link actions remain available to data-source users.
+- Restored Grafana HTTP client settings, escaped Yamcs API paths, and isolated WebSocket dialers.
+
+### Security
+
+- Updated the backend build to Go 1.27.3.
+
 ## [1.1.5] - 2026-10-09
 
 ### Changed

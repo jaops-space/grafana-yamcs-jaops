@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf"
@@ -34,7 +35,7 @@ func (c *YamcsClient) IssueCommandWithElevatedPrivileges(ctx context.Context, in
 
 // issueCommand handles command execution with optional parameters.
 func (c *YamcsClient) issueCommand(ctx context.Context, instance string, processor string, commandName string, args map[string]any, comment string, origin *string, sequenceNumber *int32, dryRun bool, stream *string, disableTransmissionConstraints, disableVerifiers *bool, verifierConfig map[string]*commanding.VerifierConfig, extra map[string]*protobuf.Value) (*commanding.IssueCommandResponse, error) {
-	url := fmt.Sprintf("/processors/%s/%s/commands/%s", instance, processor, commandName)
+	url := fmt.Sprintf("/processors/%s/%s/commands/%s", instance, processor, url.PathEscape(commandName))
 
 	argsProto, err := convertMap(args)
 	if err != nil {
@@ -65,7 +66,7 @@ func (c *YamcsClient) issueCommand(ctx context.Context, instance string, process
 
 // GetCommand retrieves command history entry by instance and ID.
 func (c *YamcsClient) GetCommand(ctx context.Context, instance, id string) (*commanding.CommandHistoryEntry, error) {
-	url := fmt.Sprintf("/archive/%s/commands/%s", instance, id)
+	url := fmt.Sprintf("/archive/%s/commands/%s", instance, url.PathEscape(id))
 	command := &commanding.CommandHistoryEntry{}
 	if err := c.HTTP.GetProto(ctx, url, command); err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func (c *YamcsClient) getCommandInfoFetcher(ctx context.Context, instance string
 
 // GetCommandInfo retrieves metadata for a specific command.
 func (c *YamcsClient) GetCommandInfo(ctx context.Context, instance string, command string) (CommandInfo, error) {
-	url := fmt.Sprintf("/mdb/%s/commands/%s", instance, command)
+	url := fmt.Sprintf("/mdb/%s/commands/%s", instance, url.PathEscape(command))
 	info := &mdb.CommandInfo{}
 	if err := c.HTTP.GetProto(ctx, url, info); err != nil {
 		return nil, err

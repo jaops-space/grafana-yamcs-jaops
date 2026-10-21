@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
@@ -41,7 +42,7 @@ func NewMultiplexer(cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSe
 	return NewMultiplexerWithContext(context.Background(), cfg, seccfg)
 }
 
-func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSecureConfiguration) (*Multiplexer, error) {
+func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfiguration, seccfg *config.YamcsSecureConfiguration, httpOptions ...httpclient.Options) (*Multiplexer, error) {
 
 	mux := &Multiplexer{
 		Hosts:     make(map[string]*YamcsHost),
@@ -77,7 +78,26 @@ func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfi
 			}
 		}
 
-		yamcsClient, err := client.NewYamcsClientWithContext(ctx, hostCfg.Path, tlsConfig, creds)
+		var clientOptions []client.YamcsClientOption
+		if len(httpOptions) > 0 {
+			opts := httpOptions[0]
+			if opts.TLS != nil {
+				tlsOpts := *opts.TLS
+				opts.TLS = &tlsOpts
+			}
+			if hostCfg.Tls {
+				if opts.TLS == nil {
+					opts.TLS = &httpclient.TLSOptions{}
+				}
+				opts.TLS.InsecureSkipVerify = hostCfg.TlsInsecure
+			}
+			httpClient, err := httpclient.New(opts)
+			if err != nil {
+				return nil, fmt.Errorf("could not create HTTP client for host %s: %w", hostID, err)
+			}
+			clientOptions = append(clientOptions, client.OptionSetHTTPClient(httpClient))
+		}
+		yamcsClient, err := client.NewYamcsClientWithContext(ctx, hostCfg.Path, tlsConfig, creds, clientOptions...)
 		if err != nil {
 			return nil, err
 		}

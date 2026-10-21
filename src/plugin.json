@@ -131,7 +131,7 @@
         {
             "type": "panel",
             "name": "JAOPS Variable Setting Panel",
-            "id": "jaops-variables-panel",
+            "id": "jaops-varcommanding-panel",
             "path": "variable-setting-panel/plugin.json"
         },
         {

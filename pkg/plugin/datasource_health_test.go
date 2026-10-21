@@ -3,11 +3,16 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/exception"
 )
 
 func validConfig() *config.YamcsPluginConfiguration {
@@ -104,8 +109,32 @@ func TestValidateConfigItems_HostAndEndpointValidationFailures(t *testing.T) {
 	if got := details.Endpoints["eInvalidHost"].Message; got != "Host configuration is invalid" {
 		t.Fatalf("expected endpoint host invalid message, got %q", got)
 	}
-	if got := details.Endpoints["eUnknownHost"].Message; got != "References unknown host 'missing'" {
+	if got := details.Endpoints["eUnknownHost"].Message; got != "References unknown host" {
 		t.Fatalf("expected unknown host message, got %q", got)
+	}
+	if got := hostStatus.Message; got != "Invalid host configuration" {
+		t.Fatalf("expected sanitized host validation message, got %q", got)
+	}
+}
+
+func TestConnectionFailureMessage(t *testing.T) {
+	tests := []struct {
+		err  error
+		want string
+	}{
+		{fmt.Errorf("lookup private.internal on 172.25.0.1:53: %w", &net.DNSError{Err: "no such host"}), "Host name could not be resolved"},
+		{fmt.Errorf("dial tcp 172.25.0.2:9: %w", syscall.ECONNREFUSED), "Connection refused"},
+		{fmt.Errorf("dial tcp 172.25.0.2:9: %w", context.DeadlineExceeded), "Connection timed out"},
+		{errors.New("remote error: tls: handshake failure on 172.25.0.2"), "TLS handshake failed"},
+		{errors.New("websocket handshake returned HTTP 401"), "Authentication failed"},
+		{exception.New("instance secret on 172.25.0.2", "MUX_CONNECT_NO_INSTANCE"), "Instance not found"},
+		{exception.New("processor secret on 172.25.0.2", "MUX_CONNECT_NO_PROCESSOR"), "Processor not found"},
+		{errors.New("instance sim on 172.25.0.2 not found"), "Connection failed"},
+	}
+	for _, tt := range tests {
+		if got := connectionFailureMessage(tt.err); got != tt.want {
+			t.Errorf("connectionFailureMessage(%q) = %q, want %q", tt.err, got, tt.want)
+		}
 	}
 }
 
@@ -223,5 +252,30 @@ func TestCheckHealth_StoresLastDetailsOnValidationError(t *testing.T) {
 	_, ok := d.GetLastHealthDetails()
 	if !ok {
 		t.Fatalf("expected stored health details")
+	}
+}
+
+func TestEvaluateHealth_DoesNotReturnSuccessDetailsWhenMultiplexerCreationFails(t *testing.T) {
+	d := &Datasource{}
+	cfg := validConfig()
+	cfg.Hosts["h1"].Auth = true
+	cfg.Hosts["h1"].Username = "yamcs-user"
+
+	status, message, details, err := d.evaluateHealth(
+		context.Background(),
+		cfg,
+		&config.YamcsSecureConfiguration{Hosts: map[string]*config.YamcsSecureHost{}},
+	)
+	if err != nil {
+		t.Fatalf("expected sanitized health result, got error %v", err)
+	}
+	if status != backend.HealthStatusError {
+		t.Fatalf("expected error status, got %v", status)
+	}
+	if message != "Health connectivity check failed" {
+		t.Fatalf("expected sanitized error message, got %q", message)
+	}
+	if details != nil {
+		t.Fatalf("expected no cached health details after multiplexer construction failure, got %#v", details)
 	}
 }

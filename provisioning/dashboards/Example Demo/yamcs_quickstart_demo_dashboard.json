@@ -845,7 +845,7 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "jaops-variables-panel",
+            "group": "jaops-varcommanding-panel",
             "version": "1.0.0",
             "spec": {
               "options": {
@@ -887,7 +887,7 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "jaops-variables-panel",
+            "group": "jaops-varcommanding-panel",
             "version": "1.0.0",
             "spec": {
               "options": {
@@ -1355,7 +1355,7 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "jaops-variables-panel",
+            "group": "jaops-varcommanding-panel",
             "version": "1.0.0",
             "spec": {
               "options": {
@@ -1564,7 +1564,7 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "jaops-variables-panel",
+            "group": "jaops-varcommanding-panel",
             "version": "1.0.0",
             "spec": {
               "options": {
@@ -1604,7 +1604,7 @@
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "jaops-variables-panel",
+            "group": "jaops-varcommanding-panel",
             "version": "1.0.0",
             "spec": {
               "options": {

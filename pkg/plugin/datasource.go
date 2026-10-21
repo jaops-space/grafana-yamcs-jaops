@@ -25,10 +25,15 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
 	}
+	opts, err := settings.HTTPClientOptions(ctx)
+	if err != nil {
+		return nil, exception.Wrap("Error loading datasource HTTP options", "HTTP_OPTIONS_ERROR", err)
+	}
+	datasource.httpClientOptions = &opts
 
 	// Create a per-instance multiplexer so different datasource instances
 	// do not share state or collide with each other.
-	multiplexer, err := source.NewMultiplexerWithContext(ctx, cfg, secure)
+	multiplexer, err := source.NewMultiplexerWithContext(ctx, cfg, secure, opts)
 	if err != nil {
 		return nil, err
 	}

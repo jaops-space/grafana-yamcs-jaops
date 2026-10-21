@@ -21,7 +21,7 @@ func (c *YamcsClient) ListAlarms(ctx context.Context, instance, name string) *ty
 func (c *YamcsClient) fetchAlarms(ctx context.Context, instance, name string) types.FetchFunction[[]*alarms.AlarmData] {
 	return func(query map[string]string) ([]*alarms.AlarmData, string, error) {
 		response := &alarms.ListAlarmsResponse{}
-		if err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, name), query, response); err != nil {
+		if err := c.HTTP.GetProtoWithQuery(ctx, fmt.Sprintf("/archive/%s/alarms/%s", instance, url.PathEscape(name)), query, response); err != nil {
 			return nil, "", err
 		}
 		return response.Alarms, response.GetContinuationToken(), nil
