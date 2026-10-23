@@ -17,7 +17,12 @@ import { useDualButtonStates } from './hooks/useDualButtonStates';
 import { useDualCommandInfos } from './hooks/useDualCommandInfos';
 import { CommandErrors, CommandingPanelProps } from './types';
 import { getCommandKey } from './utils/commandKeys';
-import { getEditorCardsStyle, getRuntimeButtonWrapperStyle, getRuntimeLayoutStyle } from './utils/layout';
+import {
+    getEditorCardsStyle,
+    getRuntimeButtonWrapperStyle,
+    getRuntimeLayoutError,
+    getRuntimeLayoutStyle,
+} from './utils/layout';
 import { setArgumentError, validateCommandArgument } from './utils/validation';
 import { prefixRoute } from 'utils/utils.routing';
 
@@ -62,6 +67,7 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
     const { dualButtonStates, updateDualButtonStates } = useDualButtonStates(props.id, options, onOptionsChange);
 
     const hasGroupPreview = editing && commandInfos.length > 1;
+    const layoutError = getRuntimeLayoutError(options, commandInfos.length);
 
     const updateLayoutOption = (key: string, value: any) => {
         onOptionsChange({
@@ -160,7 +166,10 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
         >
             {commandInfos.length === 0 && (
                 <div className={styles.emptyState}>
-                    <Alert severity="info" title={variableMode ? 'No variable command configured' : 'No command configured'}>
+                    <Alert
+                        severity="info"
+                        title={variableMode ? 'No variable command configured' : 'No command configured'}
+                    >
                         Select a Commanding query and choose a Yamcs command for this panel.
                         <br />
                         <Link href={prefixRoute(ROUTES.Commanding)} color="primary">
@@ -179,44 +188,47 @@ export default function CommandingPanel({ variableMode = false, ...props }: Comm
                 </>
             )}
 
-            <div style={editing ? getEditorCardsStyle() : getRuntimeLayoutStyle(options)}>
-                {commandInfos.map((commandInfo, index) => {
-                    const command = commandInfo.command;
-                    const commandState = formState[getCommandKey(command.name, index)];
-                    const commandKey = getCommandKey(command.name, index);
+            {!editing && layoutError && commandInfos.length > 0 && <Alert severity="warning" title={layoutError} />}
+            {(editing || !layoutError) && (
+                <div style={editing ? getEditorCardsStyle() : getRuntimeLayoutStyle(options)}>
+                    {commandInfos.map((commandInfo, index) => {
+                        const command = commandInfo.command;
+                        const commandState = formState[getCommandKey(command.name, index)];
+                        const commandKey = getCommandKey(command.name, index);
 
-                    if (!editing) {
+                        if (!editing) {
+                            return (
+                                <div key={commandKey} style={getRuntimeButtonWrapperStyle(options, index)}>
+                                    {renderRuntimeButton(commandInfo, index)}
+                                </div>
+                            );
+                        }
+
                         return (
-                            <div key={commandKey} style={getRuntimeButtonWrapperStyle(options)}>
-                                {renderRuntimeButton(commandInfo, index)}
-                            </div>
+                            <CommandCard
+                                key={commandKey}
+                                commandInfo={commandInfo}
+                                index={index}
+                                commandState={commandState}
+                                variableMode={variableMode}
+                                scopedVars={scopedVars}
+                                loading={loading}
+                                datasource={datasource}
+                                errors={errors}
+                                dualCommandInfos={dualCommandInfos}
+                                dualButtonStates={dualButtonStates}
+                                onSubmit={handleSubmit}
+                                onArgumentChange={handleArgumentChange}
+                                onOptionChange={handleOptionChange}
+                                onValidate={validateArgument}
+                                fetchDualCommandInfo={fetchDualCommandInfo}
+                                clearDualCommandInfo={clearDualCommandInfo}
+                                showPreview={!hasGroupPreview}
+                            />
                         );
-                    }
-
-                    return (
-                        <CommandCard
-                            key={commandKey}
-                            commandInfo={commandInfo}
-                            index={index}
-                            commandState={commandState}
-                            variableMode={variableMode}
-                            scopedVars={scopedVars}
-                            loading={loading}
-                            datasource={datasource}
-                            errors={errors}
-                            dualCommandInfos={dualCommandInfos}
-                            dualButtonStates={dualButtonStates}
-                            onSubmit={handleSubmit}
-                            onArgumentChange={handleArgumentChange}
-                            onOptionChange={handleOptionChange}
-                            onValidate={validateArgument}
-                            fetchDualCommandInfo={fetchDualCommandInfo}
-                            clearDualCommandInfo={clearDualCommandInfo}
-                            showPreview={!hasGroupPreview}
-                        />
-                    );
-                })}
-            </div>
+                    })}
+                </div>
+            )}
         </div>
     );
 }

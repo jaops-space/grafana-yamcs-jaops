@@ -11,7 +11,8 @@ import {
 import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafana/runtime';
 
 import { Observable, merge } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
+import { normalizeAlarmThresholds } from './thresholds';
 import { Configuration, DEFAULT_QUERY as DefaultQuery, DefaultConfiguration, Query, QueryType } from './types';
 
 /**
@@ -234,7 +235,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                             },
                         },
                     })
-                    .pipe(tap(createBenchmarkFrontendTap()));
+                    .pipe(map(normalizeAlarmThresholds), tap(createBenchmarkFrontendTap()));
             })
             .filter(Boolean) as Array<Observable<DataQueryResponse>>; // Remove undefined values
 

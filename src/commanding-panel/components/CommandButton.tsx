@@ -96,6 +96,10 @@ export function CommandButton(props: {
     return (
         <Button
             data-testid="jaops-command-button"
+            aria-label={getTemplateSrv().replace(
+                commandState?.label || commandState?.tooltip || command.name,
+                scopedVars
+            )}
             disabled={loading}
             style={{
                 ...Shapes[commandState?.shape as any]?.css,

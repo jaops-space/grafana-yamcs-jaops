@@ -7,4 +7,5 @@ export interface ImagePanelOptions {
     brightness?: number;
     contrast?: number;
     transform?: string; // e.g., "translate(10px, 20px) rotate(45deg) scale(1.2)"
+    emptyStateText?: string;
 }

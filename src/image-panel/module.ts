@@ -26,6 +26,13 @@ export const plugin = new PanelPlugin<ImagePanelOptions>(ImagePanel).setPanelOpt
             },
         })
         .addTextInput({
+            name: 'Waiting message',
+            path: 'emptyStateText',
+            category: ['Image Source'],
+            description: 'Show a compact waiting state instead of setup guidance when no image has arrived.',
+            defaultValue: '',
+        })
+        .addTextInput({
             name: 'Transform',
             path: 'transform',
             category: ['Transforms'],

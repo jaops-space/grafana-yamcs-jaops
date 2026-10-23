@@ -1,5 +1,6 @@
 import { PanelProps } from '@grafana/data';
 import { DataSourceWithBackend } from '@grafana/runtime';
+import { LayoutDirection } from './utils/layout';
 
 export type CommandInfo = {
     command: any;
@@ -37,7 +38,7 @@ export type SharedPanelContext = {
 // These are stored on the existing PanelOptions object. If your canonical
 // `commanding-panel/types` PanelOptions lives elsewhere, copy these fields there too.
 export type RuntimeButtonLayoutFields = {
-    layoutDirection?: 'column' | 'row';
+    layoutDirection?: LayoutDirection;
     layoutWrap?: boolean;
     layoutGap?: number;
     layoutJustify?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly';
@@ -103,7 +104,7 @@ export interface PanelOptions {
     commandForms: CommandForms;
     dualButtonStates?: { [key: string]: 'on' | 'off' };
 
-    layoutDirection?: 'column' | 'row';
+    layoutDirection?: LayoutDirection;
     layoutWrap?: boolean;
     layoutGap?: number;
     layoutJustify?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around';

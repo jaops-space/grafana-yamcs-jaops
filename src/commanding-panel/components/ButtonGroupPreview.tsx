@@ -1,8 +1,8 @@
 import { css } from '@emotion/css';
 import { GrafanaTheme2 } from '@grafana/data';
 import React from 'react';
-import { Card, useStyles2 } from '@grafana/ui';
-import { getRuntimeButtonWrapperStyle, getRuntimeLayoutStyle } from '../utils/layout';
+import { Alert, Card, useStyles2 } from '@grafana/ui';
+import { getRuntimeButtonWrapperStyle, getRuntimeLayoutError, getRuntimeLayoutStyle } from '../utils/layout';
 
 const getStyles = (theme: GrafanaTheme2) => ({
     card: css({
@@ -30,6 +30,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
 export function ButtonGroupPreview(props: { options: any; children: React.ReactNode }) {
     const { options, children } = props;
     const styles = useStyles2(getStyles);
+    const layoutError = getRuntimeLayoutError(options, React.Children.count(children));
     const previewLayoutStyle = {
         ...getRuntimeLayoutStyle(options),
         padding: undefined,
@@ -45,13 +46,17 @@ export function ButtonGroupPreview(props: { options: any; children: React.ReactN
             <Card.Meta>Preview of all runtime buttons with the layout settings below.</Card.Meta>
             <Card.Description>
                 <div className={styles.preview}>
-                    <div className={styles.layout} style={previewLayoutStyle}>
-                        {React.Children.map(children, (child, index) => (
-                            <div key={index} style={getRuntimeButtonWrapperStyle(options)}>
-                                {child}
-                            </div>
-                        ))}
-                    </div>
+                    {layoutError ? (
+                        <Alert severity="warning" title={layoutError} />
+                    ) : (
+                        <div className={styles.layout} style={previewLayoutStyle}>
+                            {React.Children.map(children, (child, index) => (
+                                <div key={index} style={getRuntimeButtonWrapperStyle(options, index)}>
+                                    {child}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </Card.Description>
         </Card>

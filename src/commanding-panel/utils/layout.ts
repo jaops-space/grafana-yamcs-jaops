@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type LayoutDirection = 'column' | 'row';
+export type LayoutDirection = 'column' | 'row' | 'direction-pad';
 export type LayoutJustify = 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly';
 export type LayoutAlign = 'stretch' | 'flex-start' | 'center' | 'flex-end';
 export type ButtonWidthMode = 'auto' | 'equal' | 'fixed' | 'fill';
@@ -21,7 +21,27 @@ export type RuntimeLayoutOptions = {
 export const DEFAULT_BUTTON_MIN_WIDTH = 160;
 export const DEFAULT_BUTTON_MIN_HEIGHT = 40;
 
+export function getRuntimeLayoutError(options: RuntimeLayoutOptions, commandCount: number): string | undefined {
+    if (options.layoutDirection === 'direction-pad' && commandCount !== 5) {
+        return 'A directional pad needs five commands, ordered: forward, left, stop, right, reverse.';
+    }
+    return undefined;
+}
+
 export function getRuntimeLayoutStyle(options: RuntimeLayoutOptions): React.CSSProperties {
+    if (options.layoutDirection === 'direction-pad') {
+        return {
+            display: 'grid',
+            gridTemplateColumns: `repeat(3, minmax(${options.buttonMinWidth ?? DEFAULT_BUTTON_MIN_WIDTH}px, 1fr))`,
+            gridTemplateRows: `repeat(3, ${options.buttonHeight ?? options.buttonMinHeight ?? DEFAULT_BUTTON_MIN_HEIGHT}px)`,
+            gap: `${options.layoutGap ?? 8}px`,
+            alignContent: 'center',
+            padding: '10px',
+            width: '100%',
+            height: '100%',
+            overflow: 'auto',
+        };
+    }
     return {
         display: 'flex',
         flexDirection: options.layoutDirection ?? 'column',
@@ -36,7 +56,22 @@ export function getRuntimeLayoutStyle(options: RuntimeLayoutOptions): React.CSSP
     };
 }
 
-export function getRuntimeButtonWrapperStyle(options: RuntimeLayoutOptions): React.CSSProperties {
+export function getRuntimeButtonWrapperStyle(options: RuntimeLayoutOptions, index = 0): React.CSSProperties {
+    if (options.layoutDirection === 'direction-pad') {
+        const positions = [
+            [1, 2],
+            [2, 1],
+            [2, 2],
+            [2, 3],
+            [3, 2],
+        ];
+        const position = positions[index];
+        if (!position) {
+            throw new RangeError('Directional pad button index must be between 0 and 4.');
+        }
+        const [gridRow, gridColumn] = position;
+        return { gridRow, gridColumn, minWidth: options.buttonMinWidth ?? DEFAULT_BUTTON_MIN_WIDTH, minHeight: 40 };
+    }
     const direction = options.layoutDirection ?? 'column';
     const widthMode = options.buttonWidthMode ?? (direction === 'row' ? 'equal' : 'fill');
     const minWidth = options.buttonMinWidth ?? DEFAULT_BUTTON_MIN_WIDTH;

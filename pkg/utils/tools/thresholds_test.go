@@ -7,6 +7,16 @@ import (
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/mdb"
 )
 
+func TestConvertAlarmInfoToThresholds_NoAlarmIsNeutral(t *testing.T) {
+	thresholds := ConvertAlarmInfoToThresholds(nil)
+	if len(thresholds) != 1 {
+		t.Fatalf("expected one neutral base with no numeric limits, got %d steps", len(thresholds))
+	}
+	if !math.IsInf(float64(thresholds[0].Value), -1) || thresholds[0].Color != "text" {
+		t.Fatalf("expected theme foreground at -Inf for missing MDB alarm limits, got %+v", thresholds[0])
+	}
+}
+
 func TestConvertAlarmInfoToThresholds_HandlesInclusiveExclusiveAndMissingSides(t *testing.T) {
 	maxInclusive := new(10.0)
 	maxExclusive := new(20.0)

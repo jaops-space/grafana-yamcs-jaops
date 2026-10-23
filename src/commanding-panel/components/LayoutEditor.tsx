@@ -34,12 +34,21 @@ export function LayoutEditor(props: { options: any; onChange: (key: string, valu
             </Card.Meta>
             <Card.Description>
                 <div className={styles.fields}>
-                    <Field label="Direction" style={{ marginBottom: 0 }}>
+                    <Field
+                        label="Direction"
+                        description={
+                            options.layoutDirection === 'direction-pad'
+                                ? 'Five commands in order: forward, left, stop, right, reverse.'
+                                : undefined
+                        }
+                        style={{ marginBottom: 0 }}
+                    >
                         <Combobox
                             value={options.layoutDirection ?? 'column'}
                             options={[
                                 { label: 'Vertical', value: 'column' },
                                 { label: 'Horizontal', value: 'row' },
+                                { label: 'Directional pad', value: 'direction-pad' },
                             ]}
                             onChange={(e: SelectableValue<LayoutDirection>) => onChange('layoutDirection', e.value)}
                         />
@@ -47,6 +56,7 @@ export function LayoutEditor(props: { options: any; onChange: (key: string, valu
 
                     <Field label="Wrap" style={{ marginBottom: 0 }}>
                         <Combobox
+                            disabled={options.layoutDirection === 'direction-pad'}
                             value={String(options.layoutWrap ?? true)}
                             options={[
                                 { label: 'Wrap', value: 'true' },
@@ -67,6 +77,7 @@ export function LayoutEditor(props: { options: any; onChange: (key: string, valu
 
                     <Field label="Justify" style={{ marginBottom: 0 }}>
                         <Combobox
+                            disabled={options.layoutDirection === 'direction-pad'}
                             value={options.layoutJustify ?? 'flex-start'}
                             options={[
                                 { label: 'Start', value: 'flex-start' },
@@ -82,6 +93,7 @@ export function LayoutEditor(props: { options: any; onChange: (key: string, valu
 
                     <Field label="Align" style={{ marginBottom: 0 }}>
                         <Combobox
+                            disabled={options.layoutDirection === 'direction-pad'}
                             value={options.layoutAlign ?? 'stretch'}
                             options={[
                                 { label: 'Stretch', value: 'stretch' },
@@ -95,6 +107,7 @@ export function LayoutEditor(props: { options: any; onChange: (key: string, valu
 
                     <Field label="Width mode" style={{ marginBottom: 0 }}>
                         <Combobox
+                            disabled={options.layoutDirection === 'direction-pad'}
                             value={options.buttonWidthMode ?? 'fill'}
                             options={[
                                 { label: 'Auto', value: 'auto' },
@@ -117,6 +130,7 @@ export function LayoutEditor(props: { options: any; onChange: (key: string, valu
 
                     <Field label="Width" description="px, for fixed/preferred" style={{ marginBottom: 0 }}>
                         <Input
+                            disabled={options.layoutDirection === 'direction-pad'}
                             type="number"
                             min={0}
                             value={options.buttonWidth ?? ''}

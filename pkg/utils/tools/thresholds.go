@@ -270,7 +270,9 @@ var AlarmLevelColors = map[mdb.AlarmLevelType]string{
 func ConvertAlarmInfoToThresholds(alarmInfo *mdb.AlarmInfo) []*data.Threshold {
 
 	if alarmInfo == nil {
-		return nil
+		// Grafana replaces an empty threshold list with green, implying normal.
+		// A neutral base color distinguishes missing MDB limits from healthy data.
+		return []*data.Threshold{newThreshold(math.Inf(-1), "text")}
 	}
 
 	hasInvertedRange := false
