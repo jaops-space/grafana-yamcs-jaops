@@ -32,6 +32,13 @@ runs:
       with:
         node-version: '22'
 
+    # semgrep 1.84.1 (pinned below for validator parity) crashes on Python 3.14,
+    # which ubuntu-latest ships since the Ubuntu 26 migration.
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile --prefer-offline
