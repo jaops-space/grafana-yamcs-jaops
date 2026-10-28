@@ -27,7 +27,15 @@ interface SingleParameterInputProps {
 // A single parameter/aggregate-member text input with a fetching autocomplete dropdown.
 // Kept as one field per parameter (rather than a shared multiline box) so Enter, Tab,
 // and normal text editing all behave the way a plain text input would.
-function SingleParameterInput({ datasource, endpoint, value, placeholder, autoFocus, onChange, onRemove }: SingleParameterInputProps) {
+function SingleParameterInput({
+    datasource,
+    endpoint,
+    value,
+    placeholder,
+    autoFocus,
+    onChange,
+    onRemove,
+}: SingleParameterInputProps) {
     const [text, setText] = useState(value);
     const [options, setOptions] = useState<ParameterSearchOption[]>([]);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -193,7 +201,9 @@ function SingleParameterInput({ datasource, endpoint, value, placeholder, autoFo
                 )}
             </div>
 
-            {onRemove && <IconButton name="times" aria-label="Remove parameter" tooltip="Remove parameter" onClick={onRemove} />}
+            {onRemove && (
+                <IconButton name="times" aria-label="Remove parameter" tooltip="Remove parameter" onClick={onRemove} />
+            )}
         </Stack>
     );
 }
@@ -281,37 +291,40 @@ export function ParameterPicker({
 
     return (
         <InlineField label={label} tooltip={tooltip} grow>
-            <Stack direction="column" gap={0.5}>
-                {parameters.map((parameter, index) => (
-                    <SingleParameterInput
-                        key={index}
-                        datasource={datasource}
-                        endpoint={endpoint}
-                        value={parameter}
-                        autoFocus={multiple && index > 0 && parameter === ''}
-                        placeholder={
-                            index === 0
-                                ? '/drone/BatteryPackVoltage or /drone/Attitude.yaw'
-                                : '/drone/Motors[0].rpm'
-                        }
-                        onChange={(next) => updateAt(index, next)}
-                        onRemove={multiple && parameters.length > 1 ? () => handleRemove(index) : undefined}
-                    />
-                ))}
+            {/* jaops-parameter-select is the query editor's stable test hook (e2e critical.spec) */}
+            <div data-testid="jaops-parameter-select" style={{ width: '100%' }}>
+                <Stack direction="column" gap={0.5}>
+                    {parameters.map((parameter, index) => (
+                        <SingleParameterInput
+                            key={index}
+                            datasource={datasource}
+                            endpoint={endpoint}
+                            value={parameter}
+                            autoFocus={multiple && index > 0 && parameter === ''}
+                            placeholder={
+                                index === 0
+                                    ? '/drone/BatteryPackVoltage or /drone/Attitude.yaw'
+                                    : '/drone/Motors[0].rpm'
+                            }
+                            onChange={(next) => updateAt(index, next)}
+                            onRemove={multiple && parameters.length > 1 ? () => handleRemove(index) : undefined}
+                        />
+                    ))}
 
-                {multiple && (
-                    <Stack direction="row" alignItems="center" gap={1}>
-                        <Button variant="secondary" fill="text" size="sm" icon="plus" onClick={handleAdd}>
-                            Add parameter
-                        </Button>
-                        {selectedCount > 0 && (
-                            <Text color="secondary">
-                                {selectedCount} parameter{selectedCount === 1 ? '' : 's'} selected.
-                            </Text>
-                        )}
-                    </Stack>
-                )}
-            </Stack>
+                    {multiple && (
+                        <Stack direction="row" alignItems="center" gap={1}>
+                            <Button variant="secondary" fill="text" size="sm" icon="plus" onClick={handleAdd}>
+                                Add parameter
+                            </Button>
+                            {selectedCount > 0 && (
+                                <Text color="secondary">
+                                    {selectedCount} parameter{selectedCount === 1 ? '' : 's'} selected.
+                                </Text>
+                            )}
+                        </Stack>
+                    )}
+                </Stack>
+            </div>
         </InlineField>
     );
 }
