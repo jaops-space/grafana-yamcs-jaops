@@ -37,7 +37,7 @@
         "@testing-library/jest-dom": "6.9.1",
         "@testing-library/react": "16.3.2",
         "@types/jest": "^30.0.0",
-        "@types/node": "^26.0.0",
+        "@types/node": "^24.0.0",
         "@types/react": "18",
         "@types/react-dom": "18",
         "@typescript-eslint/eslint-plugin": "^8.61.1",
@@ -76,7 +76,7 @@
         "webpack-virtual-modules": "^0.6.2"
     },
     "engines": {
-        "node": ">=22"
+        "node": ">=24"
     },
     "dependencies": {
         "@emotion/css": "11.13.5",
