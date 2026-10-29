@@ -43,52 +43,11 @@ LONG_TERM_BASELINE_DIR = os.path.join(BENCHMARK_DIR, "baselines", "long-term")
 LONG_TERM_SIMULATOR_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "simulator.json")
 LONG_TERM_MICRO_RESULTS = os.path.join(LONG_TERM_BASELINE_DIR, "microbenchmarks.json")
 METRIC_SEMANTICS_VERSION = 2
+with open(os.path.join(BENCHMARK_DIR, "workload.json"), encoding="utf-8") as workload_file:
+    WORKLOAD = json.load(workload_file)
+BENCHMARK_SEMVER = WORKLOAD["semver"]
 DEFAULT_STREAMS = "1,5,10,25,50,100,250,500,750,1000"
-DEFAULT_PARAMETERS = ",".join(
-    [
-        "/myproject/CCSDS_Packet_ID",
-        "/myproject/CCSDS_Packet_Sequence",
-        "/myproject/CCSDS_Packet_Length",
-        "/myproject/EpochUSNO",
-        "/myproject/OrbitNumberCumulative",
-        "/myproject/ElapsedSeconds",
-        "/myproject/A",
-        "/myproject/Height",
-        "/myproject/Position",
-        "/myproject/Velocity",
-        "/myproject/Latitude",
-        "/myproject/Longitude",
-        "/myproject/Battery1_Voltage",
-        "/myproject/Battery2_Voltage",
-        "/myproject/Battery1_Temp",
-        "/myproject/Battery2_Temp",
-        "/myproject/Magnetometer",
-        "/myproject/Sunsensor",
-        "/myproject/Sunsensor_Beta",
-        "/myproject/Gyro",
-        "/myproject/Detector_Temp",
-        "/myproject/Shadow",
-        "/myproject/Contact_Golbasi_GS",
-        "/myproject/Contact_Svalbard",
-        "/myproject/Payload_Status",
-        "/myproject/Payload_Error_Flag",
-        "/myproject/ADCS_Error_Flag",
-        "/myproject/CDHS_Error_Flag",
-        "/myproject/COMMS_Error_Flag",
-        "/myproject/EPS_Error_Flag",
-        "/myproject/COMMS_Status",
-        "/myproject/CDHS_Status",
-        "/myproject/Mode_Night",
-        "/myproject/Mode_Day",
-        "/myproject/Mode_Payload",
-        "/myproject/Mode_XBand",
-        "/myproject/Mode_SBand",
-        "/myproject/Mode_Safe",
-        "/myproject/Enum_Para_1",
-        "/myproject/Enum_Para_2",
-        "/myproject/Enum_Para_3",
-    ]
-)
+DEFAULT_PARAMETERS = ",".join(WORKLOAD["parameters"])
 METRIC_LABELS = {key: value["label"] for source in (SIMULATOR_METRICS, MICRO_METRICS) for key, value in source.items()}
 PLOT_TITLES = {key: value["title"] for source in (SIMULATOR_METRICS, MICRO_METRICS) for key, value in source.items()}
 PLOT_FILE_NAMES = {key: os.path.splitext(value["file"])[0] for source in (SIMULATOR_METRICS, MICRO_METRICS) for key, value in source.items()}
@@ -154,6 +113,10 @@ def run_simulator(args: argparse.Namespace) -> subprocess.Popen[str] | None:
         str(args.simulator_rate),
         "--testdata",
         testdata,
+        "--yamcs_url",
+        f"http://{args.yamcs_address}",
+        "--yamcs_instance",
+        args.instance,
     ]
     return subprocess.Popen(
         cmd,
@@ -297,6 +260,10 @@ def metric_semantics_compatible(result: dict[str, Any] | None) -> bool:
     return result.get("metric_semantics_version") == METRIC_SEMANTICS_VERSION
 
 
+def workload_compatible(result: dict[str, Any] | None) -> bool:
+    return metric_semantics_compatible(result) and result.get("benchmark_semver") == BENCHMARK_SEMVER
+
+
 def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -> None:
     metadata = {
         "name": "long-term",
@@ -311,7 +278,7 @@ def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -
             "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
             "sha": os.environ.get("GITHUB_SHA", ""),
         },
-        "yamcs_quickstart": "jaops-space/yamcs-quickstart",
+        "yamcs_demo": "jaops-space/grafana-yamcs-demo",
         "yamcs_instance": result.get("instance", args.instance),
         "yamcs_processor": result.get("processor", args.processor),
         "simulator_rate_hz": args.simulator_rate,
@@ -326,6 +293,7 @@ def write_long_term_metadata(args: argparse.Namespace, result: dict[str, Any]) -
         "parameter_count": len(result.get("parameters", [])),
         "refresh_command": "Run the `Refresh benchmark long-term baseline` GitHub Actions workflow.",
         "metric_semantics_version": METRIC_SEMANTICS_VERSION,
+        "benchmark_semver": BENCHMARK_SEMVER,
     }
     with open(os.path.join(LONG_TERM_BASELINE_DIR, "metadata.json"), "w", encoding="utf-8") as fp:
         json.dump(metadata, fp, indent=2)

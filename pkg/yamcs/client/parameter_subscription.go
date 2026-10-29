@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/api"
@@ -18,6 +19,7 @@ type ParameterListener func(parameter string, newValue *pvalue.ParameterValue) e
 
 // ParameterSubscription manages a subscription to a set of parameters from a Yamcs instance and processor.
 type ParameterSubscription struct {
+	mu                  sync.RWMutex
 	subscriptionID      int32
 	parameterIDToName   map[int]string    // Maps internal parameter IDs to names
 	ActiveSubscriptions types.Set[string] // Set of currently subscribed parameters
@@ -95,9 +97,11 @@ func (sub *ParameterSubscription) Add(parameters ...string) error {
 	}
 
 	// Add parameters to the active set
+	sub.mu.Lock()
 	for _, param := range parameters {
 		sub.ActiveSubscriptions.Add(param)
 	}
+	sub.mu.Unlock()
 
 	return nil
 }
@@ -111,9 +115,11 @@ func (sub *ParameterSubscription) Remove(parameters ...string) error {
 	}
 
 	// Remove parameters from the active set
+	sub.mu.Lock()
 	for _, param := range parameters {
 		sub.ActiveSubscriptions.Remove(param)
 	}
+	sub.mu.Unlock()
 
 	return nil
 }
@@ -131,17 +137,32 @@ func (sub *ParameterSubscription) Replace(parameters ...Parameter) error {
 	}
 
 	// Clear active subscriptions and add the new ones
+	sub.mu.Lock()
 	sub.ActiveSubscriptions = make(types.Set[string])
 	for _, param := range parameters {
 		sub.ActiveSubscriptions.Add(param.GetQualifiedName())
 	}
+	sub.mu.Unlock()
 
 	return nil
 }
 
 // Checks if subscription has a certain parameter
 func (sub *ParameterSubscription) Has(parameter string) bool {
+	sub.mu.RLock()
+	defer sub.mu.RUnlock()
 	return sub.ActiveSubscriptions.Exists(parameter)
+}
+
+// ActiveNames returns a snapshot that remains safe when subscriptions change.
+func (sub *ParameterSubscription) ActiveNames() []string {
+	sub.mu.RLock()
+	defer sub.mu.RUnlock()
+	names := make([]string, 0, len(sub.ActiveSubscriptions))
+	for name := range sub.ActiveSubscriptions {
+		names = append(names, name)
+	}
+	return names
 }
 
 // SetListener sets the listener function that is called when parameter values change.
@@ -265,6 +286,17 @@ func (client *YamcsClient) FindParameterSubscription(instance, processor string)
 		}
 	}
 	return nil, false
+}
+
+// ListParameterSubscriptions snapshots the registry for diagnostic streams.
+func (client *YamcsClient) ListParameterSubscriptions() []*ParameterSubscription {
+	client.subsMu.RLock()
+	defer client.subsMu.RUnlock()
+	subscriptions := make([]*ParameterSubscription, 0, len(client.ParameterSubscriptions))
+	for _, subscription := range client.ParameterSubscriptions {
+		subscriptions = append(subscriptions, subscription)
+	}
+	return subscriptions
 }
 
 // ClearParameterSubscriptions clears all active parameter subscriptions.
