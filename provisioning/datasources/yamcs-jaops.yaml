@@ -9,7 +9,7 @@ datasources:
       orgId: 1
       isDefault: true
       editable: true
-      version: 8
+      version: 9
       jsonData:
           hosts:
               canonical-host:
@@ -21,25 +21,10 @@ datasources:
                   authEnabled: false
                   username: admin
                   protobuf: true
-              drone-host:
-                  name: Drone Quickstart Yamcs
-                  description: Local drone demo on port 8090
-                  path: docker.gateway:8090
-                  tlsEnabled: false
-                  tlsInsecure: false
-                  authEnabled: false
-                  username: admin
-                  protobuf: true
           endpoints:
               demo_realtime:
                   name: Canonical Demo RT
                   description: Canonical demo realtime processor
                   host: canonical-host
-                  instance: demo
-                  processor: realtime
-              drone_realtime:
-                  name: Drone Quickstart RT
-                  description: Drone demo realtime processor
-                  host: drone-host
                   instance: demo
                   processor: realtime

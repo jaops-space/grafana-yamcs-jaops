@@ -2,13 +2,10 @@ import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
 // Requires the running drone simulator and the deployed v2 drone dashboard; never issues commands.
-// DEMO_DASHBOARDS_E2E=1 GRAFANA_URL=http://localhost:3000/grafana pnpm exec playwright test tests/drone-dashboard.spec.ts --project=chromium --workers=1
+// DEMO_DASHBOARDS_E2E=1 DRONE_GRAFANA_URL=http://localhost:3000 pnpm exec playwright test tests/drone-dashboard.spec.ts --project=chromium --workers=1
 // For local anonymous Grafana/installed Chrome, add DRONE_ANONYMOUS=1 DRONE_CHROMIUM_CHANNEL=chrome and --no-deps.
 // Set --output to a task-specific artifact folder when other suites are running concurrently.
-const grafana = (process.env.DRONE_GRAFANA_URL || process.env.GRAFANA_URL || 'http://localhost:3000/grafana').replace(
-    /\/$/,
-    ''
-);
+const grafana = (process.env.DRONE_GRAFANA_URL || 'http://localhost:3000').replace(/\/$/, '');
 const dashboardUid = 'yamcs-grafana-drone';
 const tabs = {
     Flight: {
