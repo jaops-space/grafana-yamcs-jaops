@@ -2,8 +2,6 @@
 
 When distributing a Grafana plugin either within the community or privately the plugin must be signed so the Grafana application can verify its authenticity. This can be done with the `@grafana/sign-plugin` package.
 
-`pnpm run sign` uses the latest signer. Its current major release requires Node.js 24.5 or newer; use the repository's `.nvmrc` before signing locally.
-
 _Note: It's not necessary to sign a plugin during development. The docker development environment that is scaffolded with `@grafana/create-plugin` caters for running the plugin without a signature._
 
 ## Initial steps
