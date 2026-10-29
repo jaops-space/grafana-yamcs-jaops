@@ -452,6 +452,7 @@ def main() -> None:
     parser.add_argument("--baseline-micro-results", default="")
     parser.add_argument("--baseline-simulator-results", default="")
     parser.add_argument("--baseline-grafana-results", default="")
+    parser.add_argument("--pre-batch-grafana-results", default="")
     parser.add_argument("--baseline-commit", default="")
     parser.add_argument("--long-term-micro-results", default=bench.LONG_TERM_MICRO_RESULTS)
     parser.add_argument("--long-term-simulator-results", default=bench.LONG_TERM_SIMULATOR_RESULTS)
@@ -478,6 +479,7 @@ def main() -> None:
     baseline_simulator = load_result(baseline_simulator_path)
     baseline_micro = load_result(baseline_micro_path)
     baseline_grafana = load_result(baseline_grafana_path)
+    pre_batch_grafana = load_result(args.pre_batch_grafana_results)
     long_term_simulator = load_result(args.long_term_simulator_results)
     long_term_micro = load_result(args.long_term_micro_results)
     long_term_grafana = load_result(args.long_term_grafana_results)
@@ -490,6 +492,8 @@ def main() -> None:
     copy_result(baseline_simulator_path, os.path.join(args.output_dir, "baselines", "pr", "simulator.json"))
     copy_result(baseline_micro_path, os.path.join(args.output_dir, "baselines", "pr", "microbenchmarks.json"))
     copy_result(baseline_grafana_path, os.path.join(args.output_dir, "baselines", "pr", "grafana.json"))
+    if args.pre_batch_grafana_results:
+        copy_result(args.pre_batch_grafana_results, os.path.join(args.output_dir, "baselines", "pre-batch", "grafana.json"))
 
     result = combine_results(
         simulator,
@@ -524,6 +528,8 @@ def main() -> None:
             grafana_report.plot_metric(plots_dir, grafana, baseline_grafana, long_term_grafana, metric)
         grafana_thresholds = list(grafana_report.evaluate_thresholds(grafana).values())
         grafana_section = grafana_report.build_comment(grafana, baseline_grafana, long_term_grafana, args.plots_base_url)
+        if "grouped_results" in grafana:
+            grafana_section += "\n" + grafana_report.grouped_comment(grafana, pre_batch_grafana)
 
     thresholds = result.get("thresholds", [])
     all_thresholds = thresholds + grafana_thresholds

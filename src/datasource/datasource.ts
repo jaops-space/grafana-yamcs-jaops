@@ -28,6 +28,7 @@ declare global {
         __jaopsBenchmarkStats?: {
             framesReceived: number;
             valuesReceived: number;
+            parameterFieldsSeen?: Record<string, boolean>;
         };
         __jaopsBenchmarkNoRetention?: boolean;
     }
@@ -54,6 +55,13 @@ function createBenchmarkFrontendTap(): (response: DataQueryResponse) => void {
             previousLength = length;
 
             const stats = typeof window !== 'undefined' ? window.__jaopsBenchmarkStats : undefined;
+            if (stats?.parameterFieldsSeen) {
+                for (const field of frame.fields ?? []) {
+                    if (field.name !== 'time') {
+                        stats.parameterFieldsSeen[field.name] = true;
+                    }
+                }
+            }
             if (stats && delta > 0) {
                 stats.framesReceived += 1;
                 stats.valuesReceived += delta;

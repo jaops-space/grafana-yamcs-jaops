@@ -276,6 +276,92 @@ def evaluate_thresholds(head: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return evaluated
 
 
+def grouped_comment(head: dict[str, Any], pre_batch: dict[str, Any] | None) -> str:
+    rows = head.get("grouped_results", [])
+    if not isinstance(rows, list) or len(rows) != 1:
+        raise ValueError("Grouped benchmark must contain one measured query scenario")
+    current = rows[0]
+    required = (
+        "panels",
+        "streams_seen",
+        "backend_unique_stream_paths",
+        "backend_run_stream_runtime_ns",
+        "backend_values_sent",
+        "browser_heap_after_gc_bytes",
+    )
+    if not all(isinstance(current.get(key), (int, float)) for key in required):
+        raise ValueError("Grouped benchmark is missing required stream or backend metrics")
+    if current.get("parameter_fields_seen") != head.get("grouped_parameters"):
+        raise ValueError("Grouped benchmark did not deliver every requested parameter field to the browser")
+
+    lines = [
+        "### Grouped multi-parameter queries",
+        "",
+        f"{head['grouped_parameters']} parameters in {current['panels']} queries "
+        f"({head['grouped_parameters_per_query']} parameters/query). "
+        "Streams seen counts all panels visited; active streams and backend work cover the measured window.",
+        f"Stacked grouped frames exposed {current['parameter_fields_seen']}/{head['grouped_parameters']} parameter fields.",
+        "",
+    ]
+    baseline = None
+    if pre_batch:
+        same_scenario = all(
+            pre_batch.get(key) == head.get(key)
+            for key in ("benchmark_semver", "endpoint", "parameter_names", "grouped_scenario_semver", "grouped_parameters_per_query", "grouped_parameters")
+        )
+        baseline_rows = pre_batch.get("grouped_results")
+        if not same_scenario or not isinstance(baseline_rows, list) or len(baseline_rows) != 1 or baseline_rows[0].get("panels") != current["panels"]:
+            raise ValueError("Pre-batching Grafana baseline does not use the same grouped workload and harness")
+        baseline = baseline_rows[0]
+        if not all(isinstance(baseline.get(key), (int, float)) for key in required):
+            raise ValueError("Pre-batching grouped benchmark is missing required metrics")
+        lines.extend(
+            [
+                f"Pre-batching plugin: `{pre_batch.get('plugin_commit', 'unknown')}`; "
+                f"stacked plugin: `{head.get('plugin_commit', 'unknown')}`.",
+                "",
+                "| Metric | Before batching | Stacked implementation |",
+                "|---|---:|---:|",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "No pre-batching plugin run is available; this result alone cannot establish #91's improvement.",
+                "",
+                "| Metric | Stacked implementation |",
+                "|---|---:|",
+            ]
+        )
+
+    def row(label: str, key: str, unit: str = "") -> None:
+        current_value = float(current[key])
+        values = [label]
+        if baseline:
+            values.append(format_value(float(baseline[key]), unit))
+        values.append(format_value(current_value, unit))
+        lines.append("| " + " | ".join(values) + " |")
+
+    row("Queries / panels", "panels")
+    row("Live streams seen", "streams_seen")
+    row("Live streams active during measurement", "backend_unique_stream_paths")
+    row("Backend values processed", "backend_values_sent")
+    row("Backend streaming work", "backend_run_stream_runtime_ns", "ns")
+    if baseline and current["backend_values_sent"] > 0 and baseline["backend_values_sent"] > 0:
+        before = baseline["backend_run_stream_runtime_ns"] / baseline["backend_values_sent"]
+        after = current["backend_run_stream_runtime_ns"] / current["backend_values_sent"]
+        lines.append(f"| Backend work / input value | {format_value(before, 'ns')} | {format_value(after, 'ns')} |")
+    row("Browser heap after GC", "browser_heap_after_gc_bytes", "bytes")
+    lines.extend(
+        [
+            "",
+            "Shared timestamp rows intentionally differ from one-row-per-parameter delivery; "
+            "compare parameter values and alignment separately.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_comment(
     head: dict[str, Any],
     baseline: dict[str, Any] | None,
