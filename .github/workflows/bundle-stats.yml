@@ -22,4 +22,4 @@ jobs:
             - uses: grafana/plugin-actions/bundle-size@main
               with:
                   # Keep this in sync with package.json engines.node.
-                  node-version: '22'
+                  node-version: '24'
