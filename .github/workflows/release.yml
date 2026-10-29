@@ -33,7 +33,7 @@ jobs:
             - uses: grafana/plugin-actions/build-plugin@main
               with:
                   # Keep this in sync with package.json engines.node.
-                  node-version: '24'
+                  node-version: '22'
                   # Keep this in sync with the toolchain directive in go.mod.
                   go-version: '1.27.3'
                   # Changelog generation disabled - it tries to commit to main branch
