@@ -229,7 +229,7 @@ def build_comment(
             summaries_by_metric.setdefault(metric, []).append(summary)
     baseline = result.get("baseline", {})
     long_term_baseline = result.get("long_term_baseline", {})
-    head_config = benchmark_config(result, grafana, result.get("metric_semantics_version"))
+    head_config = benchmark_config(result, grafana, result.get("benchmark_semver"))
     head_system = merged_system(result.get("system", {}), (grafana or {}).get("system", {}))
     architecture_columns: list[tuple[str, dict[str, str]]] = [
         ("HEAD", system_identity(head_system, os.environ.get("GITHUB_SHA", "")))
@@ -342,32 +342,43 @@ def load_result(path: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def compatible_rows(result: dict[str, Any] | None, key: str) -> list[dict[str, Any]] | None:
-    if not result or not bench.metric_semantics_compatible(result):
+def compatible_rows(result: dict[str, Any] | None, key: str, workload: bool = False) -> list[dict[str, Any]] | None:
+    if not result or not (bench.workload_compatible(result) if workload else bench.metric_semantics_compatible(result)):
         return None
     rows = result.get(key, [])
     return rows if isinstance(rows, list) else None
 
 
+def compatible_grafana(head: dict[str, Any], baseline: dict[str, Any] | None) -> dict[str, Any] | None:
+    if (
+        baseline
+        and baseline.get("benchmark_semver") == head.get("benchmark_semver")
+        and baseline.get("endpoint") == head.get("endpoint")
+    ):
+        return baseline
+    return None
+
+
 def baseline_metadata(result: dict[str, Any] | None, path: str, commit: str = "") -> dict[str, Any]:
-    compatible = bench.metric_semantics_compatible(result)
+    compatible = bench.workload_compatible(result)
     message = "loaded" if result else "not provided"
     if result and not compatible:
-        message = "baseline loaded but metric semantics version is incompatible"
+        message = "baseline loaded but benchmark semver or metric semantics is incompatible"
     return {
         "compatible": compatible,
         "path": path,
         "commit": commit,
         "message": message,
         "metric_semantics_version": result.get("metric_semantics_version") if result else None,
+        "benchmark_semver": result.get("benchmark_semver") if result else None,
     }
 
 
 def long_term_metadata(simulator_result: dict[str, Any] | None) -> dict[str, Any]:
-    compatible = bench.metric_semantics_compatible(simulator_result)
+    compatible = bench.workload_compatible(simulator_result)
     message = "loaded" if simulator_result else "not provided"
     if simulator_result and not compatible:
-        message = "long-term baseline loaded but metric semantics version is incompatible"
+        message = "long-term baseline loaded but benchmark semver or metric semantics is incompatible"
     return {
         "compatible": compatible,
         "path": os.path.relpath(bench.LONG_TERM_SIMULATOR_RESULTS, os.getcwd()),
@@ -380,6 +391,7 @@ def long_term_metadata(simulator_result: dict[str, Any] | None) -> dict[str, Any
         },
         "message": message,
         "metric_semantics_version": simulator_result.get("metric_semantics_version") if simulator_result else None,
+        "benchmark_semver": simulator_result.get("benchmark_semver") if simulator_result else None,
     }
 
 
@@ -406,12 +418,13 @@ def combine_results(
     result["baseline"] = baseline_metadata(baseline_simulator, baseline_simulator_path, baseline_commit)
     result["long_term_baseline"] = long_term_metadata(long_term_simulator)
     result["metric_semantics_version"] = bench.METRIC_SEMANTICS_VERSION
+    result["benchmark_semver"] = bench.BENCHMARK_SEMVER
     result["baseline_change_summaries"] = []
     result["baseline_change_summaries"] += bench.summarize_baseline_changes(
-        result["scenarios"], compatible_rows(baseline_simulator, "scenarios"), "PR base"
+        result["scenarios"], compatible_rows(baseline_simulator, "scenarios", workload=True), "PR base"
     )
     result["baseline_change_summaries"] += bench.summarize_baseline_changes(
-        result["scenarios"], compatible_rows(long_term_simulator, "scenarios"), "Long-term baseline"
+        result["scenarios"], compatible_rows(long_term_simulator, "scenarios", workload=True), "Long-term baseline"
     )
     result["baseline_change_summaries"] += bench.summarize_micro_baseline_changes(
         result["microbenchmarks"], compatible_rows(baseline_micro, "microbenchmarks"), "PR base"
@@ -439,6 +452,7 @@ def main() -> None:
     parser.add_argument("--baseline-micro-results", default="")
     parser.add_argument("--baseline-simulator-results", default="")
     parser.add_argument("--baseline-grafana-results", default="")
+    parser.add_argument("--pre-batch-grafana-results", default="")
     parser.add_argument("--baseline-commit", default="")
     parser.add_argument("--long-term-micro-results", default=bench.LONG_TERM_MICRO_RESULTS)
     parser.add_argument("--long-term-simulator-results", default=bench.LONG_TERM_SIMULATOR_RESULTS)
@@ -465,6 +479,7 @@ def main() -> None:
     baseline_simulator = load_result(baseline_simulator_path)
     baseline_micro = load_result(baseline_micro_path)
     baseline_grafana = load_result(baseline_grafana_path)
+    pre_batch_grafana = load_result(args.pre_batch_grafana_results)
     long_term_simulator = load_result(args.long_term_simulator_results)
     long_term_micro = load_result(args.long_term_micro_results)
     long_term_grafana = load_result(args.long_term_grafana_results)
@@ -477,6 +492,8 @@ def main() -> None:
     copy_result(baseline_simulator_path, os.path.join(args.output_dir, "baselines", "pr", "simulator.json"))
     copy_result(baseline_micro_path, os.path.join(args.output_dir, "baselines", "pr", "microbenchmarks.json"))
     copy_result(baseline_grafana_path, os.path.join(args.output_dir, "baselines", "pr", "grafana.json"))
+    if args.pre_batch_grafana_results:
+        copy_result(args.pre_batch_grafana_results, os.path.join(args.output_dir, "baselines", "pre-batch", "grafana.json"))
 
     result = combine_results(
         simulator,
@@ -494,9 +511,9 @@ def main() -> None:
         if name.endswith(".png"):
             os.remove(os.path.join(plots_dir, name))
 
-    baseline_simulator_rows = compatible_rows(baseline_simulator, "scenarios")
+    baseline_simulator_rows = compatible_rows(baseline_simulator, "scenarios", workload=True)
     baseline_micro_rows = compatible_rows(baseline_micro, "microbenchmarks")
-    long_term_simulator_rows = compatible_rows(long_term_simulator, "scenarios")
+    long_term_simulator_rows = compatible_rows(long_term_simulator, "scenarios", workload=True)
     long_term_micro_rows = compatible_rows(long_term_micro, "microbenchmarks")
     if result["scenarios"]:
         bench.plot_all_metrics(args.output_dir, result["scenarios"], baseline_simulator_rows, long_term_simulator_rows)
@@ -505,10 +522,14 @@ def main() -> None:
     grafana_thresholds: list[dict[str, Any]] = []
     grafana_section = ""
     if grafana:
+        baseline_grafana = compatible_grafana(grafana, baseline_grafana)
+        long_term_grafana = compatible_grafana(grafana, long_term_grafana)
         for metric in grafana_report.METRICS:
             grafana_report.plot_metric(plots_dir, grafana, baseline_grafana, long_term_grafana, metric)
         grafana_thresholds = list(grafana_report.evaluate_thresholds(grafana).values())
         grafana_section = grafana_report.build_comment(grafana, baseline_grafana, long_term_grafana, args.plots_base_url)
+        if "grouped_results" in grafana:
+            grafana_section += "\n" + grafana_report.grouped_comment(grafana, pre_batch_grafana)
 
     thresholds = result.get("thresholds", [])
     all_thresholds = thresholds + grafana_thresholds
@@ -537,6 +558,7 @@ def main() -> None:
     plot_files = sorted([name for name in os.listdir(plots_dir) if name.endswith(".png")]) if os.path.isdir(plots_dir) else []
     status_payload = {
         "status": status,
+        "benchmark_semver": result["benchmark_semver"],
         "should_comment": True,
         "should_fail": status == "fail",
         "regression_plots": [plot for _, plot in copied_plots],

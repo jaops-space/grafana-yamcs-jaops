@@ -1,0 +1,13 @@
+diff --git a/pkg/plugin/datasource_run.go b/pkg/plugin/datasource_run.go
+--- a/pkg/plugin/datasource_run.go
++++ b/pkg/plugin/datasource_run.go
+@@ -152,8 +152,9 @@ func RunParameterStream(ctx context.Context,
+ 			if q.Type == SingleValue {
+ 				frame := tools.ConvertSingleValueBufferToFrame(batch, q.Parameter, false)
+ 				sender.SendFrame(
+ 					frame,
+ 					data.IncludeAll,
+ 				)
++				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(batch))
+ 				continue
+ 			}

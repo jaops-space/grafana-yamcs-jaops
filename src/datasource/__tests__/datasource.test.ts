@@ -1,5 +1,5 @@
-import { LoadingState, LiveChannelScope, StreamingFrameAction } from '@grafana/data';
-import { of } from 'rxjs';
+import { DataQueryResponse, LoadingState, LiveChannelScope, StreamingFrameAction } from '@grafana/data';
+import { Observable, of, Subject } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 
 import { DataSource } from '../datasource';
@@ -92,6 +92,83 @@ describe('DataSource.query', () => {
 
         const streamArg = getDataStreamMock.mock.calls[0][0];
         expect(streamArg.buffer.action).toBe(StreamingFrameAction.Append);
+    });
+
+    it('keeps hidden-tab streams alive briefly and replays their latest frame on return', () => {
+        jest.useFakeTimers();
+        try {
+            const source = new Subject<DataQueryResponse>();
+            let connections = 0;
+            let disconnections = 0;
+            getDataStreamMock.mockImplementation(
+                () =>
+                    new Observable<DataQueryResponse>((subscriber) => {
+                        connections++;
+                        const subscription = source.subscribe(subscriber);
+                        return () => {
+                            disconnections++;
+                            subscription.unsubscribe();
+                        };
+                    })
+            );
+            const ds = buildDatasource();
+            const request = buildRequest(QueryType.PLOT);
+            const initial = ds.query(request as any).subscribe();
+
+            const frame = { data: [], state: LoadingState.Streaming };
+            source.next(frame);
+            initial.unsubscribe();
+            expect(connections).toBe(1);
+            expect(disconnections).toBe(0);
+
+            jest.advanceTimersByTime(30_000);
+            const received: unknown[] = [];
+            const returned = ds.query(request as any).subscribe((response) => received.push(response));
+            expect(received).toEqual([frame]);
+            expect(connections).toBe(1);
+
+            returned.unsubscribe();
+            jest.advanceTimersByTime(90_000);
+            expect(disconnections).toBe(0);
+            jest.advanceTimersByTime(30_000);
+            expect(disconnections).toBe(1);
+
+            const reopened = ds.query(request as any).subscribe();
+            expect(connections).toBe(2);
+            reopened.unsubscribe();
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it('releases benchmark-only streams immediately after their last subscriber leaves', () => {
+        let connections = 0;
+        let disconnections = 0;
+        getDataStreamMock.mockImplementation(
+            () =>
+                new Observable<DataQueryResponse>(() => {
+                    connections++;
+                    return () => {
+                        disconnections++;
+                    };
+                })
+        );
+        window.__jaopsBenchmarkNoRetention = true;
+        try {
+            const ds = buildDatasource();
+            const request = buildRequest(QueryType.PLOT);
+            ds.query(request as any)
+                .subscribe()
+                .unsubscribe();
+            expect(disconnections).toBe(1);
+            ds.query(request as any)
+                .subscribe()
+                .unsubscribe();
+            expect(connections).toBe(2);
+            expect(disconnections).toBe(2);
+        } finally {
+            delete window.__jaopsBenchmarkNoRetention;
+        }
     });
 
     it('uses relative range and rounded data points in realtime plot live path', async () => {

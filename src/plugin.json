@@ -29,11 +29,19 @@
         },
         "screenshots": [
             {
-                "name": "Telemetry Dashboard",
+                "name": "Yamcs Demo Overview",
+                "path": "screenshots/overview.png"
+            },
+            {
+                "name": "Yamcs Demo Telemetry",
                 "path": "screenshots/telemetry.png"
             },
             {
-                "name": "Commanding Interface",
+                "name": "Yamcs Demo Parameter Types",
+                "path": "screenshots/parameter-types.png"
+            },
+            {
+                "name": "Yamcs Demo Operations",
                 "path": "screenshots/commanding.png"
             }
         ],

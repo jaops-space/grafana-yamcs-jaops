@@ -6,6 +6,7 @@ on:
         branches:
             - master
             - main
+            - feature/multi-parameter-stream-model
     push:
         branches:
             - master
@@ -69,7 +70,7 @@ jobs:
                   cache: false
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.12"
+                  python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
             - uses: actions/checkout@v4
               if: ${{ needs.resolve-base.outputs.sha != '' }}
@@ -109,16 +110,14 @@ jobs:
                   cache: false
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.12"
+                  python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - name: Install Yamcs quickstart
-              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
-            - name: Start Yamcs quickstart
-              working-directory: /tmp/yamcs-quickstart
+            - name: Install Yamcs Demo
+              run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
+            - name: Start Yamcs Demo and simulator
               run: |
-                  cd docker
-                  docker compose up -d yamcs
-                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
+                  timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
             - uses: actions/checkout@v4
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
@@ -128,14 +127,10 @@ jobs:
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               working-directory: benchmark-base-source
               run: |
-                  if [ -f scripts/benchmarks/simulator/run.py ]; then
-                    python3 scripts/benchmarks/simulator/run.py --output-dir ../benchmark-output/simulator/baseline
-                  elif [ -f scripts/benchmarks/simulator.py ]; then
-                    python3 scripts/benchmarks/simulator.py --output-dir ../benchmark-output/simulator/baseline
-                  elif [ -f scripts/benchmarks/benchmark_yamcs_streams.py ] && grep -q -- "--only" scripts/benchmarks/benchmark_yamcs_streams.py; then
-                    python3 scripts/benchmarks/benchmark_yamcs_streams.py --only scenario --output-dir ../benchmark-output/simulator/baseline
-                  elif [ -f scripts/benchmarks/benchmark_yamcs_streams.py ]; then
-                    python3 scripts/benchmarks/benchmark_yamcs_streams.py --output-dir ../benchmark-output/simulator/baseline
+                  if [ -f scripts/benchmarks/workload.json ] && cmp -s scripts/benchmarks/workload.json "$GITHUB_WORKSPACE/scripts/benchmarks/workload.json"; then
+                    python3 scripts/benchmarks/simulator/run.py --no-simulator --output-dir ../benchmark-output/simulator/baseline
+                  else
+                    echo "Skipping PR-base simulator benchmark: workload semver or parameters differ."
                   fi
             - name: Run simulator scenario
               env:
@@ -143,19 +138,21 @@ jobs:
               run: |
                   if [ -n "$BASELINE_COMMIT" ]; then
                     python3 scripts/benchmarks/simulator/run.py \
+                      --no-simulator \
                       --output-dir benchmark-output/simulator/head \
                       --baseline-results benchmark-output/simulator/baseline/simulator.json \
                       --baseline-commit "$BASELINE_COMMIT"
                   else
                     python3 scripts/benchmarks/simulator/run.py \
+                      --no-simulator \
                       --output-dir benchmark-output/simulator/head
                   fi
             - name: Collect scenario logs
               if: always()
-              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs > benchmark-output/simulator/yamcs.log || true
+              run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml logs > benchmark-output/simulator/yamcs.log || true
             - name: Stop scenario services
               if: always()
-              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+              run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml down -v || true
             - uses: actions/upload-artifact@v4
               if: always()
               with:
@@ -174,20 +171,18 @@ jobs:
             - uses: pnpm/action-setup@v3
             - uses: actions/setup-node@v4
               with:
-                  node-version: "22"
+                  node-version: '22'
             - uses: actions/setup-go@v5
               with:
                   go-version-file: go.mod
                   cache: false
             - run: pnpm install --frozen-lockfile --prefer-offline
-            - name: Install Yamcs quickstart
-              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
-            - name: Start Yamcs quickstart
-              working-directory: /tmp/yamcs-quickstart
+            - name: Install Yamcs Demo
+              run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
+            - name: Start Yamcs Demo and simulator
               run: |
-                  cd docker
-                  docker compose up -d yamcs
-                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
+                  timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
             - uses: actions/checkout@v4
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
@@ -197,7 +192,7 @@ jobs:
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               working-directory: benchmark-base-source
               run: |
-                  if [ -f tests/benchmark/streaming.benchmark.spec.ts ]; then
+                  if [ -f tests/benchmark/streaming.benchmark.spec.ts ] && [ -f scripts/benchmarks/workload.json ] && cmp -s scripts/benchmarks/workload.json "$GITHUB_WORKSPACE/scripts/benchmarks/workload.json"; then
                     pnpm install --frozen-lockfile --prefer-offline
                     pnpm run build
                     go run github.com/magefile/mage -v buildAll
@@ -205,16 +200,11 @@ jobs:
                     docker compose down -v || true
                     ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
                     timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
-                    cd /tmp/yamcs-quickstart
-                    nohup python3 simulator.py --tm_host 127.0.0.1 --tm_port 10015 --rate 1 --testdata /tmp/yamcs-quickstart/testdata.ccsds > /tmp/yamcs-simulator-base.log 2>&1 &
-                    echo "$!" > /tmp/yamcs-simulator-base.pid
-                    cd "$GITHUB_WORKSPACE/benchmark-base-source"
                     pnpm exec playwright install chromium --with-deps
                     GRAFANA_BENCHMARK_OUTPUT="../benchmark-output/grafana/baseline/grafana.json" pnpm run bench:grafana
-                    if [ -f /tmp/yamcs-simulator-base.pid ]; then
-                      kill "$(cat /tmp/yamcs-simulator-base.pid)" 2>/dev/null || true
-                    fi
                     docker compose down -v
+                  else
+                    echo "Skipping PR-base Grafana benchmark: workload semver or parameters differ."
                   fi
             - name: Build plugin for Grafana benchmark
               run: |
@@ -226,32 +216,55 @@ jobs:
                   docker compose down -v || true
                   ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
                   timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
-                  cd /tmp/yamcs-quickstart
-                  nohup python3 simulator.py --tm_host 127.0.0.1 --tm_port 10015 --rate 1 --testdata /tmp/yamcs-quickstart/testdata.ccsds > /tmp/yamcs-simulator-head.log 2>&1 &
-                  echo "$!" > /tmp/yamcs-simulator-head.pid
-                  cd "$GITHUB_WORKSPACE"
                   pnpm exec playwright install chromium --with-deps
-                  GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/head/grafana.json" pnpm run bench:grafana
-                  if [ -f /tmp/yamcs-simulator-head.pid ]; then
-                    kill "$(cat /tmp/yamcs-simulator-head.pid)" 2>/dev/null || true
-                  fi
+                  GRAFANA_BENCHMARK_EXPECT_GROUPED_STREAMS=12 \
+                    GRAFANA_BENCHMARK_VERIFY_FIELDS=1 \
+                    GRAFANA_BENCHMARK_PLUGIN_COMMIT="$GITHUB_SHA" \
+                    GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/head/grafana.json" pnpm run bench:grafana
+            - uses: actions/checkout@v4
+              if: ${{ github.event_name == 'pull_request' && github.head_ref == 'demo/dashboard-refresh' }}
+              with:
+                  # Last #90 revision before #91's single-stream-per-query change.
+                  ref: f13454edbe0345f3860c9e657837bab407859b1f
+                  path: benchmark-pre-batch-source
+            - name: Build pre-batching plugin
+              if: ${{ github.event_name == 'pull_request' && github.head_ref == 'demo/dashboard-refresh' }}
+              working-directory: benchmark-pre-batch-source
+              run: |
+                  # The 72-stream workload exposed a subscription-map race in #90.
+                  # Backport only that safety fix and the missing SingleValue
+                  # benchmark counter; keep the old per-parameter stream logic.
+                  git fetch --no-tags --depth=1 origin 404a1580cd5b1c22c80d5c96e535e3f75f6f620a
+                  git show --format= 404a1580cd5b1c22c80d5c96e535e3f75f6f620a -- \
+                    pkg/source/endpoint_parameter.go pkg/source/endpoint.go \
+                    pkg/yamcs/client/parameter_subscription.go pkg/plugin/datasource_run_debug.go | git apply
+                  git apply "$GITHUB_WORKSPACE/scripts/benchmarks/pre-batch-single-stats.patch"
+                  pnpm install --frozen-lockfile --prefer-offline
+                  pnpm run build
+                  go run github.com/magefile/mage -v buildAll
+                  go build -o dist/gpx_grafana_yamcs_jaops_linux_amd64 -tags "arrow_json_stdlib benchmark" ./pkg
+            - name: Run same grouped workload against pre-batching plugin
+              if: ${{ github.event_name == 'pull_request' && github.head_ref == 'demo/dashboard-refresh' }}
+              run: |
+                  docker logs jaops-yamcs-app > benchmark-output/grafana/grafana-head.log 2>&1 || true
+                  docker compose down -v
+                  cp -R benchmark-pre-batch-source/dist/. dist/
+                  ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
+                  timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
+                  GRAFANA_BENCHMARK_PANEL_COUNTS=1 \
+                    GRAFANA_BENCHMARK_EXPECT_GROUPED_STREAMS=72 \
+                    GRAFANA_BENCHMARK_PLUGIN_COMMIT="f13454e+subscription-locking-404a158+single-stats" \
+                    GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/pre-batch/grafana.json" pnpm run bench:grafana
             - name: Collect Grafana logs
               if: always()
               run: |
                   docker logs jaops-yamcs-app > benchmark-output/grafana/grafana.log 2>&1 || true
-                  cp /tmp/yamcs-simulator-base.log benchmark-output/grafana/yamcs-simulator-base.log || true
-                  cp /tmp/yamcs-simulator-head.log benchmark-output/grafana/yamcs-simulator-head.log || true
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml logs > benchmark-output/grafana/yamcs.log || true
             - name: Stop Grafana services
               if: always()
               run: |
-                  if [ -f /tmp/yamcs-simulator-base.pid ]; then
-                    kill "$(cat /tmp/yamcs-simulator-base.pid)" 2>/dev/null || true
-                  fi
-                  if [ -f /tmp/yamcs-simulator-head.pid ]; then
-                    kill "$(cat /tmp/yamcs-simulator-head.pid)" 2>/dev/null || true
-                  fi
                   docker compose down -v || true
-                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml down -v || true
             - uses: actions/upload-artifact@v4
               if: always()
               with:
@@ -281,7 +294,7 @@ jobs:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.12"
+                  python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
             - uses: actions/download-artifact@v4
               with:
@@ -295,6 +308,9 @@ jobs:
               with:
                   name: benchmark-grafana
                   path: artifacts/grafana
+            - name: Require pre-batching comparison for dashboard PR
+              if: ${{ github.head_ref == 'demo/dashboard-refresh' }}
+              run: test -s artifacts/grafana/pre-batch/grafana.json
             - name: Build benchmark report
               env:
                   BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
@@ -309,6 +325,7 @@ jobs:
                       --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
                       --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
                       --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
+                      --pre-batch-grafana-results artifacts/grafana/pre-batch/grafana.json \
                       --baseline-commit "$BASELINE_COMMIT" \
                       --run-url "$RUN_URL"
                   else
@@ -317,6 +334,7 @@ jobs:
                       --simulator-results artifacts/simulator/head/simulator.json \
                       --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
                       --grafana-results artifacts/grafana/head/grafana.json \
+                      --pre-batch-grafana-results artifacts/grafana/pre-batch/grafana.json \
                       --run-url "$RUN_URL"
                   fi
             - name: Read benchmark status

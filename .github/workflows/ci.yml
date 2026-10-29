@@ -167,10 +167,10 @@ jobs:
               with:
                   go-version-file: go.mod
 
-            - name: Start Yamcs quickstart
+            - name: Start Yamcs Demo 5.13.7
               run: |
-                  git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
-                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml up -d --build
+                  git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml up -d --build
 
             - name: Wait for Yamcs readiness
               run: |
@@ -182,7 +182,7 @@ jobs:
                     sleep 2
                   done
                   echo "Yamcs did not become ready in time"
-                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs || true
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml logs || true
                   exit 1
 
             - name: Run Yamcs integration tests
@@ -192,7 +192,7 @@ jobs:
 
             - name: Dump Yamcs logs on failure
               if: ${{ failure() }}
-              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml logs > yamcs-integration.log
+              run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml logs > yamcs-integration.log
 
             - name: Upload Yamcs logs
               if: ${{ failure() }}
@@ -204,7 +204,7 @@ jobs:
 
             - name: Stop Yamcs quickstart
               if: always()
-              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v
+              run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml down -v
 
     playwright-tests:
         needs: [resolve-versions, build, yamcs-integration]

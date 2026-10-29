@@ -170,6 +170,7 @@ func RunParameterStream(ctx context.Context,
 				}
 
 				frame := convertParameterBatchByType(q.Type, batch, parameter, q.AutomaticColors, getMin, getMax)
+				endpoint.SetUnitAndThresholds(ctx, parameter, frame, batch[len(batch)-1])
 				includeOpt := data.IncludeDataOnly
 				if q.Type == SingleValue {
 					includeOpt = data.IncludeAll
@@ -198,6 +199,9 @@ func RunParameterStream(ctx context.Context,
 				continue
 			}
 
+			for _, field := range frame.Fields[1:] {
+				endpoint.SetUnitAndThresholds(ctx, field.Name, frame, states[field.Name].lastRaw)
+			}
 			sender.SendFrame(frame, data.IncludeDataOnly)
 			streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), totalValues)
 		}

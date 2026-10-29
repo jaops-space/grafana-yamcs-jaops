@@ -15,8 +15,8 @@ from common import yamcs as shared
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Yamcs simulator benchmark scenario only.")
     parser.add_argument("--output-dir", default="benchmark-output/simulator")
-    parser.add_argument("--yamcs-address", default="localhost:8090")
-    parser.add_argument("--instance", default="myproject")
+    parser.add_argument("--yamcs-address", default="localhost:8093")
+    parser.add_argument("--instance", default=shared.WORKLOAD["instance"])
     parser.add_argument("--processor", default="realtime")
     parser.add_argument("--streams", type=shared.parse_streams, default=shared.parse_streams(shared.DEFAULT_STREAMS))
     parser.add_argument("--parameters", default=shared.DEFAULT_PARAMETERS)
@@ -26,7 +26,7 @@ def main() -> None:
     parser.add_argument("--warmup-scenario-duration", default="3s")
     parser.add_argument("--read-interval", default="1s")
     parser.add_argument("--freshness-window", default="1s")
-    parser.add_argument("--quickstart-dir", default="/tmp/yamcs-quickstart")
+    parser.add_argument("--quickstart-dir", default="/tmp/yamcs-demo")
     parser.add_argument("--no-simulator", action="store_true", help="Do not start simulator.py before running the scenario")
     parser.add_argument("--simulator-host", default="127.0.0.1")
     parser.add_argument("--simulator-port", type=int, default=10015)
@@ -62,12 +62,13 @@ def main() -> None:
     result["python_finished_at"] = datetime.now(timezone.utc).isoformat()
     result["simulator_rate"] = args.simulator_rate
     result["metric_semantics_version"] = shared.METRIC_SEMANTICS_VERSION
+    result["benchmark_semver"] = shared.BENCHMARK_SEMVER
     threshold_results = shared.evaluate_thresholds(result["scenarios"])
 
     baseline_result, baseline_message = shared.load_baseline_results(args.baseline_results)
-    baseline_compatible = shared.metric_semantics_compatible(baseline_result)
+    baseline_compatible = shared.workload_compatible(baseline_result)
     if baseline_result and not baseline_compatible:
-        baseline_message = "baseline loaded but metric semantics version is incompatible"
+        baseline_message = "baseline loaded but benchmark semver or metric semantics is incompatible"
     baseline_rows = baseline_result.get("scenarios", []) if baseline_compatible else None
 
     if refreshing_long_term:
@@ -75,9 +76,9 @@ def main() -> None:
         long_term_message = "long-term baseline skipped while refreshing it"
     else:
         long_term_result, long_term_message = shared.load_baseline_results(shared.LONG_TERM_SIMULATOR_RESULTS)
-    long_term_compatible = shared.metric_semantics_compatible(long_term_result)
+    long_term_compatible = shared.workload_compatible(long_term_result)
     if long_term_result and not long_term_compatible:
-        long_term_message = "long-term baseline loaded but metric semantics version is incompatible"
+        long_term_message = "long-term baseline loaded but benchmark semver or metric semantics is incompatible"
     long_term_rows = long_term_result.get("scenarios", []) if long_term_compatible else None
 
     result["baseline"] = {
@@ -86,6 +87,7 @@ def main() -> None:
         "commit": args.baseline_commit,
         "message": baseline_message,
         "metric_semantics_version": baseline_result.get("metric_semantics_version") if baseline_result else None,
+        "benchmark_semver": baseline_result.get("benchmark_semver") if baseline_result else None,
     }
     result["long_term_baseline"] = {
         "compatible": long_term_compatible,
@@ -99,6 +101,7 @@ def main() -> None:
         },
         "message": long_term_message,
         "metric_semantics_version": long_term_result.get("metric_semantics_version") if long_term_result else None,
+        "benchmark_semver": long_term_result.get("benchmark_semver") if long_term_result else None,
     }
     result["baseline_change_summaries"] = shared.summarize_baseline_changes(result["scenarios"], baseline_rows, "PR base")
     result["baseline_change_summaries"] += shared.summarize_baseline_changes(

@@ -23,21 +23,19 @@ jobs:
                   go-version-file: go.mod
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.12"
+                  python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - name: Install Yamcs quickstart
-              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
-            - name: Start Yamcs quickstart
-              working-directory: /tmp/yamcs-quickstart
+            - name: Install Yamcs Demo
+              run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
+            - name: Start Yamcs Demo and simulator
               run: |
-                  cd docker
-                  docker compose up -d yamcs
-                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
+                  timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
             - name: Refresh simulator baseline
-              run: python3 scripts/benchmarks/simulator/run.py --output-dir benchmark-output/simulator
-            - name: Stop Yamcs quickstart
+              run: python3 scripts/benchmarks/simulator/run.py --no-simulator --output-dir benchmark-output/simulator
+            - name: Stop Yamcs Demo
               if: always()
-              run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+              run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml down -v || true
             - uses: actions/upload-artifact@v4
               with:
                   name: refresh-simulator-baseline
@@ -55,7 +53,7 @@ jobs:
                   go-version-file: go.mod
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.12"
+                  python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
             - name: Refresh microbenchmarks baseline
               run: python3 scripts/benchmarks/micro/run.py --output-dir benchmark-output/microbenchmarks
@@ -74,23 +72,18 @@ jobs:
             - uses: pnpm/action-setup@v3
             - uses: actions/setup-node@v4
               with:
-                  node-version: "22"
-                  cache: "pnpm"
+                  node-version: '22'
+                  cache: 'pnpm'
             - uses: actions/setup-go@v5
               with:
                   go-version-file: go.mod
             - run: pnpm install --frozen-lockfile --prefer-offline
-            - name: Install Yamcs quickstart
-              run: git clone --depth 1 https://github.com/jaops-space/yamcs-quickstart.git /tmp/yamcs-quickstart
-            - name: Start Yamcs quickstart
-              working-directory: /tmp/yamcs-quickstart
+            - name: Install Yamcs Demo
+              run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
+            - name: Start Yamcs Demo and simulator
               run: |
-                  cd docker
-                  docker compose up -d yamcs
-                  timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
-            - name: Start Yamcs simulator
-              working-directory: /tmp/yamcs-quickstart
-              run: nohup python3 simulator.py --tm_host 127.0.0.1 --tm_port 10015 --rate 1 --testdata /tmp/yamcs-quickstart/testdata.ccsds > /tmp/yamcs-simulator.log 2>&1 &
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
+                  timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
             - name: Build plugin for Grafana benchmark
               run: |
                   pnpm run build
@@ -107,7 +100,7 @@ jobs:
               if: always()
               run: |
                   docker compose down -v || true
-                  docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
+                  docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml down -v || true
             - uses: actions/upload-artifact@v4
               if: always()
               with:
@@ -125,7 +118,7 @@ jobs:
                   fetch-depth: 0
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.12"
+                  python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
             - uses: actions/download-artifact@v4
               with:
@@ -162,7 +155,8 @@ jobs:
                       "github_run_id": os.environ.get("GITHUB_RUN_ID", ""),
                       "github_sha": os.environ.get("GITHUB_SHA", ""),
                       "metric_semantics_version": simulator.get("metric_semantics_version") or micro.get("metric_semantics_version"),
-                      "yamcs_quickstart": simulator.get("yamcs_quickstart", ""),
+                      "yamcs_demo": "jaops-space/grafana-yamcs-demo",
+                      "benchmark_semver": simulator.get("benchmark_semver"),
                       "simulator_rate_hz": simulator.get("simulator_rate", 0),
                       "stream_read_interval": f"{simulator.get('read_interval_ms', 0)}ms",
                       "parameter_count": len(simulator.get("parameters", []) or micro.get("parameters", [])),
@@ -175,8 +169,8 @@ jobs:
               with:
                   branch: chore/refresh-benchmark-baseline
                   delete-branch: true
-                  commit-message: "bench: refresh long-term baseline"
-                  title: "Bench: Refresh long-term baseline"
+                  commit-message: 'bench: refresh long-term baseline'
+                  title: 'Bench: Refresh long-term baseline'
                   body: |
                       Refreshes the checked-in long-term benchmark baseline from GitHub Actions.
 

@@ -161,6 +161,7 @@ func datasourceMultiParameterCurrentValueFrame(ctx context.Context, endpoint *so
 
 	var rowTime time.Time
 	fields := make([]*data.Field, 0, len(q.Parameters))
+	liveValues := make(map[string]*pvalue.ParameterValue, len(q.Parameters))
 	for _, parameter := range q.Parameters {
 		value, err := yamcs.GetParameterValueByName(ctx, endpoint.GetInstanceName(), endpoint.GetProcessorName(), parameter)
 		if err != nil {
@@ -171,6 +172,7 @@ func datasourceMultiParameterCurrentValueFrame(ctx context.Context, endpoint *so
 
 		field, generationTime := reduceParameterBatch(q.Type, q.AutomaticColors, []*pvalue.ParameterValue{value}, parameter)
 		fields = append(fields, field)
+		liveValues[parameter] = value
 		if generationTime.After(rowTime) {
 			rowTime = generationTime
 		}
@@ -182,7 +184,7 @@ func datasourceMultiParameterCurrentValueFrame(ctx context.Context, endpoint *so
 
 	timeField := data.NewField("time", nil, []time.Time{rowTime})
 	frame := data.NewFrame("response", append([]*data.Field{timeField}, fields...)...)
-	setMultiParameterUnitsAndThresholds(ctx, endpoint, frame, fields)
+	setMultiParameterUnitsAndThresholds(ctx, endpoint, frame, fields, liveValues)
 	return frame, nil
 }
 
@@ -329,7 +331,7 @@ func datasourceMultiParameterHistoricalGraphFrame(ctx context.Context, endpoint 
 	}
 
 	frame := data.NewFrame("response", fields...)
-	setMultiParameterUnitsAndThresholds(ctx, endpoint, frame, fields[1:])
+	setMultiParameterUnitsAndThresholds(ctx, endpoint, frame, fields[1:], nil)
 	return frame, nil
 }
 
@@ -340,9 +342,9 @@ func datasourceMultiParameterHistoricalGraphFrame(ctx context.Context, endpoint 
 // happen on this schema-establishing frame - Grafana Live keeps a channel's
 // field Config from here for every later live push (data.IncludeDataOnly),
 // the same way it already does for a single-parameter query.
-func setMultiParameterUnitsAndThresholds(ctx context.Context, endpoint *source.YamcsEndpoint, frame *data.Frame, fields []*data.Field) {
+func setMultiParameterUnitsAndThresholds(ctx context.Context, endpoint *source.YamcsEndpoint, frame *data.Frame, fields []*data.Field, liveValues map[string]*pvalue.ParameterValue) {
 	for _, field := range fields {
-		endpoint.SetUnitAndThresholds(ctx, field.Name, frame)
+		endpoint.SetUnitAndThresholds(ctx, field.Name, frame, liveValues[field.Name])
 	}
 }
 
