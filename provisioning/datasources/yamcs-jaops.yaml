@@ -9,12 +9,12 @@ datasources:
       orgId: 1
       isDefault: true
       editable: true
-      version: 9
+      version: 11
       jsonData:
           hosts:
               canonical-host:
-                  name: Canonical Yamcs
-                  description: Local canonical demo on port 8093
+                  name: Yamcs Demo
+                  description: Local Yamcs Demo on port 8093
                   path: docker.gateway:8093
                   tlsEnabled: false
                   tlsInsecure: false
@@ -23,8 +23,8 @@ datasources:
                   protobuf: true
           endpoints:
               demo_realtime:
-                  name: Canonical Demo RT
-                  description: Canonical demo realtime processor
+                  name: Yamcs Demo RT
+                  description: Yamcs Demo realtime processor
                   host: canonical-host
                   instance: demo
                   processor: realtime

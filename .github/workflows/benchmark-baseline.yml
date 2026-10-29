@@ -25,15 +25,15 @@ jobs:
               with:
                   python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - name: Install canonical Yamcs demo
+            - name: Install Yamcs Demo
               run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
-            - name: Start canonical Yamcs and simulator
+            - name: Start Yamcs Demo and simulator
               run: |
                   docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
                   timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
             - name: Refresh simulator baseline
               run: python3 scripts/benchmarks/simulator/run.py --no-simulator --output-dir benchmark-output/simulator
-            - name: Stop canonical Yamcs demo
+            - name: Stop Yamcs Demo
               if: always()
               run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml down -v || true
             - uses: actions/upload-artifact@v4
@@ -78,9 +78,9 @@ jobs:
               with:
                   go-version-file: go.mod
             - run: pnpm install --frozen-lockfile --prefer-offline
-            - name: Install canonical Yamcs demo
+            - name: Install Yamcs Demo
               run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
-            - name: Start canonical Yamcs and simulator
+            - name: Start Yamcs Demo and simulator
               run: |
                   docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
                   timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'

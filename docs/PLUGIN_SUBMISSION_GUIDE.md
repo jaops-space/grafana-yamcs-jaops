@@ -63,7 +63,7 @@ jaops-yamcs-app/                    # Main app plugin
 
 5. **Security audit and submission steps**
 
-The four marketplace screenshots are captured from the provisioned canonical
+The four marketplace screenshots are captured from the provisioned Yamcs Demo
 dashboard's Overview, Telemetry, Parameter types and Operations tabs. Their
 paths and names are declared in [`src/plugin.json`](../src/plugin.json); update
 them when the dashboard changes instead of shipping stale images.

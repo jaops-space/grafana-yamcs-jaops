@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Requires the canonical demo MDB (/myproject, /features and /images), not the drone demo.
+// Requires the Yamcs Demo MDB (/myproject, /features and /images), not the drone demo.
 // GRAFANA_URL may include a subpath, for example http://localhost:3000/grafana.
 // These tests never provision dashboards, issue spacecraft commands or change data links.
 // For an anonymous local demo without bundled Chromium:
@@ -97,6 +97,7 @@ interface Dashboard {
     kind: string;
     metadata: { name: string };
     spec: {
+        title: string;
         elements: Record<string, { kind: string; spec: Panel }>;
         layout: Layout;
         variables: Array<{ spec: { name: string; current: { value: string } } }>;
@@ -179,7 +180,7 @@ async function loadDashboard(request: APIRequestContext, baseURL: string | undef
     expect(dashboard.metadata.name).toBe(uid);
     expect(
         tabs(dashboard).map((tab) => tab.spec.title),
-        'Deploy the canonical tabbed dashboard, not the legacy quickstart'
+        'Deploy the Yamcs Demo tabbed dashboard, not the legacy quickstart'
     ).toEqual(tabNames);
     return dashboard;
 }
@@ -499,10 +500,10 @@ async function inspectPanel(page: Page, dashboardURL: string, key: string, panel
     await expect(page.getByTestId('data-testid Panel status error')).toHaveCount(0);
 }
 
-test.describe('canonical myproject dashboard', () => {
+test.describe('Yamcs Demo dashboard', () => {
     test.skip(
         process.env.DEMO_DASHBOARDS_E2E !== '1',
-        'Opt-in demo suite: set DEMO_DASHBOARDS_E2E=1 and provision canonical /myproject, /features and /images telemetry'
+        'Opt-in demo suite: set DEMO_DASHBOARDS_E2E=1 and provision Yamcs Demo /myproject, /features and /images telemetry'
     );
 
     test.beforeEach(async ({ page }) => {
@@ -518,14 +519,16 @@ test.describe('canonical myproject dashboard', () => {
         });
     });
 
-    test('provisioned and deployed v2 contracts cover every canonical tab, panel type and query', async ({
+    test('provisioned and deployed v2 contracts cover every Yamcs Demo tab, panel type and query', async ({
         request,
         baseURL,
     }) => {
         const provisioned = JSON.parse(readFileSync(provisioningFile, 'utf8')) as Dashboard;
         expect(provisioned.apiVersion).toBe('dashboard.grafana.app/v2');
+        expect(provisioned.spec.title).toBe('Yamcs Demo');
         expect(tabs(provisioned).map((tab) => tab.spec.title)).toEqual(tabNames);
         const deployed = await loadDashboard(request, baseURL);
+        expect(deployed.spec.title).toBe(provisioned.spec.title);
         expect(deployed.spec.layout).toEqual(provisioned.spec.layout);
         expect(deployed.spec.elements).toEqual(provisioned.spec.elements);
         const referenced = panelKeys(deployed.spec.layout);

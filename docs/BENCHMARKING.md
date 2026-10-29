@@ -3,7 +3,7 @@
 This repository has three benchmark layers:
 
 - Microbenchmarks for isolated frame/buffer processing helpers.
-- Yamcs simulator scenarios for backend streaming behavior against the canonical demo.
+- Yamcs simulator scenarios for backend streaming behavior against Yamcs Demo.
 - Grafana panel scenarios for the full browser + Grafana Live + plugin backend path.
 
 Run the layers with:
@@ -22,14 +22,14 @@ pnpm run bench:report
 
 Refresh the checked-in long-term baseline with the manual GitHub Actions workflow named `Refresh benchmark long-term baseline`.
 
-The simulator benchmark targets the canonical Yamcs demo (`demo/realtime`) on `localhost:8093`. By default it starts `simulator.py` from `/tmp/yamcs-demo` at `1 Hz`; pass `--no-simulator` when the demo Compose stack is already publishing telemetry.
+The simulator benchmark targets Yamcs Demo (`demo/realtime`) on `localhost:8093`. By default it starts `simulator.py` from `/tmp/yamcs-demo` at `1 Hz`; pass `--no-simulator` when the demo Compose stack is already publishing telemetry.
 
 The Grafana panel benchmark assumes:
 
 - Grafana is running on `http://localhost:3000` (the benchmark harness uses the root-served Compose configuration, not the demo dashboard's `/grafana` subpath);
 - the Linux backend binary in `dist` is built with `go build -tags "arrow_json_stdlib benchmark"` so benchmark-only resource endpoints are compiled in;
 - the provisioned datasource UID is `jaops-yamcs-main`;
-- the canonical Yamcs demo and its simulator are running on port `8093`;
+- Yamcs Demo and its simulator are running on port `8093`;
 - the datasource has a `demo_realtime` endpoint pointing at that demo.
 
 ## Files
@@ -37,7 +37,7 @@ The Grafana panel benchmark assumes:
 Benchmark code is organized by layer:
 
 - `scripts/benchmarks/micro/run.py`: isolated Go microbenchmarks.
-- `scripts/benchmarks/simulator/run.py`: canonical Yamcs demo scenario runner.
+- `scripts/benchmarks/simulator/run.py`: Yamcs Demo scenario runner.
 - `scripts/benchmarks/simulator/scenario.go`: Go workload used by the simulator runner.
 - `scripts/benchmarks/workload.json`: shared benchmark semver, endpoint, and parameter coverage.
 - `tests/benchmark/streaming.benchmark.spec.ts`: browser/Grafana benchmark.
@@ -46,7 +46,7 @@ Benchmark code is organized by layer:
 
 ## Simulator scenario
 
-Each scenario runs `N` concurrent Grafana stream demands against the canonical demo's `demo/realtime` processor.
+Each scenario runs `N` concurrent Grafana stream demands against Yamcs Demo's `demo/realtime` processor.
 
 For every value of `N`, the benchmark:
 
@@ -116,7 +116,7 @@ These metrics are mainly for detecting low-level allocation or frame-building re
 
 ### Simulator scenario
 
-The simulator scenario measures the plugin backend against live canonical Yamcs demo data, but without rendering Grafana panels in a browser. It uses the real stream buffers and RunStream read/frame/send path.
+The simulator scenario measures the plugin backend against live Yamcs Demo data, but without rendering Grafana panels in a browser. It uses the real stream buffers and RunStream read/frame/send path.
 
 The PR comment currently plots:
 
@@ -131,7 +131,7 @@ The most useful signals here are throughput, freshness, memory, and RunStream bu
 
 ### Grafana scenario
 
-The Grafana scenario measures the full browser + Grafana dashboard + Grafana Live + plugin backend path. It creates temporary dashboards with Timeseries panels over canonical demo parameters, warms each panel count once, then records the measured run.
+The Grafana scenario measures the full browser + Grafana dashboard + Grafana Live + plugin backend path. It creates temporary dashboards with Timeseries panels over Yamcs Demo parameters, warms each panel count once, then records the measured run.
 
 The PR comment currently plots:
 

@@ -112,9 +112,9 @@ jobs:
               with:
                   python-version: '3.12'
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - name: Install canonical Yamcs demo
+            - name: Install Yamcs Demo
               run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
-            - name: Start canonical Yamcs and simulator
+            - name: Start Yamcs Demo and simulator
               run: |
                   docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
                   timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
@@ -177,9 +177,9 @@ jobs:
                   go-version-file: go.mod
                   cache: false
             - run: pnpm install --frozen-lockfile --prefer-offline
-            - name: Install canonical Yamcs demo
+            - name: Install Yamcs Demo
               run: git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
-            - name: Start canonical Yamcs and simulator
+            - name: Start Yamcs Demo and simulator
               run: |
                   docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f "$GITHUB_WORKSPACE/scripts/benchmarks/canonical-ports.yml" up -d --build
                   timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'

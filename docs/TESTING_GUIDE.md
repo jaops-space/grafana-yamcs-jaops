@@ -8,7 +8,7 @@ The repository validates core behavior across frontend, backend, integration, E2
 
 - Frontend core query, routing, and commanding logic
 - Backend stream, frame conversion, and client behavior
-- Yamcs 5.13.7 canonical demo integration (real HTTP + WebSocket)
+- Yamcs Demo 5.13.7 integration (real HTTP + WebSocket)
 - Critical frontend E2E paths across app pages and core datasource resources
 - Yamcs-backed stream scenario benchmark with N concurrent Grafana stream demands
 
@@ -24,9 +24,9 @@ Run backend unit tests:
 
 Backend unit tests intentionally do not run Yamcs-dependent integration tests. Yamcs integration tests live behind the Go `integration` build tag and only run through `pnpm run test:integration:yamcs` or the matching CI job.
 
-Run Yamcs integration tests against the canonical demo (Yamcs 5.13.7 on localhost:8093;
+Run Yamcs integration tests against Yamcs Demo (Yamcs 5.13.7 on localhost:8093;
 the CI integration job starts the same fixture on localhost:8090). Follow the
-[canonical demo setup](./SETUP_INSTRUCTIONS.md#run-the-provisioned-canonical-demo)
+[Yamcs Demo setup](./SETUP_INSTRUCTIONS.md#run-the-provisioned-yamcs-demo)
 to start it locally:
 
     YAMCS_ADDRESS=localhost:8093 pnpm run test:integration:yamcs
@@ -35,12 +35,12 @@ Run E2E tests:
 
     pnpm run e2e
 
-The canonical dashboard E2E suite covers every tab and panel, including live
+The Yamcs Demo dashboard E2E suite covers every tab and panel, including live
 data, units and alarm thresholds. It is opt-in because the standard plugin E2E
 job runs a different, smaller Yamcs quickstart. This repository provisions
-only the canonical `demo_realtime` endpoint. Start the canonical demo and
+only the Yamcs Demo `demo_realtime` endpoint. Start Yamcs Demo and
 Grafana at `http://localhost:3000/grafana` as described in the
-[setup instructions](./SETUP_INSTRUCTIONS.md#run-the-provisioned-canonical-demo),
+[setup instructions](./SETUP_INSTRUCTIONS.md#run-the-provisioned-yamcs-demo),
 then with local anonymous access and Chrome installed:
 
     DEMO_DASHBOARDS_E2E=1 CANONICAL_ANONYMOUS=1 CANONICAL_BROWSER_CHANNEL=chrome \
@@ -51,7 +51,7 @@ then with local anonymous access and Chrome installed:
 The drone quickstart repo owns its separate datasource and dashboard provisioning.
 
 Run microbenchmarks and a simulator scenario against the already-running
-canonical demo:
+Yamcs Demo:
 
     pip install -r scripts/benchmarks/requirements.txt
     pnpm run bench:micro
@@ -64,8 +64,8 @@ shared 72-parameter workload, thresholds, and `run/benchmarks` label-gated CI.
 
 ## Prerequisites
 
-1. **Yamcs Server**: Run the [canonical demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) with its simulator and `/myproject`, `/features`, `/images` MDB.
-2. **Grafana Instance**: Use the [local plugin setup](./SETUP_INSTRUCTIONS.md) with its canonical datasource and dashboard provisioning.
+1. **Yamcs Server**: Run the [Yamcs Demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) with its simulator and `/myproject`, `/features`, `/images` MDB.
+2. **Grafana Instance**: Use the [local plugin setup](./SETUP_INSTRUCTIONS.md) with its Yamcs Demo datasource and dashboard provisioning.
 
 ## Quick Setup for Testing
 
@@ -89,7 +89,7 @@ shared 72-parameter workload, thresholds, and `run/benchmarks` label-gated CI.
 
 ## Sample Data
 
-The canonical demo repository includes:
+The Yamcs Demo repository includes:
 
 - Sample Yamcs configuration
 - Test telemetry, events and generated images from its simulator.

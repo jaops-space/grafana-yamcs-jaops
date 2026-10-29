@@ -25,7 +25,7 @@
   ·
   <a href="./docs/BENCHMARKING.md">Benchmarking</a>
   ·
-  <a href="https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7">Canonical Yamcs Demo</a>
+  <a href="https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7">Yamcs Demo</a>
 </p>
 
 ## Overview
@@ -45,7 +45,7 @@ There are two common ways to use the plugin:
 - **One-click catalog install:** install the signed release from the [Grafana Catalog](https://grafana.com/grafana/plugins/jaops-yamcs-app/) when you want the latest published version.
 - **Local development install:** follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) when you want to test unreleased changes, contribute, or run the local demo environment.
 
-For the provisioned dashboard in this repository, use the [canonical Yamcs demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7). The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) provisions its own datasource and dashboard in a separate Grafana instance. The plugin also includes in-app tutorials for each panel.
+For the provisioned dashboard in this repository, use the [Yamcs Demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7). The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) provisions its own datasource and dashboard in a separate Grafana instance. The plugin also includes in-app tutorials for each panel.
 
 <table>
   <tr>
@@ -158,14 +158,14 @@ For the provisioned dashboard in this repository, use the [canonical Yamcs demo 
   <img src="./docs/PLUGIN_MODEL.png" alt="Plugin model document" width="900">
 </p>
 
-## Canonical Yamcs Demo Dashboard
+## Yamcs Demo Dashboard
 
-The provisioned **Yamcs Canonical Demo** dashboard uses native Grafana tabs: Overview, Telemetry, Parameter types and Operations. It visualizes live `/myproject`, `/features` and `/images` telemetry from the [canonical Yamcs demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7), including Canvas, alarms, images and commanding. The simulator in that repository publishes telemetry, events and generated images; there is no separate image script to start.
+The provisioned **Yamcs Demo** dashboard uses native Grafana tabs: Overview, Telemetry, Parameter types and Operations. It visualizes live `/myproject`, `/features` and `/images` telemetry from the [Yamcs Demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7), including Canvas, alarms, images and commanding. The simulator in that repository publishes telemetry, events and generated images; there is no separate image script to start.
 
-The plugin's datasource provisioning points to canonical Yamcs on `localhost:8093` via Docker's host gateway. Start the canonical demo with the port override, then run this plugin's Grafana at `http://localhost:3000/grafana` as described in the [setup instructions](./docs/SETUP_INSTRUCTIONS.md). This repository does not provision the drone dashboard.
+The plugin's datasource provisioning points to Yamcs Demo on `localhost:8093` via Docker's host gateway. Start Yamcs Demo with the port override, then run this plugin's Grafana at `http://localhost:3000/grafana` as described in the [setup instructions](./docs/SETUP_INSTRUCTIONS.md). This repository does not provision the drone dashboard.
 
 <p align="center">
-  <img src="./screenshots/overview.png" alt="Canonical Yamcs demo Overview tab with live spacecraft Canvas and telemetry" width="900">
+  <img src="./screenshots/overview.png" alt="Yamcs Demo Overview tab with live spacecraft Canvas and telemetry" width="900">
 </p>
 
 See the [Telemetry](./screenshots/telemetry.png), [Parameter types](./screenshots/parameter-types.png) and [Operations](./screenshots/commanding.png) tabs.

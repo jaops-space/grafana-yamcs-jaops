@@ -42,7 +42,7 @@ Instead, when outside of Edit Mode in a dashboard (you can exit using `Exit Edit
 ## In this repository
 
 - App provisioning file: [plugins/apps.yaml](plugins/apps.yaml)
-- Canonical datasource: [datasources/yamcs-jaops.yaml](datasources/yamcs-jaops.yaml) (`demo_realtime`, Yamcs on host port 8093)
-- Canonical v2 dashboard: [dashboards/Example Demo/yamcs_quickstart_demo_dashboard.json](dashboards/Example%20Demo/yamcs_quickstart_demo_dashboard.json), loaded by [dashboards/yamcs-dashboards.yaml](dashboards/yamcs-dashboards.yaml)
+- Yamcs Demo datasource: [datasources/yamcs-jaops.yaml](datasources/yamcs-jaops.yaml) (`demo_realtime`, Yamcs on host port 8093)
+- Yamcs Demo v2 dashboard: [dashboards/Example Demo/yamcs_quickstart_demo_dashboard.json](dashboards/Example%20Demo/yamcs_quickstart_demo_dashboard.json), loaded by [dashboards/yamcs-dashboards.yaml](dashboards/yamcs-dashboards.yaml)
 
-Run the canonical fixture and Grafana using the [setup instructions](../docs/SETUP_INSTRUCTIONS.md#run-the-provisioned-canonical-demo). The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) provisions its own datasource and dashboard; it is not part of this repository's Grafana provisioning. Editing a dashboard in the Grafana UI saves it to Grafana's database, not back to its provisioned JSON file.
+Run Yamcs Demo and Grafana using the [setup instructions](../docs/SETUP_INSTRUCTIONS.md#run-the-provisioned-yamcs-demo). The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) provisions its own datasource and dashboard; it is not part of this repository's Grafana provisioning. Editing a dashboard in the Grafana UI saves it to Grafana's database, not back to its provisioned JSON file.
