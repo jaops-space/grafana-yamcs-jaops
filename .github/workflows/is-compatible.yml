@@ -12,7 +12,7 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                  node-version: '24'
+                  node-version: '22'
             - name: Install dependencies
               run: pnpm install --frozen-lockfile --prefer-offline
             - name: Build plugin
