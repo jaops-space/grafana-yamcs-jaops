@@ -41,8 +41,6 @@ pnpm run server:nginx
 
 Open `http://localhost:3000/grafana/d/0708823c-c106-407b-9861-f64283746167` to view **Yamcs Demo**. Grafana provisions its dashboard JSON from [`provisioning/dashboards`](../provisioning/dashboards) and the `demo_realtime` endpoint from [`provisioning/datasources`](../provisioning/datasources); no manual JSON import is required. Grafana stores UI edits in its database, **not** in the tracked JSON: export intended dashboard changes back into the repository.
 
-The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) is a separate, self-contained stack with its own Grafana, datasource, dashboard, simulator and image generator. Its Grafana also binds port 3000, so stop this plugin's Grafana before starting the drone stack. The drone stack remains pinned to released plugin v1.1.6 until a new release is available; it does not use this repository's unreleased build.
-
 ## Other commands you can run
 
 ### Backend

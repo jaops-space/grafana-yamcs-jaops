@@ -1,1 +1,1 @@
-This folder is mounted into Grafana by `.config/docker-compose-base.yaml`. `yamcs-jaops.yaml` provisions only the Yamcs Demo `demo_realtime` endpoint, which connects through `docker.gateway:8093` to Yamcs Demo. The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) provisions its own datasource separately.
+This folder is mounted into Grafana by `.config/docker-compose-base.yaml`. `yamcs-jaops.yaml` provisions the Yamcs Demo `demo_realtime` endpoint, which connects through `docker.gateway:8093` to Yamcs Demo.
