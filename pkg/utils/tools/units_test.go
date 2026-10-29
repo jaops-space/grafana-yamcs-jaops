@@ -21,6 +21,8 @@ func TestConvertYamcsUnitToGrafanaUnit(t *testing.T) {
 		{name: "celsius", unit: "°C", want: "celsius"},
 		{name: "rpm", unit: "rpm", want: "rotrpm"},
 		{name: "octets", unit: "Octets", want: "bytes"},
+		{name: "standard gravity", unit: "g0", want: "accG"},
+		{name: "grams remain mass", unit: "g", want: "massg"},
 		{name: "unknown custom unit is preserved", unit: "counts/frame", want: "counts/frame"},
 	}
 
