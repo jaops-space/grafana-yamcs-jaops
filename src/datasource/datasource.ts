@@ -92,6 +92,25 @@ function formatDiscreteOptionsPath(query: Query): string {
     return query.automaticColors ? 'colors=auto' : 'colors=none';
 }
 
+// Short deterministic hash (djb2) used to build a bounded-length Live
+// channel path for a multi-parameter query. Grafana Live channel names go
+// through Centrifuge, which enforces a channel length limit (~255 bytes);
+// concatenating every parameter name directly (as a single-parameter path
+// does) silently exceeds that for wide queries - the subscribe never even
+// reaches the plugin backend, with no visible error. Hashing keeps the path
+// short regardless of parameter count while still being deterministic per
+// exact parameter list, so two panels with the same parameters in the same
+// order share one channel/backend stream, and two different multi-parameter
+// queries don't collide.
+function hashParameterList(parameters: string[]): string {
+    let hash = 5381;
+    const joined = parameters.join('\u0000');
+    for (let i = 0; i < joined.length; i++) {
+        hash = (hash * 33) ^ joined.charCodeAt(i);
+    }
+    return (hash >>> 0).toString(36);
+}
+
 function parseParameterList(value: string | undefined): string[] {
     return (value ?? '')
         .split(/[\n,]+/)
@@ -243,26 +262,30 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     .flatMap((parameter) => parseParameterList(templateSrv.replace(parameter, request.scopedVars)))
                     .filter(Boolean);
 
-                // Fan out a multi-parameter Plot/Single/Discrete query into one
-                // query object per parameter, each opening its own Grafana Live
-                // channel/backend goroutine (RunParameterStream) - the shipped
-                // multi-observer architecture. `parameters` is intentionally left
-                // unset on each fanned-out query; see ParameterPicker for where the
-                // full list is collected from the user.
-                const queries =
-                    isMultiParameterQueryType(target.type) && parameterList.length > 0
-                        ? parameterList.map((parameter) => ({
+                // A Plot/Single/Discrete query is always sent as one query carrying
+                // the whole parameter list (parameters), one parameter or several -
+                // there's no separate single-parameter shape on the wire. The backend
+                // (RunParameterStream) opens one Live channel/goroutine per query
+                // regardless of how many parameters are in that list, and the N=1
+                // case is simply the degenerate case of the same code path, not a
+                // different one. `parameter` is kept as parameters[0] for backend
+                // code that only wants a single representative parameter (query
+                // validation, the historical-range fetch for a single parameter).
+                const queries = isMultiParameterQueryType(target.type) && parameterList.length > 0
+                    ? [
+                          {
                               ...target,
                               endpoint,
                               command,
-                              parameter,
-                              parameters: undefined,
-                          }))
-                        : [
-                              {
-                                  ...target,
-                                  endpoint,
-                                  command,
+                              parameter: parameterList[0],
+                              parameters: parameterList,
+                          },
+                      ]
+                    : [
+                          {
+                              ...target,
+                              endpoint,
+                              command,
                                   parameter: isParameterQueryType(target.type)
                                       ? templateSrv.replace(target.parameter, request.scopedVars)
                                       : target.parameter,
@@ -287,7 +310,16 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                     }
 
                     let pathName = 'query';
-                    if (query.parameter) {
+                    if (query.parameters && query.parameters.length > 1) {
+                        // A hash, not the joined parameter names: see
+                        // hashParameterList's doc comment for why concatenating
+                        // every name would silently break wide queries. Hashed on a
+                        // sorted copy (order-insensitive) so two panels requesting
+                        // the same parameter *set* in a different order still share
+                        // one backend stream, the same way Yamcs's own subscription
+                        // dedup already works by parameter, not by request order.
+                        pathName = `multi-${hashParameterList([...query.parameters].sort())}`;
+                    } else if (query.parameter) {
                         pathName = `${query.parameter.replaceAll('/', '-')}`;
                     } else if (query.type === QueryType.EVENTS) {
                         pathName = `events`;
