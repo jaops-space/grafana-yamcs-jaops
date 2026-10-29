@@ -88,9 +88,6 @@ func TestIntegrationYamcs_SubscriptionSnapshotCardinality(t *testing.T) {
 }
 
 func TestIntegrationYamcs_WebSocketStateVerifiesAllSubscriptionKinds(t *testing.T) {
-	// TODO: unskip when Yamcs state snapshots reliably exclude canceled subscription calls after Halt.
-	t.Skip("skipping WebSocket state/halt verification until the upstream Yamcs state snapshot issue is fixed")
-
 	client := newIntegrationClient(t)
 	ctx := connectWebSocket(t, client)
 

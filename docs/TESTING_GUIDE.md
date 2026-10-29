@@ -8,7 +8,7 @@ The repository validates core behavior across frontend, backend, integration, E2
 
 - Frontend core query, routing, and commanding logic
 - Backend stream, frame conversion, and client behavior
-- Yamcs quickstart integration (real HTTP + WebSocket)
+- Yamcs 5.13.7 canonical demo integration (real HTTP + WebSocket)
 - Critical frontend E2E paths across app pages and core datasource resources
 - Yamcs-backed stream scenario benchmark with N concurrent Grafana stream demands
 
@@ -24,13 +24,27 @@ Run backend unit tests:
 
 Backend unit tests intentionally do not run Yamcs-dependent integration tests. Yamcs integration tests live behind the Go `integration` build tag and only run through `pnpm run test:integration:yamcs` or the matching CI job.
 
-Run Yamcs integration tests (requires Yamcs running on localhost:8090):
+Run Yamcs integration tests against the canonical demo (Yamcs 5.13.7 on localhost:8093;
+the CI integration job starts the same demo at localhost:8090):
 
-    pnpm run test:integration:yamcs
+    YAMCS_ADDRESS=localhost:8093 pnpm run test:integration:yamcs
 
 Run E2E tests:
 
     pnpm run e2e
+
+The canonical and drone dashboard E2E suites cover every tab and panel, including
+live data, units and alarm thresholds. They require both demo simulators, their
+provisioned dashboards, and Grafana with the `demo_realtime` and `drone_realtime`
+endpoints. They are opt-in because the standard plugin E2E job runs the smaller
+Yamcs quickstart instead of these two demos. With local anonymous Grafana at
+`http://localhost:3000/grafana` and Chrome installed:
+
+    DEMO_DASHBOARDS_E2E=1 CANONICAL_ANONYMOUS=1 DRONE_ANONYMOUS=1 \
+      CANONICAL_BROWSER_CHANNEL=chrome DRONE_CHROMIUM_CHANNEL=chrome \
+      GRAFANA_URL=http://localhost:3000/grafana \
+      pnpm exec playwright test tests/canonical-dashboard.spec.ts tests/drone-dashboard.spec.ts \
+      --project=chromium --no-deps --workers=1
 
 Run Yamcs-backed stream scenario benchmarks:
 
