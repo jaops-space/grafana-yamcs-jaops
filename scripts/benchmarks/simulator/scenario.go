@@ -16,9 +16,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
+	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
 )
 
 type scenarioMetric struct {
@@ -98,7 +100,9 @@ func main() {
 	warmupScenarioDuration := flag.Duration("warmup-scenario-duration", 3*time.Second, "duration for the unmeasured warmup scenario")
 	readInterval := flag.Duration("read-interval", time.Second, "interval between read-and-clear operations per Grafana stream")
 	freshnessWindow := flag.Duration("freshness-window", time.Second, "maximum delay counted as read in the same telemetry cycle")
+	mode := flag.String("mode", "observer", "streaming architecture to benchmark: 'observer' (one goroutine/frame per stream, shipped behavior) or 'batched' (one goroutine draining all streams per query into one joined frame, proposed multi-parameter-stream follow-up)")
 	flag.Parse()
+	batched := *mode == "batched"
 
 	streamCounts, err := parsePositiveInts(*streamsArg)
 	if err != nil {
@@ -124,7 +128,7 @@ func main() {
 	}
 
 	if *warmupScenarioStreams > 0 && *warmupScenarioDuration > 0 {
-		_, err := runScenario(*address, *instance, *processor, parameters, *warmupScenarioStreams, *warmupScenarioDuration, *warmup, *readInterval, *freshnessWindow)
+		_, err := runScenario(*address, *instance, *processor, parameters, *warmupScenarioStreams, *warmupScenarioDuration, *warmup, *readInterval, *freshnessWindow, batched)
 		if err != nil {
 			exitf("warmup scenario failed: %v", err)
 		}
@@ -135,7 +139,7 @@ func main() {
 	}
 
 	for _, streams := range streamCounts {
-		metric, err := runScenario(*address, *instance, *processor, parameters, streams, *duration, *warmup, *readInterval, *freshnessWindow)
+		metric, err := runScenario(*address, *instance, *processor, parameters, streams, *duration, *warmup, *readInterval, *freshnessWindow, batched)
 		if err != nil {
 			exitf("scenario streams=%d failed: %v", streams, err)
 		}
@@ -255,7 +259,7 @@ func readLinuxCPUInfo() (string, float64) {
 	return model, frequencyMHz
 }
 
-func runScenario(address string, instance string, processor string, parameters []string, streams int, duration time.Duration, warmup time.Duration, readInterval time.Duration, freshnessWindow time.Duration) (scenarioMetric, error) {
+func runScenario(address string, instance string, processor string, parameters []string, streams int, duration time.Duration, warmup time.Duration, readInterval time.Duration, freshnessWindow time.Duration, batched bool) (scenarioMetric, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), warmup+duration+30*time.Second)
 	defer cancel()
 
@@ -337,8 +341,52 @@ func runScenario(address string, instance string, processor string, parameters [
 	readDurations := &durationRecorder{}
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(len(requests))
-	for _, req := range requests {
+
+	// recordTick shares the exact same counting/metric logic between both
+	// architectures so the only real difference measured is goroutine count,
+	// tick count, and whether N single-field frames or 1 joined multi-field
+	// frame gets built per tick - not a difference in what gets counted.
+	recordTick := func(startOffset time.Duration, started time.Time, values int, freshInWindow int, readSendElapsed time.Duration) {
+		readDurations.add(readSendElapsed.Nanoseconds())
+		tickWork.addReadSendSpan(startOffset, startOffset+readSendElapsed)
+		readOps.Add(1)
+		if values == 0 {
+			emptyReads.Add(1)
+		} else {
+			nonEmptyReads.Add(1)
+		}
+		valuesRead.Add(int64(values))
+		freshValues.Add(int64(freshInWindow))
+	}
+
+	countFresh := func(parameter string, path string, values int, readAt time.Time) int {
+		fresh := 0
+		receivedAtValues := arrivals.pop(parameter, path, values)
+		for _, receivedAt := range receivedAtValues {
+			age := readAt.Sub(receivedAt)
+			if age < 0 {
+				age = 0
+			}
+			if age <= freshnessWindow {
+				fresh++
+			}
+		}
+		return fresh
+	}
+
+	buildFrame := func(parameter string, values []client.ParameterValue) *data.Frame {
+		if len(values) > 3 {
+			return tools.ConvertBufferToAverageFrame(values, parameter, false, false, false)
+		}
+		return tools.ConvertBufferToFrame(values, parameter, false, false, false)
+	}
+
+	if batched {
+		// Proposed follow-up: one goroutine, one ticker, drains every
+		// parameter's ring on this query and joins the results into a
+		// single multi-field frame per tick - one "send" per tick
+		// regardless of how many parameters the query has.
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			ticker := time.NewTicker(readInterval)
@@ -351,42 +399,65 @@ func runScenario(address string, instance string, processor string, parameters [
 						startOffset = time.Since(scenarioStarted)
 					}
 					started := time.Now()
-					values := endpoint.DrainParameterStream(req.parameter, req.path)
-					readAt := time.Now()
-					receivedAtValues := arrivals.pop(req.parameter, req.path, len(values))
-					for _, receivedAt := range receivedAtValues {
-						age := readAt.Sub(receivedAt)
-						if age < 0 {
-							age = 0
-						}
-						if age <= freshnessWindow {
-							freshValues.Add(1)
+					totalValues := 0
+					totalFresh := 0
+					fields := make([]*data.Field, 0, len(requests))
+					for _, req := range requests {
+						values := endpoint.DrainParameterStream(req.parameter, req.path)
+						readAt := time.Now()
+						totalFresh += countFresh(req.parameter, req.path, len(values), readAt)
+						totalValues += len(values)
+						if len(values) > 0 {
+							frame := buildFrame(req.parameter, values)
+							if len(frame.Fields) > 1 {
+								fields = append(fields, frame.Fields[1])
+							}
 						}
 					}
-					if len(values) > 0 {
-						if len(values) > 3 {
-							frame := tools.ConvertBufferToAverageFrame(values, req.parameter, false, false, false)
-							runtime.KeepAlive(frame)
-						} else {
-							frame := tools.ConvertBufferToFrame(values, req.parameter, false, false, false)
-							runtime.KeepAlive(frame)
-						}
+					if len(fields) > 0 {
+						joined := data.NewFrame("response")
+						joined.Fields = append(joined.Fields, fields...)
+						runtime.KeepAlive(joined)
 					}
 					readSendElapsed := time.Since(started)
-					readDurations.add(readSendElapsed.Nanoseconds())
-					tickWork.addReadSendSpan(startOffset, startOffset+readSendElapsed)
-					readOps.Add(1)
-					if len(values) == 0 {
-						emptyReads.Add(1)
-					} else {
-						nonEmptyReads.Add(1)
-					}
-					valuesRead.Add(int64(len(values)))
+					recordTick(startOffset, started, totalValues, totalFresh, readSendElapsed)
 				case <-stop:
 					return
 				}
 			}
 		}()
+	} else {
+		// Shipped behavior: one goroutine/ticker/frame per parameter.
+		wg.Add(len(requests))
+		for _, req := range requests {
+			req := req
+			go func() {
+				defer wg.Done()
+				ticker := time.NewTicker(readInterval)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						startOffset := time.Duration(0)
+						if !scenarioStarted.IsZero() {
+							startOffset = time.Since(scenarioStarted)
+						}
+						started := time.Now()
+						values := endpoint.DrainParameterStream(req.parameter, req.path)
+						readAt := time.Now()
+						fresh := countFresh(req.parameter, req.path, len(values), readAt)
+						if len(values) > 0 {
+							frame := buildFrame(req.parameter, values)
+							runtime.KeepAlive(frame)
+						}
+						readSendElapsed := time.Since(started)
+						recordTick(startOffset, started, len(values), fresh, readSendElapsed)
+					case <-stop:
+						return
+					}
+				}
+			}()
+		}
 	}
 
 	scenarioStarted = time.Now()

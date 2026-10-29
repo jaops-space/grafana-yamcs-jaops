@@ -1,8 +1,9 @@
 import { SelectableValue } from '@grafana/data';
-import { Combobox, ComboboxOption, InlineField, MultiCombobox, RadioButtonGroup, Stack, Text } from '@grafana/ui';
+import { ComboboxOption, InlineField, MultiCombobox, RadioButtonGroup, Stack, Text } from '@grafana/ui';
 import React, { useCallback } from 'react';
 import { Query, QueryField, QueryType } from '../types';
 import { FieldsOptions, QueryEditorModelProps, QueryOptions } from './constants';
+import { ParameterPicker } from './ParameterPicker';
 
 const ColorOptions: Array<SelectableValue<boolean>> = [
     { label: 'None', value: false },
@@ -27,25 +28,18 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
         [onChange, query]
     );
 
-    const handleParameterChange = useCallback(
-        (v: ComboboxOption | null) => {
-            updateQuery({ parameter: (v?.value as string) ?? '' });
-        },
-        [updateQuery]
-    );
+    const selectedParameters = query.parameters?.length ? query.parameters : query.parameter ? [query.parameter] : [];
+    const supportsMultiple =
+        query.type === QueryType.PLOT || query.type === QueryType.SINGLE || query.type === QueryType.DISCRETE;
 
-    const fetchOptions = useCallback(
-        async (inputValue: string): Promise<ComboboxOption[]> => {
-            if (!endpoint) {
-                return [];
-            }
-            const parameters: string[] = await datasource.getResource(
-                `endpoint/${endpoint}/parameters`,
-                inputValue ? { q: inputValue } : undefined
-            );
-            return parameters.map((p) => ({ label: p, value: p }));
+    const handleParametersChange = useCallback(
+        (parameters: string[]) => {
+            updateQuery({
+                parameter: parameters[0] ?? '',
+                parameters: supportsMultiple ? parameters : undefined,
+            });
         },
-        [datasource, endpoint]
+        [supportsMultiple, updateQuery]
     );
 
     const tooltip = (
@@ -69,17 +63,15 @@ export function ParameterQuery({ query, onChange, datasource }: QueryEditorModel
         <>
             <Stack direction="row" alignItems="center">
                 <Stack direction="row" alignItems="center" gap={0} grow={1}>
-                    <InlineField label="Parameter to query" tooltip={tooltip} grow>
-                        <Combobox
-                            key={`parameter-select-${endpoint ?? 'none'}`}
-                            options={fetchOptions}
-                            onChange={handleParameterChange}
-                            value={query.parameter ?? null}
-                            createCustomValue
-                            customValueDescription="Use custom parameter expression"
-                            data-testid="jaops-parameter-select"
-                        />
-                    </InlineField>
+                    <ParameterPicker
+                        datasource={datasource}
+                        endpoint={endpoint}
+                        label={supportsMultiple ? 'Parameters to query' : 'Parameter to query'}
+                        tooltip={tooltip}
+                        value={selectedParameters}
+                        multiple={supportsMultiple}
+                        onChange={handleParametersChange}
+                    />
                 </Stack>
             </Stack>
 
