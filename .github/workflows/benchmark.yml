@@ -6,6 +6,7 @@ on:
         branches:
             - master
             - main
+            - feature/multi-parameter-stream-model
     push:
         branches:
             - master
@@ -216,7 +217,44 @@ jobs:
                   ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
                   timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
                   pnpm exec playwright install chromium --with-deps
-                  GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/head/grafana.json" pnpm run bench:grafana
+                  GRAFANA_BENCHMARK_EXPECT_GROUPED_STREAMS=12 \
+                    GRAFANA_BENCHMARK_VERIFY_FIELDS=1 \
+                    GRAFANA_BENCHMARK_PLUGIN_COMMIT="$GITHUB_SHA" \
+                    GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/head/grafana.json" pnpm run bench:grafana
+            - uses: actions/checkout@v4
+              if: ${{ github.event_name == 'pull_request' && github.head_ref == 'demo/dashboard-refresh' }}
+              with:
+                  # Last #90 revision before #91's single-stream-per-query change.
+                  ref: f13454edbe0345f3860c9e657837bab407859b1f
+                  path: benchmark-pre-batch-source
+            - name: Build pre-batching plugin
+              if: ${{ github.event_name == 'pull_request' && github.head_ref == 'demo/dashboard-refresh' }}
+              working-directory: benchmark-pre-batch-source
+              run: |
+                  # The 72-stream workload exposed a subscription-map race in #90.
+                  # Backport only that safety fix and the missing SingleValue
+                  # benchmark counter; keep the old per-parameter stream logic.
+                  git fetch --no-tags --depth=1 origin 404a1580cd5b1c22c80d5c96e535e3f75f6f620a
+                  git show --format= 404a1580cd5b1c22c80d5c96e535e3f75f6f620a -- \
+                    pkg/source/endpoint_parameter.go pkg/source/endpoint.go \
+                    pkg/yamcs/client/parameter_subscription.go pkg/plugin/datasource_run_debug.go | git apply
+                  git apply "$GITHUB_WORKSPACE/scripts/benchmarks/pre-batch-single-stats.patch"
+                  pnpm install --frozen-lockfile --prefer-offline
+                  pnpm run build
+                  go run github.com/magefile/mage -v buildAll
+                  go build -o dist/gpx_grafana_yamcs_jaops_linux_amd64 -tags "arrow_json_stdlib benchmark" ./pkg
+            - name: Run same grouped workload against pre-batching plugin
+              if: ${{ github.event_name == 'pull_request' && github.head_ref == 'demo/dashboard-refresh' }}
+              run: |
+                  docker logs jaops-yamcs-app > benchmark-output/grafana/grafana-head.log 2>&1 || true
+                  docker compose down -v
+                  cp -R benchmark-pre-batch-source/dist/. dist/
+                  ANONYMOUS_AUTH_ENABLED=true DEVELOPMENT=false docker compose up -d --build grafana
+                  timeout 120 bash -c 'until curl -fsS http://localhost:3000/api/health >/dev/null; do sleep 2; done'
+                  GRAFANA_BENCHMARK_PANEL_COUNTS=1 \
+                    GRAFANA_BENCHMARK_EXPECT_GROUPED_STREAMS=72 \
+                    GRAFANA_BENCHMARK_PLUGIN_COMMIT="f13454e+subscription-locking-404a158+single-stats" \
+                    GRAFANA_BENCHMARK_OUTPUT="$PWD/benchmark-output/grafana/pre-batch/grafana.json" pnpm run bench:grafana
             - name: Collect Grafana logs
               if: always()
               run: |
@@ -270,6 +308,9 @@ jobs:
               with:
                   name: benchmark-grafana
                   path: artifacts/grafana
+            - name: Require pre-batching comparison for dashboard PR
+              if: ${{ github.head_ref == 'demo/dashboard-refresh' }}
+              run: test -s artifacts/grafana/pre-batch/grafana.json
             - name: Build benchmark report
               env:
                   BASELINE_COMMIT: ${{ needs.resolve-base.outputs.sha }}
@@ -284,6 +325,7 @@ jobs:
                       --baseline-simulator-results artifacts/simulator/baseline/simulator.json \
                       --baseline-micro-results artifacts/microbenchmarks/baseline/microbenchmarks.json \
                       --baseline-grafana-results artifacts/grafana/baseline/grafana.json \
+                      --pre-batch-grafana-results artifacts/grafana/pre-batch/grafana.json \
                       --baseline-commit "$BASELINE_COMMIT" \
                       --run-url "$RUN_URL"
                   else
@@ -292,6 +334,7 @@ jobs:
                       --simulator-results artifacts/simulator/head/simulator.json \
                       --micro-results artifacts/microbenchmarks/head/microbenchmarks.json \
                       --grafana-results artifacts/grafana/head/grafana.json \
+                      --pre-batch-grafana-results artifacts/grafana/pre-batch/grafana.json \
                       --run-url "$RUN_URL"
                   fi
             - name: Read benchmark status

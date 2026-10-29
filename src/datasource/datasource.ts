@@ -28,6 +28,7 @@ declare global {
         __jaopsBenchmarkStats?: {
             framesReceived: number;
             valuesReceived: number;
+            parameterFieldsSeen?: Record<string, boolean>;
         };
         __jaopsBenchmarkNoRetention?: boolean;
     }
@@ -54,6 +55,13 @@ function createBenchmarkFrontendTap(): (response: DataQueryResponse) => void {
             previousLength = length;
 
             const stats = typeof window !== 'undefined' ? window.__jaopsBenchmarkStats : undefined;
+            if (stats?.parameterFieldsSeen) {
+                for (const field of frame.fields ?? []) {
+                    if (field.name !== 'time') {
+                        stats.parameterFieldsSeen[field.name] = true;
+                    }
+                }
+            }
             if (stats && delta > 0) {
                 stats.framesReceived += 1;
                 stats.valuesReceived += delta;
@@ -271,21 +279,22 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 // different one. `parameter` is kept as parameters[0] for backend
                 // code that only wants a single representative parameter (query
                 // validation, the historical-range fetch for a single parameter).
-                const queries = isMultiParameterQueryType(target.type) && parameterList.length > 0
-                    ? [
-                          {
-                              ...target,
-                              endpoint,
-                              command,
-                              parameter: parameterList[0],
-                              parameters: parameterList,
-                          },
-                      ]
-                    : [
-                          {
-                              ...target,
-                              endpoint,
-                              command,
+                const queries =
+                    isMultiParameterQueryType(target.type) && parameterList.length > 0
+                        ? [
+                              {
+                                  ...target,
+                                  endpoint,
+                                  command,
+                                  parameter: parameterList[0],
+                                  parameters: parameterList,
+                              },
+                          ]
+                        : [
+                              {
+                                  ...target,
+                                  endpoint,
+                                  command,
                                   parameter: isParameterQueryType(target.type)
                                       ? templateSrv.replace(target.parameter, request.scopedVars)
                                       : target.parameter,
