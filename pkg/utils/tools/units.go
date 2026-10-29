@@ -161,6 +161,8 @@ var yamcsUnitAliases = map[string]string{
 	"b":        "bits",
 	"byte":     "bytes",
 	"bytes":    "bytes",
+	"octet":    "bytes",
+	"octets":   "bytes",
 	"bit":      "bits",
 	"bits":     "bits",
 	"b/s":      "Bps",

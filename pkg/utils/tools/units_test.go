@@ -20,6 +20,7 @@ func TestConvertYamcsUnitToGrafanaUnit(t *testing.T) {
 		{name: "meters per second squared with unicode exponent", unit: "m/s²", want: "accMS2"},
 		{name: "celsius", unit: "°C", want: "celsius"},
 		{name: "rpm", unit: "rpm", want: "rotrpm"},
+		{name: "octets", unit: "Octets", want: "bytes"},
 		{name: "unknown custom unit is preserved", unit: "counts/frame", want: "counts/frame"},
 	}
 
