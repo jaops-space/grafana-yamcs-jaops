@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/source"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/tools"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/yamcs/client"
@@ -93,6 +94,25 @@ func beginStreamGuard(ctx context.Context, endpoint *source.YamcsEndpoint) (cont
 	return streamCtx, yamcs, func() { cancel(nil) }, nil
 }
 
+// RunParameterStream streams a Graph/SingleValue/DiscreteValue/Image query,
+// covering both a single parameter and several: q.Parameters (falling back
+// to []string{q.Parameter} when unset, for older saved queries) is always
+// treated as the parameter list for this stream, and one parameter is
+// simply the degenerate case of that list rather than a separate code path.
+// See RunMultiParameterStream's doc comment for the two policies (row
+// timestamp, carry-forward) that only come into play once there's more than
+// one parameter to align.
+//
+// The one real behavioral difference between the two cases: with exactly
+// one parameter there's nothing to align rows against, so every value
+// drained each tick is sent as-is (unchanged from this function's original,
+// single-parameter-only behavior); with more than one, each tick collapses
+// to one representative row per parameter (see buildMultiParameterFrame) so
+// rows stay aligned across parameters. That's an intentional, documented
+// tradeoff, not an oversight: a single-parameter panel keeps its existing
+// full tick-by-tick resolution, and only widening a query to more than one
+// parameter opts into the aligned/reduced behavior multi-parameter panels
+// actually need.
 func RunParameterStream(ctx context.Context,
 	req *backend.RunStreamRequest,
 	sender *backend.StreamSender,
@@ -105,14 +125,22 @@ func RunParameterStream(ctx context.Context,
 	}
 	defer cancel()
 
-	backend.Logger.Debug("Requesting parameter stream", "parameter", q.Parameter, "path", req.Path)
-	err = endpoint.RequestNewParameterStream(ctx, q.Parameter, req.Path)
-	if err != nil {
-		backend.Logger.Error("Error requesting parameter stream", "error", err)
-		return err
+	parameters := q.Parameters
+	if len(parameters) == 0 {
+		parameters = []string{q.Parameter}
 	}
-	backend.Logger.Debug("Requested parameter stream", "parameter", q.Parameter, "path", req.Path)
-	defer endpoint.WithdrawParameterStreamRequest(ctx, q.Parameter, req.Path)
+
+	for _, parameter := range parameters {
+		if err := endpoint.RequestNewParameterStream(ctx, parameter, multiParameterStreamPath(req.Path, parameter)); err != nil {
+			backend.Logger.Error("Error requesting parameter stream", "parameter", parameter, "error", err)
+			return err
+		}
+	}
+	defer func() {
+		for _, parameter := range parameters {
+			endpoint.WithdrawParameterStreamRequest(context.Background(), parameter, multiParameterStreamPath(req.Path, parameter))
+		}
+	}()
 	streamBenchmarkStats.recordRunStream(req.Path)
 
 	tickerInterval := getStreamTickerInterval(q, time.Second)
@@ -128,52 +156,52 @@ func RunParameterStream(ctx context.Context,
 		getMax = getMax || (getField == "max")
 	}
 
+	if len(parameters) == 1 {
+		parameter := parameters[0]
+		for {
+			select {
+			case <-ctx.Done():
+				return context.Cause(ctx)
+			case <-ticker.C:
+				started := time.Now()
+				batch := endpoint.DrainParameterStream(parameter, multiParameterStreamPath(req.Path, parameter))
+				if len(batch) == 0 {
+					continue
+				}
+
+				frame := convertParameterBatchByType(q.Type, batch, parameter, q.AutomaticColors, getMin, getMax)
+				includeOpt := data.IncludeDataOnly
+				if q.Type == SingleValue {
+					includeOpt = data.IncludeAll
+				}
+				sender.SendFrame(frame, includeOpt)
+				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(batch))
+			}
+		}
+	}
+
+	states := make(map[string]*multiParameterState, len(parameters))
+	for _, parameter := range parameters {
+		states[parameter] = &multiParameterState{}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return context.Cause(ctx)
 		case <-ticker.C:
-
 			started := time.Now()
-			batch := endpoint.DrainParameterStream(q.Parameter, req.Path)
-			if len(batch) == 0 {
+			frame, totalValues, anyFresh := buildMultiParameterFrame(q.Type, q.AutomaticColors, parameters, states, func(parameter string) []*pvalue.ParameterValue {
+				return endpoint.DrainParameterStream(parameter, multiParameterStreamPath(req.Path, parameter))
+			})
+			if !anyFresh || frame == nil {
 				continue
 			}
 
-			if q.Type == DiscreteValue {
-				frame := tools.ConvertDiscreteBufferToFrame(batch, q.Parameter, q.AutomaticColors, false)
-				sender.SendFrame(
-					frame,
-					data.IncludeDataOnly,
-				)
-				streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(batch))
-				continue
-			}
-			if q.Type == SingleValue {
-				frame := tools.ConvertSingleValueBufferToFrame(batch, q.Parameter, false)
-				sender.SendFrame(
-					frame,
-					data.IncludeAll,
-				)
-				continue
-			}
-
-			average := len(batch) > 3
-			var frame *data.Frame
-			if average {
-				frame = tools.ConvertBufferToAverageFrame(batch, q.Parameter, getMin, getMax, false)
-			} else {
-				frame = tools.ConvertBufferToFrame(batch, q.Parameter, getMin, getMax, false)
-			}
-
-			sender.SendFrame(
-				frame,
-				data.IncludeDataOnly,
-			)
-			streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), len(batch))
+			sender.SendFrame(frame, data.IncludeDataOnly)
+			streamBenchmarkStats.recordRunStreamWork(req.Path, time.Since(started), totalValues)
 		}
 	}
-
 }
 
 func RunEventStream(ctx context.Context,
