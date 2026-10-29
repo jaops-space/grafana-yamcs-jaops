@@ -142,6 +142,14 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 		cursor: demand.Ring.Cursor(),
 	}
 	ep.mu.Unlock()
+	registered := false
+	defer func() {
+		if !registered {
+			ep.mu.Lock()
+			delete(demand.Streams, path)
+			ep.mu.Unlock()
+		}
+	}()
 
 	subscription, err := ep.getParameterSubscription(ctx)
 	if err != nil {
@@ -149,15 +157,16 @@ func (ep *YamcsEndpoint) RequestNewParameterStream(ctx context.Context, name str
 		return err
 	}
 
+	ep.parameterUpdateMu.Lock()
+	defer ep.parameterUpdateMu.Unlock()
 	if !subscription.Has(name) {
 		backend.Logger.Debug("Adding parameter to subscription", "parameter", name)
-		subscription.Add(name)
+		if err := subscription.Add(name); err != nil {
+			return err
+		}
 	}
 
-	for name := range subscription.ActiveSubscriptions {
-		backend.Logger.Debug("Current subscription", "parameter", name)
-	}
-
+	registered = true
 	return nil
 }
 
@@ -216,7 +225,14 @@ func (ep *YamcsEndpoint) WithdrawParameterStreamRequest(ctx context.Context, nam
 		if err != nil {
 			return err
 		}
-		subscription.Remove(name)
+		ep.parameterUpdateMu.Lock()
+		defer ep.parameterUpdateMu.Unlock()
+		ep.mu.RLock()
+		stillEmpty := len(demand.Streams) == 0
+		ep.mu.RUnlock()
+		if stillEmpty && subscription.Has(name) {
+			return subscription.Remove(name)
+		}
 	}
 	return nil
 }

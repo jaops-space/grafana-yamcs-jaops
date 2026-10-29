@@ -1,0 +1,4 @@
+services:
+  yamcs:
+    ports:
+      - "8093:8090"

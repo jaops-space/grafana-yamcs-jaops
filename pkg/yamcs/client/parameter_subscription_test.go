@@ -11,6 +11,29 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+func TestParameterSubscriptionActiveNamesReturnsSnapshot(t *testing.T) {
+	sub := &ParameterSubscription{ActiveSubscriptions: types.NewSet[string]()}
+	sub.ActiveSubscriptions.Add("/myproject/A")
+	names := sub.ActiveNames()
+	if len(names) != 1 || names[0] != "/myproject/A" {
+		t.Fatalf("unexpected subscription names: %v", names)
+	}
+	sub.ActiveSubscriptions.Add("/myproject/Height")
+	if len(names) != 1 {
+		t.Fatalf("subscription snapshot changed after an update: %v", names)
+	}
+}
+
+func TestListParameterSubscriptionsReturnsSnapshot(t *testing.T) {
+	sub := &ParameterSubscription{}
+	client := &YamcsClient{ParameterSubscriptions: map[int32]*ParameterSubscription{1: sub}}
+	snapshot := client.ListParameterSubscriptions()
+	delete(client.ParameterSubscriptions, 1)
+	if len(snapshot) != 1 || snapshot[0] != sub {
+		t.Fatalf("subscription registry snapshot changed after removal: %v", snapshot)
+	}
+}
+
 func TestHandleParameterMessageUsesSnapshotMappingForValues(t *testing.T) {
 	paramName := "/myproject/Battery1_Voltage"
 	numericID := uint32(42)

@@ -141,6 +141,36 @@ describe('DataSource.query', () => {
         }
     });
 
+    it('releases benchmark-only streams immediately after their last subscriber leaves', () => {
+        let connections = 0;
+        let disconnections = 0;
+        getDataStreamMock.mockImplementation(
+            () =>
+                new Observable<DataQueryResponse>(() => {
+                    connections++;
+                    return () => {
+                        disconnections++;
+                    };
+                })
+        );
+        window.__jaopsBenchmarkNoRetention = true;
+        try {
+            const ds = buildDatasource();
+            const request = buildRequest(QueryType.PLOT);
+            ds.query(request as any)
+                .subscribe()
+                .unsubscribe();
+            expect(disconnections).toBe(1);
+            ds.query(request as any)
+                .subscribe()
+                .unsubscribe();
+            expect(connections).toBe(2);
+            expect(disconnections).toBe(2);
+        } finally {
+            delete window.__jaopsBenchmarkNoRetention;
+        }
+    });
+
     it('uses relative range and rounded data points in realtime plot live path', async () => {
         const ds = buildDatasource();
 

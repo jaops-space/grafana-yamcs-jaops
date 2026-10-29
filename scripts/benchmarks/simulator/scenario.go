@@ -89,8 +89,8 @@ type streamRequest struct {
 }
 
 func main() {
-	address := flag.String("address", "localhost:8090", "Yamcs host:port")
-	instance := flag.String("instance", "myproject", "Yamcs instance")
+	address := flag.String("address", "localhost:8093", "Yamcs host:port")
+	instance := flag.String("instance", "demo", "Yamcs instance")
 	processor := flag.String("processor", "realtime", "Yamcs processor")
 	streamsArg := flag.String("streams", "1,5,10,25,50,100", "comma-separated Grafana stream counts")
 	parametersArg := flag.String("parameters", "/myproject/Battery1_Voltage,/myproject/Battery2_Voltage,/myproject/Battery1_Temp,/myproject/Battery2_Temp,/myproject/Detector_Temp", "comma-separated Yamcs parameter names")

@@ -29,6 +29,7 @@ declare global {
             framesReceived: number;
             valuesReceived: number;
         };
+        __jaopsBenchmarkNoRetention?: boolean;
     }
 }
 
@@ -211,6 +212,11 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 subscription.unsubscribe();
                 retained.subscribers--;
                 if (retained.subscribers === 0 && this.retainedStreams.get(path) === retained) {
+                    if (typeof window !== 'undefined' && window.__jaopsBenchmarkNoRetention) {
+                        retained.source.unsubscribe();
+                        this.retainedStreams.delete(path);
+                        return;
+                    }
                     retained.idleTimer = setTimeout(() => {
                         retained.source.unsubscribe();
                         this.retainedStreams.delete(path);
