@@ -30,7 +30,7 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '24'
+        node-version: '22'
 
     # semgrep 1.84.1 (pinned below for validator parity) crashes on Python 3.14,
     # which ubuntu-latest ships since the Ubuntu 26 migration.
