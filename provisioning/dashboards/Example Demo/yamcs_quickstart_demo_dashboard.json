@@ -5,7 +5,7 @@
     "name": "0708823c-c106-407b-9861-f64283746167"
   },
   "spec": {
-    "title": "Yamcs Canonical Demo",
+    "title": "Yamcs Demo",
     "description": "Every JAOPS Yamcs plugin feature on the quickstart spacecraft.",
     "tags": [
       "yamcs",

@@ -29,19 +29,19 @@
         },
         "screenshots": [
             {
-                "name": "Canonical Demo Overview",
+                "name": "Yamcs Demo Overview",
                 "path": "screenshots/overview.png"
             },
             {
-                "name": "Canonical Demo Telemetry",
+                "name": "Yamcs Demo Telemetry",
                 "path": "screenshots/telemetry.png"
             },
             {
-                "name": "Canonical Demo Parameter Types",
+                "name": "Yamcs Demo Parameter Types",
                 "path": "screenshots/parameter-types.png"
             },
             {
-                "name": "Canonical Demo Operations",
+                "name": "Yamcs Demo Operations",
                 "path": "screenshots/commanding.png"
             }
         ],

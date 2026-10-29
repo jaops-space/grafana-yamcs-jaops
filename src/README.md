@@ -139,14 +139,14 @@ The plugin includes helpful tutorials for each panel. Access them from the main 
   <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/docs/PLUGIN_MODEL.png" alt="Plugin model design" width="900">
 </p>
 
-## Canonical Yamcs Demo Dashboard
+## Yamcs Demo Dashboard
 
-The provisioned [Yamcs Canonical Demo](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) dashboard has Overview, Telemetry, Parameter types and Operations tabs. Its simulator publishes `/myproject`, `/features` and `/images` telemetry, events and generated images in one process. The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) owns its separate datasource and dashboard.
+The provisioned [Yamcs Demo](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) dashboard has Overview, Telemetry, Parameter types and Operations tabs. Its simulator publishes `/myproject`, `/features` and `/images` telemetry, events and generated images in one process. The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) owns its separate datasource and dashboard.
 
-To run this repository's canonical dashboard locally, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
+To run this repository's Yamcs Demo dashboard locally, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/overview.png" alt="Canonical Yamcs demo Overview tab with live spacecraft Canvas and telemetry" width="900">
+  <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/overview.png" alt="Yamcs Demo Overview tab with live spacecraft Canvas and telemetry" width="900">
 </p>
 
 [Telemetry](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/screenshots/telemetry.png) · [Parameter types](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/screenshots/parameter-types.png) · [Operations](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/screenshots/commanding.png)

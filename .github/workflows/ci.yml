@@ -167,7 +167,7 @@ jobs:
               with:
                   go-version-file: go.mod
 
-            - name: Start Yamcs 5.13.7 canonical demo
+            - name: Start Yamcs Demo 5.13.7
               run: |
                   git clone --depth 1 --branch chore/yamcs-5.13.7 https://github.com/jaops-space/grafana-yamcs-demo.git /tmp/yamcs-demo
                   docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml up -d --build
