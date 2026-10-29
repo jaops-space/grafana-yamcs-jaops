@@ -10,7 +10,7 @@ import {
 
 import { DataSourceWithBackend, getGrafanaLiveSrv, getTemplateSrv } from '@grafana/runtime';
 
-import { Observable, merge } from 'rxjs';
+import { Observable, ReplaySubject, Subscription, merge } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Configuration, DEFAULT_QUERY as DefaultQuery, DefaultConfiguration, Query, QueryType } from './types';
 
@@ -127,6 +127,16 @@ function roundDataPoints(maxDataPoints: number, dataPointsRounding: number, buff
     return Math.min(Math.max(rounded, dataPointsRounding), bufferMaxLength);
 }
 
+// Scenes unsubscribes hidden tabs; keep their Live channels warm briefly so a returning tab receives current data.
+const inactiveStreamRetentionMs = 2 * 60 * 1000;
+
+interface RetainedStream {
+    subject: ReplaySubject<DataQueryResponse>;
+    source: Subscription;
+    subscribers: number;
+    idleTimer?: ReturnType<typeof setTimeout>;
+}
+
 /**
  * Custom Grafana DataSource for retrieving and streaming data.
  */
@@ -134,6 +144,7 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
     bufferMaxLength = DefaultConfiguration.bufferMaxLength;
     dataPointsRounding = DefaultConfiguration.dataPointsRounding;
     debugMode = false;
+    private retainedStreams = new Map<string, RetainedStream>();
 
     constructor(instanceSettings: DataSourceInstanceSettings<Configuration>) {
         super(instanceSettings);
@@ -152,6 +163,61 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
      */
     getDefaultQuery(_: CoreApp): Partial<Query> {
         return DefaultQuery;
+    }
+
+    private getRetainedStream(
+        path: string,
+        data: Query & { from: number; to: number; points: number },
+        action: StreamingFrameAction
+    ): Observable<DataQueryResponse> {
+        const stream = getGrafanaLiveSrv().getDataStream({
+            buffer: { maxLength: this.bufferMaxLength, action },
+            addr: {
+                scope: LiveChannelScope.DataSource,
+                namespace: this.uid,
+                stream: this.uid,
+                path,
+                data,
+            },
+        });
+
+        return new Observable<DataQueryResponse>((subscriber) => {
+            let retained = this.retainedStreams.get(path);
+            if (!retained) {
+                const subject = new ReplaySubject<DataQueryResponse>(1);
+                retained = { subject, source: Subscription.EMPTY, subscribers: 0 };
+                this.retainedStreams.set(path, retained);
+                const entry = retained;
+                entry.source = stream.subscribe({
+                    next: (response) => subject.next(response),
+                    error: (error) => {
+                        this.retainedStreams.delete(path);
+                        subject.error(error);
+                    },
+                    complete: () => {
+                        this.retainedStreams.delete(path);
+                        subject.complete();
+                    },
+                });
+            }
+
+            if (retained.idleTimer) {
+                clearTimeout(retained.idleTimer);
+                retained.idleTimer = undefined;
+            }
+            retained.subscribers++;
+            const subscription = retained.subject.subscribe(subscriber);
+            return () => {
+                subscription.unsubscribe();
+                retained.subscribers--;
+                if (retained.subscribers === 0 && this.retainedStreams.get(path) === retained) {
+                    retained.idleTimer = setTimeout(() => {
+                        retained.source.unsubscribe();
+                        this.retainedStreams.delete(path);
+                    }, inactiveStreamRetentionMs);
+                }
+            };
+        }).pipe(tap(createBenchmarkFrontendTap()));
     }
 
     /**
@@ -177,24 +243,25 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                 // multi-observer architecture. `parameters` is intentionally left
                 // unset on each fanned-out query; see ParameterPicker for where the
                 // full list is collected from the user.
-                const queries = isMultiParameterQueryType(target.type) && parameterList.length > 0
-                    ? parameterList.map((parameter) => ({
-                          ...target,
-                          endpoint,
-                          command,
-                          parameter,
-                          parameters: undefined,
-                      }))
-                    : [
-                          {
+                const queries =
+                    isMultiParameterQueryType(target.type) && parameterList.length > 0
+                        ? parameterList.map((parameter) => ({
                               ...target,
                               endpoint,
                               command,
-                              parameter: isParameterQueryType(target.type)
-                                  ? templateSrv.replace(target.parameter, request.scopedVars)
-                                  : target.parameter,
-                          },
-                      ];
+                              parameter,
+                              parameters: undefined,
+                          }))
+                        : [
+                              {
+                                  ...target,
+                                  endpoint,
+                                  command,
+                                  parameter: isParameterQueryType(target.type)
+                                      ? templateSrv.replace(target.parameter, request.scopedVars)
+                                      : target.parameter,
+                              },
+                          ];
 
                 return queries.map((query) => {
                     if ((!query.endpoint && !query.asVariable) || !query.type) {
@@ -267,26 +334,11 @@ export class DataSource extends DataSourceWithBackend<Query, Configuration> {
                         pathParts.push(formatRangePath(request));
                     }
 
-                    return getGrafanaLiveSrv()
-                        .getDataStream({
-                            buffer: {
-                                maxLength: this.bufferMaxLength,
-                                action,
-                            },
-                            addr: {
-                                scope: LiveChannelScope.DataSource,
-                                namespace: this.uid,
-                                stream: this.uid,
-                                path: pathParts.join('/'),
-                                data: {
-                                    ...query,
-                                    from: fromUnix,
-                                    to: toUnix,
-                                    points: roundedMaxDataPoints,
-                                },
-                            },
-                        })
-                        .pipe(tap(createBenchmarkFrontendTap()));
+                    return this.getRetainedStream(
+                        pathParts.join('/'),
+                        { ...query, from: fromUnix, to: toUnix, points: roundedMaxDataPoints },
+                        action
+                    );
                 });
             })
             .filter(Boolean) as Array<Observable<DataQueryResponse>>; // Remove undefined values
