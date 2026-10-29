@@ -48,8 +48,6 @@ then with local anonymous access and Chrome installed:
       pnpm exec playwright test tests/canonical-dashboard.spec.ts \
       --project=chromium --no-deps --workers=1
 
-The drone quickstart repo owns its separate datasource and dashboard provisioning.
-
 Run microbenchmarks and a simulator scenario against the already-running
 Yamcs Demo:
 

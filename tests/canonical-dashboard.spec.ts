@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Requires the Yamcs Demo MDB (/myproject, /features and /images), not the drone demo.
+// Requires the Yamcs Demo MDB (/myproject, /features and /images).
 // GRAFANA_URL may include a subpath, for example http://localhost:3000/grafana.
 // These tests never provision dashboards, issue spacecraft commands or change data links.
 // For an anonymous local demo without bundled Chromium:

@@ -141,7 +141,7 @@ The plugin includes helpful tutorials for each panel. Access them from the main 
 
 ## Yamcs Demo Dashboard
 
-The provisioned [Yamcs Demo](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) dashboard has Overview, Telemetry, Parameter types and Operations tabs. Its simulator publishes `/myproject`, `/features` and `/images` telemetry, events and generated images in one process. The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) owns its separate datasource and dashboard.
+The provisioned [Yamcs Demo](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) dashboard has Overview, Telemetry, Parameter types and Operations tabs. Its simulator publishes `/myproject`, `/features` and `/images` telemetry, events and generated images in one process.
 
 To run this repository's Yamcs Demo dashboard locally, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
 
