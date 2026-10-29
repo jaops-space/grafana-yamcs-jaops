@@ -33,27 +33,19 @@ Run E2E tests:
 
     pnpm run e2e
 
-The canonical and drone dashboard E2E suites cover every tab and panel, including
-live data, units and alarm thresholds. They are opt-in because the standard
-plugin E2E job runs the smaller Yamcs quickstart instead of these two demos.
-The plugin repo provisions only the canonical `demo_realtime` endpoint. Run its
-canonical Yamcs simulator and Grafana at `http://localhost:3000/grafana`, then
-with local anonymous access and Chrome installed:
+The canonical dashboard E2E suite covers every tab and panel, including live
+data, units and alarm thresholds. It is opt-in because the standard plugin E2E
+job runs the smaller Yamcs quickstart. The plugin repo provisions only the
+canonical `demo_realtime` endpoint. Run its canonical Yamcs simulator and
+Grafana at `http://localhost:3000/grafana`, then with local anonymous access
+and Chrome installed:
 
     DEMO_DASHBOARDS_E2E=1 CANONICAL_ANONYMOUS=1 CANONICAL_BROWSER_CHANNEL=chrome \
       GRAFANA_URL=http://localhost:3000/grafana \
       pnpm exec playwright test tests/canonical-dashboard.spec.ts \
       --project=chromium --no-deps --workers=1
 
-The drone quickstart repo provisions its own datasource (`drone_realtime`) and
-dashboard in its standalone Grafana at `http://localhost:3000`. Stop the plugin
-repo's Grafana first to free port 3000, then start the drone quickstart stack
-from its `docker` directory and run the separate opt-in check:
-
-    DEMO_DASHBOARDS_E2E=1 DRONE_ANONYMOUS=1 DRONE_CHROMIUM_CHANNEL=chrome \
-      DRONE_GRAFANA_URL=http://localhost:3000 \
-      pnpm exec playwright test tests/drone-dashboard.spec.ts \
-      --project=chromium --no-deps --workers=1
+The drone quickstart repo owns its separate datasource and dashboard provisioning.
 
 Run Yamcs-backed stream scenario benchmarks:
 
