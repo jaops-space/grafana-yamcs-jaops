@@ -1,4 +1,4 @@
 services:
-  yamcs:
-    ports:
-      - "8093:8090"
+    yamcs:
+        ports: !override
+            - '8093:8090'

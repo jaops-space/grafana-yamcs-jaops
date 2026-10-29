@@ -1,1 +1,3 @@
-This folder is mounted in the grafana docker (see .config/docker-compose-base.yaml)
+This folder is mounted into Grafana by `.config/docker-compose-base.yaml`. The `Example Demo/yamcs_quickstart_demo_dashboard.json` file contains the canonical v2 dashboard for `/myproject`, `/features` and `/images` on the `demo_realtime` endpoint; the provider is `yamcs-dashboards.yaml`. The drone dashboard is provisioned by the drone quickstart repository instead.
+
+See [setup instructions](../../docs/SETUP_INSTRUCTIONS.md#run-the-provisioned-canonical-demo) for the matching Yamcs fixture and Grafana subpath. Save dashboard edits back into this JSON file; Grafana UI saves alone do not update it.

@@ -3,7 +3,7 @@
 This repository has three benchmark layers:
 
 - Microbenchmarks for isolated frame/buffer processing helpers.
-- Yamcs simulator scenarios for backend streaming behavior against live quickstart data.
+- Yamcs simulator scenarios for backend streaming behavior against the canonical demo.
 - Grafana panel scenarios for the full browser + Grafana Live + plugin backend path.
 
 Run the layers with:
@@ -26,7 +26,7 @@ The simulator benchmark targets the canonical Yamcs demo (`demo/realtime`) on `l
 
 The Grafana panel benchmark assumes:
 
-- Grafana is running on `http://localhost:3000`;
+- Grafana is running on `http://localhost:3000` (the benchmark harness uses the root-served Compose configuration, not the demo dashboard's `/grafana` subpath);
 - the Linux backend binary in `dist` is built with `go build -tags "arrow_json_stdlib benchmark"` so benchmark-only resource endpoints are compiled in;
 - the provisioned datasource UID is `jaops-yamcs-main`;
 - the canonical Yamcs demo and its simulator are running on port `8093`;

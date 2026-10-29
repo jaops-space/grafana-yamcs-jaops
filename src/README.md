@@ -139,33 +139,17 @@ The plugin includes helpful tutorials for each panel. Access them from the main 
   <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/docs/PLUGIN_MODEL.png" alt="Plugin model design" width="900">
 </p>
 
-## Example Grafana Dashboard Connected to Yamcs
+## Canonical Yamcs Demo Dashboard
 
-Demo dashboards showcase the main capabilities of the plugin. They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
+The provisioned [Yamcs Canonical Demo](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) dashboard has Overview, Telemetry, Parameter types and Operations tabs. Its simulator publishes `/myproject`, `/features` and `/images` telemetry, events and generated images in one process. The [drone quickstart](https://github.com/jaops-space/grafana-yamcs-quickstart-drone) owns its separate datasource and dashboard.
 
-To try it with a local Yamcs demo, clone the [JAOPS Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart) repository and run:
-
-```bash
-./mvn yamcs:run
-```
-
-In another terminal, start the simulator:
-
-```bash
-python3 simulator.py
-```
-
-For image telemetry panels, you can also run the optional image simulator:
-
-```bash
-python3 simulator/images/generate_images.py
-```
-
-For local development with the repository demo dashboards, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
+To run this repository's canonical dashboard locally, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">
+  <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/overview.png" alt="Canonical Yamcs demo Overview tab with live spacecraft Canvas and telemetry" width="900">
 </p>
+
+[Telemetry](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/screenshots/telemetry.png) · [Parameter types](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/screenshots/parameter-types.png) · [Operations](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/screenshots/commanding.png)
 
 ## Acknowledgements
 
@@ -173,7 +157,7 @@ Since October 2024, the plugin has been tested and improved with feedback from t
 
 ## Documentation and Contributing
 
-Check out the open-source [GitHub repository](https://github.com/jaops-space/grafana-yamcs-jaops) for the latest features and documentation. 
+Check out the open-source [GitHub repository](https://github.com/jaops-space/grafana-yamcs-jaops) for the latest features and documentation.
 Community feedback and contributions are very welcome!
 
 If you find a bug, have a feature request, or want to improve the project, feel free to [open an issue](https://github.com/jaops-space/grafana-yamcs-jaops/issues) or submit a pull request.

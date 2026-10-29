@@ -25,7 +25,9 @@ Run backend unit tests:
 Backend unit tests intentionally do not run Yamcs-dependent integration tests. Yamcs integration tests live behind the Go `integration` build tag and only run through `pnpm run test:integration:yamcs` or the matching CI job.
 
 Run Yamcs integration tests against the canonical demo (Yamcs 5.13.7 on localhost:8093;
-the CI integration job starts the same demo at localhost:8090):
+the CI integration job starts the same fixture on localhost:8090). Follow the
+[canonical demo setup](./SETUP_INSTRUCTIONS.md#run-the-provisioned-canonical-demo)
+to start it locally:
 
     YAMCS_ADDRESS=localhost:8093 pnpm run test:integration:yamcs
 
@@ -35,10 +37,11 @@ Run E2E tests:
 
 The canonical dashboard E2E suite covers every tab and panel, including live
 data, units and alarm thresholds. It is opt-in because the standard plugin E2E
-job runs the smaller Yamcs quickstart. The plugin repo provisions only the
-canonical `demo_realtime` endpoint. Run its canonical Yamcs simulator and
-Grafana at `http://localhost:3000/grafana`, then with local anonymous access
-and Chrome installed:
+job runs a different, smaller Yamcs quickstart. This repository provisions
+only the canonical `demo_realtime` endpoint. Start the canonical demo and
+Grafana at `http://localhost:3000/grafana` as described in the
+[setup instructions](./SETUP_INSTRUCTIONS.md#run-the-provisioned-canonical-demo),
+then with local anonymous access and Chrome installed:
 
     DEMO_DASHBOARDS_E2E=1 CANONICAL_ANONYMOUS=1 CANONICAL_BROWSER_CHANNEL=chrome \
       GRAFANA_URL=http://localhost:3000/grafana \
@@ -47,52 +50,22 @@ and Chrome installed:
 
 The drone quickstart repo owns its separate datasource and dashboard provisioning.
 
-Run Yamcs-backed stream scenario benchmarks:
+Run microbenchmarks and a simulator scenario against the already-running
+canonical demo:
 
     pip install -r scripts/benchmarks/requirements.txt
-    pnpm run bench
+    pnpm run bench:micro
+    python3 scripts/benchmarks/simulator/run.py --no-simulator
 
-Refresh the checked-in long-term benchmark baseline:
-
-    pnpm run bench:baseline
-
-Benchmark CI is conditional. On pull requests, add the `run/benchmarks` label to run the benchmark jobs and create or update the benchmark PR comment with all plots. Unlabeled PRs skip only the base-resolution gate; downstream benchmark jobs depend on it so they are not listed individually as skipped checks. Pushes to `main` run the benchmark jobs without PR-base comparison or PR comments. Warn thresholds keep CI green; fail thresholds fail the benchmark job.
-
-This starts Yamcs quickstart's `simulator.py` by default, opens N concurrent Grafana stream demands against the quickstart `myproject/realtime` processor, and reads each stream buffer from its own goroutine. Performance plots use concurrent Grafana streams (`N`) on the x-axis and one metric per file:
-
-- live memory growth and total allocated bytes
-- values read per second
-- percentage of values read within the 1 second freshness window
-- median RunStream busy work per 1s tick
-- stream setup time
-
-By default the benchmark matches Yamcs quickstart's simulator cadence: simulator rate `1 Hz`, stream read interval `1s`, and freshness window `1s`. A value counts as fresh when it is read from its Grafana stream buffer within one second of being placed there by the Yamcs listener.
-
-See [BENCHMARKING.md](./BENCHMARKING.md) for the full scenario description, metric definitions, thresholds, and CI behavior.
-
-Invariant and diagnostic metrics such as empty read percentage, legacy RunStream wall span, and scenario wall time remain in JSON/CSV for sanity checks, but are not primary plots. Plots show the current result, the PR base benchmark when available, and the checked-in long-term baseline when available. Baseline percentage changes are reported as median, maximum negative, and maximum positive informational values and do not affect WARN or FAIL status.
-
-Thresholds are rendered directly on plots where they apply and are also included in the JSON output. Distant thresholds are hidden so plots can zoom into observed behavior. Use `--fail-on-threshold` to make failed thresholds exit non-zero:
-
-    pnpm run bench -- --fail-on-threshold
-
-Benchmark output files are written by layer:
-
-- `microbenchmarks/microbenchmarks.json`
-- `simulator/simulator.json`
-- `simulator/simulator.csv`
-- `grafana/grafana.json`
-- `plots/*.png`
-- `benchmark-status.json`
-- `benchmark-comment.md`
+The Grafana browser benchmark runs against root-served Grafana with a
+benchmark-tagged backend, **not** the normal `/grafana` dashboard setup.
+See [BENCHMARKING.md](./BENCHMARKING.md) for its setup, report command,
+shared 72-parameter workload, thresholds, and `run/benchmarks` label-gated CI.
 
 ## Prerequisites
 
-1. **Yamcs Server**: You need a running Yamcs server instance
-    - clone the quickstart from: https://github.com/jaops-space/yamcs-quickstart
-    - start Yamcs server: `./mvnw yamcs:run`
-    - run the simulator for basic spacecraft data: `./simulator.py`
-2. **Grafana Instance**: Grafana 10.4.0 or later
+1. **Yamcs Server**: Run the [canonical demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7) with its simulator and `/myproject`, `/features`, `/images` MDB.
+2. **Grafana Instance**: Use the [local plugin setup](./SETUP_INSTRUCTIONS.md) with its canonical datasource and dashboard provisioning.
 
 ## Quick Setup for Testing
 
@@ -116,10 +89,10 @@ Benchmark output files are written by layer:
 
 ## Sample Data
 
-The yamcs-quickstart repository includes:
+The canonical demo repository includes:
 
 - Sample Yamcs configuration
-- Test telemetry data and simulators (for telemetry, images, etc)
+- Test telemetry, events and generated images from its simulator.
 
 This grafana-yamcs-jaops repository includes:
 
