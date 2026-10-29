@@ -29,11 +29,19 @@
         },
         "screenshots": [
             {
-                "name": "Telemetry Dashboard",
+                "name": "Canonical Demo Overview",
+                "path": "screenshots/overview.png"
+            },
+            {
+                "name": "Canonical Demo Telemetry",
                 "path": "screenshots/telemetry.png"
             },
             {
-                "name": "Commanding Interface",
+                "name": "Canonical Demo Parameter Types",
+                "path": "screenshots/parameter-types.png"
+            },
+            {
+                "name": "Canonical Demo Operations",
                 "path": "screenshots/commanding.png"
             }
         ],
