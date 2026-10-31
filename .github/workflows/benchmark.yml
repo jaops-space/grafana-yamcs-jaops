@@ -234,7 +234,7 @@ jobs:
                   # The 72-stream workload exposed a subscription-map race in #90.
                   # Backport only that safety fix and the missing SingleValue
                   # benchmark counter; keep the old per-parameter stream logic.
-                  git fetch --no-tags --depth=1 origin 404a1580cd5b1c22c80d5c96e535e3f75f6f620a
+                  git fetch --no-tags --depth=2 origin 404a1580cd5b1c22c80d5c96e535e3f75f6f620a
                   git show --format= 404a1580cd5b1c22c80d5c96e535e3f75f6f620a -- \
                     pkg/source/endpoint_parameter.go pkg/source/endpoint.go \
                     pkg/yamcs/client/parameter_subscription.go pkg/plugin/datasource_run_debug.go | git apply
