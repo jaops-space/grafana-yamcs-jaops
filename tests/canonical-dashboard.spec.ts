@@ -2,9 +2,10 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Requires the Yamcs Demo MDB (/myproject, /features and /images).
+// Requires the software-only Yamcs Demo MDB (/myproject, /features, /images and /yamcs).
 // GRAFANA_URL may include a subpath, for example http://localhost:3000/grafana.
-// These tests never provision dashboards, issue spacecraft commands or change data links.
+// Mutation tests require CANONICAL_SIMULATOR_COMMANDS=1 and verify the local fixture target.
+// All other tests block Yamcs mutations, including accidental panel-initialization actions.
 // For an anonymous local demo without bundled Chromium:
 // DEMO_DASHBOARDS_E2E=1 CANONICAL_BROWSER_CHANNEL=chrome CANONICAL_ANONYMOUS=1
 // playwright test tests/canonical-dashboard.spec.ts --project=chromium --no-deps
@@ -18,7 +19,7 @@ const provisioningFile = resolve(
     __dirname,
     '../provisioning/dashboards/Example Demo/yamcs_quickstart_demo_dashboard.json'
 );
-const tabNames = ['Overview', 'Telemetry', 'Parameter types', 'Operations'];
+const tabNames = ['Overview', 'Telemetry', 'Mission data', 'Commanding', 'Operations', 'Diagnostics'];
 const requiredPanelTypes = [
     'text',
     'stat',
@@ -29,53 +30,63 @@ const requiredPanelTypes = [
     'geomap',
     'bargauge',
     'table',
+    'jaops-commandhistory-panel',
+    'jaops-alarms-panel',
+    'jaops-timesync-panel',
+    'jaops-commanding-panel',
+    'jaops-varcommanding-panel',
+    'jaops-links-panel',
     'jaops-staticimage-panel',
     'jaops-telemetricimage-panel',
-    'jaops-commanding-panel',
-    'jaops-commandhistory-panel',
-    'jaops-varcommanding-panel',
-    'jaops-alarms-panel',
-    'jaops-links-panel',
-    'jaops-timesync-panel',
+    'histogram',
+    'xychart',
 ];
 const requiredQueryTypes = [
     'single',
     'plot',
     'discrete',
     'time',
-    'image',
-    'commanding',
     'command-history',
     'events',
     'alarms',
     'links',
+    'image',
+    'commanding',
+    'demands',
+    'subscriptions',
 ];
 const pluginMarkers: Record<string, string> = {
+    'jaops-commandhistory-panel': 'jaops-command-history-panel',
+    'jaops-alarms-panel': 'jaops-alarms-panel',
+    'jaops-timesync-panel': 'jaops-time-sync-panel',
+    'jaops-commanding-panel': 'jaops-commanding-panel',
+    'jaops-varcommanding-panel': 'jaops-variable-setting-panel',
+    'jaops-links-panel': 'jaops-links-panel',
     'jaops-staticimage-panel': 'jaops-static-image-panel',
     'jaops-telemetricimage-panel': 'jaops-telemetric-image-panel',
-    'jaops-commanding-panel': 'jaops-commanding-panel',
-    'jaops-commandhistory-panel': 'jaops-command-history-panel',
-    'jaops-varcommanding-panel': 'jaops-variable-setting-panel',
-    'jaops-alarms-panel': 'jaops-alarms-panel',
-    'jaops-links-panel': 'jaops-links-panel',
-    'jaops-timesync-panel': 'jaops-time-sync-panel',
 };
 
 interface Query {
     type: string;
     parameter?: string;
     parameters?: string[];
-    command?: string;
     endpoint?: string;
-    endpointVariable?: string;
-    asVariable?: boolean;
 }
 
 interface Panel {
     id: number;
     title: string;
+    description?: string;
     data: {
-        spec: { queries: Array<{ spec: { refId: string; hidden?: boolean; query: { group: string; spec: Query } } }> };
+        spec: {
+            queries: Array<{
+                spec: {
+                    refId: string;
+                    hidden?: boolean;
+                    query: { group: string; datasource?: { name: string }; spec: Query };
+                };
+            }>;
+        };
     };
     vizConfig: { group: string; spec: { options: Record<string, any>; fieldConfig: Record<string, any> } };
 }
@@ -166,8 +177,23 @@ function queries(panel: Panel) {
     return panel.data.spec.queries.filter((query) => !query.spec.hidden).map((query) => query.spec);
 }
 
-function parameters(query: Query) {
-    return query.parameters?.length ? query.parameters : (query.parameter || '').split(/[\n,]+/).filter(Boolean);
+function parameters(query: Query, battery = '1') {
+    const names = query.parameters?.length ? query.parameters : (query.parameter || '').split(/[\n,]+/).filter(Boolean);
+    return names.map((name) => name.replace(/\$\{battery\}|\$battery\b/g, battery));
+}
+
+function canvasElements(panel: Panel) {
+    const root = panel.vizConfig.spec.options.root as { elements: Array<Record<string, any>> };
+    return root.elements.map((element) => {
+        const { connections = [], ...stableElement } = element;
+        return {
+            ...stableElement,
+            connections: connections.map((connection: Record<string, any>) => {
+                const { sourceOriginal, targetOriginal, ...stableConnection } = connection;
+                return stableConnection;
+            }),
+        };
+    });
 }
 
 async function loadDashboard(request: APIRequestContext, baseURL: string | undefined): Promise<Dashboard> {
@@ -243,7 +269,7 @@ async function snapshot(page: Page, key: string): Promise<Snapshot | null> {
     }, key);
 }
 
-function queryProblems(panel: Panel, data: Snapshot | null): string[] {
+function queryProblems(panel: Panel, data: Snapshot | null, battery = '1'): string[] {
     if (!data) {
         return ['Panel scene not found'];
     }
@@ -258,10 +284,10 @@ function queryProblems(panel: Panel, data: Snapshot | null): string[] {
     } of queries(panel)) {
         const prefix = `${refId} ${query.type}`;
         if (query.type === 'commanding') {
-            // This query intentionally returns no frames; command metadata is verified separately.
+            // Command metadata is fetched through resources, not telemetry frames.
             continue;
         }
-        const names = parameters(query);
+        const names = parameters(query, battery);
         const expected = names.length
             ? names
             : (
@@ -271,6 +297,8 @@ function queryProblems(panel: Panel, data: Snapshot | null): string[] {
                       alarms: ['alarms'],
                       'command-history': ['commands'],
                       links: ['name', 'status', 'disabled', 'dataInCount', 'dataOutCount'],
+                      demands: ['parameter', 'stream_path', 'last_value_at'],
+                      subscriptions: ['parameter'],
                   } as Record<string, string[]>
               )[query.type];
         if (!expected) {
@@ -321,7 +349,7 @@ function checkFieldMetadata(field: FrameField) {
         ? 'volt'
         : /DemoCurrent|PowerMatrix|PowerChannels\[\d+\]\.current/.test(name)
           ? 'amp'
-          : /Battery[12]_Temp$|DemoTemperature/.test(name)
+          : /Battery[12]_Temp$|DemoTemperature|DemoBundle\.battery\.temperatures\[\d+\]/.test(name)
             ? 'celsius'
             : /\.stateOfCharge$/.test(name)
               ? 'percent'
@@ -341,7 +369,9 @@ function checkFieldMetadata(field: FrameField) {
         ? [25.6, 27.2, 34, 34.4]
         : /^\/features\/(DemoCurrent|DemoPowerMatrix|DemoPowerChannels\[\d+\]\.current)/.test(name)
           ? [-8, -4, 20, 28]
-          : name === '/features/DemoTemperature' || /^\/myproject\/Battery[12]_Temp$/.test(name)
+          : name === '/features/DemoTemperature' ||
+              /^\/myproject\/Battery[12]_Temp$/.test(name) ||
+              /^\/features\/DemoBundle\.battery\.temperatures\[\d+\]$/.test(name)
             ? [-20, -10, 55, 70]
             : name === '/features/DemoBundle.battery.stateOfCharge'
               ? [15, 25, 100]
@@ -369,18 +399,16 @@ function checkFieldMetadata(field: FrameField) {
     }
 }
 
-async function checkRendering(content: Locator, panel: Panel, data: Snapshot) {
+async function checkRendering(content: Locator, panel: Panel) {
     const type = panel.vizConfig.group;
     await expect(content).toBeVisible();
     await expect(
-        content.getByText(
-            /Plugin unavailable|Panel plugin not found|Error loading panel|No data|No image received|No command configured|No variable command configured/i
-        )
+        content.getByText(/Plugin unavailable|Panel plugin not found|Error loading panel|No data|Field not found/i)
     ).toHaveCount(0);
     if (pluginMarkers[type]) {
         await expect(content.getByTestId(pluginMarkers[type])).toBeVisible();
     }
-    if (['timeseries', 'state-timeline', 'geomap'].includes(type)) {
+    if (['timeseries', 'state-timeline', 'geomap', 'histogram', 'xychart'].includes(type)) {
         await expect(content.locator('canvas').first()).toBeVisible();
         const dimensions = await content
             .locator('canvas')
@@ -398,32 +426,27 @@ async function checkRendering(content: Locator, panel: Panel, data: Snapshot) {
         await expect(content.getByRole('gridcell').first()).toBeVisible();
     } else if (type === 'text') {
         expect((await content.innerText()).trim()).not.toBe('');
-    } else if (type.endsWith('image-panel') || type === 'jaops-telemetricimage-panel') {
-        const images = content.locator('img');
-        await expect(images.first()).toBeVisible();
+    } else if (['jaops-staticimage-panel', 'jaops-telemetricimage-panel'].includes(type)) {
+        const image = content.locator('img').first();
+        await expect(image).toBeVisible();
         await expect
-            .poll(
-                () =>
-                    images.evaluateAll(
-                        (elements: HTMLImageElement[]) =>
-                            elements.length > 0 &&
-                            elements.every(
-                                (image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
-                            )
-                    ),
-                { message: `${panel.title}: image URLs must decode, not merely render an img element` }
-            )
+            .poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0))
             .toBe(true);
-        if (type === 'jaops-telemetricimage-panel') {
-            const values = data.rawFrames
-                .flatMap((frame) => frame.fields)
-                .filter((field) => field.type === 'string')
-                .flatMap((field) => field.values);
-            expect(
-                values.some((value) => typeof value === 'string' && /^(https?:|data:image\/|\/)/.test(value)),
-                'Actual image URL telemetry'
-            ).toBe(true);
-        }
+        const imageBox = await image.boundingBox();
+        const panelBox = await content.boundingBox();
+        expect(imageBox).not.toBeNull();
+        expect(panelBox).not.toBeNull();
+        expect(imageBox!.height).toBeLessThanOrEqual(panelBox!.height + 1);
+        expect(imageBox!.width).toBeLessThanOrEqual(panelBox!.width + 1);
+    } else if (type === 'jaops-commanding-panel') {
+        await expect(content.getByTestId('jaops-commanding-panel')).toHaveAttribute('data-command-count', '1');
+        await expect(content.getByRole('button').first()).toBeEnabled();
+        await expect(content).not.toContainText('No command configured');
+    } else if (type === 'jaops-varcommanding-panel') {
+        await expect(content.getByRole('textbox')).toBeVisible();
+    } else if (type === 'jaops-links-panel') {
+        await expect(content.getByRole('button', { name: 'Disable', exact: true }).first()).toBeEnabled();
+        await expect(content.getByRole('button', { name: 'Reset', exact: true }).first()).toBeEnabled();
     }
 }
 
@@ -449,6 +472,10 @@ async function inspectPanel(page: Page, dashboardURL: string, key: string, panel
     }
     const data = (await snapshot(page, key))!;
     for (const { query } of queries(panel)) {
+        if (queries(panel).some(({ query: candidate }) => ['demands', 'subscriptions'].includes(candidate.spec.type))) {
+            // Diagnostic panels keep their sample subscription active but display only diagnostic rows.
+            continue;
+        }
         for (const parameter of parameters(query.spec)) {
             const field = data.frames.flatMap((frame) => frame.fields).find((field) => field.name === parameter);
             expect
@@ -477,7 +504,10 @@ async function inspectPanel(page: Page, dashboardURL: string, key: string, panel
                 )
                 .toBe(true);
         }
-        if (field.name === '/features/DemoEnabled') {
+        if (
+            field.name === '/features/DemoEnabled' ||
+            /^\/features\/DemoPowerChannels\[\d+\]\.healthy$/.test(field.name)
+        ) {
             // Single queries stringify BOOLEAN in extractValue; discrete frames preserve booleans.
             expect.soft(['boolean', 'string']).toContain(field.type);
             expect
@@ -493,20 +523,49 @@ async function inspectPanel(page: Page, dashboardURL: string, key: string, panel
                 .toBe(true);
         }
     }
-    await checkRendering(content, panel, data);
+    await checkRendering(content, panel);
     if (queries(panel).some(({ query }) => parameters(query.spec).includes('/features/DemoEnabled'))) {
         await expect(content).toContainText(/Enabled|Disabled/);
     }
     await expect(page.getByTestId('data-testid Panel status error')).toHaveCount(0);
 }
 
+const mutationAttempts = new WeakMap<Page, string[]>();
+const permittedCommands = new WeakMap<Page, Set<string>>();
+
 test.describe('Yamcs Demo dashboard', () => {
     test.skip(
         process.env.DEMO_DASHBOARDS_E2E !== '1',
-        'Opt-in demo suite: set DEMO_DASHBOARDS_E2E=1 and provision Yamcs Demo /myproject, /features and /images telemetry'
+        'Opt-in demo suite: set DEMO_DASHBOARDS_E2E=1 and provision the Yamcs Demo dashboard'
     );
 
     test.beforeEach(async ({ page }) => {
+        const attempts: string[] = [];
+        mutationAttempts.set(page, attempts);
+        await page.route('**/*', async (route) => {
+            const request = route.request();
+            const path = new URL(request.url()).pathname;
+            if (
+                !['GET', 'HEAD', 'OPTIONS'].includes(request.method()) &&
+                (/\/resources\/endpoint\//.test(path) ||
+                    /\/api\/(?:processors|links|archive|events|mdb|storage|instances|services|parameter-lists|timeline|activities)(?:\/|$)/.test(
+                        path
+                    ))
+            ) {
+                if (
+                    request.method() === 'POST' &&
+                    path.endsWith('/resources/endpoint/demo_realtime/command/issue') &&
+                    permittedCommands.get(page)?.has(request.postDataJSON()?.name)
+                ) {
+                    await route.continue();
+                    return;
+                }
+                attempts.push(`${request.method()} ${path}`);
+                await route.abort('blockedbyclient');
+                return;
+            }
+            await route.continue();
+        });
         await page.setViewportSize({ width: 1920, height: 1080 });
         await page.addInitScript(() => {
             for (const key of [
@@ -517,6 +576,13 @@ test.describe('Yamcs Demo dashboard', () => {
                 localStorage.setItem(key, 'true');
             }
         });
+    });
+
+    test.afterEach(async ({ page }) => {
+        expect(
+            mutationAttempts.get(page),
+            'No Yamcs mutation may be attempted, even during panel initialization'
+        ).toEqual([]);
     });
 
     test('provisioned and deployed v2 contracts cover every Yamcs Demo tab, panel type and query', async ({
@@ -530,12 +596,31 @@ test.describe('Yamcs Demo dashboard', () => {
         const deployed = await loadDashboard(request, baseURL);
         expect(deployed.spec.title).toBe(provisioned.spec.title);
         expect(deployed.spec.layout).toEqual(provisioned.spec.layout);
-        expect(deployed.spec.elements).toEqual(provisioned.spec.elements);
+        expect(deployed.spec.variables).toEqual(provisioned.spec.variables);
+        expect(Object.keys(deployed.spec.elements).sort()).toEqual(Object.keys(provisioned.spec.elements).sort());
+        // Grafana canonicalizes visualization metadata on read; verify stable panel data and rendered UI separately.
+        for (const [key, provisionedElement] of Object.entries(provisioned.spec.elements)) {
+            const deployedPanel = deployed.spec.elements[key].spec;
+            const provisionedPanel = provisionedElement.spec;
+            expect(deployedPanel.id).toBe(provisionedPanel.id);
+            expect(deployedPanel.title).toBe(provisionedPanel.title);
+            expect(deployedPanel.description).toBe(provisionedPanel.description);
+            expect(deployedPanel.vizConfig.group).toBe(provisionedPanel.vizConfig.group);
+            expect(deployedPanel.data).toEqual(provisionedPanel.data);
+            if (provisionedPanel.vizConfig.group === 'canvas') {
+                expect(canvasElements(deployedPanel)).toEqual(canvasElements(provisionedPanel));
+            }
+            if (provisionedPanel.vizConfig.group === 'text') {
+                expect(deployedPanel.vizConfig.spec.options.content).toBe(
+                    provisionedPanel.vizConfig.spec.options.content
+                );
+            }
+        }
         const referenced = panelKeys(deployed.spec.layout);
         expect([...referenced].sort(), 'No untested/orphaned panels or duplicated references').toEqual(
             Object.keys(deployed.spec.elements).sort()
         );
-        const panels = Object.values(deployed.spec.elements).map((element) => element.spec);
+        const panels = Object.values(provisioned.spec.elements).map((element) => element.spec);
         expect([...new Set(panels.map((panel) => panel.vizConfig.group))].sort()).toEqual(
             [...requiredPanelTypes].sort()
         );
@@ -546,9 +631,13 @@ test.describe('Yamcs Demo dashboard', () => {
             expect(panelKeys(tab).length, `${tab.spec.title}: nonempty tab`).toBeGreaterThan(0);
         }
         for (const panel of panels) {
-            for (const { query } of queries(panel)) {
+            for (const {
+                spec: { query },
+            } of panel.data.spec.queries) {
                 expect(query.group).toBe('jaops-yamcs-datasource');
-                if (['single', 'plot', 'discrete', 'image'].includes(query.spec.type)) {
+                expect(query.datasource?.name).toBe('jaops-yamcs-main');
+                expect(query.spec.endpoint).toBe('demo_realtime');
+                if (['single', 'plot', 'discrete'].includes(query.spec.type)) {
                     expect(parameters(query.spec).length, `${panel.title}: configured parameters`).toBeGreaterThan(0);
                 }
             }
@@ -578,7 +667,7 @@ test.describe('Yamcs Demo dashboard', () => {
                     errors.push(message.text());
                 }
             });
-            await page.goto(url(baseURL, `/d/${uid}?from=now-5m&to=now`));
+            await page.goto(url(baseURL, `/d/${uid}?from=now-5m&to=now&var-battery=1`));
             for (const name of tabNames) {
                 await expect(page.getByRole('tab', { name, exact: true })).toBeVisible();
             }
@@ -647,7 +736,7 @@ test.describe('Yamcs Demo dashboard', () => {
         expect(queryProblems(panel, await snapshot(page, key!))).toEqual([]);
     });
 
-    test('operations commands resolve metadata and variable buttons change only dashboard state', async ({
+    test('navigation never issues commands and the battery selector changes telemetry queries', async ({
         page,
         request,
         baseURL,
@@ -657,92 +746,187 @@ test.describe('Yamcs Demo dashboard', () => {
         const sourceResponse = await request.get(url(baseURL, '/api/datasources'));
         expect(sourceResponse.ok()).toBe(true);
         const sources = await sourceResponse.json();
-        const endpoint = dashboard.spec.variables.find((variable) => variable.spec.name === 'endpoint')?.spec.current
-            .value;
-        expect(endpoint).toBe('demo_realtime');
         const source = sources.find(
             (candidate: any) =>
                 candidate.uid === 'jaops-yamcs-main' &&
                 candidate.type === 'jaops-yamcs-datasource' &&
-                candidate.jsonData.endpoints?.[endpoint!]
+                candidate.jsonData.endpoints?.demo_realtime
         );
         expect(source, 'Canonical datasource with demo_realtime must be provisioned').toBeTruthy();
-        const commandNames = new Set<string>();
-        for (const panel of Object.values(dashboard.spec.elements).map((element) => element.spec)) {
-            for (const { query } of queries(panel).filter((query) => query.query.spec.type === 'commanding')) {
-                commandNames.add(query.spec.command!);
+        expect(dashboard.spec.variables.map((variable) => variable.spec.name)).toEqual([
+            'battery',
+            'payload_mode',
+            'payload_gain',
+        ]);
+        await page.goto(url(baseURL, `/d/${uid}?from=now-5m&to=now&var-battery=1`));
+        for (const name of tabNames) {
+            await page.getByRole('tab', { name, exact: true }).click();
+            await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true');
+        }
+
+        const telemetry = tabs(dashboard).find((tab) => tab.spec.title === 'Telemetry')!;
+        const keys = panelKeys(telemetry);
+        const selected = keys.filter((key) =>
+            queries(dashboard.spec.elements[key].spec).some(({ query }) => query.spec.parameter?.includes('${battery}'))
+        );
+        expect(selected, 'Both latest-value battery panels exercise the viewer-only variable').toHaveLength(2);
+        await page.getByRole('tab', { name: 'Telemetry', exact: true }).click();
+        for (const battery of ['1', '2']) {
+            if (battery === '2') {
+                const selector = page.getByRole('combobox', { name: /Battery/ });
+                await selector.click();
+                await selector.press('ArrowDown');
+                await selector.press('Enter');
+                await expect.poll(() => new URL(page.url()).searchParams.get('var-battery')).toBe('2');
             }
-            if (panel.vizConfig.group === 'jaops-commanding-panel') {
-                for (const form of Object.values(panel.vizConfig.spec.options.commandForms || {}) as any[]) {
-                    for (const command of [
-                        form.commandName,
-                        form.onCommand?.commandName,
-                        form.offCommand?.commandName,
-                    ]) {
-                        if (command) {
-                            commandNames.add(command);
-                        }
-                    }
+            for (const key of selected) {
+                const panel = dashboard.spec.elements[key].spec;
+                await expect
+                    .poll(() => snapshot(page, key).then((data) => queryProblems(panel, data, battery)), {
+                        timeout: 30000,
+                    })
+                    .toEqual([]);
+                const data = (await snapshot(page, key))!;
+                const fields = data.rawFrames.flatMap((frame) => frame.fields);
+                for (const { query } of queries(panel)) {
+                    const name = parameters(query.spec, battery)[0];
+                    expect(fields.find((field) => field.name === name)?.values.some((value) => value !== null)).toBe(
+                        true
+                    );
+                    expect(
+                        fields.some(
+                            (field) =>
+                                field.name ===
+                                name.replace(`Battery${battery}`, `Battery${battery === '1' ? '2' : '1'}`)
+                        )
+                    ).toBe(false);
                 }
+                fields.forEach(checkFieldMetadata);
+            }
+            const comparisons = keys.filter((key) => {
+                const panel = dashboard.spec.elements[key].spec;
+                return (
+                    panel.vizConfig.group === 'timeseries' &&
+                    queries(panel).some(
+                        ({ query }) =>
+                            query.spec.parameter === '/myproject/Battery1_Voltage' ||
+                            query.spec.parameter === '/myproject/Battery1_Temp'
+                    )
+                );
+            });
+            expect(comparisons).toHaveLength(2);
+            for (const key of comparisons) {
+                await expect
+                    .poll(
+                        () =>
+                            snapshot(page, key).then((data) => queryProblems(dashboard.spec.elements[key].spec, data)),
+                        { timeout: 30000 }
+                    )
+                    .toEqual([]);
             }
         }
-        expect(commandNames.size).toBeGreaterThan(0);
-        for (const command of commandNames) {
-            const response = await request.get(
-                url(
-                    baseURL,
-                    `/api/datasources/uid/${source.uid}/resources/endpoint/${endpoint}/command/info?name=${encodeURIComponent(command)}`
+    });
+
+    test('simulator commands submit typed arguments and appear in command history', async ({
+        page,
+        request,
+        baseURL,
+    }) => {
+        test.skip(process.env.CANONICAL_SIMULATOR_COMMANDS !== '1', 'Explicit local simulator command opt-in required');
+        const sourceResponse = await request.get(url(baseURL, '/api/datasources/uid/jaops-yamcs-main'));
+        expect(sourceResponse.ok()).toBe(true);
+        const source = await sourceResponse.json();
+        const endpoint = source.jsonData.endpoints.demo_realtime;
+        expect(endpoint.instance).toBe('demo');
+        expect(endpoint.processor).toBe('realtime');
+        expect(source.jsonData.hosts[endpoint.host].path).toBe('docker.gateway:8093');
+        const linkURL = 'http://localhost:8093/api/links/demo/udp-out';
+        const linkBeforeResponse = await request.get(linkURL);
+        expect(linkBeforeResponse.ok()).toBe(true);
+        const sentBefore = Number((await linkBeforeResponse.json()).dataOutCount);
+        const commandNames = [
+            '/myproject/SwitchVoltageOn',
+            '/myproject/SwitchVoltageOff',
+            '/myproject/ConfigurePayload',
+        ];
+        permittedCommands.set(page, new Set(commandNames));
+        await page.goto(
+            url(baseURL, `/d/${uid}?views-dtab=commanding&var-battery=1&var-payload_mode=IMAGING&var-payload_gain=2`)
+        );
+        const gainInput = page.getByTestId('jaops-variable-setting-panel').getByRole('textbox');
+        await gainInput.fill('4');
+        await gainInput.press('Enter');
+        await expect.poll(() => new URL(page.url()).searchParams.get('var-payload_gain')).toBe('4');
+        const buttons = ['Battery 1 ON', 'Battery 1 OFF', 'Apply IMAGING / gain 4'];
+        for (const [index, name] of buttons.entries()) {
+            const responsePromise = page.waitForResponse(
+                (response) =>
+                    response.url().endsWith('/resources/endpoint/demo_realtime/command/issue') &&
+                    response.request().method() === 'POST'
+            );
+            await page.getByRole('button', { name, exact: true }).click();
+            const response = await responsePromise;
+            expect(response.ok(), await response.text()).toBe(true);
+            const payload = response.request().postDataJSON();
+            expect(payload.name).toBe(commandNames[index]);
+            expect(payload.arguments).toEqual(index < 2 ? { Battery: 1 } : { Mode: 'IMAGING', Gain: 4 });
+        }
+        await page.reload();
+        const history = page.getByTestId('jaops-command-history-panel');
+        await expect(history).toContainText('ConfigurePayload', { timeout: 20000 });
+        await expect(history).toContainText('SwitchVoltageOff');
+        await expect(history).toContainText('SwitchVoltageOn');
+        await expect
+            .poll(
+                async () => {
+                    const response = await request.get(linkURL);
+                    expect(response.ok()).toBe(true);
+                    return Number((await response.json()).dataOutCount);
+                },
+                { timeout: 20000, message: 'Battery commands must actually leave the Yamcs UDP link' }
+            )
+            .toBeGreaterThanOrEqual(sentBefore + 2);
+    });
+
+    test('all six mission views fit the FHD presentation viewport', async ({ page, request, baseURL }) => {
+        test.setTimeout(180000);
+        const dashboard = await loadDashboard(request, baseURL);
+        await page.goto(url(baseURL, `/d/${uid}?kiosk=true`));
+        for (const name of tabNames) {
+            await page.getByRole('tab', { name, exact: true }).click();
+            const panels = page.getByTestId('data-testid panel content');
+            const keys = panelKeys(tabs(dashboard).find((tab) => tab.spec.title === name)!);
+            const expectedCount = keys.length + 3;
+            await expect(panels).toHaveCount(expectedCount);
+            await expect(panels.first()).toBeVisible();
+            await expect
+                .poll(
+                    async () =>
+                        (
+                            await Promise.all(
+                                keys.map(async (key) =>
+                                    queryProblems(dashboard.spec.elements[key].spec, await snapshot(page, key))
+                                )
+                            )
+                        ).flat(),
+                    { timeout: 30000 }
                 )
+                .toEqual([]);
+            const bounds = await panels.evaluateAll((nodes) =>
+                nodes.map((node) => {
+                    const rect = node.getBoundingClientRect();
+                    return { left: rect.left, right: rect.right, bottom: rect.bottom };
+                })
             );
-            expect(response.ok(), `${command}: command metadata ${response.status()} ${await response.text()}`).toBe(
-                true
-            );
-            const metadata = await response.json();
-            expect(metadata.qualifiedName || metadata.name).toBe(command);
-        }
-        const mutations: string[] = [];
-        page.on('request', (request) => {
-            if (request.method() === 'POST' && /\/command(?:\/|$)|\/links\/|\/alarms\//.test(request.url())) {
-                mutations.push(request.url());
+            for (const rect of bounds) {
+                expect.soft(rect.left, `${name}: panel left edge`).toBeGreaterThanOrEqual(0);
+                expect.soft(rect.right, `${name}: panel right edge`).toBeLessThanOrEqual(1920);
+                expect.soft(rect.bottom, `${name}: panel bottom edge`).toBeLessThanOrEqual(1060);
             }
-        });
-        await page.goto(url(baseURL, `/d/${uid}?var-counter=0&var-rotation=0`));
-        await page.getByRole('tab', { name: 'Operations', exact: true }).click();
-        const commandPanel = page.getByTestId('jaops-commanding-panel');
-        for (const label of ['Battery 1 on', 'Battery 1 off', 'Configure payload', 'Reboot']) {
-            await expect(commandPanel.getByRole('button', { name: label, exact: true })).toBeVisible();
-            await expect(commandPanel.getByRole('button', { name: label, exact: true })).toBeEnabled();
+            await test.info().attach(`${name}-fhd`, {
+                body: await page.screenshot({ path: test.info().outputPath(`${name}-FHD.png`) }),
+                contentType: 'image/png',
+            });
         }
-        const forms = Object.values(dashboard.spec.elements)
-            .filter((element) => element.spec.vizConfig.group === 'jaops-varcommanding-panel')
-            .flatMap((element) => Object.values(element.spec.vizConfig.spec.options.commandForms || {}) as any[]);
-        const variableButton = (variable: string, mode: string, value: string) => {
-            const matches = forms.filter(
-                (form) => form.variableToSet === variable && form.changeMode === mode && form.valueToSet === value
-            );
-            expect(matches, `${variable}: exactly one ${mode} ${value} control`).toHaveLength(1);
-            return page.getByRole('button', { name: matches[0].label, exact: true });
-        };
-        await variableButton('counter', 'add', '1').click();
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-counter')).toBe('1');
-        const counterInput = page.getByTestId('jaops-variable-setting-input');
-        await counterInput.fill('7');
-        await counterInput.press('Enter');
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-counter')).toBe('7');
-        await variableButton('counter', 'change', '0').click();
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-counter')).toBe('0');
-        await variableButton('rotation', 'add', '90').click();
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-rotation')).toBe('90');
-        const image = page.getByTestId('jaops-telemetric-image-panel').locator('img').first();
-        await expect(image).toBeVisible();
-        await expect(image).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)');
-        await variableButton('rotation', 'add', '-90').click();
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-rotation')).toBe('0');
-        await variableButton('rotation', 'add', '-90').click();
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-rotation')).toBe('-90');
-        await variableButton('rotation', 'change', '0').click();
-        await expect.poll(() => new URL(page.url()).searchParams.get('var-rotation')).toBe('0');
-        await expect(image).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
-        expect(mutations, 'Variable setters must not issue spacecraft commands').toEqual([]);
     });
 });

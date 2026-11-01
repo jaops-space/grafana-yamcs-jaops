@@ -82,6 +82,7 @@ func TestParameterTypeAtPathResolvesFromYamcsOwnParsedPath(t *testing.T) {
 		EngType: strptr("float"),
 		UnitSet: []*mdb.UnitInfo{{Unit: strptr("V")}},
 	}
+
 	arrayType := &mdb.ParameterTypeInfo{
 		EngType:   strptr("float[]"),
 		ArrayInfo: &mdb.ArrayInfo{Type: elementType},
@@ -94,5 +95,58 @@ func TestParameterTypeAtPathResolvesFromYamcsOwnParsedPath(t *testing.T) {
 	}
 	if len(resolved.GetUnitSet()) == 0 || resolved.GetUnitSet()[0].GetUnit() != "V" {
 		t.Fatalf("expected leaf unit V, got %v", resolved.GetUnitSet())
+	}
+}
+
+func TestParameterTypeAtPathResolvesCombinedMemberIndexes(t *testing.T) {
+	temperatureType := &mdb.ParameterTypeInfo{
+		EngType:      strptr("float"),
+		UnitSet:      []*mdb.UnitInfo{{Unit: strptr("°C")}},
+		DefaultAlarm: &mdb.AlarmInfo{},
+	}
+	temperaturesType := &mdb.ParameterTypeInfo{
+		EngType:   strptr("float[]"),
+		ArrayInfo: &mdb.ArrayInfo{Type: temperatureType},
+	}
+	batteryType := &mdb.ParameterTypeInfo{
+		EngType: strptr("aggregate"),
+		Member:  []*mdb.MemberInfo{{Name: strptr("temperatures"), Type: temperaturesType}},
+	}
+	bundleType := &mdb.ParameterTypeInfo{
+		EngType: strptr("aggregate"),
+		Member:  []*mdb.MemberInfo{{Name: strptr("battery"), Type: batteryType}},
+	}
+	batteriesType := &mdb.ParameterTypeInfo{
+		EngType:   strptr("aggregate[]"),
+		ArrayInfo: &mdb.ArrayInfo{Type: batteryType},
+	}
+
+	for _, tc := range []struct {
+		name string
+		root *mdb.ParameterTypeInfo
+		path []string
+	}{
+		{"Yamcs nested array path", bundleType, []string{"battery", "temperatures[0]"}},
+		{"another indexed member", bundleType, []string{"battery", "temperatures[3]"}},
+		{"separate index token", bundleType, []string{"battery", "temperatures", "[0]"}},
+		{"array of aggregates containing an array", batteriesType, []string{"[0]", "temperatures[1]"}},
+		{"multidimensional member index", batteryType, []string{"temperatures[0][1]"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ParameterTypeAtPath(tc.root, tc.path)
+			if got != temperatureType {
+				t.Fatalf("expected the exact leaf type, preserving unit and alarm metadata; got %v", got)
+			}
+		})
+	}
+
+	for _, path := range [][]string{
+		{"battery", "missing[0]"},
+		{"battery[0]", "temperatures"},
+		{"battery", "temperatures[0]", "missing"},
+	} {
+		if got := ParameterTypeAtPath(bundleType, path); got != nil {
+			t.Fatalf("expected unresolved path %v to return nil, got %v", path, got)
+		}
 	}
 }
