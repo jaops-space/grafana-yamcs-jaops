@@ -35,6 +35,12 @@ SIMULATOR_METRICS = {
         "title": "Simulator - time to set up N Grafana streams",
         "file": "simulator_setup.png",
     },
+    "group_tick_busy_ns": {
+        "name": "Simulator - backend work per logical group per tick",
+        "label": "Backend work per logical group per tick",
+        "title": "Simulator - backend work per tick for a group of K parameters",
+        "file": "simulator_group_tick_busy_ns.png",
+    },
 }
 
 MICRO_METRICS = {
@@ -231,6 +237,7 @@ DERIVED_METRICS = {
 }
 
 METRIC_UNITS = {
+    "group_tick_busy_ns": "ns",
     "live_memory_growth_bytes": "bytes",
     "total_allocated_bytes": "bytes",
     "values_read_per_sec": "values/sec",

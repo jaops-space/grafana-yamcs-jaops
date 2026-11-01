@@ -15,7 +15,7 @@ jobs:
     refresh-simulator-baseline:
         name: Simulator baseline
         runs-on: ubuntu-latest
-        timeout-minutes: 25
+        timeout-minutes: 45
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-go@v5
@@ -33,6 +33,14 @@ jobs:
                   timeout 180 bash -c 'until curl -fsS http://localhost:8093/api/instances/demo >/dev/null; do sleep 2; done'
             - name: Refresh simulator baseline
               run: python3 scripts/benchmarks/simulator/run.py --no-simulator --output-dir benchmark-output/simulator
+            - name: Refresh group-work simulator baseline
+              run: |
+                  go run -tags benchmark ./scripts/benchmarks/simulator/grouped \
+                    -address localhost:8093 \
+                    -fixture-commit "$(git -C /tmp/yamcs-demo rev-parse HEAD)" \
+                    -sizes 1,2,3,4,8,16,32,64,max \
+                    -max-groups 64 -repetitions 3 -duration 5s -warmup 2s \
+                    -out benchmark-output/simulator/grouped.json
             - name: Stop Yamcs Demo
               if: always()
               run: docker compose -f /tmp/yamcs-demo/docker/docker-compose.yml -f scripts/benchmarks/canonical-ports.yml down -v || true
@@ -66,7 +74,7 @@ jobs:
     refresh-grafana-baseline:
         name: Grafana Live baseline
         runs-on: ubuntu-latest
-        timeout-minutes: 35
+        timeout-minutes: 120
         steps:
             - uses: actions/checkout@v4
             - uses: pnpm/action-setup@v3
@@ -137,6 +145,7 @@ jobs:
                   mkdir -p scripts/benchmarks/baselines/long-term
                   cp artifacts/simulator/simulator.json scripts/benchmarks/baselines/long-term/simulator.json
                   cp artifacts/simulator/simulator.csv scripts/benchmarks/baselines/long-term/simulator.csv
+                  cp artifacts/simulator/grouped.json scripts/benchmarks/baselines/long-term/grouped.json
                   cp artifacts/microbenchmarks/microbenchmarks.json scripts/benchmarks/baselines/long-term/microbenchmarks.json
                   cp artifacts/grafana/grafana.json scripts/benchmarks/baselines/long-term/grafana.json
                   python3 - <<'PY'
@@ -178,6 +187,7 @@ jobs:
                   add-paths: |
                       scripts/benchmarks/baselines/long-term/simulator.json
                       scripts/benchmarks/baselines/long-term/simulator.csv
+                      scripts/benchmarks/baselines/long-term/grouped.json
                       scripts/benchmarks/baselines/long-term/microbenchmarks.json
                       scripts/benchmarks/baselines/long-term/grafana.json
                       scripts/benchmarks/baselines/long-term/metadata.json

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
+import { expectedParameters, minimumBackendStreams, panelQueries } from './workload';
 
 test.use({
     ...(process.env.GRAFANA_BENCHMARK_BROWSER_CHANNEL
@@ -45,7 +46,6 @@ type DistributionStats = {
 type BenchmarkResult = {
     panels: number;
     streams_seen: number;
-    parameter_fields_seen: number;
     time_to_panels_ready_ms: number;
     browser_heap_after_gc_bytes: number;
     browser_task_duration_ms: number;
@@ -75,7 +75,8 @@ type BenchmarkResult = {
 
 const datasourceUid = process.env.GRAFANA_BENCHMARK_DATASOURCE_UID ?? 'jaops-yamcs-main';
 const datasourceType = 'jaops-yamcs-datasource';
-const workload = JSON.parse(fs.readFileSync(path.resolve('scripts/benchmarks/workload.json'), 'utf8')) as {
+const workloadPath = process.env.GRAFANA_BENCHMARK_WORKLOAD_PATH ?? 'scripts/benchmarks/workload.json';
+const workload = JSON.parse(fs.readFileSync(path.resolve(workloadPath), 'utf8')) as {
     semver: string;
     endpoint: string;
     parameters: string[];
@@ -90,12 +91,6 @@ const panelCounts = (process.env.GRAFANA_BENCHMARK_PANEL_COUNTS ?? '1,5,10,25,50
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isFinite(value) && value > 0);
 const parameters = workload.parameters;
-const groupedParametersPerQuery = 6;
-const groupedPanelCount = Number(
-    process.env.GRAFANA_BENCHMARK_GROUPED_PANEL_COUNT ?? Math.ceil(parameters.length / groupedParametersPerQuery)
-);
-const expectedGroupedStreams = Number(process.env.GRAFANA_BENCHMARK_EXPECT_GROUPED_STREAMS ?? '0');
-const verifyGroupedFields = process.env.GRAFANA_BENCHMARK_VERIFY_FIELDS === '1';
 if (
     !Array.isArray(parameters) ||
     parameters.length === 0 ||
@@ -104,25 +99,10 @@ if (
 ) {
     throw new Error('Benchmark workload must contain unique parameter names');
 }
-if (
-    !Number.isInteger(groupedPanelCount) ||
-    groupedPanelCount < 1 ||
-    groupedPanelCount > Math.ceil(parameters.length / groupedParametersPerQuery)
-) {
-    throw new Error('Grouped panel count must cover between one and all benchmark parameters');
-}
 
 function dashboardURL(uid: string): string {
     const baseURL = (process.env.GRAFANA_URL ?? 'http://localhost:3000').replace(/\/$/, '');
     return `${baseURL}/d/${uid}?from=now-5m&to=now&kiosk`;
-}
-
-function maxDataPointsForPanel(index: number): number {
-    return 325 + (index % 7) * 37;
-}
-
-function panelParameter(index: number): string {
-    return parameters[index % parameters.length];
 }
 
 function median(values: number[]): number {
@@ -195,16 +175,11 @@ async function collectFrontendSystemInfo(page: Page): Promise<FrontendSystemInfo
     };
 }
 
-function buildPanel(index: number, parametersPerQuery = 1) {
+function buildPanel(index: number) {
     const columns = 4;
     const width = 6;
     const height = 8;
     const id = index + 1;
-    const panelParameters =
-        parametersPerQuery === 1
-            ? [panelParameter(index)]
-            : parameters.slice(index * parametersPerQuery, (index + 1) * parametersPerQuery);
-    const parameter = panelParameters[0];
 
     return {
         id,
@@ -217,21 +192,19 @@ function buildPanel(index: number, parametersPerQuery = 1) {
             x: (index % columns) * width,
             y: Math.floor(index / columns) * height,
         },
-        maxDataPoints: maxDataPointsForPanel(index),
-        targets: [
-            {
-                refId: 'A',
-                datasource: { type: datasourceType, uid: datasourceUid },
-                endpoint,
-                parameter,
-                ...(parametersPerQuery > 1 ? { parameters: panelParameters } : {}),
-                type: parametersPerQuery > 1 ? 'single' : 'plot',
-                fields: [],
-                asVariable: false,
-                customVariableString: false,
-                endpointVariable: '$endpoint',
-            },
-        ],
+        maxDataPoints: 1000,
+        targets: panelQueries(index, parameters).map((names, queryIndex) => ({
+            refId: String.fromCharCode(65 + queryIndex),
+            datasource: { type: datasourceType, uid: datasourceUid },
+            endpoint,
+            parameter: names[0],
+            parameters: names,
+            type: 'plot',
+            fields: [],
+            asVariable: false,
+            customVariableString: false,
+            endpointVariable: '$endpoint',
+        })),
         options: {
             legend: { displayMode: 'hidden', placement: 'bottom', showLegend: false },
             tooltip: { mode: 'single', sort: 'none' },
@@ -240,7 +213,7 @@ function buildPanel(index: number, parametersPerQuery = 1) {
     };
 }
 
-function buildDashboard(panelCount: number, parametersPerQuery = 1) {
+function buildDashboard(panelCount: number) {
     const uid = `jybench-mixed-${panelCount}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     return {
         dashboard: {
@@ -253,15 +226,15 @@ function buildDashboard(panelCount: number, parametersPerQuery = 1) {
             version: 0,
             refresh: '',
             time: { from: 'now-5m', to: 'now' },
-            panels: Array.from({ length: panelCount }, (_, index) => buildPanel(index, parametersPerQuery)),
+            panels: Array.from({ length: panelCount }, (_, index) => buildPanel(index)),
         },
         folderId: 0,
         overwrite: true,
     };
 }
 
-async function createDashboard(request: any, panelCount: number, parametersPerQuery = 1): Promise<string> {
-    const dashboardPayload = buildDashboard(panelCount, parametersPerQuery);
+async function createDashboard(request: any, panelCount: number): Promise<string> {
+    const dashboardPayload = buildDashboard(panelCount);
     const createResponse = await request.post('/api/dashboards/db', { data: dashboardPayload });
     expect(
         createResponse.ok(),
@@ -355,14 +328,54 @@ async function visiblePanelIds(page: any): Promise<string[]> {
     });
 }
 
-async function waitForAllPanelsSeen(
-    page: any,
-    request: any,
-    panelCount: number,
-    parametersPerQuery: number
-): Promise<void> {
+async function readSceneParameters(page: Page): Promise<string[]> {
+    return page.evaluate(() => {
+        const names = new Set<string>();
+        const visited = new Set<object>();
+        function walk(value: unknown) {
+            if (!value || typeof value !== 'object' || visited.has(value)) {
+                return;
+            }
+            visited.add(value);
+            const state = (value as { state?: Record<string, unknown> }).state;
+            if (!state) {
+                return;
+            }
+            const data = state.data as
+                | {
+                      series?: Array<{ fields: Array<{ name: string; values?: { length: number } }> }>;
+                  }
+                | undefined;
+            for (const frame of data?.series ?? []) {
+                for (const field of frame.fields) {
+                    if (field.name !== 'time' && (field.values?.length ?? 0) > 0) {
+                        names.add(field.name);
+                    }
+                }
+            }
+            for (const child of Object.values(state)) {
+                if (Array.isArray(child)) {
+                    child.forEach(walk);
+                } else {
+                    walk(child);
+                }
+            }
+        }
+        walk((window as Window & { __grafanaSceneContext?: unknown }).__grafanaSceneContext);
+        return [...names];
+    });
+}
+
+async function waitForAllPanelsSeen(page: any, request: any, panelCount: number): Promise<void> {
     const seen = new Set<string>();
+    const received = new Set<string>();
     const deadline = Date.now() + 120_000;
+    const missingParameters = async (indices: number[]) => {
+        for (const name of await readSceneParameters(page)) {
+            received.add(name);
+        }
+        return expectedParameters(indices, parameters).filter((name) => !received.has(name));
+    };
 
     while (Date.now() < deadline && seen.size < panelCount) {
         await page.evaluate(() => window.scrollTo(0, 0));
@@ -377,7 +390,18 @@ async function waitForAllPanelsSeen(
                     timeout: 10_000,
                     message: `Visible panels ${[...seen].join(', ')} did not all open streams`,
                 })
-                .toBeGreaterThanOrEqual(Math.min(seen.size, parameters.length));
+                .toBeGreaterThanOrEqual(
+                    minimumBackendStreams(
+                        [...seen].map((id) => Number(id) - 1),
+                        parameters
+                    )
+                );
+            await expect
+                .poll(() => missingParameters([...seen].map((id) => Number(id) - 1)), {
+                    timeout: 30_000,
+                    message: 'Every visible panel must receive its requested parameter fields',
+                })
+                .toEqual([]);
 
             const state = await page.evaluate(() => {
                 window.scrollBy(0, Math.floor(window.innerHeight * 0.85));
@@ -402,24 +426,23 @@ async function waitForAllPanelsSeen(
     expect(seen.size, `expected to see ${panelCount} dashboard panels while scrolling`).toBeGreaterThanOrEqual(
         panelCount
     );
-    const expectedPaths =
-        parametersPerQuery > 1 && expectedGroupedStreams > 0
-            ? expectedGroupedStreams
-            : Math.min(panelCount, parameters.length);
+    const indices = Array.from({ length: panelCount }, (_, index) => index);
+    const expectedPaths = minimumBackendStreams(indices, parameters);
     await expect
         .poll(async () => (await readBackendStats(request)).unique_stream_paths, { timeout: 30_000 })
         .toBeGreaterThanOrEqual(expectedPaths);
+    await expect
+        .poll(() => missingParameters(indices), {
+            timeout: 30_000,
+            message: 'Every requested parameter must reach the browser',
+        })
+        .toEqual([]);
     await page.evaluate(() => window.scrollTo(0, 0));
 }
 
-async function waitForPanelsReady(
-    page: any,
-    request: any,
-    panelCount: number,
-    parametersPerQuery: number
-): Promise<number> {
+async function waitForPanelsReady(page: any, request: any, panelCount: number): Promise<number> {
     const started = Date.now();
-    await waitForAllPanelsSeen(page, request, panelCount, parametersPerQuery);
+    await waitForAllPanelsSeen(page, request, panelCount);
     await expect
         .poll(async () => (await readBackendStats(request)).frames_sent, { timeout: 60_000 })
         .toBeGreaterThan(0);
@@ -448,14 +471,14 @@ async function waitForBackendStreamsQuiet(request: any): Promise<void> {
         .toBe(0);
 }
 
-async function warmPanelCount(page: any, request: any, panelCount: number, parametersPerQuery = 1): Promise<void> {
-    const dashboardUid = await createDashboard(request, panelCount, parametersPerQuery);
+async function warmPanelCount(page: any, request: any, panelCount: number): Promise<void> {
+    const dashboardUid = await createDashboard(request, panelCount);
     try {
         await page.goto('about:blank');
         await page.waitForTimeout(streamSettleMs);
         await resetBackendStats(request);
         await page.goto(dashboardURL(dashboardUid));
-        await waitForPanelsReady(page, request, panelCount, parametersPerQuery);
+        await waitForPanelsReady(page, request, panelCount);
     } finally {
         await page.goto('about:blank').catch(() => undefined);
         await page.waitForTimeout(streamSettleMs).catch(() => undefined);
@@ -476,12 +499,7 @@ test.describe('Grafana panel streaming benchmark', () => {
         });
     });
 
-    async function measurePanelCounts(
-        page: Page,
-        request: any,
-        counts: number[],
-        parametersPerQuery = 1
-    ): Promise<BenchmarkResult[]> {
+    async function measurePanelCounts(page: Page, request: any, counts: number[]): Promise<BenchmarkResult[]> {
         const results: BenchmarkResult[] = [];
 
         await page.goto('about:blank');
@@ -489,40 +507,22 @@ test.describe('Grafana panel streaming benchmark', () => {
         await resetBackendStats(request);
 
         for (const panelCount of counts) {
-            await warmPanelCount(page, request, panelCount, parametersPerQuery);
-            const dashboardUid = await createDashboard(request, panelCount, parametersPerQuery);
+            await warmPanelCount(page, request, panelCount);
+            const dashboardUid = await createDashboard(request, panelCount);
 
             try {
                 await page.goto('about:blank');
                 await page.waitForTimeout(streamSettleMs);
                 await resetBackendStats(request);
                 await page.goto(dashboardURL(dashboardUid));
-                const timeToPanelsReady = await waitForPanelsReady(page, request, panelCount, parametersPerQuery);
+                const timeToPanelsReady = await waitForPanelsReady(page, request, panelCount);
                 const parameterStreamsSeen = (await readBackendStats(request)).unique_stream_paths;
-                if (parametersPerQuery > 1 && verifyGroupedFields) {
-                    await expect
-                        .poll(
-                            () =>
-                                page.evaluate(() =>
-                                    Object.keys(window.__jaopsBenchmarkStats?.parameterFieldsSeen ?? {}).sort()
-                                ),
-                            { timeout: 30_000 }
-                        )
-                        .toEqual([...parameters].sort());
-                }
-                const observedFields: string[] = await page.evaluate(() =>
-                    Object.keys(window.__jaopsBenchmarkStats?.parameterFieldsSeen ?? {})
+                expect(parameterStreamsSeen).toBeGreaterThanOrEqual(
+                    minimumBackendStreams(
+                        Array.from({ length: panelCount }, (_, index) => index),
+                        parameters
+                    )
                 );
-                if (parametersPerQuery > 1) {
-                    expect(
-                        parameterStreamsSeen,
-                        `${panelCount} queries selecting ${parameters.length} distinct parameters must open all query streams`
-                    ).toBeGreaterThanOrEqual(panelCount);
-                    expect(parameterStreamsSeen).toBeLessThanOrEqual(parameters.length);
-                    if (expectedGroupedStreams > 0) {
-                        expect(parameterStreamsSeen).toBe(expectedGroupedStreams);
-                    }
-                }
                 await drainBufferedStreamingValues(request);
                 await resetBackendStats(request);
                 await page.waitForTimeout(1200);
@@ -554,7 +554,6 @@ test.describe('Grafana panel streaming benchmark', () => {
                 results.push({
                     panels: panelCount,
                     streams_seen: parameterStreamsSeen,
-                    parameter_fields_seen: observedFields.length,
                     time_to_panels_ready_ms: timeToPanelsReady,
                     live_streams_opened: backend.unique_stream_paths,
                     backend_run_stream_runtime_ns: backend.run_stream_runtime_ns,
@@ -602,7 +601,6 @@ test.describe('Grafana panel streaming benchmark', () => {
         });
         const systemInfo = await collectFrontendSystemInfo(page);
         const results = await measurePanelCounts(page, request, panelCounts);
-        const groupedResults = await measurePanelCounts(page, request, [groupedPanelCount], groupedParametersPerQuery);
 
         fs.mkdirSync(path.dirname(outputPath), { recursive: true });
         fs.writeFileSync(
@@ -618,16 +616,11 @@ test.describe('Grafana panel streaming benchmark', () => {
                     sample_ticks: sampleTicks,
                     panel_counts: panelCounts,
                     scenario: 'canonical-demo-mixed-parameters',
-                    grouped_scenario: 'canonical-demo-multi-parameter-queries',
-                    grouped_scenario_semver: '1.0.0',
-                    grouped_parameters_per_query: groupedParametersPerQuery,
-                    grouped_parameters: Math.min(parameters.length, groupedPanelCount * groupedParametersPerQuery),
                     plugin_commit: process.env.GRAFANA_BENCHMARK_PLUGIN_COMMIT ?? '',
                     parameters: parameters.length,
                     parameter_names: parameters,
                     system: systemInfo,
                     results,
-                    grouped_results: groupedResults,
                 },
                 null,
                 2

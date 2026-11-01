@@ -67,6 +67,7 @@ MICRO_PLOT_KEYS = [
     "process_stream_10_values",
 ]
 LOG_Y_KEYS = {
+    "group_tick_busy_ns",
     "median_tick_runstream_busy",
     "setup",
     "live_memory_growth_bytes",
@@ -79,6 +80,7 @@ LOG_Y_KEYS = {
     "process_stream_10_values",
 }
 TIME_KEYS = {
+    "group_tick_busy_ns",
     "setup",
     "median_tick_runstream_busy",
     "frame_numeric_full",
@@ -217,10 +219,10 @@ def run_go_microbenchmarks(args: argparse.Namespace) -> list[dict[str, Any]]:
     return metrics if isinstance(metrics, list) else []
 
 
-def write_csv(path: str, rows: list[dict[str, Any]]) -> None:
+def write_csv(path: str, rows: list[dict[str, Any]], x_key: str = "streams") -> None:
     if not rows:
         return
-    fields = ["streams"] + sorted({key for row in rows for key in row.keys()} - {"streams"})
+    fields = [x_key] + sorted({key for row in rows for key in row.keys()} - {x_key})
     with open(path, "w", newline="", encoding="utf-8") as fp:
         writer = csv.DictWriter(fp, fieldnames=fields)
         writer.writeheader()
@@ -399,8 +401,10 @@ def plot_metric(
     key: str,
     baseline_rows: list[dict[str, Any]] | None = None,
     long_term_rows: list[dict[str, Any]] | None = None,
+    x_key: str = "streams",
+    x_label: str = "Number of concurrent Grafana streams",
 ) -> str | None:
-    points = [(row["streams"], row.get(key)) for row in rows if row.get(key) is not None]
+    points = [(row[x_key], row.get(key)) for row in rows if row.get(key) is not None and x_key in row]
     points = [(x, y) for x, y in points if isinstance(y, (int, float))]
     if not points:
         return None
@@ -408,24 +412,24 @@ def plot_metric(
     points.sort(key=lambda item: item[0])
     xs = [point[0] for point in points]
     raw_ys = [float(point[1]) for point in points]
-    rows_by_x = {row["streams"]: row for row in rows if "streams" in row}
+    rows_by_x = {row[x_key]: row for row in rows if x_key in row}
     raw_mins: list[float] = []
     raw_maxs: list[float] = []
     for x, y in points:
-        row = next(row for row in rows if row.get("streams") == x and row.get(key) == y)
+        row = next(row for row in rows if row.get(x_key) == x and row.get(key) == y)
         min_value, max_value = range_values(row, key)
         raw_mins.append(float(y) if min_value is None else min_value)
         raw_maxs.append(float(y) if max_value is None else max_value)
     raw_percentiles = raw_percentile_columns(rows_by_x, xs, key)
     baseline_points = []
     if baseline_rows:
-        baseline_points = [(row["streams"], row.get(key)) for row in baseline_rows if row.get(key) is not None]
+        baseline_points = [(row[x_key], row.get(key)) for row in baseline_rows if row.get(key) is not None and x_key in row]
         baseline_points = [(x, y) for x, y in baseline_points if isinstance(y, (int, float))]
         baseline_points.sort(key=lambda item: item[0])
     baseline_raw_ys = [float(point[1]) for point in baseline_points]
     long_term_points = []
     if long_term_rows:
-        long_term_points = [(row["streams"], row.get(key)) for row in long_term_rows if row.get(key) is not None]
+        long_term_points = [(row[x_key], row.get(key)) for row in long_term_rows if row.get(key) is not None and x_key in row]
         long_term_points = [(x, y) for x, y in long_term_points if isinstance(y, (int, float))]
         long_term_points.sort(key=lambda item: item[0])
     long_term_raw_ys = [float(point[1]) for point in long_term_points]
@@ -455,7 +459,7 @@ def plot_metric(
     ax.set_xscale("log")
     apply_x_tick_formatter(ax)
     ax.set_ylabel(y_axis_label(key, y_label, y_unit))
-    style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"))
+    style_metric_axis(ax, PLOT_TITLES.get(key, f"{label} by concurrent Grafana streams"), x_label)
     # Deliberately excludes threshold values: thresholds are drawn as
     # overlays and must not stretch the axis when they sit far from the
     # actual data, which would otherwise squash the real curve.
@@ -634,16 +638,18 @@ def summarize_baseline_changes(
     rows: list[dict[str, Any]],
     baseline_rows: list[dict[str, Any]] | None,
     label: str,
+    x_key: str = "streams",
+    keys: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     if not baseline_rows:
         return []
 
-    baseline_by_streams = {row["streams"]: row for row in baseline_rows}
+    baseline_by_streams = {row[x_key]: row for row in baseline_rows}
     summaries = []
-    for key in PERFORMANCE_PLOT_KEYS:
+    for key in PERFORMANCE_PLOT_KEYS if keys is None else keys:
         changes = []
         for row in rows:
-            streams = row["streams"]
+            streams = row[x_key]
             baseline = baseline_by_streams.get(streams)
             if not baseline:
                 continue
