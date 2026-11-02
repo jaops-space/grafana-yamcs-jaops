@@ -2,7 +2,6 @@
 // generally used by snapshots, but can affect specific tests
 process.env.TZ = 'UTC';
 const scaffoldConfig = require('./.config/jest.config');
-
 const { grafanaESModules, nodeModulesToTransform } = require('./.config/jest/utils');
 const testMatch = new Set([...(scaffoldConfig.testMatch ?? []), '<rootDir>/tests/benchmark/*.jest.ts']);
 
