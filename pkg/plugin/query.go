@@ -33,6 +33,17 @@ type PluginQuery struct {
 
 	// YAMCS parameter filter configuration
 	YamcsFilter *YamcsFilterConfig `json:"yamcsFilter,omitempty"`
+
+	// Parameters holds every parameter for a multi-parameter query (Graph,
+	// SingleValue, or DiscreteValue). When it has more than one entry,
+	// RunStream routes to RunMultiParameterStream, which drains all of them
+	// from a single goroutine/ticker and sends one joined multi-field frame
+	// per tick, instead of RunParameterStream's one goroutine/frame per
+	// parameter. Parameter is always kept in sync with Parameters[0] by the
+	// frontend, so historical/initial-frame code that only knows about a
+	// single parameter (SubscribeStream, Validate) keeps working unchanged -
+	// see DatasourceGraphFrame's doc comment for the resulting limitation.
+	Parameters []string `json:"parameters,omitempty"`
 }
 
 // YamcsFilterConfig defines client-side YAMCS parameter filtering

@@ -260,6 +260,22 @@ func (ep *YamcsEndpoint) getOrCreateParameterDemand(ctx context.Context, paramet
 		return nil, err
 	}
 	paramType := paramInfo.GetType()
+
+	// Yamcs's parameter-info-by-name endpoint resolves a "[index]"/".member"
+	// suffix on parameter (returning the parsed segments in GetPath()) but
+	// always returns the base array/aggregate parameter's own type in
+	// GetType() regardless - and that top-level type has neither a unit nor
+	// alarm thresholds of its own for an array/aggregate member (those live
+	// one level deeper, on the leaf type). Walk GetPath() into the actual
+	// leaf type so a member parameter like "/drone/BatteryCellVoltages[0]"
+	// gets its element type's real unit and thresholds instead of silently
+	// resolving to empty ones.
+	if path := paramInfo.GetPath(); len(path) > 0 {
+		if leafType := tools.ParameterTypeAtPath(paramType, path); leafType != nil {
+			paramType = leafType
+		}
+	}
+
 	unitSet := paramType.GetUnitSet()
 	thresholds := tools.ConvertAlarmInfoToThresholds(paramType.GetDefaultAlarm())
 	if len(unitSet) > 0 {
