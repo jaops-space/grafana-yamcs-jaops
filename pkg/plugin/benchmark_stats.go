@@ -33,6 +33,8 @@ type benchmarkStatsCollector struct {
 	startedAt              time.Time
 	paths                  map[string]struct{}
 	samples                []int64
+	pathSamples            map[string][]int64
+	collectPathSamples     bool
 	targetSamples          int
 	runtimeNS              int64
 	runCalls               int64
@@ -45,7 +47,8 @@ var streamBenchmarkStats = newBenchmarkStatsCollector()
 
 func newBenchmarkStatsCollector() *benchmarkStatsCollector {
 	return &benchmarkStatsCollector{
-		paths: map[string]struct{}{},
+		paths:       map[string]struct{}{},
+		pathSamples: map[string][]int64{},
 	}
 }
 
@@ -55,6 +58,8 @@ func (stats *benchmarkStatsCollector) reset(targetSamples int) {
 	stats.startedAt = time.Now()
 	stats.paths = map[string]struct{}{}
 	stats.samples = nil
+	stats.pathSamples = map[string][]int64{}
+	stats.collectPathSamples = false
 	stats.targetSamples = targetSamples
 	stats.runtimeNS = 0
 	stats.runCalls = 0
@@ -86,9 +91,23 @@ func (stats *benchmarkStatsCollector) recordRunStreamWork(path string, elapsed t
 	stats.framesSent++
 	stats.valuesSent += int64(values)
 	stats.samples = append(stats.samples, elapsed.Nanoseconds())
+	if stats.collectPathSamples {
+		stats.pathSamples[path] = append(stats.pathSamples[path], elapsed.Nanoseconds())
+	}
 	if stats.startedAt.IsZero() {
 		stats.startedAt = time.Now()
 	}
+}
+
+// samplesByPath returns a copy of the per-stream-path work spans recorded since the last reset.
+func (stats *benchmarkStatsCollector) samplesByPath() map[string][]int64 {
+	stats.mu.Lock()
+	defer stats.mu.Unlock()
+	out := make(map[string][]int64, len(stats.pathSamples))
+	for path, samples := range stats.pathSamples {
+		out[path] = append([]int64(nil), samples...)
+	}
+	return out
 }
 
 func (stats *benchmarkStatsCollector) snapshot() benchmarkStatsSnapshot {

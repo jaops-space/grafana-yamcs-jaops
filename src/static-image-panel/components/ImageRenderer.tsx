@@ -11,7 +11,9 @@ export default function ImageRenderer(options: ImagePanelOptions, url: string) {
     const transform = DOMPurify.sanitize(templateSrv.replace(options.transform || '')).trim();
     const objectFitValue = DOMPurify.sanitize(templateSrv.replace(options.objectFit || 'contain')).trim();
     const allowedObjectFit = new Set(['contain', 'cover', 'fill', 'none', 'scale-down']);
-    const objectFit = (allowedObjectFit.has(objectFitValue) ? objectFitValue : 'contain') as React.CSSProperties['objectFit'];
+    const objectFit = (
+        allowedObjectFit.has(objectFitValue) ? objectFitValue : 'contain'
+    ) as React.CSSProperties['objectFit'];
 
     if (!imageUrl) {
         return (
@@ -38,6 +40,7 @@ export default function ImageRenderer(options: ImagePanelOptions, url: string) {
         }
 
         const style: React.CSSProperties = {
+            display: 'block',
             width: '100%',
             height: '100%',
             objectFit,

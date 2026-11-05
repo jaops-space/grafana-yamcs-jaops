@@ -29,7 +29,17 @@ export default function ImagePanel(props: PanelProps<ImagePanelOptions>) {
     } catch (ignored) {}
 
     return (
-        <div data-testid="jaops-telemetric-image-panel">
+        <div
+            data-testid="jaops-telemetric-image-panel"
+            style={{
+                width: '100%',
+                height: '100%',
+                overflow: 'hidden',
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.max(1, Math.ceil(Math.sqrt(images.length)))}, minmax(0, 1fr))`,
+                gridAutoRows: 'minmax(0, 1fr)',
+            }}
+        >
             {images.length === 0 ? (
                 <div className={styles.emptyState}>
                     <Alert severity="info" title="No image received">
@@ -41,7 +51,9 @@ export default function ImagePanel(props: PanelProps<ImagePanelOptions>) {
                     </Alert>
                 </div>
             ) : (
-                images.map((image) => ImageRenderer(options, image))
+                images.map((image, index) => (
+                    <React.Fragment key={index}>{ImageRenderer(options, image)}</React.Fragment>
+                ))
             )}
         </div>
     );

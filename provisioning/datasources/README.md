@@ -1,1 +1,1 @@
-This folder is mounted in the grafana docker (see .config/docker-compose-base.yaml)
+This folder is mounted into Grafana by `.config/docker-compose-base.yaml`. `yamcs-jaops.yaml` provisions the Yamcs Demo `demo_realtime` endpoint, which connects through `docker.gateway:8093` to Yamcs Demo.

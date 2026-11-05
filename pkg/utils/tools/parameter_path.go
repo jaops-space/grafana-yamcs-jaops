@@ -7,8 +7,8 @@ import (
 )
 
 // ParameterTypeAtPath walks parameterType through path (a sequence of
-// "[index]" array-member and "member" aggregate-member tokens, e.g.
-// []string{"[0]", "rpm"} for ".../Motors[0].rpm") and returns the
+// "[index]", "member", or combined "member[index]" tokens, e.g.
+// []string{"battery", "temperatures[0]"}) and returns the
 // ParameterTypeInfo actually found at that path, or nil if any step along
 // the way doesn't resolve. Shared by the parameter-options search endpoint
 // (path segments from Yamcs's own member search) and
@@ -22,18 +22,21 @@ func ParameterTypeAtPath(parameterType *mdb.ParameterTypeInfo, path []string) *m
 		if current == nil {
 			return nil
 		}
-		if strings.HasPrefix(part, "[") {
-			current = current.GetArrayInfo().GetType()
-			continue
-		}
-		var memberType *mdb.ParameterTypeInfo
-		for _, member := range current.GetMember() {
-			if member.GetName() == part {
-				memberType = member.GetType()
-				break
+		name, _, indexed := strings.Cut(part, "[")
+		if name != "" || !indexed {
+			var memberType *mdb.ParameterTypeInfo
+			for _, member := range current.GetMember() {
+				if member.GetName() == name {
+					memberType = member.GetType()
+					break
+				}
 			}
+			current = memberType
 		}
-		current = memberType
+		if indexed {
+			// One ArrayInfo describes all dimensions, including "[0][1]".
+			current = current.GetArrayInfo().GetType()
+		}
 	}
 	return current
 }

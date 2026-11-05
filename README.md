@@ -1,5 +1,3 @@
-
-
 <p align="center">
   <img src="./src/img/logo.png" alt="Grafana Yamcs JAOPS logo" width="120" height="120">
 </p>
@@ -27,9 +25,8 @@
   ·
   <a href="./docs/BENCHMARKING.md">Benchmarking</a>
   ·
-  <a href="https://github.com/jaops-space/yamcs-quickstart">Yamcs Quickstart</a>
+  <a href="https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7">Yamcs Demo</a>
 </p>
-
 
 ## Overview
 
@@ -48,7 +45,7 @@ There are two common ways to use the plugin:
 - **One-click catalog install:** install the signed release from the [Grafana Catalog](https://grafana.com/grafana/plugins/jaops-yamcs-app/) when you want the latest published version.
 - **Local development install:** follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) when you want to test unreleased changes, contribute, or run the local demo environment.
 
-For a quick Yamcs demo, use the [JAOPS Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart). The plugin also includes in-app tutorials for each panel, available from the main navigation menu in Grafana.
+For the provisioned dashboard in this repository, use the [Yamcs Demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7). The plugin also includes in-app tutorials for each panel.
 
 <table>
   <tr>
@@ -161,28 +158,17 @@ For a quick Yamcs demo, use the [JAOPS Yamcs Quickstart](https://github.com/jaop
   <img src="./docs/PLUGIN_MODEL.png" alt="Plugin model document" width="900">
 </p>
 
-## Example Grafana Dashboard Connected to Yamcs
+## Yamcs Demo Dashboard
 
-Demo Dashboards are provisioned in `provisioning/dashboards`, they showcase the main capabilities of the plugin.
-They are made to use data from the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart).
+The provisioned **Yamcs Demo** dashboard uses native Grafana tabs: Overview, Telemetry, Parameter types and Operations. It visualizes live `/myproject`, `/features` and `/images` telemetry from the [Yamcs Demo fixture](https://github.com/jaops-space/grafana-yamcs-demo/tree/chore/yamcs-5.13.7), including Canvas, alarms, images and commanding. The simulator in that repository publishes telemetry, events and generated images; there is no separate image script to start.
 
-After cloning the [Yamcs Quickstart](https://github.com/jaops-space/yamcs-quickstart), run in separate terminals:
-
-```bash
-./mvn yamcs:run
-```
-
-```bash
-python3 simulator.py
-```
-
-```bash
-python3 simulator/images/generate_images.py
-```
+The plugin's datasource provisioning points to Yamcs Demo on `localhost:8093` via Docker's host gateway. Start Yamcs Demo with the port override, then run this plugin's Grafana at `http://localhost:3000/grafana` as described in the [setup instructions](./docs/SETUP_INSTRUCTIONS.md).
 
 <p align="center">
-  <img src="./screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">
+  <img src="./screenshots/overview.png" alt="Yamcs Demo Overview tab with live spacecraft Canvas and telemetry" width="900">
 </p>
+
+See the [Telemetry](./screenshots/telemetry.png), [Parameter types](./screenshots/parameter-types.png) and [Operations](./screenshots/commanding.png) tabs.
 
 ## Try Out the Plugin for Yourself
 
@@ -190,12 +176,12 @@ Follow the [setup instructions](./docs/SETUP_INSTRUCTIONS.md) to get started in 
 
 For deeper development and validation workflows:
 
-| Guide | Purpose |
-| --- | --- |
-| [Testing Guide](./docs/TESTING_GUIDE.md) | Local unit, integration, and end-to-end testing workflows. |
-| [Benchmarking](./docs/BENCHMARKING.md) | Benchmark setup, metrics, plots, and CI behavior. |
-| [Plugin Signing](./docs/PLUGIN_SIGNING.md) | Signing and release preparation notes. |
-| [GitHub Secrets Setup](./docs/GITHUB_SECRETS_SETUP.md) | CI secret configuration. |
+| Guide                                                  | Purpose                                                    |
+| ------------------------------------------------------ | ---------------------------------------------------------- |
+| [Testing Guide](./docs/TESTING_GUIDE.md)               | Local unit, integration, and end-to-end testing workflows. |
+| [Benchmarking](./docs/BENCHMARKING.md)                 | Benchmark setup, metrics, plots, and CI behavior.          |
+| [Plugin Signing](./docs/PLUGIN_SIGNING.md)             | Signing and release preparation notes.                     |
+| [GitHub Secrets Setup](./docs/GITHUB_SECRETS_SETUP.md) | CI secret configuration.                                   |
 
 ## Contributions
 

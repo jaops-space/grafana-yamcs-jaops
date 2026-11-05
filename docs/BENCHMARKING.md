@@ -3,7 +3,7 @@
 This repository has three benchmark layers:
 
 - Microbenchmarks for isolated frame/buffer processing helpers.
-- Yamcs simulator scenarios for backend streaming behavior against live quickstart data.
+- Yamcs simulator scenarios for backend streaming behavior against Yamcs Demo.
 - Grafana panel scenarios for the full browser + Grafana Live + plugin backend path.
 
 Run the layers with:
@@ -22,35 +22,37 @@ pnpm run bench:report
 
 Refresh the checked-in long-term baseline with the manual GitHub Actions workflow named `Refresh benchmark long-term baseline`.
 
-The simulator benchmark assumes Yamcs quickstart is running on `localhost:8090`. By default it also starts `simulator.py` from `/tmp/yamcs-quickstart` at `1 Hz`.
+The simulator benchmark targets Yamcs Demo (`demo/realtime`) on `localhost:8093`. By default it starts `simulator.py` from `/tmp/yamcs-demo` at `1 Hz`; pass `--no-simulator` when the demo Compose stack is already publishing telemetry.
 
 The Grafana panel benchmark assumes:
 
-- Grafana is running on `http://localhost:3000`;
+- Grafana is running on `http://localhost:3000` (the benchmark harness uses the root-served Compose configuration, not the demo dashboard's `/grafana` subpath);
 - the Linux backend binary in `dist` is built with `go build -tags "arrow_json_stdlib benchmark"` so benchmark-only resource endpoints are compiled in;
 - the provisioned datasource UID is `jaops-yamcs-main`;
-- Yamcs quickstart and its simulator are running.
+- Yamcs Demo and its simulator are running on port `8093`;
+- the datasource has a `demo_realtime` endpoint pointing at that demo.
 
 ## Files
 
 Benchmark code is organized by layer:
 
 - `scripts/benchmarks/micro/run.py`: isolated Go microbenchmarks.
-- `scripts/benchmarks/simulator/run.py`: Yamcs quickstart simulator scenario runner.
+- `scripts/benchmarks/simulator/run.py`: Yamcs Demo scenario runner.
 - `scripts/benchmarks/simulator/scenario.go`: Go workload used by the simulator runner.
+- `scripts/benchmarks/workload.json`: shared benchmark semver, endpoint, and parameter coverage.
 - `tests/benchmark/streaming.benchmark.spec.ts`: browser/Grafana benchmark.
 - `scripts/benchmarks/report.py`: the single report builder. It reads raw layer JSON outputs directly and writes the PR comment, status, and plots.
 - `scripts/benchmarks/common/`: shared implementation helpers and the central metric catalog. This keeps each layer runner small and avoids copying plot/report/baseline logic between layers.
 
 ## Simulator scenario
 
-Each scenario runs `N` concurrent Grafana stream demands against the Yamcs quickstart `myproject/realtime` processor.
+Each scenario runs `N` concurrent Grafana stream demands against Yamcs Demo's `demo/realtime` processor.
 
 For every value of `N`, the benchmark:
 
 1. Runs one discarded warmup scenario so Yamcs/plugin paths are warmed before measured scenarios.
-2. Creates `N` Grafana stream paths distributed across the default quickstart parameters.
-3. Lets Yamcs quickstart warm up for `3s`.
+2. Creates `N` Grafana stream paths distributed across the canonical `/myproject`, `/features`, and `/images` parameters.
+3. Lets Yamcs warm up for `3s`.
 4. Runs the measured workload for `10s`.
 5. Runs one goroutine per Grafana stream.
 6. Reads and clears each stream buffer every `1s`.
@@ -92,7 +94,7 @@ Benchmark plots can show three curves:
 
 The long-term baseline is intentionally committed to the repository so performance drift remains visible even when a PR base benchmark is unavailable or changes too often to be a useful historical reference. It should be refreshed only from GitHub Actions so the baseline is tied to the CI environment, not a developer workstation. Its metadata lives next to the result file in `scripts/benchmarks/baselines/long-term/metadata.json`.
 
-Benchmark result files include a `metric_semantics_version`. Baseline percentage comparisons are only computed when the current run and baseline use the same metric semantics version. This prevents misleading comparisons when a metric definition changes, such as changing from averages to medians or replacing a wall-clock span with busy work.
+Simulator and Grafana benchmark results include the workload's `benchmark_semver`, currently `3.1.0`. Comparisons against their old quickstart baselines are omitted until the canonical workload has a matching baseline; refresh that baseline through the manual workflow. `metric_semantics_version` remains at `2` because the metric calculations themselves did not change, so the independent microbenchmark baseline remains comparable. Change the benchmark semver whenever the fixture, parameter mix, or endpoint changes; comparison requires matching workload semver and metric semantics.
 
 The report also shows informational median, maximum negative, and maximum positive percentage change for each plotted metric against each compatible baseline. These percentage changes do not affect WARN or FAIL status.
 
@@ -114,7 +116,7 @@ These metrics are mainly for detecting low-level allocation or frame-building re
 
 ### Simulator scenario
 
-The simulator scenario measures the plugin backend against live Yamcs quickstart data, but without rendering Grafana panels in a browser. It uses the real stream buffers and RunStream read/frame/send path.
+The simulator scenario measures the plugin backend against live Yamcs Demo data, but without rendering Grafana panels in a browser. It uses the real stream buffers and RunStream read/frame/send path.
 
 The PR comment currently plots:
 
@@ -129,7 +131,7 @@ The most useful signals here are throughput, freshness, memory, and RunStream bu
 
 ### Grafana scenario
 
-The Grafana scenario measures the full browser + Grafana dashboard + Grafana Live + plugin backend path. It creates temporary dashboards with Timeseries panels over Yamcs quickstart parameters, warms each panel count once, then records the measured run.
+The Grafana scenario measures the full browser + Grafana dashboard + Grafana Live + plugin backend path. It creates temporary dashboards with Timeseries panels over Yamcs Demo parameters, warms each panel count once, then records the measured run.
 
 The PR comment currently plots:
 
@@ -143,13 +145,124 @@ The PR comment currently plots:
 
 The Grafana layer is the closest to user-visible behavior. Browser heap and time-to-ready cover frontend cost. Backend RunStream runtime and backend heap cover plugin backend work while Grafana is actively streaming.
 
+### Backend work per logical group per tick
+
+`scripts/benchmarks/simulator/grouped` measures the actual plugin `RunParameterStream`
+handler against a live Yamcs fixture. Each measured span includes draining, frame
+construction, metadata, grouped carry-forward/alignment when supported, and
+`StreamSender.SendFrame` serialization. A local packet sink replaces the Grafana RPC
+transport: network delivery, Yamcs server work, browser rendering and ticker sleep
+are outside the boundary.
+
+There is **one Simulator metric**, `group_tick_busy_ns`. Its x-axis is parameters per
+logical client group (`K`). Its graph, percentile density bands and median-change
+comparison table use the ordinary `report.py` pipeline, with **PR base and HEAD**
+overlays. There are no separate split/grouped/ratio metrics or branch-specific CI
+comparisons.
+
+The same benchmark harness is compiled against each revision's production handlers.
+On backends that split a client group into member streams, measured member costs are
+summed per logical group per tick. On backends supporting grouped streams, the actual
+wide-frame path is measured. Comparing raw member-stream medians with whole-group
+medians would not be equivalent.
+
+CI uses 64 logical groups, three repetitions, and sizes `1,2,3,4,8,16,32,64,max`.
+The local exhaustive sweep uses `-sizes all`. Increasing K does not silently reduce
+the number of logical groups. Adjacent groups target 15% member overlap; integer
+rounding and finite-pool constraints affect the achieved overlap. At K equal to the
+pool size, 100% overlap is unavoidable. Results record achieved overlap rather than
+claiming that 15% is possible everywhere.
+
+`grouped_parameters` in `workload.json` enumerates the demo's 139 declared leaves
+across `features.xml`, `xtce.xml` and `images.xml`, recursively expanding aggregates
+and arrays. Regenerate it with
+`python3 scripts/benchmarks/common/mdb_leaves.py --mdb <demo>/src/main/yamcs/mdb`.
+MDB lookup success alone does not prove live engineering values exist: unsupported
+leaves must be identified during qualification, not timed as empty streams. The
+effective parameter list and fixture/source commits travel with the results.
+The `parameters` pool supplies the other benchmark layers with the 131 verified
+scalar leaves; `unavailable_parameters` records the eight declared multidimensional
+leaves that did not deliver engineering values. Whole aggregates are queried by
+member rather than being mistaken for a single scalar field. To update both pools
+after qualification, add `--qualified-results <group-work-result.json>` to the
+generator command.
+
+Run the fixture on an isolated port, not the dashboard being used for a presentation:
+
+```sh
+mkdir -p benchmark-output/group-work
+CGO_ENABLED=0 go run -tags benchmark ./scripts/benchmarks/simulator/grouped \
+  -address localhost:8193 -sizes all -max-groups 64 -repetitions 3 \
+  -duration 5s -warmup 2s \
+  -fixture-commit "$(git -C ../grafana-yamcs-demo rev-parse HEAD)" \
+  -out benchmark-output/group-work/head.json
+python3 scripts/benchmarks/report.py \
+  --grouped-results benchmark-output/group-work/head.json \
+  --baseline-grouped-results benchmark-output/group-work/base.json \
+  --output-dir benchmark-output/group-work/report
+```
+
+Produce `base.json` by compiling the same harness and benchmark-only adapter in the
+base checkout. Historical comparisons requiring a safety backport must record the
+exact source SHA and patch; do not describe those binaries as unmodified revisions.
+`CGO_ENABLED=0` avoids incompatible macOS C-linker SDKs and matches the plugin's
+pure-Go build.
+
+The standard report copies raw results, writes `simulator/grouped.csv`, and includes
+`plots/simulator_group_tick_busy_ns.png` in the usual benchmark comment and status
+manifest. Comparisons require matching protocol, fixture, effective parameter pool,
+tick cadence, overlap target and group counts. Incompatible references are explicitly
+reported and omitted, never silently relabeled as comparable.
+
+Benchmark protocol semver is `3.1.0`. Older stored baselines remain incompatible
+until refreshed. The manual baseline-refresh workflow also measures this metric and
+stores `scripts/benchmarks/baselines/long-term/grouped.json`. The report automatically
+loads local group-work results from `benchmark-output/simulator/grouped.json` when
+present; use `--grouped-results` to select another path.
+
+The exhaustive local comparison uses PR #90 at
+`f13454edbe0345f3860c9e657837bab407859b1f` (with the recorded subscription-locking
+safety patch from `404a158`) against `912595366d4439688572b996c402bbde8e061472`,
+using fixture `de2feb0e95685870206efea3695693df105e1c6f`. It covers K=1..131,
+64 groups and three repetitions. Raw runs, the patch and the generated standard
+comment are retained locally under `benchmark-output/group-work/`.
+
+Treat that run as exploratory, not a stable high-load guarantee. Two split sweeps
+stopped on incomplete observations (K=94 in repetition 1 and K=68 in repetition 2);
+the remaining points were rerun in fresh processes. This changes process history
+and excludes failed attempts from the timing distribution. Split normalization
+aligns member tick ordinals, not phase-locked wall-clock ticks. Windows are nominally
+five seconds; scheduling can yield an extra tick. The historical serialized-packet
+counters also include warmup, whereas the recorded timing samples do not. New runs
+exclude warmup from those packet counters. CI does not selectively retry failed
+points. Retain these qualifications when sharing the graph or its median changes.
+
 ## Grafana panel benchmark
 
 The Grafana benchmark creates real temporary Grafana dashboards with Timeseries panels and measures the full browser + Grafana Live + plugin backend path.
 
-It uses one mixed-parameter scenario. Panels cycle through the known Yamcs quickstart parameters, so small dashboards mostly use distinct parameters and large dashboards naturally contain repeated parameters. This keeps the CI comment simple while still allowing shared-stream changes to show up in HEAD-vs-PR-base comparisons.
+The workload uses `scripts/benchmarks/workload.json`, covering `/myproject`, feature
+arrays, nested values and the image counter. It mixes one-parameter controls with
+2/4/8/16-member queries and one to three queries per panel. Adjacent panels share
+identical query sets; a 48-set palette repeats at higher panel counts. Fixed query
+resolution preserves Grafana Live sharing instead of accidentally creating a new
+channel for every repeated panel. Both single and multi-parameter queries can share.
 
-By default it tests `1, 5, 10, 25, 50, 100` panels. Each panel count first runs a discarded warmup dashboard with the same shape, then records the measured dashboard. This reduces first-touch variation from Grafana app caches, datasource initialization, panel rendering paths, and Yamcs/plugin query warmup without bypassing the real Grafana path. Each measured panel count records a fixed number of non-empty backend RunStream samples: `panel_count × 15` samples by default. The dashboard time range is `now-5m` to `now`.
+For pull requests, CI builds the plugin at the actual PR base and HEAD commits, then runs the same browser harness against both.
+
+By default it tests `1, 5, 10, 25, 50, 100` panels. Each panel count first runs a discarded warmup dashboard with the same shape, then records the measured dashboard. This reduces first-touch variation from Grafana app caches, datasource initialization, panel rendering paths, and Yamcs/plugin query warmup without bypassing the real Grafana path. Each measured panel count records `active_backend_streams × 15` non-empty RunStream samples by default. The dashboard time range is `now-5m` to `now`.
+
+For a small local example, `GRAFANA_BENCHMARK_WORKLOAD_PATH` can point to a reduced workload JSON, and `GRAFANA_BENCHMARK_PANEL_COUNTS`, `GRAFANA_BENCHMARK_DURATION_MS`, `GRAFANA_BENCHMARK_SAMPLE_TICKS`, and `GRAFANA_BENCHMARK_SETTLE_MS` can limit the workload and sampling window. These overrides do not change CI defaults.
+
+The harness releases its own Live subscriptions when it closes each temporary dashboard, instead of using the normal two-minute hidden-tab retention. Active-panel streaming is unchanged; this prevents one panel count's idle streams from contaminating the next measurement.
+
+It scrolls through every panel and verifies that every requested parameter field
+has values in Grafana's actual Scene frames before scrolling away. This check does
+not depend on revision-specific plugin field counters. Stream-count checks allow either supported backend architecture;
+they do not force one stream per parameter. The result records `parameter_streams_seen`
+separately from `backend_unique_stream_paths`: Grafana may unmount off-screen panels,
+so the fixed sample window is sized from streams still active after scrolling, not
+paths that were opened earlier and have since closed.
 
 The backend exposes benchmark-only resource endpoints:
 

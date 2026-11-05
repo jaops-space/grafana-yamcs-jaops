@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import math
 import os
 import shutil
 import sys
@@ -12,6 +13,24 @@ from common.metrics import METRIC_NAMES, PLOT_ORDER, PLOT_TO_METRIC, THRESHOLD_T
 from common.plotting import format_baseline_change_rows, format_change, format_value, status_emoji, status_for, status_label
 
 COMMENT_MARKER = "<!-- jaops-yamcs-benchmark-report -->"
+GROUP_METRIC = "group_tick_busy_ns"
+
+
+def grouped_commit(result: dict[str, Any]) -> str:
+    return result.get("revision", {}).get("plugin_commit", "")
+
+
+def grouped_system(result: dict[str, Any]) -> dict[str, Any]:
+    environment = result.get("environment", {})
+    return {
+        "os": environment.get("goos"),
+        "arch": environment.get("goarch"),
+        "available_logical_cpus": environment.get("num_cpu"),
+        "runner_available_cpus": environment.get("gomaxprocs"),
+        "go_version": environment.get("go_version"),
+    }
+
+
 METRIC_DETAILS = {
     "setup_per_stream": "Time spent creating stream demand state and Yamcs subscriptions.",
     "live_memory_growth_bytes_per_stream": "Additional live memory used per stream during the run.",
@@ -229,13 +248,31 @@ def build_comment(
             summaries_by_metric.setdefault(metric, []).append(summary)
     baseline = result.get("baseline", {})
     long_term_baseline = result.get("long_term_baseline", {})
-    head_config = benchmark_config(result, grafana, result.get("metric_semantics_version"))
+    grouped = result.get("grouped")
+    config_source = result
+    if grouped and not result.get("parameters"):
+        config_source = {**grouped, "read_interval_ms": grouped["tick_seconds"] * 1000}
+    head_config = benchmark_config(config_source, grafana, result.get("benchmark_semver"))
+    if grouped:
+        head_config.update({
+            "Group-work parameter pool": str(len(grouped["parameters"])),
+            "Group-work tick": f"{grouped['tick_seconds']}s",
+            "Group-work groups / repetitions": f"{grouped.get('max_groups', 'unknown')} / {grouped.get('repetitions', 'unknown')}",
+            "Group-work overlap target": str(grouped["overlap_target"]),
+            "Group-work fixture commit": f"`{grouped['fixture_commit']}`",
+            "Group-work PR base": result["grouped_baseline"]["message"],
+            "Group-work source overlays": "See revision and overlay hashes in the copied raw JSON",
+        })
     head_system = merged_system(result.get("system", {}), (grafana or {}).get("system", {}))
+    if grouped and not head_system:
+        head_system = grouped_system(grouped)
     architecture_columns: list[tuple[str, dict[str, str]]] = [
-        ("HEAD", system_identity(head_system, os.environ.get("GITHUB_SHA", "")))
+        ("HEAD", system_identity(head_system, os.environ.get("GITHUB_SHA") or grouped_commit(grouped or {})))
     ]
 
     baseline_system = merged_system((baseline_simulator or {}).get("system", {}), (baseline_grafana or {}).get("system", {}))
+    if not baseline_system and result.get("grouped_reference"):
+        baseline_system = grouped_system(result["grouped_reference"])
     if has_system_identity(baseline_system, baseline.get("commit")):
         architecture_columns.append(("PR base", system_identity(baseline_system, baseline.get("commit"))))
 
@@ -250,7 +287,7 @@ def build_comment(
         "",
         f"**Status:** {status_emoji(status)} `{status_label(status)}`",
         "",
-        status_sentence(status),
+        status_sentence(status) if status_thresholds else "No thresholds were evaluated; these measurements are informational.",
         "",
         "<details>",
         "<summary>Benchmark configuration</summary>",
@@ -342,32 +379,103 @@ def load_result(path: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def compatible_rows(result: dict[str, Any] | None, key: str) -> list[dict[str, Any]] | None:
-    if not result or not bench.metric_semantics_compatible(result):
+def compatible_rows(result: dict[str, Any] | None, key: str, workload: bool = False) -> list[dict[str, Any]] | None:
+    if not result or not (bench.workload_compatible(result) if workload else bench.metric_semantics_compatible(result)):
         return None
     rows = result.get(key, [])
     return rows if isinstance(rows, list) else None
 
 
+def compatible_grafana(head: dict[str, Any], baseline: dict[str, Any] | None) -> dict[str, Any] | None:
+    if (
+        baseline
+        and baseline.get("benchmark_semver") == head.get("benchmark_semver")
+        and baseline.get("endpoint") == head.get("endpoint")
+    ):
+        return baseline
+    return None
+
+
+def validate_grouped_result(result: dict[str, Any]) -> None:
+    """Reject incomplete or synthetic results before they become a success-shaped plot."""
+    for key in ("fixture_commit", "benchmark_semver", "parameters", "scenarios"):
+        if not result.get(key):
+            raise ValueError(f"Group-work result is missing {key}")
+    if result["benchmark_semver"] != bench.BENCHMARK_SEMVER:
+        raise ValueError("Group-work result uses a different benchmark protocol")
+    for key, value in (("revision.plugin_commit", grouped_commit(result)), ("fixture_commit", result["fixture_commit"])):
+        if not isinstance(value, str) or len(value) != 40 or any(char not in "0123456789abcdef" for char in value):
+            raise ValueError(f"Group-work {key} must be a full commit SHA")
+    if (
+        not isinstance(result["parameters"], list)
+        or any(not isinstance(name, str) or not name for name in result["parameters"])
+        or len(set(result["parameters"])) != len(result["parameters"])
+    ):
+        raise ValueError("Group-work parameters must be a unique list")
+    if (
+        not isinstance(result.get("tick_seconds"), (int, float))
+        or not math.isfinite(result["tick_seconds"])
+        or result["tick_seconds"] <= 0
+    ):
+        raise ValueError("Group-work tick_seconds must be positive")
+    if not 0 <= result.get("overlap_target", -1) < 1:
+        raise ValueError("Group-work overlap_target must be in [0, 1)")
+    seen = set()
+    for row in result["scenarios"]:
+        size = row.get("group_size", 0)
+        if type(size) is not int or size in seen or not 1 <= size <= len(result["parameters"]):
+            raise ValueError(f"Invalid or duplicate group size: {size}")
+        seen.add(size)
+        if type(row.get("groups")) is not int or row["groups"] < 1:
+            raise ValueError(f"Group size {size} has no logical groups")
+        stats = row.get(f"{GROUP_METRIC}_distribution", {})
+        if type(stats.get("count")) is not int or stats["count"] < 1:
+            raise ValueError(f"Group size {size} has no measured group ticks")
+        ordered = [stats.get(key) for key in ("min", "p1", "p5", "p30", "median", "p70", "p95", "p99", "max")]
+        if any(not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0 for value in ordered):
+            raise ValueError(f"Group size {size} has missing or invalid percentiles")
+        if ordered != sorted(ordered) or not ordered[-1]:
+            raise ValueError(f"Group size {size} has an invalid timing distribution")
+        if row.get(GROUP_METRIC) != stats["median"]:
+            raise ValueError(f"Group size {size} median does not match its distribution")
+
+
+def compatible_grouped(head: dict[str, Any], baseline: dict[str, Any] | None) -> tuple[list[dict[str, Any]] | None, str]:
+    if not baseline:
+        return None, "not provided"
+    for key in ("benchmark_semver", "parameters", "fixture_commit", "tick_seconds", "overlap_target", "protobuf", "duration_seconds", "warmup_seconds"):
+        if head.get(key) != baseline.get(key):
+            return None, f"incompatible {key}"
+    validate_grouped_result(baseline)
+    head_by_size = {row["group_size"]: row for row in head["scenarios"]}
+    matched = [
+        row for row in baseline["scenarios"]
+        if row["group_size"] in head_by_size
+        and row["groups"] == head_by_size[row["group_size"]]["groups"]
+    ]
+    return (matched, "loaded") if matched else (None, "no matching group sizes and counts")
+
+
 def baseline_metadata(result: dict[str, Any] | None, path: str, commit: str = "") -> dict[str, Any]:
-    compatible = bench.metric_semantics_compatible(result)
+    compatible = bench.workload_compatible(result)
     message = "loaded" if result else "not provided"
     if result and not compatible:
-        message = "baseline loaded but metric semantics version is incompatible"
+        message = "baseline loaded but benchmark semver or metric semantics is incompatible"
     return {
         "compatible": compatible,
         "path": path,
         "commit": commit,
         "message": message,
         "metric_semantics_version": result.get("metric_semantics_version") if result else None,
+        "benchmark_semver": result.get("benchmark_semver") if result else None,
     }
 
 
 def long_term_metadata(simulator_result: dict[str, Any] | None) -> dict[str, Any]:
-    compatible = bench.metric_semantics_compatible(simulator_result)
+    compatible = bench.workload_compatible(simulator_result)
     message = "loaded" if simulator_result else "not provided"
     if simulator_result and not compatible:
-        message = "long-term baseline loaded but metric semantics version is incompatible"
+        message = "long-term baseline loaded but benchmark semver or metric semantics is incompatible"
     return {
         "compatible": compatible,
         "path": os.path.relpath(bench.LONG_TERM_SIMULATOR_RESULTS, os.getcwd()),
@@ -380,6 +488,7 @@ def long_term_metadata(simulator_result: dict[str, Any] | None) -> dict[str, Any
         },
         "message": message,
         "metric_semantics_version": simulator_result.get("metric_semantics_version") if simulator_result else None,
+        "benchmark_semver": simulator_result.get("benchmark_semver") if simulator_result else None,
     }
 
 
@@ -406,12 +515,13 @@ def combine_results(
     result["baseline"] = baseline_metadata(baseline_simulator, baseline_simulator_path, baseline_commit)
     result["long_term_baseline"] = long_term_metadata(long_term_simulator)
     result["metric_semantics_version"] = bench.METRIC_SEMANTICS_VERSION
+    result["benchmark_semver"] = bench.BENCHMARK_SEMVER
     result["baseline_change_summaries"] = []
     result["baseline_change_summaries"] += bench.summarize_baseline_changes(
-        result["scenarios"], compatible_rows(baseline_simulator, "scenarios"), "PR base"
+        result["scenarios"], compatible_rows(baseline_simulator, "scenarios", workload=True), "PR base"
     )
     result["baseline_change_summaries"] += bench.summarize_baseline_changes(
-        result["scenarios"], compatible_rows(long_term_simulator, "scenarios"), "Long-term baseline"
+        result["scenarios"], compatible_rows(long_term_simulator, "scenarios", workload=True), "Long-term baseline"
     )
     result["baseline_change_summaries"] += bench.summarize_micro_baseline_changes(
         result["microbenchmarks"], compatible_rows(baseline_micro, "microbenchmarks"), "PR base"
@@ -436,19 +546,27 @@ def main() -> None:
     parser.add_argument("--micro-results", default="")
     parser.add_argument("--simulator-results", default="")
     parser.add_argument("--grafana-results", default="")
+    parser.add_argument("--grouped-results", default="benchmark-output/simulator/grouped.json")
     parser.add_argument("--baseline-micro-results", default="")
     parser.add_argument("--baseline-simulator-results", default="")
     parser.add_argument("--baseline-grafana-results", default="")
+    parser.add_argument("--baseline-grouped-results", default="")
     parser.add_argument("--baseline-commit", default="")
     parser.add_argument("--long-term-micro-results", default=bench.LONG_TERM_MICRO_RESULTS)
     parser.add_argument("--long-term-simulator-results", default=bench.LONG_TERM_SIMULATOR_RESULTS)
     parser.add_argument("--long-term-grafana-results", default="scripts/benchmarks/baselines/long-term/grafana.json")
+    parser.add_argument("--long-term-grouped-results", default="scripts/benchmarks/baselines/long-term/grouped.json")
     parser.add_argument("--plots-base-url", default="")
     parser.add_argument("--run-url", default="")
     argv = sys.argv[1:]
     if argv and argv[0] == "--":
         argv = argv[1:]
     args = parser.parse_args(argv)
+    grouped = load_result(args.grouped_results)
+    if args.grouped_results and not grouped:
+        parser.error(f"Group-work result is missing or empty: {args.grouped_results}")
+    if grouped:
+        validate_grouped_result(grouped)
 
     simulator_path = args.simulator_results or os.path.join(args.output_dir, "simulator", "simulator.json")
     micro_path = args.micro_results or os.path.join(args.output_dir, "microbenchmarks", "microbenchmarks.json")
@@ -477,7 +595,8 @@ def main() -> None:
     copy_result(baseline_simulator_path, os.path.join(args.output_dir, "baselines", "pr", "simulator.json"))
     copy_result(baseline_micro_path, os.path.join(args.output_dir, "baselines", "pr", "microbenchmarks.json"))
     copy_result(baseline_grafana_path, os.path.join(args.output_dir, "baselines", "pr", "grafana.json"))
-
+    copy_result(args.grouped_results, os.path.join(args.output_dir, "simulator", "grouped.json"))
+    copy_result(args.baseline_grouped_results, os.path.join(args.output_dir, "baselines", "pr", "grouped.json"))
     result = combine_results(
         simulator,
         micro,
@@ -488,23 +607,51 @@ def main() -> None:
         baseline_simulator_path,
         args.baseline_commit,
     )
+    if not simulator and not micro and grafana:
+        result["benchmark_semver"] = grafana.get("benchmark_semver", result["benchmark_semver"])
     plots_dir = os.path.join(args.output_dir, "plots")
     os.makedirs(plots_dir, exist_ok=True)
     for name in os.listdir(plots_dir):
         if name.endswith(".png"):
             os.remove(os.path.join(plots_dir, name))
 
-    baseline_simulator_rows = compatible_rows(baseline_simulator, "scenarios")
+    baseline_simulator_rows = compatible_rows(baseline_simulator, "scenarios", workload=True)
     baseline_micro_rows = compatible_rows(baseline_micro, "microbenchmarks")
-    long_term_simulator_rows = compatible_rows(long_term_simulator, "scenarios")
+    long_term_simulator_rows = compatible_rows(long_term_simulator, "scenarios", workload=True)
     long_term_micro_rows = compatible_rows(long_term_micro, "microbenchmarks")
     if result["scenarios"]:
         bench.plot_all_metrics(args.output_dir, result["scenarios"], baseline_simulator_rows, long_term_simulator_rows)
     if result["microbenchmarks"]:
         bench.plot_all_micro_metrics(args.output_dir, result["microbenchmarks"], baseline_micro_rows, long_term_micro_rows)
+    if grouped:
+        baseline_grouped = load_result(args.baseline_grouped_results)
+        long_term_grouped = load_result(args.long_term_grouped_results)
+        base_rows, base_message = compatible_grouped(grouped, baseline_grouped)
+        long_rows, long_message = compatible_grouped(grouped, long_term_grouped)
+        for label, baseline_result, message in (
+            ("PR base", baseline_grouped, base_message), ("Long-term baseline", long_term_grouped, long_message)
+        ):
+            if baseline_result and message != "loaded":
+                print(f"Group-work {label}: {message}; comparison omitted", file=sys.stderr)
+        result["grouped"] = grouped
+        result["grouped_reference"] = baseline_grouped
+        result["grouped_baseline"] = {"compatible": base_rows is not None, "message": base_message}
+        if not result["baseline"].get("commit") and baseline_grouped:
+            result["baseline"]["commit"] = grouped_commit(baseline_grouped)
+        bench.plot_metric(
+            plots_dir, grouped["scenarios"], GROUP_METRIC, base_rows, long_rows,
+            x_key="group_size", x_label="Parameters per logical client group (K)",
+        )
+        bench.write_csv(os.path.join(args.output_dir, "simulator", "grouped.csv"), grouped["scenarios"], x_key="group_size")
+        for rows, label in ((base_rows, "PR base"), (long_rows, "Long-term baseline")):
+            result["baseline_change_summaries"] += bench.summarize_baseline_changes(
+                grouped["scenarios"], rows, label, x_key="group_size", keys=[GROUP_METRIC]
+            )
     grafana_thresholds: list[dict[str, Any]] = []
     grafana_section = ""
     if grafana:
+        baseline_grafana = compatible_grafana(grafana, baseline_grafana)
+        long_term_grafana = compatible_grafana(grafana, long_term_grafana)
         for metric in grafana_report.METRICS:
             grafana_report.plot_metric(plots_dir, grafana, baseline_grafana, long_term_grafana, metric)
         grafana_thresholds = list(grafana_report.evaluate_thresholds(grafana).values())
@@ -537,11 +684,13 @@ def main() -> None:
     plot_files = sorted([name for name in os.listdir(plots_dir) if name.endswith(".png")]) if os.path.isdir(plots_dir) else []
     status_payload = {
         "status": status,
+        "benchmark_semver": result["benchmark_semver"],
         "should_comment": True,
         "should_fail": status == "fail",
         "regression_plots": [plot for _, plot in copied_plots],
         "plots": plot_files,
         "thresholds": all_thresholds,
+        "grouped_baseline": result.get("grouped_baseline"),
     }
     with open(os.path.join(args.output_dir, "benchmark-status.json"), "w", encoding="utf-8") as fp:
         json.dump(status_payload, fp, indent=2)

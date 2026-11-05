@@ -1,0 +1,28 @@
+# Local canonical demo alongside other Yamcs projects.
+# Apply after ../grafana-yamcs-demo/docker/docker-compose.yml.
+services:
+  yamcs:
+    environment:
+      YAMCS_TC_HOST: host.docker.internal
+      YAMCS_TC_PORT: "10026"
+    ports: !override
+      - "8093:8090"
+  simulator:
+    ports: !override
+      - "8092:8091"
+      - "10026:10025/udp"
+    command:
+      - python
+      - /demo/simulator.py
+      - --tm_host
+      - yamcs
+      - --tc_host
+      - 0.0.0.0
+      - --yamcs_url
+      - http://yamcs:8090
+      - --image_public_base_url
+      - http://localhost:8092
+      - --image_dir
+      - /demo/images
+      - --image_rate
+      - "2"

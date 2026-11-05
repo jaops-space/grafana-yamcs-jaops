@@ -33,10 +33,8 @@ func RunSubscriptionStream(ctx context.Context,
 
 			subscriptions := make([]string, 0)
 
-			for _, sub := range yamcs.ParameterSubscriptions {
-				for param := range sub.ActiveSubscriptions {
-					subscriptions = append(subscriptions, param)
-				}
+			for _, sub := range yamcs.ListParameterSubscriptions() {
+				subscriptions = append(subscriptions, sub.ActiveNames()...)
 			}
 
 			frame := data.NewFrame("response",

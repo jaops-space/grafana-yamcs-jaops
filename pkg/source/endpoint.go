@@ -34,6 +34,7 @@ type YamcsEndpoint struct {
 	// lightweight bookkeeping maps below, never across network I/O.
 	parameterDemandMu    sync.Mutex
 	parameterSubscribeMu sync.Mutex
+	parameterUpdateMu    sync.Mutex
 	alarmSubscribeMu     sync.Mutex
 	eventSubscribeMu     sync.Mutex
 	commandHistorySubMu  sync.Mutex
