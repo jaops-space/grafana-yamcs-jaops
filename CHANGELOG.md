@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-11-05
+
+### Changed
+
+- Updated Grafana frontend packages to 13.3.0 and the Go plugin SDK to 0.298.0.
+- Raised the minimum Node.js version to 24.5.0; CI and signing workflows now use Node.js 24.
+
+### Security
+
+- Updated `golang.org/x/net` to v0.62.0 with related Go dependencies.
+- Resolved affected Zod dependencies to v4.6.6 or newer, below v5.0.0.
+- Updated DOMPurify to 3.4.17.
+
 ## [1.1.6] - 2026-10-20
 
 ### Fixed
@@ -239,7 +252,8 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added command history and variable-oriented panel support.
 - Added app navigation, setup documentation, demo dashboard assets, and contribution guidance.
 
-[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.7...HEAD
+[1.1.7]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.6...v1.1.7
 [1.1.3]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.0...v1.1.1
