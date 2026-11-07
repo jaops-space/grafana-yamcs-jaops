@@ -6,7 +6,7 @@
  */
 
 import CopyWebpackPlugin from 'copy-webpack-plugin';
-import ESLintPlugin from 'eslint-webpack-plugin';
+import DiagnosticsPlugin from 'diagnostics-webpack-plugin';
 import ForkTsCheckerWebpackPlugin from 'fork-ts-checker-webpack-plugin';
 import path from 'path';
 import ReplaceInFileWebpackPlugin from 'replace-in-file-webpack-plugin';
@@ -19,9 +19,11 @@ import VirtualModulesPlugin from 'webpack-virtual-modules';
 import { BuildModeWebpackPlugin } from './BuildModeWebpackPlugin.ts';
 import { DIST_DIR, SOURCE_DIR } from './constants.ts';
 import { getCPConfigVersion, getEntries, getPackageJson, getPluginJson, hasReadme, isWSL } from './utils.ts';
+import { externals } from '../bundler/externals.ts';
 
 const pluginJson = getPluginJson();
 const cpVersion = getCPConfigVersion();
+const pluginVersion = getPackageJson().version;
 
 const virtualPublicPath = new VirtualModulesPlugin({
   'node_modules/grafana-public-path.js': `
@@ -54,44 +56,7 @@ const config = async (env: Env): Promise<Configuration> => {
 
     entry: await getEntries(),
 
-    externals: [
-      // Required for dynamic publicPath resolution
-      { 'amd-module': 'module' },
-      'lodash',
-      'jquery',
-      'moment',
-      'slate',
-      'emotion',
-      '@emotion/react',
-      '@emotion/css',
-      'prismjs',
-      'slate-plain-serializer',
-      '@grafana/slate-react',
-      'react',
-      'react-dom',
-      'react-redux',
-      'redux',
-      'rxjs',
-      'react-router',
-      'd3',
-      'angular',
-      /^@grafana\/ui/i,
-      /^@grafana\/runtime/i,
-      /^@grafana\/data/i,
-
-      // Mark legacy SDK imports as external if their name starts with the "grafana/" prefix
-      ({ request }, callback) => {
-        const prefix = 'grafana/';
-        const hasPrefix = (request: string) => request.indexOf(prefix) === 0;
-        const stripPrefix = (request: string) => request.substr(prefix.length);
-
-        if (request && hasPrefix(request)) {
-          return callback(undefined, stripPrefix(request));
-        }
-
-        callback();
-      },
-    ],
+    externals,
 
     // Support WebAssembly according to latest spec - makes WebAssembly module async
     experiments: {
@@ -163,6 +128,11 @@ const config = async (env: Env): Promise<Configuration> => {
       minimize: Boolean(env.production),
       minimizer: [
         new TerserPlugin({
+          extractComments: {
+            banner: false,
+            filename: 'LICENSE.txt',
+          },
+
           terserOptions: {
             format: {
               comments: (_, { type, value }) => type === 'comment2' && value.trim().startsWith('[create-plugin]'),
@@ -195,7 +165,8 @@ const config = async (env: Env): Promise<Configuration> => {
       virtualPublicPath,
       // Insert create plugin version information into the bundle
       new webpack.BannerPlugin({
-        banner: '/* [create-plugin] version: ' + cpVersion + ' */',
+        banner: `/* [create-plugin] version: ${cpVersion} */
+          /* [create-plugin] plugin: ${pluginJson.id}@${pluginVersion} */`,
         raw: true,
         entryOnly: true,
       }),
@@ -222,10 +193,11 @@ const config = async (env: Env): Promise<Configuration> => {
         {
           dir: DIST_DIR,
           test: [/(^|\/)plugin\.json$/, /(^|\/)README\.md$/],
+
           rules: [
             {
               search: /\%VERSION\%/g,
-              replace: getPackageJson().version,
+              replace: pluginVersion,
             },
             {
               search: /\%TODAY\%/g,
@@ -251,10 +223,9 @@ const config = async (env: Env): Promise<Configuration> => {
               },
               typescript: { configFile: path.join(process.cwd(), 'tsconfig.json') },
             }),
-            new ESLintPlugin({
-              extensions: ['.ts', '.tsx'],
-              lintDirtyModulesOnly: Boolean(env.development), // don't lint on start, only lint changed files
-              failOnError: Boolean(env.production),
+            new DiagnosticsPlugin({
+              lintOnStart: false, // don't lint on start, only lint changed files
+              checks: [{ use: 'eslint', extensions: ['ts', 'tsx'] }],
             }),
           ]
         : []),
