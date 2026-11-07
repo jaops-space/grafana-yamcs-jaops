@@ -221,7 +221,7 @@ const config = async (env: Env): Promise<Configuration> => {
       new ReplaceInFileWebpackPlugin([
         {
           dir: DIST_DIR,
-          files: ['plugin.json', 'README.md'],
+          test: [/(^|\/)plugin\.json$/, /(^|\/)README\.md$/],
           rules: [
             {
               search: /\%VERSION\%/g,
@@ -234,20 +234,6 @@ const config = async (env: Env): Promise<Configuration> => {
             {
               search: /\%PLUGIN_ID\%/g,
               replace: pluginJson.id,
-            },
-          ],
-        },
-        {
-          dir: DIST_DIR,
-          test: /plugin\.json$/,
-          rules: [
-            {
-              search: /\%VERSION\%/g,
-              replace: getPackageJson().version,
-            },
-            {
-              search: /\%TODAY\%/g,
-              replace: new Date().toISOString().substring(0, 10),
             },
           ],
         },
