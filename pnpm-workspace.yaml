@@ -36,10 +36,6 @@ overrides:
   "react-router@>=7.0.0 <7.18.3": ">=7.18.3 <8.0.0"
   # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (disclosed 2026-09-01), fixed 4.28.7.
   "browserslist@<4.28.7": ">=4.28.7 <5.0.0"
-  # braces (via micromatch) has no patched release (GHSA-vfj7-8cjw-p6xm,
-  # last_affected 3.0.3). eslint-webpack-plugin only calls micromatch.isMatch,
-  # which picomatch exposes with identical semantics and no braces dependency.
-  "eslint-webpack-plugin>micromatch": "npm:picomatch@^4.0.5"
   # GHSA-68fv-2mgg-jv7q (CVE-2026-93749), fixed 1.2.2.
   "source-map-js@<1.2.2": ">=1.2.2 <2.0.0"
   "postcss-selector-parser@>=7.0.0 <7.1.6": ">=7.1.6 <8.0.0"

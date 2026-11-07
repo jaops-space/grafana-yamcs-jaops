@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-11-07
+
+### Fixed
+
+- Return configuration errors for malformed JSON and null host or endpoint entries instead of panicking.
+- Replace version and build-date placeholders in every embedded plugin manifest during packaging.
+
+### Changed
+
+- Align all embedded plugin manifests with the root Grafana minimum of 12.1.1.
+- Keep installation, local development, and contribution directions out of the Grafana catalog README while retaining the Yamcs demo setup instructions.
+
 ## [1.1.7] - 2026-11-05
 
 ### Changed
@@ -252,7 +264,8 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 - Added command history and variable-oriented panel support.
 - Added app navigation, setup documentation, demo dashboard assets, and contribution guidance.
 
-[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.7...HEAD
+[Unreleased]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.8...HEAD
+[1.1.8]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.7...v1.1.8
 [1.1.7]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.6...v1.1.7
 [1.1.3]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/jaops-space/grafana-yamcs-jaops/compare/v1.1.1...v1.1.2
