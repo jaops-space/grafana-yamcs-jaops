@@ -237,6 +237,20 @@ const config = async (env: Env): Promise<Configuration> => {
             },
           ],
         },
+        {
+          dir: DIST_DIR,
+          test: /plugin\.json$/,
+          rules: [
+            {
+              search: /\%VERSION\%/g,
+              replace: getPackageJson().version,
+            },
+            {
+              search: /\%TODAY\%/g,
+              replace: new Date().toISOString().substring(0, 10),
+            },
+          ],
+        },
       ]),
       new SubresourceIntegrityPlugin({
         hashFuncNames: ['sha256'],

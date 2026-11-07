@@ -22,15 +22,13 @@ A plugin that connects Grafana directly to the Yamcs server to display telemetry
 
 This plugin is engineered for high reliability to be used in Mission Control Centers and anywhere Yamcs is used.
 
-The current version has already been tested in real-world deployments but active development continues and community feedback and contributions are very welcome.
+The current version has been tested in real-world deployments, and active development continues.
 
 Development is led by [JAOPS](https://www.jaops.com/): providing Mission Control software, tools and training for spacecraft in orbit and rovers on the Moon!
 
-### Install and Try
+### Catalog Information
 
-Install the signed plugin directly from the [Grafana Catalog](https://grafana.com/grafana/plugins/jaops-yamcs-app/) (**Plugins and data** > **Plugins** on your Grafana Instnace). After installation, configure a Yamcs host and endpoint in the datasource settings.
-
-The plugin includes helpful tutorials for each panel. Access them from the main navigation menu on the left side of Grafana.
+The plugin includes in-app tutorials for each panel.
 
 <table>
   <tr>
@@ -161,8 +159,6 @@ For image telemetry panels, you can also run the optional image simulator:
 python3 simulator/images/generate_images.py
 ```
 
-For local development with the repository demo dashboards, follow the [setup instructions](https://github.com/jaops-space/grafana-yamcs-jaops/blob/main/docs/SETUP_INSTRUCTIONS.md).
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/jaops-space/grafana-yamcs-jaops/main/screenshots/full_demo_dash.png" alt="Grafana dashboard connected to Yamcs" width="900">
 </p>
@@ -170,10 +166,3 @@ For local development with the repository demo dashboards, follow the [setup ins
 ## Acknowledgements
 
 Since October 2024, the plugin has been tested and improved with feedback from the Space Robotics Lab of Tohoku University in Sendai, Japan.
-
-## Documentation and Contributing
-
-Check out the open-source [GitHub repository](https://github.com/jaops-space/grafana-yamcs-jaops) for the latest features and documentation. 
-Community feedback and contributions are very welcome!
-
-If you find a bug, have a feature request, or want to improve the project, feel free to [open an issue](https://github.com/jaops-space/grafana-yamcs-jaops/issues) or submit a pull request.

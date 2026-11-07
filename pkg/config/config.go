@@ -61,16 +61,21 @@ func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfi
 	configuration := &YamcsPluginConfiguration{}
 	secure := &YamcsSecureConfiguration{}
 	err := json.Unmarshal(source.JSONData, configuration)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
+	}
 
 	for hostID, host := range configuration.Hosts {
+		if host == nil {
+			return nil, nil, fmt.Errorf("host %q is null", hostID)
+		}
 		host.ID = hostID
 	}
 	for endpointID, endpoint := range configuration.Endpoints {
+		if endpoint == nil {
+			return nil, nil, fmt.Errorf("endpoint %q is null", endpointID)
+		}
 		endpoint.ID = endpointID
-	}
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not unmarshal PluginSettings json: %w", err)
 	}
 
 	backend.Logger.Debug("ExtractConfig unmarshaled config",
