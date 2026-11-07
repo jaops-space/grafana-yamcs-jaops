@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-11-08
+
+### Security
+
+- Update `github.com/klauspost/compress` to v1.20.2 to fix GO-2026-6865.
+
 ## [1.1.8] - 2026-11-07
 
 ### Fixed
