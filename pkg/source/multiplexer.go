@@ -79,18 +79,28 @@ func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfi
 		}
 
 		var clientOptions []client.YamcsClientOption
+		opts := httpclient.Options{}
 		if len(httpOptions) > 0 {
-			opts := httpOptions[0]
+			opts = httpOptions[0]
 			if opts.TLS != nil {
 				tlsOpts := *opts.TLS
 				opts.TLS = &tlsOpts
 			}
-			if hostCfg.Tls {
-				if opts.TLS == nil {
-					opts.TLS = &httpclient.TLSOptions{}
-				}
-				opts.TLS.InsecureSkipVerify = hostCfg.TlsInsecure
+		}
+		if hostCfg.Tls {
+			if opts.TLS == nil {
+				opts.TLS = &httpclient.TLSOptions{}
 			}
+			opts.TLS.InsecureSkipVerify = hostCfg.TlsInsecure
+
+			webSocketTLSConfig, err := httpclient.GetTLSConfig(opts)
+			if err != nil {
+				return nil, fmt.Errorf("could not create WebSocket TLS config for host %s: %w", hostID, err)
+			}
+			clientOptions = append(clientOptions, client.OptionSetWebSocketTLSConfig(webSocketTLSConfig))
+		}
+
+		if len(httpOptions) > 0 {
 			httpClient, err := httpclient.New(opts)
 			if err != nil {
 				return nil, fmt.Errorf("could not create HTTP client for host %s: %w", hostID, err)

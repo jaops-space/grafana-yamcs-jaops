@@ -273,7 +273,8 @@ func ConvertCommandListToFrame(commands []*commanding.CommandHistoryEntry) *data
 
 			switch name {
 			case "comment":
-				commandEntry.Comment = value.StringValue
+				comment := value.GetStringValue()
+				commandEntry.Comment = &comment
 
 			case "Acknowledge_Queued_Status", "Acknowledge_Queued_Time", "Acknowledge_Queued_Message",
 				"Acknowledge_Released_Status", "Acknowledge_Released_Time", "Acknowledge_Released_Message",

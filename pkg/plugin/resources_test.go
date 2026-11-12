@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -25,6 +26,7 @@ func TestActionRoutesDoNotRestrictViewerRole(t *testing.T) {
 		"/endpoint/e1/links/link/reset",
 		"/endpoint/e1/links/link/action/action",
 	}
+
 	for _, path := range actionPaths {
 		for _, role := range []string{"", "Viewer"} {
 			t.Run(path+"/"+role, func(t *testing.T) {
@@ -39,5 +41,23 @@ func TestActionRoutesDoNotRestrictViewerRole(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestExecuteCommandRejectsNullRequestBody(t *testing.T) {
+	router := mux.NewRouter()
+	datasource := &Datasource{
+		multiplexer: &source.Multiplexer{
+			Endpoints: map[string]*source.YamcsEndpoint{},
+		},
+	}
+	datasource.registerRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPost, "/endpoint/e1/command/issue", strings.NewReader("null"))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, rec.Code, rec.Body.String())
 	}
 }

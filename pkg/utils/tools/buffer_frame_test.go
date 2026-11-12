@@ -249,6 +249,26 @@ func TestConvertCommandListToFrame(t *testing.T) {
 	}
 }
 
+func TestConvertCommandListToFrameHandlesMissingCommentValue(t *testing.T) {
+	commands := []*commanding.CommandHistoryEntry{
+		{
+			Id:             new("cmd-missing-comment"),
+			CommandName:    new("test_cmd"),
+			GenerationTime: timestamppb.New(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
+			Attr: []*commanding.CommandHistoryAttribute{
+				{Name: new("comment")},
+			},
+		},
+	}
+
+	got := ConvertCommandListToFrame(commands)
+	var command CommandEntry
+	err := json.Unmarshal(got.Fields[0].At(0).(json.RawMessage), &command)
+	require.NoError(t, err)
+	require.NotNil(t, command.Comment)
+	assert.Empty(t, *command.Comment)
+}
+
 // TestConvertSampleBufferToFrame tests the ConvertSampleBufferToFrame function.
 func TestConvertSampleBufferToFrame(t *testing.T) {
 	tests := []struct {

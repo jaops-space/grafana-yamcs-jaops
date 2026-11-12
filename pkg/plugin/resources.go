@@ -296,10 +296,14 @@ func (d *Datasource) handleExecuteCommand(w http.ResponseWriter, req *http.Reque
 	vars := mux.Vars(req)
 	endpointID := vars["endpointID"]
 
-	body := &CommandIssueBody{}
+	var body *CommandIssueBody
 	err := decodeJSONBody(w, req, &body)
 	if err != nil {
 		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid command request body", err, "endpointID", endpointID)
+		return
+	}
+	if body == nil {
+		resourceError(w, http.StatusBadRequest, "invalid request body", "Invalid command request body", fmt.Errorf("request body must be an object"), "endpointID", endpointID)
 		return
 	}
 
