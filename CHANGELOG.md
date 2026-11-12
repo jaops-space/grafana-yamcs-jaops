@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.10] - 2026-11-12
+
+### Fixed
+
+- **Null command bodies return a client error.** JSON `null` previously set the decoded command pointer to nil and caused command execution to panic; the handler now rejects it with HTTP 400.
+- **Missing command history comments no longer panic.** Yamcs may omit an attribute value, so the converter now reads comments with the nil-safe protobuf getter.
+- **WebSocket connections use datasource TLS settings.** Custom CA certificates and configured certificate-verification behavior now apply to Yamcs WebSocket connections as well as HTTP requests.
+
+### Security
+
+- **Reachable Go HTTP vulnerability fixed.** Upgrade to Go 1.27.4 to address GO-2026-6859.
+
 ## [1.1.9] - 2026-11-08
 
 ### Security

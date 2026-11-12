@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"sync"
@@ -23,6 +24,9 @@ type YamcsClient struct {
 
 	// TLS configuration for secure communication
 	TLSConfig corehttp.TLS
+
+	// TLS configuration for the WebSocket connection
+	WebSocketTLSConfig *tls.Config
 
 	// User authentication credentials (username/password or bearer token)
 	Credentials corehttp.Credentials
@@ -157,6 +161,7 @@ func NewYamcsClientWithContext(
 	// Initialize WebSocket handler
 	client.WebSocket = ws.NewWebSocketHandler(wsURL, client.UseProtobuf)
 	client.WebSocket.Credentials = credentials
+	client.WebSocket.TLSConfig = client.WebSocketTLSConfig
 
 	client.WebSocket.SetListener(ws.ParameterListenerID, client.HandleParameterMessage)
 	client.WebSocket.SetListener(ws.EventListenerID, client.HandleEventMessage)
@@ -298,6 +303,13 @@ func OptionSetProtocol(useProtobuf bool) YamcsClientOption {
 func OptionSetHTTPClient(httpClient *http.Client) YamcsClientOption {
 	return func(client *YamcsClient) {
 		client.HTTPClient = httpClient
+	}
+}
+
+// OptionSetWebSocketTLSConfig allows configuring the TLS settings used by the WebSocket dialer.
+func OptionSetWebSocketTLSConfig(tlsConfig *tls.Config) YamcsClientOption {
+	return func(client *YamcsClient) {
+		client.WebSocketTLSConfig = tlsConfig
 	}
 }
 

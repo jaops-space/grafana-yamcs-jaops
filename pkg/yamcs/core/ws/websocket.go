@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 // WebSocketHandler manages the WebSocket connection and message flow.
 type WebSocketHandler struct {
 	Credentials      corehttp.Credentials
+	TLSConfig        *tls.Config
 	connection       *websocket.Conn
 	isConnected      atomic.Int32
 	useProtobuf      bool
@@ -86,6 +88,9 @@ func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 
 	dialer := *websocket.DefaultDialer
 	dialer.HandshakeTimeout = time.Duration(ws.handshakeTimeout) * time.Second
+	if ws.TLSConfig != nil {
+		dialer.TLSClientConfig = ws.TLSConfig.Clone()
+	}
 	if ws.useProtobuf {
 		dialer.Subprotocols = []string{"protobuf"}
 	} else {
