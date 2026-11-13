@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
+	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/mdb"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/pvalue"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/config"
 	"github.com/jaops-space/grafana-yamcs-jaops/pkg/utils/types"
@@ -202,14 +203,14 @@ func TestWithdrawUnknownParameterStreamIsNoop(t *testing.T) {
 	}
 }
 
-func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
+func TestSetUnitAndThresholdsConfiguresValueAndStatisticUnits(t *testing.T) {
 	okThreshold := data.NewThreshold(0, "green", "")
 	warnThreshold := data.NewThreshold(50, "red", "")
 	endpoint := &YamcsEndpoint{
 		Parameters: map[string]*ParameterDemand{
 			"/SIM/TEMP": {
 				Name: "/SIM/TEMP",
-				Unit: "degC",
+				Unit: "celsius",
 				Thresholds: []*data.Threshold{
 					&okThreshold,
 					&warnThreshold,
@@ -224,30 +225,99 @@ func TestSetUnitAndThresholdsOnlyConfiguresParameterField(t *testing.T) {
 		data.NewField("max(/SIM/TEMP)", nil, []float64{44}),
 	)
 
-	endpoint.SetUnitAndThresholds(context.Background(), "/SIM/TEMP", frame)
+	endpoint.SetUnitAndThresholds(context.Background(), "/SIM/TEMP", frame, nil)
 
 	if frame.Fields[0].Config != nil {
 		t.Fatalf("expected time field config to stay nil, got %#v", frame.Fields[0].Config)
 	}
-	if frame.Fields[2].Config != nil {
-		t.Fatalf("expected min field config to stay nil, got %#v", frame.Fields[2].Config)
+	if frame.Fields[2].Config == nil || frame.Fields[2].Config.Unit != "celsius" {
+		t.Fatalf("expected min field unit celsius, got %#v", frame.Fields[2].Config)
 	}
-	if frame.Fields[3].Config != nil {
-		t.Fatalf("expected max field config to stay nil, got %#v", frame.Fields[3].Config)
+	if frame.Fields[2].Config.Thresholds != nil {
+		t.Fatalf("expected min field thresholds to stay nil, got %#v", frame.Fields[2].Config.Thresholds)
+	}
+	if frame.Fields[3].Config == nil || frame.Fields[3].Config.Unit != "celsius" {
+		t.Fatalf("expected max field unit celsius, got %#v", frame.Fields[3].Config)
+	}
+	if frame.Fields[3].Config.Thresholds != nil {
+		t.Fatalf("expected max field thresholds to stay nil, got %#v", frame.Fields[3].Config.Thresholds)
 	}
 
 	valueConfig := frame.Fields[1].Config
 	if valueConfig == nil {
 		t.Fatalf("expected parameter field config")
 	}
-	if valueConfig.Unit != "degC" {
-		t.Fatalf("expected unit degC, got %q", valueConfig.Unit)
+	if valueConfig.Unit != "celsius" {
+		t.Fatalf("expected unit celsius, got %q", valueConfig.Unit)
 	}
 	if valueConfig.Thresholds == nil {
 		t.Fatalf("expected thresholds config")
 	}
 	if got := len(valueConfig.Thresholds.Steps); got != 2 {
 		t.Fatalf("expected 2 thresholds, got %d", got)
+	}
+}
+
+func TestSetUnitAndThresholdsPrefersLiveValueAlarmRangeOverCachedDefault(t *testing.T) {
+	// Yamcs attaches AlarmRange directly to a live value, already resolved
+	// for the exact member/context that produced it - more accurate than
+	// the demand's cached, MDB-wide static default alarm, so it must win
+	// when present.
+	cachedThreshold := data.NewThreshold(0, "green", "")
+	endpoint := &YamcsEndpoint{
+		Parameters: map[string]*ParameterDemand{
+			"/SIM/TEMP": {
+				Name:       "/SIM/TEMP",
+				Unit:       "celsius",
+				Thresholds: []*data.Threshold{&cachedThreshold},
+			},
+		},
+	}
+	frame := data.NewFrame("response",
+		data.NewField("time", nil, []time.Time{time.Unix(0, 0)}),
+		data.NewField("/SIM/TEMP", nil, []float64{42}),
+	)
+	warning := mdb.AlarmLevelType_WARNING
+	minInclusive, maxInclusive := 10.0, 80.0
+	liveValue := &pvalue.ParameterValue{
+		AlarmRange: []*mdb.AlarmRange{
+			{Level: &warning, MinInclusive: &minInclusive, MaxInclusive: &maxInclusive},
+		},
+	}
+
+	endpoint.SetUnitAndThresholds(context.Background(), "/SIM/TEMP", frame, liveValue)
+
+	steps := frame.Fields[1].Config.Thresholds.Steps
+	// The cached fallback only ever produced 1 step (a single green base);
+	// the live AlarmRange resolves to more (a base plus the warning bound),
+	// so this also verifies the live source actually won, not just that
+	// something non-nil got set.
+	if len(steps) <= 1 {
+		t.Fatalf("expected the live AlarmRange's thresholds, not the cached single-step default, got %#v", steps)
+	}
+}
+
+func TestSetUnitAndThresholdsFallsBackToCachedDefaultWhenLiveValueHasNoAlarmRange(t *testing.T) {
+	okThreshold := data.NewThreshold(0, "green", "")
+	endpoint := &YamcsEndpoint{
+		Parameters: map[string]*ParameterDemand{
+			"/SIM/TEMP": {
+				Name:       "/SIM/TEMP",
+				Unit:       "celsius",
+				Thresholds: []*data.Threshold{&okThreshold},
+			},
+		},
+	}
+	frame := data.NewFrame("response",
+		data.NewField("time", nil, []time.Time{time.Unix(0, 0)}),
+		data.NewField("/SIM/TEMP", nil, []float64{42}),
+	)
+	liveValue := &pvalue.ParameterValue{} // no AlarmRange attached
+
+	endpoint.SetUnitAndThresholds(context.Background(), "/SIM/TEMP", frame, liveValue)
+
+	if got := len(frame.Fields[1].Config.Thresholds.Steps); got != 1 {
+		t.Fatalf("expected the cached fallback's 1 step, got %d", got)
 	}
 }
 
