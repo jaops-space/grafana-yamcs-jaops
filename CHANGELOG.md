@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+## [1.1.11] - 2026-11-14
+
+### Fixed
+
+- Validate Yamcs host addresses before starting background connections, and prevent invalid addresses from appearing in logs or validation errors.
+- Apply Grafana's secure SOCKS proxy dialer to Yamcs WebSocket connections.
+
 ## [1.1.10] - 2026-11-12
 
 ### Fixed

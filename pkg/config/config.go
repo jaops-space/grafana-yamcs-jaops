@@ -47,17 +47,15 @@ func (hcfg *YamcsHostConfiguration) DisplayName() string {
 		return hcfg.Name
 	}
 	if hcfg.Path != "" {
+		if !isValidHostPort(hcfg.Path) {
+			return "host at <invalid address>"
+		}
 		return fmt.Sprintf("host at %s", hcfg.Path)
 	}
 	return "<unnamed host>"
 }
 
 func ExtractConfig(source backend.DataSourceInstanceSettings) (*YamcsPluginConfiguration, *YamcsSecureConfiguration, error) {
-
-	// Debug: log what Grafana sent us
-	backend.Logger.Debug("ExtractConfig received JSONData",
-		"jsonDataString", string(source.JSONData))
-
 	configuration := &YamcsPluginConfiguration{}
 	secure := &YamcsSecureConfiguration{}
 	err := json.Unmarshal(source.JSONData, configuration)
