@@ -33,6 +33,20 @@ func validConfig() *config.YamcsPluginConfiguration {
 	}
 }
 
+func TestNewDatasourceRejectsInvalidHostBeforeStartingManagers(t *testing.T) {
+	settings := backend.DataSourceInstanceSettings{
+		JSONData: []byte(`{"hosts":{"h1":{"path":"user:secret@example.com:8090"}}}`),
+	}
+
+	_, err := NewDatasource(context.Background(), settings)
+	if err == nil {
+		t.Fatal("expected invalid host configuration error")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("datasource error exposed host credentials: %q", err)
+	}
+}
+
 func TestValidateConfigItems_BaseErrors(t *testing.T) {
 	d := &Datasource{}
 

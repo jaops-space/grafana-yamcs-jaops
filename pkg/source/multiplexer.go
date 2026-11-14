@@ -3,10 +3,12 @@ package source
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
+	sdkproxy "github.com/grafana/grafana-plugin-sdk-go/backend/proxy"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/alarms"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/commanding"
 	"github.com/jaops-space/grafana-yamcs-jaops/api/yamcs/protobuf/events"
@@ -86,6 +88,20 @@ func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfi
 				tlsOpts := *opts.TLS
 				opts.TLS = &tlsOpts
 			}
+		}
+		proxyClient := sdkproxy.New(opts.ProxyOptions)
+		if proxyClient.SecureSocksProxyEnabled() {
+			proxyDialer, err := proxyClient.NewSecureSocksProxyContextDialer()
+			if err != nil {
+				return nil, fmt.Errorf("could not create WebSocket proxy dialer for host %s: %w", hostID, err)
+			}
+			contextDialer, ok := proxyDialer.(interface {
+				DialContext(context.Context, string, string) (net.Conn, error)
+			})
+			if !ok {
+				return nil, fmt.Errorf("WebSocket proxy dialer for host %s does not support context dialing", hostID)
+			}
+			clientOptions = append(clientOptions, client.OptionSetWebSocketNetDialContext(contextDialer.DialContext))
 		}
 		if hostCfg.Tls {
 			if opts.TLS == nil {

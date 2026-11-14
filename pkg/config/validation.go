@@ -18,7 +18,7 @@ func (h *YamcsHostConfiguration) Validate(y *YamcsPluginConfiguration) error {
 	if strings.TrimSpace(h.Path) == "" {
 		errs = append(errs, "path is required")
 	} else if !isValidHostPort(h.Path) {
-		errs = append(errs, fmt.Sprintf("path has invalid URL format: %s", h.Path))
+		errs = append(errs, "path has invalid host:port format")
 	}
 
 	if h.Auth {

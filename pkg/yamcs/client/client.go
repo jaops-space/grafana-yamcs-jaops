@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -27,6 +28,9 @@ type YamcsClient struct {
 
 	// TLS configuration for the WebSocket connection
 	WebSocketTLSConfig *tls.Config
+
+	// NetDialContext optionally configures the WebSocket connection's network dialer.
+	WebSocketNetDialContext func(context.Context, string, string) (net.Conn, error)
 
 	// User authentication credentials (username/password or bearer token)
 	Credentials corehttp.Credentials
@@ -162,6 +166,7 @@ func NewYamcsClientWithContext(
 	client.WebSocket = ws.NewWebSocketHandler(wsURL, client.UseProtobuf)
 	client.WebSocket.Credentials = credentials
 	client.WebSocket.TLSConfig = client.WebSocketTLSConfig
+	client.WebSocket.NetDialContext = client.WebSocketNetDialContext
 
 	client.WebSocket.SetListener(ws.ParameterListenerID, client.HandleParameterMessage)
 	client.WebSocket.SetListener(ws.EventListenerID, client.HandleEventMessage)
@@ -310,6 +315,13 @@ func OptionSetHTTPClient(httpClient *http.Client) YamcsClientOption {
 func OptionSetWebSocketTLSConfig(tlsConfig *tls.Config) YamcsClientOption {
 	return func(client *YamcsClient) {
 		client.WebSocketTLSConfig = tlsConfig
+	}
+}
+
+// OptionSetWebSocketNetDialContext configures the WebSocket network dialer.
+func OptionSetWebSocketNetDialContext(dialContext func(context.Context, string, string) (net.Conn, error)) YamcsClientOption {
+	return func(client *YamcsClient) {
+		client.WebSocketNetDialContext = dialContext
 	}
 }
 

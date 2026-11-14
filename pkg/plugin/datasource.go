@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gorilla/mux"
 
@@ -24,6 +25,15 @@ func NewDatasource(ctx context.Context, settings backend.DataSourceInstanceSetti
 	cfg, secure, err := config.ExtractConfig(settings)
 	if err != nil {
 		return nil, exception.Wrap("Error loading plugin configuration", "CONFIGURATION_LOAD_ERROR", err)
+	}
+	for hostID, host := range cfg.Hosts {
+		if err := host.Validate(cfg); err != nil {
+			return nil, exception.Wrap(
+				fmt.Sprintf("Invalid Yamcs host configuration %q", hostID),
+				"HOST_CONFIGURATION_INVALID",
+				err,
+			)
+		}
 	}
 	opts, err := settings.HTTPClientOptions(ctx)
 	if err != nil {

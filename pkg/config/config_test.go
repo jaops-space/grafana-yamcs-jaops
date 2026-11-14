@@ -43,3 +43,19 @@ func TestExtractConfigRejectsMalformedJSONAndNullEntries(t *testing.T) {
 		})
 	}
 }
+
+func TestInvalidHostAddressIsNotIncludedInDisplayNameOrValidationError(t *testing.T) {
+	const address = "user:secret@example.com:8090"
+	host := &YamcsHostConfiguration{Path: address}
+
+	if got := host.DisplayName(); got != "host at <invalid address>" {
+		t.Fatalf("unexpected display name: %q", got)
+	}
+	err := host.Validate(&YamcsPluginConfiguration{})
+	if err == nil {
+		t.Fatal("expected invalid host address error")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("validation error exposed host credentials: %q", err)
+	}
+}
