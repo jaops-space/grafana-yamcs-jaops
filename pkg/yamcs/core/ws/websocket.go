@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,7 @@ import (
 type WebSocketHandler struct {
 	Credentials      corehttp.Credentials
 	TLSConfig        *tls.Config
+	NetDialContext   func(context.Context, string, string) (net.Conn, error)
 	connection       *websocket.Conn
 	isConnected      atomic.Int32
 	useProtobuf      bool
@@ -90,6 +92,9 @@ func (ws *WebSocketHandler) Connect(ctx context.Context) error {
 	dialer.HandshakeTimeout = time.Duration(ws.handshakeTimeout) * time.Second
 	if ws.TLSConfig != nil {
 		dialer.TLSClientConfig = ws.TLSConfig.Clone()
+	}
+	if ws.NetDialContext != nil {
+		dialer.NetDialContext = ws.NetDialContext
 	}
 	if ws.useProtobuf {
 		dialer.Subprotocols = []string{"protobuf"}
