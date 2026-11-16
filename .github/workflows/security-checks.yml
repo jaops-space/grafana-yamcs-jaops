@@ -27,10 +27,10 @@ jobs:
       }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -58,7 +58,7 @@ jobs:
 
       - name: Upload raw security artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-reports-${{ github.run_id }}
           path: |
@@ -178,7 +178,7 @@ jobs:
 
       - name: Upload PR security comment
         if: always() && github.event_name == 'pull_request' && steps.pr-comment.outputs.has_findings == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-comment-${{ github.run_id }}
           path: pr-security-comment.md
@@ -205,14 +205,14 @@ jobs:
     steps:
       - name: Download PR security comment
         if: needs.security.outputs.has_findings == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: security-comment-${{ github.run_id }}
           path: .
 
       - name: Post PR security comment
         if: needs.security.outputs.has_findings == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('node:fs');
@@ -246,7 +246,7 @@ jobs:
 
       - name: Delete PR security comment when clean
         if: needs.security.outputs.has_findings == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const marker = '<!-- security-checks-comment -->';

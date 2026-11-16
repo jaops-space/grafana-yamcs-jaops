@@ -34,7 +34,7 @@ jobs:
         outputs:
             sha: ${{ steps.base.outputs.sha }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
             - name: Determine benchmark base commit
@@ -62,16 +62,16 @@ jobs:
         needs: resolve-base
         if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v7
+            - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
                   cache: false
-            - uses: actions/setup-python@v5
+            - uses: actions/setup-python@v7
               with:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
                   ref: ${{ needs.resolve-base.outputs.sha }}
@@ -89,7 +89,7 @@ jobs:
                   fi
             - name: Run microbenchmarks
               run: python3 scripts/benchmarks/micro/run.py --output-dir benchmark-output/microbenchmarks/head
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: benchmark-micro
                   path: benchmark-output/microbenchmarks
@@ -102,12 +102,12 @@ jobs:
         needs: resolve-base
         if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v7
+            - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
                   cache: false
-            - uses: actions/setup-python@v5
+            - uses: actions/setup-python@v7
               with:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
@@ -119,7 +119,7 @@ jobs:
                   cd docker
                   docker compose up -d yamcs
                   timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
                   ref: ${{ needs.resolve-base.outputs.sha }}
@@ -156,7 +156,7 @@ jobs:
             - name: Stop scenario services
               if: always()
               run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: always()
               with:
                   name: benchmark-scenario
@@ -170,12 +170,12 @@ jobs:
         needs: resolve-base
         if: ${{ always() && needs.resolve-base.result == 'success' }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v3
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with:
                   node-version: "24"
-            - uses: actions/setup-go@v5
+            - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
                   cache: false
@@ -188,7 +188,7 @@ jobs:
                   cd docker
                   docker compose up -d yamcs
                   timeout 90 bash -c 'until curl -fsS http://localhost:8090/api/instances >/dev/null; do sleep 2; done'
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               if: ${{ needs.resolve-base.outputs.sha != '' }}
               with:
                   ref: ${{ needs.resolve-base.outputs.sha }}
@@ -252,7 +252,7 @@ jobs:
                   fi
                   docker compose down -v || true
                   docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: always()
               with:
                   name: benchmark-grafana
@@ -278,20 +278,20 @@ jobs:
             actions: read
             contents: read
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-python@v5
+            - uses: actions/checkout@v7
+            - uses: actions/setup-python@v7
               with:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: benchmark-scenario
                   path: artifacts/simulator
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: benchmark-micro
                   path: artifacts/microbenchmarks
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: benchmark-grafana
                   path: artifacts/grafana
@@ -331,7 +331,7 @@ jobs:
                   print(f"should_comment={str(report.get('should_comment', True)).lower()}")
                   print(f"should_fail={str(report.get('should_fail', status == 'fail')).lower()}")
                   PY
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: always()
               with:
                   name: benchmark-${{ github.run_id }}
@@ -361,14 +361,14 @@ jobs:
             issues: write
             pull-requests: write
         steps:
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: benchmark-${{ github.run_id }}
                   path: benchmark-output
             - name: Publish benchmark plot images for PR artifacts
               id: publish-plots
               continue-on-error: true
-              uses: actions/github-script@v8
+              uses: actions/github-script@v9
               with:
                   script: |
                       const fs = require('fs');
@@ -418,7 +418,7 @@ jobs:
                       core.setOutput('plots-base-url', `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${prefix}`);
             - name: Comment benchmark result
               continue-on-error: true
-              uses: actions/github-script@v8
+              uses: actions/github-script@v9
               env:
                   PLOTS_BASE_URL: ${{ steps.publish-plots.outputs.plots-base-url }}
               with:

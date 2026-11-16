@@ -25,12 +25,12 @@ jobs:
         env:
             GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
             # pnpm action uses the packageManager field in package.json to
             # understand which version to install.
-            - uses: pnpm/action-setup@v3
+            - uses: pnpm/action-setup@v6
             - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: '24'
 
@@ -64,20 +64,20 @@ jobs:
 
             - name: Setup Go environment
               if: steps.check-for-backend.outputs.has-backend == 'true'
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
 
             - name: Test backend
               if: steps.check-for-backend.outputs.has-backend == 'true'
-              uses: magefile/mage-action@v3
+              uses: magefile/mage-action@v4
               with:
                   version: latest
                   args: coverage
 
             - name: Build backend
               if: steps.check-for-backend.outputs.has-backend == 'true'
-              uses: magefile/mage-action@v3
+              uses: magefile/mage-action@v4
               with:
                   version: latest
                   args: buildAll
@@ -125,7 +125,7 @@ jobs:
                     grafana/plugin-validator-cli -analyzer=metadatavalid /archive.zip
 
             - name: Archive Build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ steps.metadata.outputs.plugin-id }}-${{ steps.metadata.outputs.plugin-version }}
                   path: ${{ steps.metadata.outputs.plugin-id }}
@@ -133,7 +133,7 @@ jobs:
 
             - name: Upload stats.json artifact
               if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: main-branch-stats
                   path: stats.json
@@ -149,7 +149,7 @@ jobs:
             matrix: ${{ steps.resolve-versions.outputs.matrix }}
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
             - name: Resolve Grafana E2E versions
               id: resolve-versions
               uses: grafana/plugin-actions/e2e-version@main
@@ -160,10 +160,10 @@ jobs:
         timeout-minutes: 15
         needs: build
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - name: Setup Go environment
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
 
@@ -196,7 +196,7 @@ jobs:
 
             - name: Upload Yamcs logs
               if: ${{ failure() }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: yamcs-integration-logs-${{ github.run_id }}
                   path: yamcs-integration.log
@@ -216,10 +216,10 @@ jobs:
         name: e2e test ${{ matrix.GRAFANA_IMAGE.name }}@${{ matrix.GRAFANA_IMAGE.VERSION }}
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - name: Download plugin
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   path: dist
                   name: ${{ needs.build.outputs.plugin-id }}-${{ needs.build.outputs.plugin-version }}
@@ -231,9 +231,9 @@ jobs:
 
             # pnpm action uses the packageManager field in package.json to
             # understand which version to install.
-            - uses: pnpm/action-setup@v3
+            - uses: pnpm/action-setup@v6
             - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: '24'
 
@@ -303,7 +303,7 @@ jobs:
                   docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v
 
             - name: Upload server log
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               if: ${{ always() && steps.run-tests.outcome == 'failure' }}
               with:
                   name: ${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}-server-log
@@ -315,7 +315,7 @@ jobs:
             # Uncomment this step to upload the Playwright report to Github artifacts.
             # If your repository is public, the report will be public on the Internet so beware not to expose sensitive information.
             - name: Upload artifacts
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               if: ${{ always() && steps.run-tests.outcome == 'failure' }}
               with:
                   name: playwright-report-${{ matrix.GRAFANA_IMAGE.NAME }}-v${{ matrix.GRAFANA_IMAGE.VERSION }}-${{github.run_id}}
