@@ -17,11 +17,11 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 25
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v7
+            - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
-            - uses: actions/setup-python@v5
+            - uses: actions/setup-python@v7
               with:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
@@ -38,7 +38,7 @@ jobs:
             - name: Stop Yamcs quickstart
               if: always()
               run: docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: refresh-simulator-baseline
                   path: benchmark-output/simulator
@@ -49,17 +49,17 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v7
+            - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
-            - uses: actions/setup-python@v5
+            - uses: actions/setup-python@v7
               with:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
             - name: Refresh microbenchmarks baseline
               run: python3 scripts/benchmarks/micro/run.py --output-dir benchmark-output/microbenchmarks
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: refresh-microbenchmarks-baseline
                   path: benchmark-output/microbenchmarks
@@ -70,13 +70,13 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 35
         steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v3
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with:
                   node-version: "24"
                   cache: "pnpm"
-            - uses: actions/setup-go@v5
+            - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
             - run: pnpm install --frozen-lockfile --prefer-offline
@@ -108,7 +108,7 @@ jobs:
               run: |
                   docker compose down -v || true
                   docker compose -f /tmp/yamcs-quickstart/docker/docker-compose.yml down -v || true
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               if: always()
               with:
                   name: refresh-grafana-baseline
@@ -120,22 +120,22 @@ jobs:
         runs-on: ubuntu-latest
         needs: [refresh-simulator-baseline, refresh-microbenchmarks-baseline, refresh-grafana-baseline]
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
-            - uses: actions/setup-python@v5
+            - uses: actions/setup-python@v7
               with:
                   python-version: "3.12"
             - run: pip install -r scripts/benchmarks/requirements.txt
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: refresh-simulator-baseline
                   path: artifacts/simulator
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: refresh-microbenchmarks-baseline
                   path: artifacts/microbenchmarks
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   name: refresh-grafana-baseline
                   path: artifacts/grafana
@@ -171,7 +171,7 @@ jobs:
                       json.dump(metadata, fp, indent=2)
                       fp.write("\n")
                   PY
-            - uses: peter-evans/create-pull-request@v7
+            - uses: peter-evans/create-pull-request@v8
               with:
                   branch: chore/refresh-benchmark-baseline
                   delete-branch: true
