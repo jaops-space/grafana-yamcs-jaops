@@ -64,7 +64,8 @@ type YamcsHost struct {
 	// to exit. Closed by the Multiplexer that started it (see Dispose).
 	stopManager chan struct{}
 
-	managerOnce sync.Once
+	managerOnce   sync.Once
+	discoveryOnce sync.Once
 }
 
 func (host *YamcsHost) Name() string {

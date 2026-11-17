@@ -33,10 +33,16 @@ func (d *Datasource) handleFetchSources(w http.ResponseWriter, req *http.Request
 	}
 
 	response := make(map[string]any)
-	for endpointID, endpoint := range d.multiplexer.Endpoints {
-		object := map[string]any{}
-		object["name"] = endpoint.Name()
-		object["description"] = endpoint.Configuration.Description
+	// A snapshot: discovery adds endpoints while the datasource runs.
+	for endpointID, endpoint := range d.multiplexer.ListEndpoints() {
+		object := map[string]any{
+			"name":        endpoint.Name(),
+			"description": endpoint.Configuration.Description,
+			"instance":    endpoint.Configuration.Instance,
+			"host":        endpoint.Configuration.Host,
+			"labels":      endpoint.Labels(),
+			"discovered":  endpoint.Discovered,
+		}
 		object["online"] = false
 
 		cli, err := endpoint.GetClient()

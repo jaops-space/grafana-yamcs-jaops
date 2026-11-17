@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog], and this project follows [Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- **Instance discovery.** A host with `discoverInstances` gets one endpoint for each running instance, connected to the instance's default (realtime) processor. The endpoint's ID is the instance's name, unless the host's `aliases` give it another one (e.g. `fm1: sat-1` names instance `fm1`'s endpoint `sat-1`). While connected, the plugin lists the host's instances again every 30 s: a new instance gets an endpoint, and an instance that moves to another discovering host of the same datasource keeps its endpoint. If an endpoint configured by hand has the same ID as a discovered one, the one configured by hand is used. This means a datasource needs only its servers, not every instance, and a dashboard refers to an endpoint by the same ID in every Grafana that sees the same instances. `fetch/endpoints` now also returns each endpoint's instance, host and instance labels, and whether it was discovered.
+
+### Changed
+
+- A host's instance list is replaced at each listing, so removed instances no longer linger.
+
 ## [1.1.11] - 2026-11-14
 
 ### Fixed
