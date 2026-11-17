@@ -40,6 +40,24 @@ type YamcsHostConfiguration struct {
 	Auth        bool   `json:"authEnabled"`
 	Username    string `json:"username"`
 	Protobuf    bool   `json:"protobuf"`
+
+	// DiscoverInstances makes an endpoint for each instance of the host,
+	// on its realtime processor. The endpoint's ID is the instance's name,
+	// or its alias if Aliases has one. The endpoints are kept up to date
+	// while the datasource runs. An endpoint configured by hand takes
+	// precedence over a discovered one with the same ID.
+	DiscoverInstances bool `json:"discoverInstances"`
+	// Aliases maps an instance name to the ID of its discovered endpoint
+	// (e.g. fm1: sat-1), so dashboards made elsewhere work unchanged.
+	Aliases map[string]string `json:"aliases"`
+}
+
+// EndpointID returns the ID of the endpoint discovered for an instance.
+func (hcfg *YamcsHostConfiguration) EndpointID(instance string) string {
+	if a, ok := hcfg.Aliases[instance]; ok && a != "" {
+		return a
+	}
+	return instance
 }
 
 func (hcfg *YamcsHostConfiguration) DisplayName() string {

@@ -74,6 +74,10 @@ export interface Configuration extends DataSourceJsonData {
             tlsInsecure?: boolean;
             authEnabled: boolean;
             username?: string;
+            /** Make an endpoint per instance of the host, named after it (or its alias). */
+            discoverInstances?: boolean;
+            /** Instance name to endpoint ID, for discovered endpoints. */
+            aliases?: Record<string, string>;
         }
     >;
 
@@ -138,6 +142,10 @@ export interface EndpointInfo {
     online: boolean;
     name: string;
     description: string;
+    instance?: string;
+    host?: string;
+    labels?: Record<string, string>;
+    discovered?: boolean;
 }
 
 export type ValueOf<T> = {
