@@ -4,49 +4,7 @@ Local installation:
 
 - use to contribute to the development of the plugin
 - use while it is not officially available from the Grafana marketplace (in progress)
-
 ### Pre-requisites
-
-To try out the plugin on a local machine, you will need the following tools:
-
-- Go 1.23+
-
-```bash
-# Remove any old version, download and install latest
-# Note: if you are on arm/mac silicon then adjust the architecture accordingly
-sudo rm -rf /usr/local/go
-curl -fsSL https://go.dev/dl/go1.24.2.linux-amd64.tar.gz -o go.tar.gz
-sudo tar -C /usr/local -xzf go.tar.gz
-rm go.tar.gz
-
-# Add to PATH (add to ~/.bashrc for persistence)
-export PATH=$PATH:/usr/local/go/bin
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-```
-
-- [Mage](https://magefile.org/)
-
-```bash
-# Install using Go
-go install github.com/magefile/mage@latest
-
-# Ensure ~/go/bin is in PATH
-echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
-source ~/.bashrc
-```
-
-- Node.js (with NPM or PNPM)
-
-```bash
-# Install Node.js via nvm (recommended)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-source ~/.bashrc
-nvm install --lts
-
-# Install pnpm
-corepack enable
-corepack prepare pnpm@latest --activate
-```
 
 - Docker
 
@@ -62,7 +20,24 @@ newgrp docker
 > [!IMPORTANT]  
 > If you want to set-up the plugin in a Windows environment, you will need to run the plugin inside WSL2, so you will need WSL2 installed, and have the tools above all installed in the WSL2 environment
 
-### Set up the plugin
+### Set up and run the plugin easily (with pixi)
+
+[pixi](https://pixi.sh) installs Node.js, pnpm and Go for you
+
+```bash
+# Build the front-end and the back-end. Pixi skips a build when its source did not change.
+pixi run build
+
+# Build, then start Grafana (same as pnpm run server)
+pixi run server
+```
+
+Note: `pixi run server-dev` is the same as `pnpm run server:dev`. 
+See `pixi.toml` for details.
+
+
+### Set up the plugin (manually)
+For power users / when not using pixi:
 
 1. Install back-end and front-end dependencies using the following:
 
@@ -87,7 +62,9 @@ newgrp docker
 > for development, it's convenient to run the front-end in dev mode (watches for changes)
 > use `pnpm run dev` instead
 
-### Run the plugin
+### Run the plugin (manually)
+For power users / when not using pixi:
+
 
 Run the back-end and front-end with a Grafana instance
 

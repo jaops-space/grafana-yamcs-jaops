@@ -51,3 +51,7 @@ jaops-yamcs-app.zip
 TESTING_SPECS.md
 # Local scratch/preview files (not committed)
 .tmp/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml
