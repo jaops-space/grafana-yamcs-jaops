@@ -1,0 +1,48 @@
+[workspace]
+name = "grafana-yamcs-jaops"
+description = "Build the Grafana Yamcs plugin and run it in the development Grafana container"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+# Versions follow .nvmrc / package.json (engines, packageManager) and go.mod.
+[dependencies]
+nodejs = "24.*"
+pnpm = "10.28.*"
+go = "1.27.*"
+
+[tasks.install]
+cmd = "pnpm install --frozen-lockfile"
+inputs = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"]
+outputs = ["node_modules/.modules.yaml"]
+
+[tasks.build-frontend]
+cmd = "pnpm run build"
+depends-on = ["install"]
+inputs = [
+    "src/**",
+    ".config/webpack/**",
+    "webpack.config.ts",
+    "tsconfig.json",
+    "package.json",
+    "pnpm-lock.yaml",
+]
+outputs = ["dist/module.js", "dist/plugin.json"]
+
+# mage is not on conda-forge. go.mod already pins it (indirect dependency).
+[tasks.build-backend]
+cmd = "go run github.com/magefile/mage -v build:backend"
+inputs = ["pkg/**", "go.mod", "go.sum", "Magefile.go", "src/plugin.json"]
+outputs = ["dist/gpx_grafana_yamcs_jaops_*"]
+
+[tasks.build]
+depends-on = ["build-frontend", "build-backend"]
+
+# Grafana on http://localhost:3000. Set COMPOSE_FILE to add a compose overlay.
+[tasks.server]
+cmd = "docker compose up --build"
+depends-on = ["build"]
+
+[tasks.server-dev]
+cmd = "docker compose up --build"
+env = { DEVELOPMENT = "true" }
+depends-on = ["build"]
