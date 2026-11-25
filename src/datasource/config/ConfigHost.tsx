@@ -5,6 +5,23 @@ import React, { ChangeEvent, useState } from 'react';
 import { Configuration, ItemStatus } from '../types';
 import { getStatusView } from './tools';
 
+export function aliasesToText(aliases?: Record<string, string>): string {
+    return Object.entries(aliases ?? {})
+        .map(([instance, id]) => `${instance}=${id}`)
+        .join('\n');
+}
+
+export function textToAliases(text: string): Record<string, string> {
+    const aliases: Record<string, string> = {};
+    for (const line of text.split('\n')) {
+        const [instance, id] = line.split('=').map((s) => s.trim());
+        if (instance && id) {
+            aliases[instance] = id;
+        }
+    }
+    return aliases;
+}
+
 interface Props {
     onChange: (index: string, key: string, value: any) => void;
     removeHost: (index: string) => void;
@@ -78,6 +95,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
 export default function ConfigHost({ index, data, onChange, removeHost, setSecure, getSecure, status }: Props) {
     const styles = useStyles2(getStyles);
     const host = data.hosts[index];
+    const [aliasText, setAliasText] = useState(() => aliasesToText(host?.aliases));
     const password = getSecure(index, 'password');
     const [editing, setEditing] = useState(false);
 
@@ -196,6 +214,14 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                         )}
 
                         <Checkbox
+                            value={Boolean(host.discoverInstances)}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                onChange(index, 'discoverInstances', e.target.checked)
+                            }
+                            label="Discover instances: an endpoint per instance, named after it"
+                        />
+
+                        <Checkbox
                             value={host.authEnabled}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                                 onChange(index, 'authEnabled', e.target.checked)
@@ -203,6 +229,22 @@ export default function ConfigHost({ index, data, onChange, removeHost, setSecur
                             label="Enable Basic Authentication"
                         />
                     </Stack>
+
+                    {host.discoverInstances && (
+                        <Field
+                            label="Aliases"
+                            description="One per line, instance=endpoint ID (fm1=sat-1): the ID a discovered instance gets, so dashboards made elsewhere work unchanged."
+                        >
+                            <TextArea
+                                value={aliasText}
+                                rows={3}
+                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                                    setAliasText(e.target.value);
+                                    onChange(index, 'aliases', textToAliases(e.target.value));
+                                }}
+                            />
+                        </Field>
+                    )}
 
                     {host.authEnabled && (
                         <div className={styles.formGrid}>

@@ -42,6 +42,8 @@ type YamcsEndpoint struct {
 
 	ID         string
 	Parameters map[string]*ParameterDemand
+	// Discovered: made by instance discovery, not configured.
+	Discovered bool
 
 	// Events/CommandHistorySignals/LinkSignals are instance-wide broadcast
 	// streams: every stream (panel) watching a given type sees the exact

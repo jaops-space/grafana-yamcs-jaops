@@ -122,8 +122,8 @@ func (d *Datasource) validateConfigItems(y *config.YamcsPluginConfiguration) (*H
 		return details, true, fmt.Errorf("no hosts configured")
 	}
 
-	if len(y.Endpoints) == 0 {
-		return details, true, fmt.Errorf("no endpoints configured")
+	if len(y.Endpoints) == 0 && !source.Discovers(y) {
+		return details, true, fmt.Errorf("no endpoints configured (and no host discovers instances)")
 	}
 
 	for hostID, host := range y.Hosts {
@@ -207,7 +207,7 @@ func (d *Datasource) applyConnectivityChecks(
 		connectivityCfg.Endpoints[epID] = ep
 	}
 
-	if len(connectivityCfg.Endpoints) == 0 {
+	if len(connectivityCfg.Endpoints) == 0 && !source.Discovers(cfg) {
 		return nil
 	}
 
@@ -243,6 +243,19 @@ func (d *Datasource) applyConnectivityChecks(
 			backend.Logger.Warn("Endpoint health check failed", "endpointID", epID, "error", err)
 			details.Endpoints[epID] = errorStatus(connectionFailureMessage(err))
 			details.ErrorEndpoints = append(details.ErrorEndpoints, ep.DisplayName())
+			continue
+		}
+		details.Endpoints[epID] = okStatus()
+	}
+
+	for epID, ep := range testMux.ListEndpoints() {
+		if !ep.Discovered {
+			continue
+		}
+		details.TotalEndpoints++
+		if err, hasError := epsErrors[epID]; hasError {
+			details.Endpoints[epID] = errorStatus(connectionFailureMessage(err))
+			details.ErrorEndpoints = append(details.ErrorEndpoints, epID)
 			continue
 		}
 		details.Endpoints[epID] = okStatus()

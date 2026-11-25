@@ -142,25 +142,30 @@ func NewMultiplexerWithContext(ctx context.Context, cfg *config.YamcsPluginConfi
 			return nil, exception.New(fmt.Sprintf("Host %s (for endpoint %s) not found", endpointHostID, endpointID), "ENDPOINT_HOST_NOT_FOUND")
 		}
 
-		mux.Endpoints[endpointID] = &YamcsEndpoint{
-			Configuration:         endpointCfg,
-			Multiplexer:           mux,
-			Host:                  host,
-			Parameters:            make(map[string]*ParameterDemand),
-			Events:                make(map[string]*BroadcastStreamDemand[*events.Event]),
-			CommandHistorySignals: make(map[string]*BroadcastStreamDemand[*commanding.CommandHistoryEntry]),
-			Alarms:                make(map[string][]*alarms.AlarmData),
-			AlarmSignals:          make(map[string]chan struct{}),
-			LinkSignals:           make(map[string]*BroadcastStreamDemand[*links.LinkEvent]),
-			AlarmCache:            make(map[string]*alarms.AlarmData),
-			EventsRing:            types.NewRing[*events.Event](BroadcastRingCapacity),
-			CommandHistoryRing:    types.NewRing[*commanding.CommandHistoryEntry](BroadcastRingCapacity),
-			LinksRing:             types.NewRing[*links.LinkEvent](BroadcastRingCapacity),
-			ID:                    endpointID,
-		}
+		mux.Endpoints[endpointID] = mux.newEndpoint(endpointID, endpointCfg, host)
 	}
 
 	return mux, nil
+}
+
+// newEndpoint makes an endpoint of a host, not connected yet.
+func (mux *Multiplexer) newEndpoint(endpointID string, endpointCfg *config.YamcsEndpointConfiguration, host *YamcsHost) *YamcsEndpoint {
+	return &YamcsEndpoint{
+		Configuration:         endpointCfg,
+		Multiplexer:           mux,
+		Host:                  host,
+		Parameters:            make(map[string]*ParameterDemand),
+		Events:                make(map[string]*BroadcastStreamDemand[*events.Event]),
+		CommandHistorySignals: make(map[string]*BroadcastStreamDemand[*commanding.CommandHistoryEntry]),
+		Alarms:                make(map[string][]*alarms.AlarmData),
+		AlarmSignals:          make(map[string]chan struct{}),
+		LinkSignals:           make(map[string]*BroadcastStreamDemand[*links.LinkEvent]),
+		AlarmCache:            make(map[string]*alarms.AlarmData),
+		EventsRing:            types.NewRing[*events.Event](BroadcastRingCapacity),
+		CommandHistoryRing:    types.NewRing[*commanding.CommandHistoryEntry](BroadcastRingCapacity),
+		LinksRing:             types.NewRing[*links.LinkEvent](BroadcastRingCapacity),
+		ID:                    endpointID,
+	}
 }
 
 func (mux *Multiplexer) GetEndpoint(endpointID string) (*YamcsEndpoint, error) {
@@ -209,6 +214,9 @@ func (mux *Multiplexer) StartConnectionManagers() {
 
 	for hostID, host := range hosts {
 		host.startConnectionManager(context.Background(), hostID, mux.finishHostConnect)
+		if host.Configuration != nil && host.Configuration.DiscoverInstances {
+			host.discoveryOnce.Do(func() { go mux.runDiscovery(hostID, host) })
+		}
 	}
 }
 
@@ -223,8 +231,7 @@ func resolveHostInstances(ctx context.Context, host *YamcsHost, cli *client.Yamc
 		return err
 	}
 
-	host.mu.Lock()
-	defer host.mu.Unlock()
+	known := make(map[string]*YamcsHostInstance, len(instances))
 	for _, instance := range instances {
 		hostInstance := &YamcsHostInstance{
 			Instance:   instance,
@@ -233,8 +240,11 @@ func resolveHostInstances(ctx context.Context, host *YamcsHost, cli *client.Yamc
 		for _, processor := range instance.Processors {
 			hostInstance.Processors[processor.GetName()] = processor
 		}
-		host.Instances[instance.GetName()] = hostInstance
+		known[instance.GetName()] = hostInstance
 	}
+	host.mu.Lock()
+	host.Instances = known
+	host.mu.Unlock()
 	return nil
 }
 
@@ -253,6 +263,8 @@ func (mux *Multiplexer) finishHostConnect(ctx context.Context, hostID string, ho
 		backend.Logger.Warn("Could not list instances after connect", "host", host.Name(), "error", err)
 		return
 	}
+
+	mux.discoverEndpoints(hostID, host)
 
 	mux.SyncMux.RLock()
 	var hostEndpoints []hostEndpoint
@@ -359,6 +371,7 @@ func (mux *Multiplexer) connectHostSync(
 		return
 	}
 
+	hostEndpoints = append(hostEndpoints, mux.discoverEndpoints(hostID, host)...)
 	for _, e := range hostEndpoints {
 		mux.connectEndpoint(ctx, e.ID, e.Endpoint, host, cli, subscribe, endpointErrors)
 	}
